@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Signaler un problème{% endblock %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'incidents:list' %}">Journal des dysfonctionnements</a> › Signaler un problème</nav>
+<div class="page-head"><div><h1>Signaler un problème</h1>
+  <p>Décrivez ce qui ne fonctionne pas, même si aucune erreur ne s'est affichée. Le signalement est enregistré dans le journal de ce poste, marqué « signalement manuel ». Il n'est envoyé nulle part.</p></div></div>
+<form method="post" enctype="multipart/form-data" class="card-soft" style="max-width: 48rem">{% csrf_token %}
+  <input type="hidden" name="from_path" value="{{ from_path }}">
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+  {% for field in form %}
+  <div class="mb-3">
+    <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}
+    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+    {% for e in field.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+  </div>
+  {% endfor %}
+  <p class="small text-muted">N'indiquez ni mot de passe ni clé d'accès : s'ils sont repérés, ils sont masqués avant l'enregistrement.</p>
+  <button class="btn btn-primary">Enregistrer le signalement</button>
+</form>
+{% endblock %}

@@ -167,9 +167,15 @@ def import_new(request):
         try:
             services.analyze_import(job)
         except Exception as exc:
+            from apps.incidents.services import record_exception
+
             job.status = "failed"
             job.errors = [{"row": None, "error": f"Lecture impossible : {exc}"}]
             job.save()
+            record_exception(exc, module="importation", operation=f"Lecture du fichier d'import n°{job.pk}",
+                             source_code=job.catalogue.code if job.catalogue_id else "", category="erreur_traitement",
+                             severity="warning", origin="traitement",
+                             extra={"format": job.format, "preset": job.preset, "taille_octets": upload.size})
             messages.error(request, f"Le fichier n'a pas pu être lu : {exc}")
         log_action(request, "import.upload", job, upload.name)
         return redirect(job.get_absolute_url())

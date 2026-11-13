@@ -33,6 +33,7 @@
         <li class="nav-item"><a class="nav-link {% if path == '/bibliotheque/' or '/bibliotheque/entree' in path %}active{% endif %}" href="{% url 'library:index' %}"><i class="bi bi-bookmark"></i> Bibliothèque</a></li>
         <li class="nav-item"><a class="nav-link {% if '/dossiers/' in path %}active{% endif %}" href="{% url 'library:collections' %}"><i class="bi bi-folder2-open"></i> Dossiers</a></li>
         <li class="nav-item"><a class="nav-link {% if '/sources/' in path or '/mises-a-jour/' in path %}active{% endif %}" href="{% url 'connectors:list' %}"><i class="bi bi-diagram-3"></i> Sources</a></li>
+        <li class="nav-item"><a class="nav-link {% if '/journal/' in path %}active{% endif %}" href="{% url 'incidents:list' %}" title="Journal des dysfonctionnements"><i class="bi bi-journal-medical"></i> Dysfonctionnements{% if incidents_new_count %} <span class="badge rounded-pill text-bg-danger nav-badge" title="{{ incidents_new_count }} nouvel(s) incident(s) de gravité Erreur ou Critique">{{ incidents_new_count }}</span>{% endif %}</a></li>
         {% if user.is_admin_role %}
         <li class="nav-item"><a class="nav-link {% if '/administration/' in path %}active{% endif %}" href="{% url 'core:admin_hub' %}"><i class="bi bi-gear"></i> Administration</a></li>
         {% endif %}
@@ -78,7 +79,7 @@
 </main>
 <footer class="app-footer">
   <div class="container-xl d-flex flex-wrap justify-content-between gap-2 small">
-    <span>Japon — Explorateur documentaire · v{{ APP_VERSION }}</span>
+    <span>Japon — Explorateur documentaire · v{{ APP_VERSION }}{% if user.is_authenticated %} · <a href="{% url 'incidents:report' %}?from={{ request.path|urlencode }}">Signaler un problème</a>{% endif %}</span>
     <span>Les données restent la propriété de leurs institutions ; vérifiez les notices auprès des catalogues d'origine.</span>
   </div>
 </footer>

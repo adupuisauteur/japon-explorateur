@@ -58,7 +58,8 @@ class SearchTests(AppTestCase):
     def test_at03_provenance_and_tolerance_to_failing_connector(self):
         ConnectorHTTP.transport = httpx.MockTransport(failing_transport)
         session = self._session(sources=("local", "ndl"))
-        self.assertEqual(session.source_stats["ndl"]["status"], "error")
+        # 1.2.0 (§2.7) : une source qui répond HTTP 503 est « indisponible », et non plus « erreur » générique.
+        self.assertEqual(session.source_stats["ndl"]["status"], "unavailable")
         self.assertEqual(session.source_stats["local"]["status"], "ok")
         self.assertEqual(session.status, "partial")
         self.assertTrue(session.results.filter(catalogue__code="local").exists())

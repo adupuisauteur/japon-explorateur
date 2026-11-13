@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Trouver une base Japan Search{% endblock %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'connectors:list' %}">Sources</a> › <a href="{% url 'connectors:detail' 'japansearch' %}">Japan Search</a> › Trouver une base</nav>
+<div class="page-head"><div><h1>Trouver une base Japan Search</h1>
+  <p>Japan Search regroupe les catalogues de nombreuses institutions japonaises (archives nationales et préfectorales, universités, musées…). Cherchez une institution ou une collection, puis créez une source qui n'interroge que cette base, avec l'API officielle de Japan Search. La recherche ne s'effectue que lorsque vous cliquez sur « Chercher ».</p></div></div>
+<form method="get" class="card-soft d-flex flex-wrap gap-2 align-items-end mb-3" style="max-width: 44rem">
+  <div class="flex-grow-1"><label class="form-label" for="q">Institution ou collection (japonais conseillé)</label>
+    <input id="q" name="q" value="{{ q }}" class="form-control" placeholder="国立公文書館, 早稲田, 京都大学, 日文研, 公文書館…" required></div>
+  <button class="btn btn-primary"><i class="bi bi-search"></i> Chercher</button>
+</form>
+{% if error %}<div class="alert alert-warning">La liste des bases n'a pas pu être obtenue : {{ error }} L'incident a été ajouté au <a href="{% url 'incidents:list' %}?source=japansearch">journal des dysfonctionnements</a>.</div>{% endif %}
+{% if q and not error %}
+  {% if found %}
+  <div class="table-responsive"><table class="table table-sm align-middle">
+    <thead><tr><th>Base</th><th>Institution</th><th>Notices</th><th>API</th><th></th></tr></thead>
+    <tbody>{% for db in found %}<tr>
+      <td><span class="ja">{{ db.name }}</span>{% if db.name_en %}<div class="small text-muted">{{ db.name_en }}</div>{% endif %}<div class="small"><code>{{ db.id }}</code></div></td>
+      <td class="ja small">{{ db.provider|default:"—" }}</td>
+      <td class="small">{{ db.records|default:"?" }}</td>
+      <td>{% if db.api_ok %}<span class="chip chip-ok">diffusée</span>{% else %}<span class="chip chip-warn" title="L'institution n'autorise pas la diffusion de ces métadonnées par API">non diffusée</span>{% endif %}</td>
+      <td class="text-end">
+        {% if db.id in existing %}<span class="small text-muted">Déjà configurée</span>
+        {% elif db.api_ok %}
+        <form method="post" action="{% url 'connectors:jps_create_source' %}">{% csrf_token %}
+          <input type="hidden" name="db_id" value="{{ db.id }}"><input type="hidden" name="name" value="{{ db.name }}">
+          <input type="hidden" name="provider" value="{{ db.provider }}"><input type="hidden" name="url" value="{{ db.url }}">
+          <button class="btn btn-sm btn-outline-primary">Créer une source</button></form>
+        {% else %}<span class="small text-muted">Consultation externe uniquement</span>{% endif %}
+      </td></tr>{% endfor %}</tbody></table></div>
+  {% else %}<div class="empty">Aucune base ne correspond à « {{ q }} ». Essayez le nom japonais de l'institution.</div>{% endif %}
+{% endif %}
+{% endblock %}

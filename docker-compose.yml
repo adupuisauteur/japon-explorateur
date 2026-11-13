@@ -2,14 +2,18 @@
 #   docker compose up -d --build      puis ouvrir http://localhost:8000
 # Les mêmes images servent ensuite sur un serveur Linux (voir docs/deploiement.md).
 
-# Nom fixe : les volumes de données restent les mêmes même si le dossier est renommé.
-name: japon-explorateur
+# Version 1.2.0 — installation d'essai INDÉPENDANTE de l'installation principale.
+# Le nom du projet (donc des conteneurs et des volumes de données) vient de COMPOSE_PROJECT_NAME
+# (fichier .env) ; par défaut « japon-explorateur-essai ». L'installation principale s'appelle
+# « japon-explorateur » : ses volumes ne sont jamais touchés par cette installation.
+name: ${COMPOSE_PROJECT_NAME:-japon-explorateur-essai}
 
 x-app: &app
   build:
     context: .
     dockerfile: docker/Dockerfile
-  image: japon-explorateur:1.0
+  # Étiquette d'image propre à la 1.2.0 : l'image de l'installation principale n'est pas remplacée.
+  image: japon-explorateur:1.2.0
   env_file: .env
   environment:
     DATABASE_URL: postgres://japon:${POSTGRES_PASSWORD:?définir POSTGRES_PASSWORD dans .env}@db:5432/japon
@@ -45,7 +49,7 @@ services:
     <<: *app
     ports:
       # Écoute sur la boucle locale uniquement. Pour un accès réseau, passer par un reverse proxy HTTPS.
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:${WEB_PORT:-8001}:8000"
     healthcheck:
       test: ["CMD", "curl", "-fs", "http://localhost:8000/hors-ligne/"]
       interval: 30s

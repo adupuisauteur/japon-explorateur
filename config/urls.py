@@ -17,6 +17,7 @@ urlpatterns = [
     path("exports/", include("apps.exports.urls")),
     path("ia/", include("apps.ai.urls")),
     path("administration/sauvegardes/", include("apps.backups.urls")),
+    path("journal/", include("apps.incidents.urls")),
     path("gestion-interne/", admin.site.urls),
     # PWA : le service worker doit être servi à la racine pour couvrir tout le site.
     path("sw.js", core_views.service_worker, name="service_worker"),

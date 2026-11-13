@@ -17,7 +17,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 env = environ.Env()
 environ.Env.read_env(BASE_DIR / ".env", overwrite=False)
 
-APP_VERSION = "1.0.0"
+# Numéro de version unique : fichier VERSION à la racine (application, rapports, archive livrée).
+APP_VERSION = (BASE_DIR / "VERSION").read_text(encoding="utf-8").strip()
 DATA_SCHEMA_VERSION = "1.0"
 
 TESTING = len(sys.argv) > 1 and sys.argv[1] == "test"
@@ -64,6 +65,7 @@ INSTALLED_APPS = [
     "apps.exports",
     "apps.ai",
     "apps.backups",
+    "apps.incidents",
 ]
 
 MIDDLEWARE = [
@@ -189,6 +191,8 @@ PDF_FALLBACK_FONTS = env.list("PDF_FALLBACK_FONTS", default=[]) + [
 ]
 
 # Connecteurs externes
+# Identifiant d'application CiNii (gratuit, nominatif) : uniquement dans .env, jamais en base ni dans les journaux.
+CINII_APPID = env("CINII_APPID", default="")
 CONNECTOR_USER_AGENT = env(
     "CONNECTOR_USER_AGENT",
     default=f"JaponExplorateurDocumentaire/{APP_VERSION} (usage de recherche personnel)",

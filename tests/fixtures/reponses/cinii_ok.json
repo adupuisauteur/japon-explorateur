@@ -1,0 +1,21 @@
+{"@context": {"@vocab": "https://cir.nii.ac.jp/schema/1.0/", "dc": "http://purl.org/dc/elements/1.1/",
+              "prism": "http://prismstandard.org/namespaces/basic/2.0/", "opensearch": "http://a9.com/-/spec/opensearch/1.1/",
+              "@language": "ja"},
+ "@id": "https://cir.nii.ac.jp/opensearch/all?q=望月千代女&format=json",
+ "@type": "channel", "title": "CiNii Research OpenSearch - 望月千代女",
+ "link": {"@id": "https://cir.nii.ac.jp/all?q=望月千代女"},
+ "dc:date": "2026-11-13T18:00:00+09:00",
+ "opensearch:totalResults": 2, "opensearch:startIndex": 1, "opensearch:itemsPerPage": 2,
+ "items": [
+  {"@id": "https://cir.nii.ac.jp/crid/1390000000000000001", "@type": "item",
+   "title": "架空論文：戦国期の歩き巫女に関する試論", "link": {"@id": "https://cir.nii.ac.jp/crid/1390000000000000001"},
+   "rdfs:seeAlso": {"@id": "https://cir.nii.ac.jp/crid/1390000000000000001.json"},
+   "dc:creator": ["試験 一郎", "試験 二郎"], "dc:type": "Article", "prism:publicationName": "架空史学雑誌",
+   "prism:publicationDate": "1999-03", "description": "架空の抄録。",
+   "dc:identifier": [{"@type": "cir:DOI", "@value": "10.0000/fictif.1"}],
+   "dc:subject": ["歩き巫女", "戦国時代"],
+   "dc:source": [{"@id": "https://example.org/fulltext/1", "dc:title": "架空リポジトリ"}]},
+  {"@id": "https://cir.nii.ac.jp/crid/1130000000000000002", "@type": "item",
+   "title": "架空図書 甲斐武田氏と信濃", "link": {"@id": "https://cir.nii.ac.jp/crid/1130000000000000002"},
+   "dc:creator": ["試験 三郎"], "dc:type": "Book", "dc:publisher": "架空出版", "prism:publicationDate": "2005"}
+ ]}

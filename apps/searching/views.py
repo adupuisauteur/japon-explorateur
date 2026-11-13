@@ -67,6 +67,13 @@ def quick(request):
 @require_POST
 def launch(request):
     chosen_variants = request.POST.getlist("variants")
+    # Variantes saisies librement (1.2.0) : graphies anciennes ou attestées que les règles ne devinent pas.
+    import re as _re
+
+    for v in _re.split(r"[;；、\n]+", request.POST.get("custom_variants", ""))[:10]:
+        v = v.strip()[:100]
+        if v and v not in chosen_variants:
+            chosen_variants.append(v)
     form = SearchForm(request.POST, user=request.user, extra_variants=chosen_variants)
     if not form.is_valid():
         return render(request, "searching/form.html", {"form": form, "unverified": _unverified_codes()}, status=400)
@@ -146,7 +153,11 @@ def _filtered_results(session, params):
         qs = qs.filter(Q(data__original_title__icontains=needle) | Q(data__creator_original__icontains=needle)
                        | Q(data__reading__icontains=needle))
     sort = params.get("sort") or "relevance"
+    if params.get("digital") == "1":
+        qs = qs.filter(data__norm__digital_access__in=["image", "fulltext"])
     order = {"title": ["data__original_title"], "source": ["catalogue__name", "rank"],
+             "author": ["data__creator_original", "rank"],
+             "institution": ["data__holding_institution_text", "catalogue__name", "rank"],
              "date": ["data__norm__composition_year_start", "data__norm__copy_year_start", "rank"],
              "collected": ["-collected_at"]}.get(sort, ["rank"])
     return qs.order_by(*order)

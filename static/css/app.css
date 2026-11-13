@@ -127,3 +127,24 @@ pre.json { background: #fff; border: 1px solid var(--line); border-radius: .5rem
   .result-card { padding: .85rem; }
   .btn-touch { padding: .55rem .9rem; }
 }
+
+/* 1.2.0 — états de recherche détaillés et journal des dysfonctionnements */
+.source-status.empty .dot { background: #8c97a3; }
+.source-status.unavailable .dot { background: #d79b00; }
+.source-status.unparsable .dot { background: #b02a1d; }
+.chip-sev-info { background: #e7f0fb; border-color: #b5cde9; color: #1f4e79; }
+.chip-sev-warning { background: #fff4dc; border-color: #ecd39b; color: var(--warn); }
+.chip-sev-error { background: #fbeaea; border-color: #e9b8b3; color: #8f1f15; }
+.chip-sev-critical { background: #8f1f15; border-color: #8f1f15; color: #fff; font-weight: 600; }
+.chip-st-nouveau, .chip-st-a_analyser { background: #fff; border-color: #c9c2b8; color: #3b3530; }
+.chip-st-en_cours { background: #e7f0fb; border-color: #b5cde9; color: #1f4e79; }
+.chip-st-corrige, .chip-st-a_verifier { background: #e9f4ec; border-color: #b9d8c1; color: var(--ok); }
+.chip-st-cloture { background: #eef0f3; color: var(--muted); }
+.incident-row { border-left: 4px solid var(--line); }
+.incident-row.sev-warning { border-left-color: #d79b00; }
+.incident-row.sev-error { border-left-color: #b02a1d; }
+.incident-row.sev-critical { border-left-color: #5c0f08; background: #fff7f6; }
+.incident-row.sev-info { border-left-color: #8aa4c4; }
+.diag-pre { white-space: pre-wrap; word-break: break-word; max-height: 32rem; overflow: auto; font-size: .82rem;
+  background: #fbfaf8; border: 1px solid var(--line); border-radius: .5rem; padding: .8rem; }
+.nav-badge { font-size: .65rem; vertical-align: top; }

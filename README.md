@@ -2,6 +2,10 @@
 
 Application web progressive (PWA) de recherche, de gestion et d'exploitation de ressources documentaires japonaises, développée d'après le cahier des charges v1.2 du 12 novembre 2026.
 
+**Version 1.2.0** (fichier `VERSION`) : sources documentaires enrichies et journal des dysfonctionnements. Voir `CHANGELOG.md` et le dossier `docs/evolution-1.2.0/` : guide d'installation Windows, guide d'utilisation, protocole de vérification, rapport technique, limitations.
+
+> **Installation d'essai 1.2.0 :** elle tourne à côté de l'installation principale, sur **http://localhost:8001**, avec son propre projet Docker (`japon-explorateur-essai`) et ses propres volumes. Suivez `docs/evolution-1.2.0/03-guide-installation-windows.md`.
+
 **Stack :** Django 5 · PostgreSQL · HTMX + Bootstrap 5 (sans framework front lourd) · Celery + Redis · Docker Compose · python-docx · ReportLab.
 
 ---
@@ -22,7 +26,7 @@ docker compose run --rm --no-deps web python manage.py generate_secrets
 # 3. Démarrer
 docker compose up -d --build
 
-# 4. Ouvrir http://localhost:8000
+# 4. Ouvrir http://localhost:8001   (installation d'essai 1.2.0 ; port réglable par WEB_PORT dans .env)
 ```
 
 Au premier accès, un **assistant de première configuration** crée le compte administrateur, enregistre le mode d'enregistrement par défaut (« Sélectif » recommandé), active la sauvegarde quotidienne et répertorie toutes les sources du §5.1. Il ouvre ensuite l'assistant d'import.
@@ -62,14 +66,18 @@ Des fichiers d'exemple **fictifs** (illustratifs, non bibliographiques) se trouv
 
 ## 3. Sources et connecteurs
 
-| Source | État livré | Méthode |
+| Source | État livré (1.2.0) | Méthode |
 |---|---|---|
-| Base locale | Disponible | Recherche PostgreSQL (index trigrammes) sur les champs normalisés |
-| **Kokusho Database** (国書データベース) | Partiel — **non vérifié en conditions réelles** | (1) notice par identifiant, DOI `10.20730/…` ou URL via le **manifeste IIIF officiel** ; (2) recherche plein texte via l'**API Japan Search** filtrée sur le fonds Kokusho ; (3) import de fichiers ; actualisation ciblée des notices déjà connues |
-| NDL Search | Disponible (désactivé par défaut) — **non vérifié en conditions réelles** | API OpenSearch officielle |
-| Japan Search | Partiel — **non vérifié en conditions réelles** | API web simple, adresse et paramètres configurables |
+| Base locale | Opérationnel | Recherche PostgreSQL (index trigrammes) sur les champs normalisés |
+| **NDL Search** | Développé et testé en simulation — **test réel à confirmer** | API OpenSearch officielle ; lien vers le document numérisé (dl.ndl.go.jp) |
+| **Japan Search** | Développé et testé en simulation — **test réel à confirmer** | API web simple officielle (variantes en OU, période, personne) |
+| **Archives nationales** | Développé et testé en simulation — **test réel à confirmer** | Japan Search, base `najda` |
+| **CiNii Research** et **CiNii bibliothèques universitaires** | Développé et testé en simulation — **test réel à confirmer** | API OpenSearch officielle ; identifiant gratuit `CINII_APPID` dans `.env` |
+| **Kokusho Database** (国書データベース) | Partiel — **test réel à confirmer** | Manifeste IIIF officiel + Japan Search filtré sur le fonds Kokusho |
 | CODH PMJT, classeur | Import | Fichiers fournis, instantané historique signalé |
-| NDL Digital, Archives nationales, Waseda, Kyoto, Tokyo HI/SHIPS, NIJL, Nichibunken… | À étudier | Répertoriés, prêts pour l'import ; connecteurs à écrire après étude technique et juridique |
+| Autres archives, universités, musées | Via « Trouver une base Japan Search » si l'institution y diffuse sa base, sinon consultation externe | Voir `docs/evolution-1.2.0/02-etude-sources.md` |
+
+Chaque source affiche dans une session : résultats, *aucun résultat* (ce n'est pas une erreur), *source indisponible*, *erreur technique* ou *réponse impossible à interpréter*. Les échecs sont enregistrés dans le **journal des dysfonctionnements** (menu « Dysfonctionnements »).
 
 Kokusho ne publie pas, à ma connaissance, d'API de recherche documentée. Le connecteur n'aspire donc aucune page HTML : il utilise le manifeste IIIF officiel de chaque notice et l'agrégateur national Japan Search. **À vérifier lors de la première mise en service**, car ces services n'étaient pas joignables depuis l'environnement de développement : l'adresse et les noms de paramètres de l'API Japan Search (modifiables dans *Sources → Japan Search / Kokusho → Paramètres du connecteur*), ainsi que les libellés de métadonnées des manifestes IIIF Kokusho. Le code de lecture est tolérant (IIIF v2 et v3, libellés japonais et anglais), et les tests le valident sur des réponses simulées.
 
@@ -112,9 +120,9 @@ Voir `docs/deploiement.md` : serveur Linux, mêmes images Docker, reverse proxy 
 ## 7. Tests
 
 ```bash
-python manage.py test tests            # 95 tests ; PostgreSQL recommandé (DATABASE_URL)
+python manage.py test tests            # 127 tests ; PostgreSQL recommandé (DATABASE_URL)
 ```
-Ils couvrent les critères d'acceptation AT-01 à AT-20 et AT-IA-01 à AT-IA-12 (correspondance détaillée dans `docs/conformite.md`). Les connecteurs et fournisseurs d'IA y sont testés sur des réponses simulées, sans appel réseau. `tests/test_audit_corrections.py` reproduit chacune des anomalies relevées par l'audit et vérifie qu'elle ne se produit plus.
+Ils couvrent les critères d'acceptation AT-01 à AT-20 et AT-IA-01 à AT-IA-12 (correspondance détaillée dans `docs/conformite.md`). Les connecteurs et fournisseurs d'IA y sont testés sur des réponses simulées, sans appel réseau. `tests/test_audit_corrections.py` reproduit chacune des anomalies relevées par l'audit et vérifie qu'elle ne se produit plus. `tests/test_evolution_120.py` couvre la 1.2.0 sur des réponses enregistrées (`tests/fixtures/reponses/`) : réponse normale, aucun résultat, indisponibilité, réponse mal formée, journal, export, conservation des données.
 
 ---
 

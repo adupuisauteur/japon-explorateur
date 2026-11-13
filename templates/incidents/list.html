@@ -1,0 +1,62 @@
+{% extends "base.html" %}{% load app_tags %}
+{% block title %}Journal des dysfonctionnements{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Journal des dysfonctionnements</h1>
+    <p>Les problèmes rencontrés par l'application sont enregistrés ici automatiquement : sources injoignables, réponses illisibles, erreurs de traitement… Une recherche <strong>sans résultat</strong> n'est pas un dysfonctionnement et n'apparaît pas ici. Le journal reste sur ce poste : rien n'est envoyé à l'extérieur.</p>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-primary" href="{% url 'incidents:report' %}"><i class="bi bi-megaphone"></i> Signaler un problème</a>
+    <a class="btn btn-outline-secondary" href="{% url 'incidents:analysis' %}"><i class="bi bi-bar-chart"></i> Analyse</a>
+    <a class="btn btn-outline-secondary" href="{% url 'incidents:export_list' %}?{{ querystring }}"><i class="bi bi-file-earmark-arrow-down"></i> Exporter un diagnostic</a>
+  </div>
+</div>
+
+<div class="d-flex flex-wrap gap-2 mb-3 small" aria-label="Incidents non résolus par gravité">
+  <span class="text-muted align-self-center">Non résolus :</span>
+  <a href="?status=ouverts&severity=critical" class="text-decoration-none">{% severity_chip "critical" "Critique" %} {{ open_counts|get_item:"critical"|default:0 }}</a>
+  <a href="?status=ouverts&severity=error" class="text-decoration-none">{% severity_chip "error" "Erreur" %} {{ open_counts|get_item:"error"|default:0 }}</a>
+  <a href="?status=ouverts&severity=warning" class="text-decoration-none">{% severity_chip "warning" "Avertissement" %} {{ open_counts|get_item:"warning"|default:0 }}</a>
+  <a href="?status=ouverts&severity=info" class="text-decoration-none">{% severity_chip "info" "Information" %} {{ open_counts|get_item:"info"|default:0 }}</a>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-3">
+    <form method="get" class="filters filters-sticky">
+      {% for field in form %}
+      <div class="mb-2"><label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}</div>
+      {% endfor %}
+      <div class="d-flex gap-2"><button class="btn btn-sm btn-primary">Filtrer</button><a class="btn btn-sm btn-light" href="{% url 'incidents:list' %}">Effacer</a></div>
+    </form>
+  </div>
+  <div class="col-lg-9">
+    <p class="small text-muted mb-2">{{ total }} incident(s){% if applied %} correspondant aux filtres{% endif %}. Les incidents semblables sont regroupés : la colonne « Fois » indique combien de fois le problème s'est produit.</p>
+    {% for i in page %}
+    <a href="{{ i.get_absolute_url }}" class="card-soft incident-row sev-{{ i.severity }} d-block text-decoration-none text-reset mb-2">
+      <div class="d-flex flex-wrap justify-content-between gap-2">
+        <div class="fw-semibold">{{ i.title }}</div>
+        <div class="d-flex flex-wrap gap-1">{% severity_chip i %} {% incident_status_chip i %}
+          {% if i.is_manual %}<span class="chip chip-new"><i class="bi bi-person"></i> signalement manuel</span>{% endif %}
+          {% if i.reappeared_count %}<span class="chip chip-warn" title="S'est reproduit après correction">réapparu ×{{ i.reappeared_count }}</span>{% endif %}</div>
+      </div>
+      <div class="small text-muted mt-1">
+        <code>{{ i.uid }}</code> · {{ i.get_module_display }}{% if i.source_code %} · source <strong>{{ i.source_code }}</strong>{% endif %}
+        · {{ i.get_category_display }} · origine probable : {{ i.get_origin_display|lower }}
+        · <span title="Nombre d'occurrences">Fois : {{ i.occurrence_count }}</span>
+        · dernière le {{ i.last_seen_at|date:"d/m/Y H:i" }} (v{{ i.last_seen_version }})
+      </div>
+    </a>
+    {% empty %}
+    <div class="empty">Aucun incident{% if applied %} pour ces filtres{% else %} enregistré pour l'instant{% endif %}.</div>
+    {% endfor %}
+    {% if page.has_other_pages %}
+    <nav class="mt-3"><ul class="pagination pagination-sm">
+      {% if page.has_previous %}<li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page.previous_page_number }}">Précédent</a></li>{% endif %}
+      <li class="page-item disabled"><span class="page-link">Page {{ page.number }} / {{ page.paginator.num_pages }}</span></li>
+      {% if page.has_next %}<li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page.next_page_number }}">Suivant</a></li>{% endif %}
+    </ul></nav>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -5,7 +5,7 @@ import logging
 import time
 from datetime import timedelta
 
-from django.db import transaction
+from django.db import DatabaseError, transaction
 from django.utils import timezone
 
 from apps.catalog.models import Catalogue, Record
@@ -56,29 +56,73 @@ def create_session(user, *, query="", variants=None, variant_details=None, field
     return session
 
 
+#: États d'une source dans une session (§2.7). Seuls les trois derniers sont des échecs.
+SUCCESS_STATUSES = ("ok", "empty", "warning")
+FAILURE_STATUSES = ("unavailable", "error", "unparsable")
+
+
+def _operation_label(session, catalogue_name):
+    terms = " | ".join(t for t in [session.query] + list(session.variants or []) if t)[:150]
+    return f"Recherche « {terms} » sur {catalogue_name}" if terms else f"Recherche avancée sur {catalogue_name}"
+
+
 def run_source(session, code, page_size=50):
-    """Interroge une source pour la session. Une erreur n'affecte jamais les autres sources (§5.4)."""
+    """Interroge une source pour la session. Une erreur n'affecte jamais les autres sources (§5.4).
+
+    Distingue (§2.7 du cahier 1.2.0) : résultats (ok), aucun résultat (empty), source
+    indisponible (unavailable), erreur technique (error), réponse illisible (unparsable).
+    Les échecs sont transmis au journal des dysfonctionnements ; l'absence de résultat, jamais.
+    """
+    from apps.connectors.http import last_exchange
+    from apps.incidents import services as incidents
+
     stats = {"status": "running"}
     started = time.monotonic()
+    last_exchange.set(None)
+    catalogue = Catalogue.objects.filter(code=code).first()
+    operation = _operation_label(session, catalogue.name if catalogue else code)
+    query_context = {"query_terms": " | ".join(t for t in [session.query] + list(session.variants or []) if t)[:300],
+                     "fields": {k: v for k, v in (session.fields or {}).items() if v}, "search_session": str(session.uid)}
     try:
-        catalogue = Catalogue.objects.get(code=code)
+        if catalogue is None:
+            raise Catalogue.DoesNotExist
         connector = get_connector(catalogue)
         response = connector.search(build_query(session, page_size=page_size))
-        stored = _store_results(session, catalogue, response.results)
-        stats = {"status": "warning" if response.warnings else "ok", "count": stored, "total": response.total,
-                 "warnings": response.warnings, "ms": response.elapsed_ms or int((time.monotonic() - started) * 1000)}
+        stored, skipped = _store_results(session, catalogue, response.results, operation=operation)
+        warnings = list(response.warnings)
+        if skipped:
+            warnings.append(f"{skipped} résultat(s) n'ont pas pu être convertis et ont été ignorés "
+                            "(voir le journal des dysfonctionnements).")
+        status = "warning" if warnings else ("ok" if stored else "empty")
+        stats = {"status": status, "count": stored, "total": response.total, "warnings": warnings,
+                 "ms": response.elapsed_ms or int((time.monotonic() - started) * 1000)}
+        for w in response.warnings:
+            incidents.record_incident(module="recherche", category="avertissement_source", severity="info",
+                                      origin="source_distante", source_code=code, title=f"Avertissement — {code}",
+                                      message=w, operation=operation, technical_code="warning",
+                                      context=dict(last_exchange.get() or {}, **query_context))
         if code != "local":
             Catalogue.objects.filter(pk=catalogue.pk).update(last_success_at=timezone.now(), last_error="")
+            incidents.note_source_recovered(code)
     except Catalogue.DoesNotExist:
         stats = {"status": "error", "error": "Source inconnue.", "count": 0}
     except ConnectorError as exc:
-        stats = {"status": "error", "error": str(exc), "count": 0, "ms": int((time.monotonic() - started) * 1000)}
+        status = {"unavailable": "unavailable", "unparsable": "unparsable"}.get(exc.kind, "error")
+        incident = None
+        if exc.kind != "query":  # une requête refusée pour critères vides n'est pas un dysfonctionnement
+            incident = incidents.record_connector_error(exc, module="recherche", source_code=code,
+                                                        operation=operation, extra=query_context)
+        stats = {"status": status, "error": str(exc), "kind": exc.kind, "kind_label": exc.kind_label, "count": 0,
+                 "ms": int((time.monotonic() - started) * 1000), "incident": incident.uid if incident else ""}
         Catalogue.objects.filter(code=code).update(last_error=str(exc)[:1000], last_attempt_at=timezone.now())
         if exc.temporary:
             Catalogue.objects.filter(code=code, status="available").update(status="degraded")
     except Exception as exc:  # garde-fou : une source défaillante ne bloque pas la session
         logger.exception("Erreur inattendue du connecteur %s", code)
-        stats = {"status": "error", "error": f"Erreur inattendue : {exc.__class__.__name__}", "count": 0}
+        incident = incidents.record_exception(exc, module="recherche", operation=operation, source_code=code,
+                                              extra=dict(last_exchange.get() or {}, **query_context))
+        stats = {"status": "error", "error": f"Erreur inattendue : {exc.__class__.__name__}", "kind": "technical",
+                 "kind_label": "Erreur technique", "count": 0, "incident": incident.uid if incident else ""}
     _update_stats(session, code, stats)
     if session.mode == "auto" and stats["status"] in ("ok", "warning"):
         integrate(session, session.results.filter(catalogue__code=code, decision="pending"), session.owner,
@@ -90,19 +134,21 @@ def run_source(session, code, page_size=50):
 def _update_stats(session, code, stats):
     s = SearchSession.objects.select_for_update().get(pk=session.pk)
     s.source_stats[code] = stats
-    if stats.get("status") == "error":
-        s.errors = (s.errors or []) + [{"source": code, "error": stats.get("error"), "at": timezone.now().isoformat()}]
+    if stats.get("status") in FAILURE_STATUSES:
+        s.errors = (s.errors or []) + [{"source": code, "error": stats.get("error"), "kind": stats.get("kind", ""),
+                                        "incident": stats.get("incident", ""), "at": timezone.now().isoformat()}]
     if all(v.get("status") not in ("pending", "running") for v in s.source_stats.values()):
         s.finished_at = timezone.now()
         s.duration_ms = int((s.finished_at - s.started_at).total_seconds() * 1000)
-        s.status = "partial" if any(v.get("status") == "error" for v in s.source_stats.values()) else "done"
+        s.status = "partial" if any(v.get("status") in FAILURE_STATUSES for v in s.source_stats.values()) else "done"
         if s.previous_session_id:
             compare_with_previous(s)
     s.save()
     session.source_stats, session.status = s.source_stats, s.status
 
 
-def _store_results(session, catalogue, results):
+def _store_results(session, catalogue, results, operation=""):
+    """Enregistre les résultats d'une source. Retourne (enregistrés, ignorés pour erreur de conversion)."""
     from apps.library.models import LibraryEntry
 
     library_ids = set(LibraryEntry.objects.filter(user=session.owner).values_list("record_id", flat=True))
@@ -110,33 +156,54 @@ def _store_results(session, catalogue, results):
     for r in session.results.exclude(catalogue=catalogue).only("pk", "data"):
         existing_keys.setdefault(_title_key(r.data.get("original_title", "")), r.pk)
     rank = session.results.count()
-    created = 0
+    created = skipped = 0
     for res in results:
-        if catalogue.code == "local":
-            local = Record.objects.filter(record_id=res.source_id).select_related("catalogue").first()
-        else:
-            local = Record.objects.filter(catalogue=catalogue, source_id=res.source_id).first()
-        data = dict(res.data)
-        h = data_hash(data)
-        data["norm"] = _normalized_view(catalogue, data, local)
-        comparison = ""
-        changed = []
-        if local and catalogue.code != "local":
-            from apps.catalog.services import compare_with_existing
+        try:
+            with transaction.atomic():
+                created += _store_one(session, catalogue, res, library_ids, existing_keys, rank + created + 1)
+        except DatabaseError as exc:
+            from apps.incidents.services import record_database_error
 
-            _, status, changed = compare_with_existing(catalogue, data, res.raw, res.raw_format)
-            comparison = {"unchanged": "known", "modified": "modified"}.get(status, "")
-        key = _title_key(data.get("original_title", ""))
-        rank += 1
-        SearchResult.objects.update_or_create(
-            session=session, catalogue=catalogue, source_id=res.source_id,
-            defaults=dict(rank=rank, data=data, raw=res.raw, raw_format=res.raw_format, result_hash=h,
-                          local_record=local, in_library=bool(local and local.pk in library_ids),
-                          possible_duplicate_of_id=existing_keys.get(key) if len(key) >= 2 else None,
-                          comparison=comparison, changed_fields=changed),
-        )
-        created += 1
-    return created
+            logger.exception("Erreur de base de données (résultat %s)", res.source_id)
+            record_database_error(exc, module="base_de_donnees", operation=operation, source_code=catalogue.code)
+            skipped += 1
+        except Exception as exc:  # métadonnées mal formées : le résultat est ignoré, les autres sont conservés
+            from apps.incidents.services import record_exception
+
+            logger.warning("Résultat %s non converti : %s", res.source_id, exc)
+            record_exception(exc, module="metadonnees", operation=operation, source_code=catalogue.code,
+                             category="erreur_traitement", severity="error", origin="traitement",
+                             extra={"source_id": str(res.source_id)[:120], "raw_format": res.raw_format,
+                                    "fields": sorted(res.data)[:40] if isinstance(res.data, dict) else []})
+            skipped += 1
+    return created, skipped
+
+
+def _store_one(session, catalogue, res, library_ids, existing_keys, rank):
+    """Enregistre un résultat de source dans la session (même logique que la 1.1, isolée par résultat)."""
+    if catalogue.code == "local":
+        local = Record.objects.filter(record_id=res.source_id).select_related("catalogue").first()
+    else:
+        local = Record.objects.filter(catalogue=catalogue, source_id=res.source_id).first()
+    data = dict(res.data)
+    h = data_hash(data)
+    data["norm"] = _normalized_view(catalogue, data, local)
+    comparison = ""
+    changed = []
+    if local and catalogue.code != "local":
+        from apps.catalog.services import compare_with_existing
+
+        _, status, changed = compare_with_existing(catalogue, data, res.raw, res.raw_format)
+        comparison = {"unchanged": "known", "modified": "modified"}.get(status, "")
+    key = _title_key(data.get("original_title", ""))
+    SearchResult.objects.update_or_create(
+        session=session, catalogue=catalogue, source_id=res.source_id,
+        defaults=dict(rank=rank, data=data, raw=res.raw, raw_format=res.raw_format, result_hash=h,
+                      local_record=local, in_library=bool(local and local.pk in library_ids),
+                      possible_duplicate_of_id=existing_keys.get(key) if len(key) >= 2 else None,
+                      comparison=comparison, changed_fields=changed),
+    )
+    return 1
 
 
 def _normalized_view(catalogue, data, local):
@@ -263,8 +330,8 @@ def compare_with_previous(session):
     if previous is None:
         return
     prev = {(r.catalogue_id, r.source_id): r for r in previous.results.exclude(comparison="unavailable")}
-    ok_now = {c for c, s in session.source_stats.items() if s.get("status") in ("ok", "warning")}
-    ok_before = {c for c, s in previous.source_stats.items() if s.get("status") in ("ok", "warning")}
+    ok_now = {c for c, s in session.source_stats.items() if s.get("status") in SUCCESS_STATUSES}
+    ok_before = {c for c, s in previous.source_stats.items() if s.get("status") in SUCCESS_STATUSES}
     seen = set()
     for result in session.results.select_related("catalogue"):
         key = (result.catalogue_id, result.source_id)

@@ -32,4 +32,4 @@ def connector_class(key):
 def _load():
     if _REGISTRY:
         return
-    from . import japansearch, kokusho, local, ndl  # noqa: F401
+    from . import cinii, japansearch, kokusho, local, ndl  # noqa: F401

@@ -1,0 +1,39 @@
+{% extends "base.html" %}{% load app_tags %}
+{% block title %}Analyse des dysfonctionnements{% endblock %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'incidents:list' %}">Journal des dysfonctionnements</a> › Analyse</nav>
+<div class="page-head"><div><h1>Analyse des dysfonctionnements</h1>
+  <p>Regroupements simples sur les {{ days }} derniers jours, pour repérer les problèmes qui reviennent. Les indisponibilités temporaires d'une source sont comptées à part : elles ne signifient pas que le connecteur est défectueux.</p></div>
+  <form method="get" class="d-flex gap-2 align-items-end"><div><label class="form-label small" for="j">Période (jours)</label><input id="j" name="jours" type="number" min="1" max="3650" value="{{ days }}" class="form-control form-control-sm" style="width:7rem"></div><button class="btn btn-sm btn-outline-secondary">Appliquer</button></form></div>
+
+{% if network_bursts %}
+<div class="alert alert-warning"><strong><i class="bi bi-wifi-off"></i> Plusieurs sources ont échoué en même temps.</strong> {{ origin_help.reseau }}
+  <ul class="small mb-0 mt-1">{% for at, sources in network_bursts %}<li>{{ at|date:"d/m/Y H:i" }} : {{ sources|join:", " }}</li>{% endfor %}</ul></div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card-soft h-100"><h2 class="h6">Erreurs récurrentes</h2>
+    <table class="table table-sm small mb-0"><thead><tr><th>Incident</th><th>Fois</th><th>Statut</th></tr></thead><tbody>
+    {% for i in recurrent %}<tr><td><a href="{{ i.get_absolute_url }}">{{ i.uid }}</a> — {{ i.title|truncatechars:60 }}</td><td>{{ i.occurrence_count }}</td><td>{% incident_status_chip i %}</td></tr>
+    {% empty %}<tr><td colspan="3" class="text-muted">Aucune erreur répétée.</td></tr>{% endfor %}</tbody></table></div></div>
+
+  <div class="col-lg-6"><div class="card-soft h-100"><h2 class="h6">Sources les plus instables (indisponibilités)</h2>
+    <table class="table table-sm small mb-0"><thead><tr><th>Source</th><th>Indisponibilités</th><th></th></tr></thead><tbody>
+    {% for s in unstable %}<tr><td>{{ s.source_code }}</td><td>{{ s.n }}</td><td><a href="{% url 'incidents:list' %}?source={{ s.source_code }}&module=">Historique</a></td></tr>
+    {% empty %}<tr><td colspan="3" class="text-muted">Aucune indisponibilité sur la période.</td></tr>{% endfor %}</tbody></table></div></div>
+
+  <div class="col-lg-6"><div class="card-soft h-100"><h2 class="h6">Connecteurs qui échouent régulièrement</h2>
+    <p class="small text-muted">Erreurs techniques, réponses illisibles, erreurs de traitement ou de configuration : une correction du connecteur est probablement nécessaire.</p>
+    <table class="table table-sm small mb-0"><thead><tr><th>Source</th><th>Échecs</th><th>Incidents distincts</th></tr></thead><tbody>
+    {% for s in failing %}<tr><td><a href="{% url 'incidents:list' %}?source={{ s.source_code }}">{{ s.source_code }}</a></td><td>{{ s.n }}</td><td>{{ s.k }}</td></tr>
+    {% empty %}<tr><td colspan="3" class="text-muted">Aucun échec de connecteur sur la période.</td></tr>{% endfor %}</tbody></table></div></div>
+
+  <div class="col-lg-6"><div class="card-soft h-100"><h2 class="h6">Apparus avec la version actuelle ({{ APP_VERSION }})</h2>
+    <ul class="small mb-2">{% for i in new_in_version %}<li><a href="{{ i.get_absolute_url }}">{{ i.uid }}</a> — {{ i.title|truncatechars:70 }}</li>{% empty %}<li class="text-muted">Aucun.</li>{% endfor %}</ul>
+    <h3 class="h6 mt-3">Nouveaux incidents par version</h3>
+    <ul class="small mb-0">{% for v in by_version %}<li>Version {{ v.first_seen_version }} : {{ v.n }}</li>{% empty %}<li class="text-muted">—</li>{% endfor %}</ul></div></div>
+
+  <div class="col-12"><div class="card-soft"><h2 class="h6">Incidents corrigés qui sont réapparus</h2>
+    <ul class="small mb-0">{% for i in reappeared %}<li><a href="{{ i.get_absolute_url }}">{{ i.uid }}</a> — {{ i.title|truncatechars:80 }} : corrigé{% if i.fixed_in_version %} en {{ i.fixed_in_version }}{% endif %}, réapparu {{ i.reappeared_count }} fois (dernière fois en version {{ i.last_seen_version }})</li>{% empty %}<li class="text-muted">Aucune réapparition.</li>{% endfor %}</ul></div></div>
+</div>
+{% endblock %}

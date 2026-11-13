@@ -3,14 +3,18 @@
   <div class="flex-grow-1">
     <div class="fw-semibold">{{ catalogue.name|default:code }} {{ catalogue|unverified_chip }}</div>
     <div class="small text-muted">
-      {% if stats.status == 'pending' or not stats.status %}Interrogation en cours…
-      {% elif stats.status == 'error' %}<span class="text-danger">{{ stats.error }}</span>
+      {% if stats.status == 'pending' or stats.status == 'running' or not stats.status %}Interrogation en cours…
+      {% elif stats.status == 'empty' %}<span>Recherche réussie, aucun résultat</span>{% if stats.ms %} · {{ stats.ms }} ms{% endif %}
+      {% elif stats.status == 'unavailable' %}<span class="text-warning-emphasis"><i class="bi bi-cloud-slash"></i> Source indisponible : {{ stats.error }}</span>
+      {% elif stats.status == 'unparsable' %}<span class="text-danger"><i class="bi bi-file-earmark-x"></i> Réponse impossible à interpréter : {{ stats.error }}</span>
+      {% elif stats.status == 'error' %}<span class="text-danger"><i class="bi bi-x-octagon"></i> {% if stats.kind_label %}{{ stats.kind_label }} : {% endif %}{{ stats.error }}</span>
       {% else %}{{ stats.count }} résultat(s){% if stats.total and stats.total != stats.count %} sur {{ stats.total }}{% endif %} · {{ stats.ms }} ms{% endif %}
     </div>
     {% for w in stats.warnings %}<div class="small text-warning-emphasis">{{ w }}</div>{% endfor %}
+    {% if stats.incident %}<div class="small"><a href="{% url 'incidents:detail' stats.incident %}">Voir l'incident {{ stats.incident }}</a></div>{% endif %}
   </div>
-  {% if stats.status == 'error' %}
+  {% if stats.status == 'error' or stats.status == 'unavailable' or stats.status == 'unparsable' %}
   <button class="btn btn-sm btn-outline-secondary" hx-post="{% url 'searching:run_source' session.uid code %}" hx-vals='{"retry": "1"}'
-          hx-target="closest div.col-sm-6" hx-swap="innerHTML" title="Relancer cette source"><i class="bi bi-arrow-clockwise"></i></button>
+          hx-target="closest div.col-sm-6" hx-swap="innerHTML" title="Relancer cette source"><i class="bi bi-arrow-repeat"></i></button>
   {% endif %}
 </div>

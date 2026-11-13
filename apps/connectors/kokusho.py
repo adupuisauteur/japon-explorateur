@@ -17,7 +17,7 @@ import re
 import time
 
 from .base import BaseConnector, ConnectorError, ConnectorResult, SearchResponse
-from .http import ConnectorHTTP
+from .http import ConnectorHTTP, format_error
 from .japansearch import jpsearch_query, parse_item
 from .registry import register
 
@@ -127,9 +127,17 @@ class KokushoConnector(BaseConnector):
     def fetch_record(self, source_id):
         kokusho_id = extract_kokusho_id(source_id)
         if not kokusho_id:
-            raise ConnectorError("Identifiant Kokusho non reconnu (attendu : numéro, DOI 10.20730/… ou URL /biblio/…).")
+            raise ConnectorError("Identifiant Kokusho non reconnu (attendu : numéro, DOI 10.20730/… ou URL /biblio/…).",
+                                 kind="query", code="bad_identifier")
         manifest = ConnectorHTTP(self.catalogue).get_json(MANIFEST_URL.format(id=kokusho_id))
-        return parse_manifest(kokusho_id, manifest)
+        if not isinstance(manifest, dict):
+            raise format_error("Manifeste IIIF Kokusho inattendu (objet JSON attendu).", str(manifest)[:300],
+                               code="unexpected_structure")
+        try:
+            return parse_manifest(kokusho_id, manifest)
+        except (AttributeError, TypeError, KeyError) as exc:
+            raise format_error(f"Manifeste IIIF Kokusho illisible ({exc.__class__.__name__}) : "
+                               "son format a peut-être changé.", str(manifest)[:300], code="manifest_structure") from exc
 
     def search(self, query):
         started = time.monotonic()
@@ -149,14 +157,18 @@ class KokushoConnector(BaseConnector):
         items = payload.get("list") or payload.get("items") or []
         results = []
         for item in items:
-            parsed = parse_item(item, prefer_kokusho_id=True)
+            try:
+                parsed = parse_item(item, prefer_kokusho_id=True)
+            except (ValueError, TypeError, AttributeError) as exc:
+                warnings.append(f"Un résultat illisible a été ignoré ({exc}).")
+                continue
             link = parsed.data.get("source_url", "")
             if not database and "kokusho.nijl.ac.jp" not in link and "10.20730" not in link:
                 continue
             parsed.data.setdefault("image_url", "")
             if parsed.source_id.isdigit():
                 parsed.data["image_url"] = MANIFEST_URL.format(id=parsed.source_id)
-                if not parsed.data.get("source_url"):
+                if "kokusho.nijl.ac.jp" not in parsed.data.get("source_url", ""):
                     parsed.data["source_url"] = BIBLIO_URL.format(id=parsed.source_id)
             results.append(parsed)
         total = payload.get("hit") if (database and isinstance(payload.get("hit"), int)) else None
@@ -173,6 +185,7 @@ class KokushoConnector(BaseConnector):
             messages.append(f"IIIF officiel : OK (notice d'essai « {sample.title} »).")
         except ConnectorError as exc:
             ok = False
+            details.update(error_kind=exc.kind, error_code=exc.code)
             messages.append(f"IIIF officiel : échec ({exc}).")
         try:
             from .base import SearchQuery

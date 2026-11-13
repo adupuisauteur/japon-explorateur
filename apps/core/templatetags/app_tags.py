@@ -7,7 +7,8 @@ from django.utils.safestring import mark_safe
 register = template.Library()
 
 SESSION_STATUS = {"ok": "Réponse reçue", "warning": "Réponse avec avertissement", "error": "Erreur",
-                  "pending": "En attente", "running": "Interrogation…"}
+                  "pending": "En attente", "running": "Interrogation…", "empty": "Aucun résultat",
+                  "unavailable": "Source indisponible", "unparsable": "Réponse illisible"}
 ORIGIN_CHIPS = {"ai": ("chip-ai", "IA"), "user": ("", "utilisateur"), "rule": ("", "règle automatique"),
                 "source": ("", "source")}
 COMPARISON_CHIPS = {"new": ("chip-new", "Nouveau"), "known": ("", "Déjà connu"), "modified": ("chip-warn", "Modifié"),
@@ -111,3 +112,23 @@ def visible_fields(data):
     order = list(FIELD_LABELS) + list(_EXTRA_LABELS)
     items = [(k, v) for k, v in (data or {}).items() if v not in (None, "") and k not in _HIDDEN]
     return sorted(items, key=lambda kv: order.index(kv[0]) if kv[0] in order else 999)
+
+
+# --------------------------------------------------------------------------- journal des dysfonctionnements (1.2.0)
+
+SEVERITY_ICONS = {"info": "bi-info-circle", "warning": "bi-exclamation-triangle", "error": "bi-x-octagon",
+                  "critical": "bi-exclamation-octagon-fill"}
+
+
+@register.simple_tag
+def severity_chip(incident_or_code, label=None):
+    code = getattr(incident_or_code, "severity", incident_or_code)
+    if label is None:
+        label = incident_or_code.get_severity_display() if hasattr(incident_or_code, "get_severity_display") else code
+    return format_html('<span class="chip chip-sev-{}"><i class="bi {}" aria-hidden="true"></i> {}</span>',
+                       code, SEVERITY_ICONS.get(code, "bi-circle"), label)
+
+
+@register.simple_tag
+def incident_status_chip(incident):
+    return format_html('<span class="chip chip-st-{}">{}</span>', incident.status, incident.get_status_display())

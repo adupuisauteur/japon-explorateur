@@ -47,6 +47,19 @@
       {% if connector_cls.config_help %}<p class="small mb-1">Paramètres :</p><ul class="small">{% for k, v in connector_cls.config_help.items %}<li><code>{{ k }}</code> — {{ v }}</li>{% endfor %}</ul>{% endif %}
     </div>
     {% endif %}
+    {% if catalogue.code == 'japansearch' and user.is_admin_role %}
+    <div class="card-soft mb-3"><h2 class="h6">Bases institutionnelles</h2>
+      <p class="small mb-2">Créez une source limitée à une base précise de Japan Search : Archives nationales, archives préfectorales, bibliothèques universitaires, musées…</p>
+      <a class="btn btn-sm btn-outline-primary" href="{% url 'connectors:jps_databases' %}"><i class="bi bi-building"></i> Trouver une base Japan Search</a></div>
+    {% endif %}
+    {% if catalogue.connector %}
+    <div class="card-soft mb-3"><div class="d-flex justify-content-between align-items-start gap-2"><h2 class="h6">Dysfonctionnements de cette source</h2>
+      <a class="small" href="{% url 'incidents:list' %}?source={{ catalogue.code }}">Historique complet ({{ incidents_total }})</a></div>
+      {% if incidents %}<ul class="list-unstyled small mb-0">{% for i in incidents %}
+        <li class="mb-1"><a href="{{ i.get_absolute_url }}">{{ i.uid }}</a> · {{ i.get_category_display }} · {{ i.occurrence_count }} fois · dernière le {{ i.last_seen_at|date:"d/m/Y H:i" }} · {{ i.get_status_display|lower }}</li>{% endfor %}</ul>
+      {% if incidents_open %}<p class="small text-muted mt-2 mb-0">{{ incidents_open }} incident(s) non résolu(s). Une indisponibilité temporaire ne signifie pas que le connecteur est défectueux.</p>{% endif %}
+      {% else %}<p class="small text-muted mb-0">Aucun dysfonctionnement enregistré.</p>{% endif %}</div>
+    {% endif %}
     <h2 class="h5">Exécutions récentes</h2>
     <table class="table table-sm"><tbody>
       {% for j in jobs %}<tr><td><a href="{{ j.get_absolute_url }}">{{ j.get_kind_display }}</a></td><td class="small">{{ j.started_at|date:"d/m/Y H:i" }}</td><td>{{ j.get_status_display }}</td><td class="small text-muted">{{ j.message|truncatechars:80 }}</td></tr>{% endfor %}

@@ -7,13 +7,15 @@ import logging
 import os
 
 from django.conf import settings
-from django.db import transaction
+from django.db import DatabaseError, transaction
 from django.utils import timezone
 
 from apps.catalog.models import Catalogue, Record
 from apps.catalog.services import (_title_key, clean_source_data, compare_with_existing, set_record_status,
                                    upsert_record)
 from apps.connectors.base import ConnectorError
+from apps.connectors.http import last_exchange
+from apps.incidents import services as incidents
 from apps.connectors.registry import get_connector
 
 from . import importers
@@ -155,6 +157,13 @@ def apply_incoming(items, user, *, origin, dataset_label=""):
             item.error = str(exc)[:500]
             item.save(update_fields=["error"])
             stats["errors"] += 1
+            operation = f"Intégration ({origin}) de la notice {item.source_id or '?'}"
+            if isinstance(exc, DatabaseError):
+                incidents.record_database_error(exc, module="importation", operation=operation)
+            else:
+                incidents.record_exception(exc, module="importation", operation=operation,
+                                           category="erreur_traitement", origin="traitement",
+                                           extra={"import_job": item.import_job_id, "sync_job": item.sync_job_id})
     return stats
 
 
@@ -206,8 +215,15 @@ def run_sync(job):
             if ok:
                 Catalogue.objects.filter(pk=catalogue.pk).update(last_success_at=timezone.now(), last_error="",
                                                                   real_test_ok_at=timezone.now())
+                incidents.note_source_recovered(catalogue.code)
             else:
                 Catalogue.objects.filter(pk=catalogue.pk).update(last_error=message[:1000])
+                diag = dict(last_exchange.get() or {})
+                failure = ConnectorError(message, kind=(details or {}).get("error_kind", "technical"),
+                                         code=(details or {}).get("error_code") or "test_failed",
+                                         http_status=diag.get("http_status"), diagnostic=diag)
+                incidents.record_connector_error(failure, module="connecteur", source_code=catalogue.code,
+                                                 operation=f"Test du connecteur {catalogue.name}")
         elif job.kind in ("full", "incremental") and connector.supports_harvest:
             since = catalogue.last_success_at if job.kind == "incremental" else None
             seen = set()
@@ -236,6 +252,9 @@ def run_sync(job):
                 try:
                     res = connector.fetch_record(record.source_id)
                 except ConnectorError as exc:
+                    incidents.record_connector_error(exc, module="metadonnees", source_code=catalogue.code,
+                                                     operation=f"Actualisation de la notice {record.source_id} "
+                                                               f"({catalogue.name})")
                     if "404" in str(exc):
                         IncomingRecord.objects.create(sync_job=job, source_id=record.source_id,
                                                       data={"original_title": record.original_title},
@@ -255,10 +274,21 @@ def run_sync(job):
         job.status = "failed"
         job.message = str(exc)
         Catalogue.objects.filter(pk=catalogue.pk).update(last_error=str(exc)[:1000])
+        incidents.record_connector_error(exc, module="connecteur", source_code=catalogue.code,
+                                         operation=f"{job.get_kind_display()} — {catalogue.name}")
+    except DatabaseError as exc:
+        logger.exception("Synchronisation %s : erreur de base de données", catalogue.code)
+        job.status = "failed"
+        job.message = f"Erreur de base de données : {exc.__class__.__name__}"
+        incidents.record_database_error(exc, operation=f"{job.get_kind_display()} — {catalogue.name}",
+                                        source_code=catalogue.code)
     except Exception as exc:
         logger.exception("Synchronisation %s en échec", catalogue.code)
         job.status = "failed"
         job.message = f"Erreur inattendue : {exc.__class__.__name__}"
+        incidents.record_exception(exc, module="connecteur", source_code=catalogue.code,
+                                   operation=f"{job.get_kind_display()} — {catalogue.name}",
+                                   extra=dict(last_exchange.get() or {}))
     job.counts = counts
     job.finished_at = timezone.now()
     job.save()
