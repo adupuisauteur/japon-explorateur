@@ -19,7 +19,11 @@ ERROR_KINDS = {
     "processing": "Erreur de traitement",          # conversion des métadonnées en échec
     "config": "Configuration incomplète",          # paramètre ou identifiant d'accès manquant
     "query": "Requête non transmise",              # critères vides ou non pris en charge : pas un dysfonctionnement
+    "unsupported": "Opération non proposée par ce connecteur",  # pas un dysfonctionnement
 }
+
+#: Natures d'échec qui ne sont jamais enregistrées dans le journal des dysfonctionnements.
+NOT_AN_INCIDENT = ("query", "unsupported")
 
 
 class ConnectorError(Exception):

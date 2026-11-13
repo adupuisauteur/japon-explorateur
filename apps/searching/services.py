@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from apps.catalog.models import Catalogue, Record
 from apps.catalog.services import _title_key, upsert_record
-from apps.connectors.base import ConnectorError, SearchQuery
+from apps.connectors.base import NOT_AN_INCIDENT, ConnectorError, SearchQuery
 from apps.connectors.registry import get_connector
 from apps.core.models import AppSettings
 
@@ -109,7 +109,7 @@ def run_source(session, code, page_size=50):
     except ConnectorError as exc:
         status = {"unavailable": "unavailable", "unparsable": "unparsable"}.get(exc.kind, "error")
         incident = None
-        if exc.kind != "query":  # une requête refusée pour critères vides n'est pas un dysfonctionnement
+        if exc.kind not in NOT_AN_INCIDENT:  # requête vide, opération non proposée : pas un dysfonctionnement
             incident = incidents.record_connector_error(exc, module="recherche", source_code=code,
                                                         operation=operation, extra=query_context)
         stats = {"status": status, "error": str(exc), "kind": exc.kind, "kind_label": exc.kind_label, "count": 0,

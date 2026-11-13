@@ -10,6 +10,7 @@
 - **Socle** : numéro de version unique (`VERSION`) ; installation d'essai isolée (projet Docker, volumes, port 8001, image) ; `pypdf` ajouté aux dépendances.
 - **Outil** : script `reinitialiser-essai.ps1` (Windows) pour remettre l'installation d'essai à zéro, avec contrôles de sécurité qui protègent l'installation principale.
 - **Correctif (13/11, incident INC-20261113-41FDF0)** : erreur 500 au clic sur « Comparer avec la base » sous Docker. Le module `packaging`, requis par kombu 5.7 (transport Redis de Celery) mais non déclaré par ce paquet, est ajouté aux dépendances. Le même problème touchait toute tâche confiée au worker (synchronisations, exports). Un test de non-régression a été ajouté, et chaque erreur de page reçoit désormais un identifiant de requête.
+- **Correctif (13/11, incident INC-20261113-0AB9C5)** : « Actualiser » était proposé pour NDL Search, Japan Search et CiNii, qui ne savent pas actualiser des notices, et l'échec était enregistré comme « Erreur technique ». Le bouton n'est désormais proposé que pour les connecteurs compatibles (ex. Kokusho), le serveur refuse l'opération sinon, et le planificateur comme « Actualiser les sources compatibles » les ignorent. Une opération non proposée n'est jamais enregistrée comme dysfonctionnement.
 - Base de données : une migration **additive** (`incidents.0001_initial`), aucune table existante modifiée.
 
 ## 1.1 — commit 7cb4075

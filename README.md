@@ -120,7 +120,7 @@ Voir `docs/deploiement.md` : serveur Linux, mêmes images Docker, reverse proxy 
 ## 7. Tests
 
 ```bash
-python manage.py test tests            # 128 tests ; PostgreSQL recommandé (DATABASE_URL)
+python manage.py test tests            # 130 tests ; PostgreSQL recommandé (DATABASE_URL)
 ```
 Ils couvrent les critères d'acceptation AT-01 à AT-20 et AT-IA-01 à AT-IA-12 (correspondance détaillée dans `docs/conformite.md`). Les connecteurs et fournisseurs d'IA y sont testés sur des réponses simulées, sans appel réseau. `tests/test_audit_corrections.py` reproduit chacune des anomalies relevées par l'audit et vérifie qu'elle ne se produit plus. `tests/test_evolution_120.py` couvre la 1.2.0 sur des réponses enregistrées (`tests/fixtures/reponses/`) : réponse normale, aucun résultat, indisponibilité, réponse mal formée, journal, export, conservation des données.
 

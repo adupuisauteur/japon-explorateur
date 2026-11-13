@@ -13,7 +13,7 @@ from django.utils import timezone
 from apps.catalog.models import Catalogue, Record
 from apps.catalog.services import (_title_key, clean_source_data, compare_with_existing, set_record_status,
                                    upsert_record)
-from apps.connectors.base import ConnectorError
+from apps.connectors.base import NOT_AN_INCIDENT, ConnectorError
 from apps.connectors.http import last_exchange
 from apps.incidents import services as incidents
 from apps.connectors.registry import get_connector
@@ -244,8 +244,10 @@ def run_sync(job):
         else:
             # Source sans moisson : actualisation ciblée des notices déjà connues (ex. Kokusho via IIIF).
             if not connector.supports_fetch:
-                raise ConnectorError("Ce connecteur ne permet ni moisson ni actualisation par identifiant ; "
-                                     "utilisez l'import de fichiers.")
+                raise ConnectorError("Ce connecteur sert aux recherches : il ne propose ni moisson ni actualisation "
+                                     "par identifiant. Les notices déjà intégrées sont comparées à chaque nouvelle "
+                                     "recherche (« Déjà connu » / « Modifié »).", kind="unsupported",
+                                     code="unsupported_operation")
             limit = int(catalogue.config.get("refresh_limit", 200))
             records = Record.objects.filter(catalogue=catalogue).exclude(record_status="deleted").order_by("collected_at")[:limit]
             for record in records:
@@ -273,9 +275,10 @@ def run_sync(job):
     except ConnectorError as exc:
         job.status = "failed"
         job.message = str(exc)
-        Catalogue.objects.filter(pk=catalogue.pk).update(last_error=str(exc)[:1000])
-        incidents.record_connector_error(exc, module="connecteur", source_code=catalogue.code,
-                                         operation=f"{job.get_kind_display()} — {catalogue.name}")
+        if exc.kind not in NOT_AN_INCIDENT:  # une opération non proposée n'est pas un dysfonctionnement
+            Catalogue.objects.filter(pk=catalogue.pk).update(last_error=str(exc)[:1000])
+            incidents.record_connector_error(exc, module="connecteur", source_code=catalogue.code,
+                                             operation=f"{job.get_kind_display()} — {catalogue.name}")
     except DatabaseError as exc:
         logger.exception("Synchronisation %s : erreur de base de données", catalogue.code)
         job.status = "failed"
@@ -320,5 +323,5 @@ def due_catalogues(now=None):
     now = now or timezone.now()
     for catalogue in Catalogue.objects.exclude(frequency="manual").exclude(status="disabled").filter(sync_paused=False):
         due = catalogue.next_sync_due()
-        if due and due <= now and catalogue.connector:
+        if due and due <= now and catalogue.can_refresh:
             yield catalogue

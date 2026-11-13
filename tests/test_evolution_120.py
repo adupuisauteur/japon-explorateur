@@ -541,3 +541,36 @@ class DependencyTests(Evolution120Base):
         from config.celery import app
 
         self.assertTrue(app.conf.broker_url is None or isinstance(app.conf.broker_url, str))
+
+
+class RefreshScopeTests(Evolution120Base):
+    """INC-20261113-0AB9C5 : « Actualiser » sur NDL créait un faux incident « Erreur technique »."""
+
+    def test_search_only_connectors_cannot_be_refreshed(self):
+        for code in ("ndl", "japansearch", "nat-archives", "cinii", "cinii-books"):
+            self.assertFalse(Catalogue.objects.get(code=code).can_refresh, code)
+        self.assertTrue(Catalogue.objects.get(code="kokusho").can_refresh)
+        page = self.client.get("/sources/ndl/")
+        self.assertNotContains(page, "/mises-a-jour/source/ndl/lancer/")
+        self.assertNotContains(page, "> Actualiser</button>")
+        self.assertContains(page, "Sans objet")
+        self.assertContains(self.client.get("/sources/kokusho/"), "Actualiser")
+        self.assertContains(self.client.get("/mises-a-jour/"), "pas d'actualisation")
+
+    def test_refresh_request_is_refused_without_incident(self):
+        from django.urls import reverse
+        from apps.updates.models import SyncJob
+        from apps.updates.services import due_catalogues, run_sync
+
+        response = self.client.post(reverse("updates:sync_launch", args=["ndl"]), {"kind": "incremental"})
+        self.assertRedirects(response, "/sources/ndl/")
+        self.assertFalse(SyncJob.objects.filter(catalogue__code="ndl").exists())
+        # Même si une actualisation est déclenchée autrement : échec expliqué, aucun incident.
+        job = run_sync(SyncJob.objects.create(catalogue=Catalogue.objects.get(code="ndl"), kind="incremental"))
+        self.assertEqual(job.status, "failed")
+        self.assertIn("sert aux recherches", job.message)
+        self.assertFalse(Incident.objects.exists())
+        Catalogue.objects.filter(code="ndl").update(frequency="daily", last_attempt_at=None, status="available")
+        self.assertNotIn("ndl", [c.code for c in due_catalogues()])
+        self.client.post(reverse("updates:sync_all"))
+        self.assertEqual(SyncJob.objects.filter(catalogue__code="ndl").count(), 1)

@@ -7,8 +7,8 @@
   {% if user.is_admin_role %}<div class="d-flex flex-wrap gap-2">
     {% if catalogue.connector %}
     <form method="post" action="{% url 'connectors:test' catalogue.code %}">{% csrf_token %}<button class="btn btn-outline-primary"><i class="bi bi-plug"></i> Tester le connecteur</button></form>
-    <form method="post" action="{% url 'updates:sync_launch' catalogue.code %}">{% csrf_token %}<input type="hidden" name="kind" value="incremental">
-      <button class="btn btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Actualiser</button></form>
+    {% if catalogue.can_refresh %}<form method="post" action="{% url 'updates:sync_launch' catalogue.code %}">{% csrf_token %}<input type="hidden" name="kind" value="incremental">
+      <button class="btn btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Actualiser</button></form>{% endif %}
     {% endif %}
     <a class="btn btn-primary" href="{% url 'updates:import_new' %}?catalogue={{ catalogue.code }}"><i class="bi bi-upload"></i> Importer un fichier</a>
   </div>{% endif %}</div>
@@ -26,7 +26,7 @@
         <dt>Méthode d'accès</dt><dd>{{ catalogue.access_method|default:"—" }}</dd>
         <dt>Notices locales</dt><dd>{{ n_records }}</dd>
         <dt>Interrogé en recherche</dt><dd>{{ catalogue.enabled_for_search|yesno_icon }}</dd>
-        <dt>Fréquence</dt><dd>{{ catalogue.get_frequency_display }}{% if catalogue.sync_paused %} (suspendue){% endif %}</dd>
+        <dt>Fréquence</dt><dd>{% if catalogue.connector and catalogue.connector != 'local' and not catalogue.can_refresh %}Sans objet : cette source sert aux recherches. Les notices déjà intégrées sont comparées à chaque nouvelle recherche (« Déjà connu » / « Modifié »).{% else %}{{ catalogue.get_frequency_display }}{% if catalogue.sync_paused %} (suspendue){% endif %}{% endif %}</dd>
         <dt>Dernière tentative</dt><dd>{{ catalogue.last_attempt_at|date:"d/m/Y H:i"|default:"—" }}</dd>
         <dt>Dernière réussite</dt><dd>{{ catalogue.last_success_at|date:"d/m/Y H:i"|default:"—" }}</dd>
         {% if catalogue.connector and catalogue.connector != 'local' %}<dt>Dernier test réel réussi</dt><dd>{% if catalogue.real_test_ok_at %}{{ catalogue.real_test_ok_at|date:"d/m/Y H:i" }}{% else %}<strong class="text-warning-emphasis">Jamais : fonctionnement non vérifié sur le service réel</strong>{% endif %}</dd>{% endif %}

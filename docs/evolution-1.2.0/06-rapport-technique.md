@@ -64,7 +64,7 @@ Lors du test de bout en bout réalisé ici, de vrais appels vers NDL et Japan Se
 
 ## 4. Tests exécutés
 
-Environnement : Python 3.13, Django 5.2, PostgreSQL 16, sous Linux. **Résultat : 128 tests, tous réussis**, avec `DJANGO_DEBUG=true` puis `false`.
+Environnement : Python 3.13, Django 5.2, PostgreSQL 16, sous Linux. **Résultat : 130 tests, tous réussis**, avec `DJANGO_DEBUG=true` puis `false`.
 
 | Exigence §6.3 | Test exécuté | Résultat |
 |---|---|---|
@@ -98,6 +98,10 @@ Environnement : Python 3.13, Django 5.2, PostgreSQL 16, sous Linux. **Résultat 
 - **Amélioration associée** : chaque erreur de page reçoit désormais un identifiant de requête.
 
 Le journal des dysfonctionnements a joué son rôle : le rapport exporté indiquait le module manquant et le fichier en cause.
+
+**Corrigé le 13/11/2026 : incident INC-20261113-0AB9C5.** Le bouton « Actualiser » sur NDL Search produisait un incident « Erreur technique », origine « Connecteur ».
+- **Cause** : depuis la 1.1, ce bouton était proposé pour toutes les sources dotées d'un connecteur. Or NDL Search, Japan Search et CiNii servent aux recherches : ils ne savent ni moissonner ni relire une notice par identifiant. Le journal 1.2.0 classait à tort ce refus comme un dysfonctionnement.
+- **Correction** : les boutons d'actualisation n'apparaissent que pour les connecteurs compatibles (Kokusho), sur la fiche de la source et dans le gestionnaire de mises à jour. Le serveur refuse la demande dans les autres cas. Le planificateur et « Actualiser les sources compatibles » ignorent ces sources. Une opération non proposée (nature « unsupported ») n'est plus journalisée. Pour ces sources, les notices déjà intégrées restent comparées à chaque nouvelle recherche (« Déjà connu » / « Modifié »). Deux tests de non-régression ont été ajoutés.
 
 Aucun autre test ne révèle d'anomalie dans le code livré. Les points d'incertitude sur les formats réels sont listés dans `02-etude-sources.md` §3, et les limitations dans `07-limitations-connues.md`.
 

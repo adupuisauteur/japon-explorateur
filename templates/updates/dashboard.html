@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-head"><div><h1>Gestionnaire de mises à jour</h1>
   <p>Sources, imports et actualisations. Rien n'est intégré sans rapport ni validation ; aucune notice n'est supprimée parce qu'elle manque dans un export.</p></div>
-  <div class="d-flex gap-2"><form method="post" action="{% url 'updates:sync_all' %}">{% csrf_token %}<button class="btn btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Lancer toutes les sources activées</button></form>
+  <div class="d-flex gap-2"><form method="post" action="{% url 'updates:sync_all' %}">{% csrf_token %}<button class="btn btn-outline-primary" title="Seules les sources qui proposent une actualisation (ex. Kokusho) sont concernées"><i class="bi bi-arrow-repeat"></i> Actualiser les sources compatibles</button></form>
   <a class="btn btn-primary" href="{% url 'updates:import_new' %}"><i class="bi bi-upload"></i> Importer un fichier</a></div></div>
 
 {% if reviews %}<div class="alert alert-warning"><strong>À valider :</strong>
@@ -15,7 +15,7 @@
   <td><a href="{{ c.get_absolute_url }}">{{ c.name }}</a><div class="small text-muted">{{ c.n_records }} notice(s)</div></td>
   <td>{{ c|status_badge }}{% if c.sync_paused %} <span class="chip chip-warn">suspendue</span>{% endif %}</td>
   <td class="small">{% if c.connector %}Connecteur{% else %}Import de fichiers{% endif %}</td>
-  <td class="small">{{ c.get_frequency_display }}{% if row.due %}<br><span class="text-muted">prochaine : {{ row.due|date:"d/m H:i" }}</span>{% endif %}</td>
+  <td class="small">{% if c.connector and not c.can_refresh %}—{% else %}{{ c.get_frequency_display }}{% endif %}{% if row.due and c.can_refresh %}<br><span class="text-muted">prochaine : {{ row.due|date:"d/m H:i" }}</span>{% endif %}</td>
   <td class="small">{{ c.last_attempt_at|date:"d/m/Y H:i"|default:"—" }}</td>
   <td class="small">{{ c.last_success_at|date:"d/m/Y H:i"|default:"—" }}</td>
   <td class="small">{% if last %}<a href="{{ last.get_absolute_url }}">{{ last.get_status_display }}</a><br>
@@ -25,9 +25,11 @@
     {% if c.connector %}
     <div class="dropdown d-inline-block"><button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">Lancer</button>
       <ul class="dropdown-menu dropdown-menu-end">
+        {% if c.can_refresh %}
         <li><form method="post" action="{% url 'updates:sync_launch' c.code %}">{% csrf_token %}<button class="dropdown-item" name="kind" value="incremental">Synchronisation incrémentale</button></form></li>
         <li><form method="post" action="{% url 'updates:sync_launch' c.code %}">{% csrf_token %}<button class="dropdown-item" name="kind" value="full">Synchronisation complète</button></form></li>
         <li><form method="post" action="{% url 'updates:sync_launch' c.code %}">{% csrf_token %}<button class="dropdown-item" name="kind" value="refresh">Actualiser les notices connues</button></form></li>
+        {% else %}<li><span class="dropdown-item-text small text-muted">Source de recherche : pas d'actualisation</span></li>{% endif %}
         <li><form method="post" action="{% url 'connectors:test' c.code %}">{% csrf_token %}<button class="dropdown-item">Tester le connecteur</button></form></li>
         <li><form method="post" action="{% url 'updates:toggle_pause' c.code %}">{% csrf_token %}<button class="dropdown-item">{% if c.sync_paused %}Reprendre{% else %}Suspendre{% endif %} l'actualisation</button></form></li>
       </ul></div>

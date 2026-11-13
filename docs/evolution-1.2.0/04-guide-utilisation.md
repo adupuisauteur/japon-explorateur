@@ -16,6 +16,9 @@ Sources disponibles dans la 1.2.0 :
 | CiNii — bibliothèques universitaires | Livres et revues des bibliothèques universitaires | Même identifiant |
 | Kokusho | Livres anciens et manuscrits (NIJL) | Inchangé |
 
+### Actualisation des notices
+Seul **Kokusho** propose une actualisation des notices déjà intégrées (bouton **Actualiser**, gestionnaire de mises à jour). NDL Search, Japan Search et CiNii servent aux recherches : chaque nouvelle recherche compare automatiquement leurs résultats à vos notices (« Déjà connu », « Modifié »). Aucun bouton d'actualisation n'est donc proposé pour ces sources.
+
 ### Ajouter une base d'archives, d'université ou de musée
 **Sources → Japan Search → « Trouver une base Japan Search »**. Tapez le nom de l'institution, de préférence en japonais : 国立公文書館, 早稲田, 京都大学, 日文研, 県立公文書館… Pour chaque base trouvée :
 - **diffusée** : vous pouvez cliquer sur **Créer une source**. La source est créée **désactivée** : testez-la, puis activez-la ;

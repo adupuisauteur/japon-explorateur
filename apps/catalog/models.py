@@ -211,6 +211,19 @@ class Catalogue(models.Model):
         return bool(self.connector) and self.connector != "local" and self.real_test_ok_at is None
 
     @property
+    def can_refresh(self):
+        """Le connecteur sait-il actualiser des notices (moisson ou relecture par identifiant) ? (1.2.0)
+
+        NDL Search, Japan Search et CiNii servent aux recherches : ils ne proposent pas d'actualisation.
+        """
+        if not self.connector or self.connector == "local":
+            return False
+        from apps.connectors.registry import connector_class
+
+        cls = connector_class(self.connector)
+        return bool(cls and (cls.supports_harvest or cls.supports_fetch))
+
+    @property
     def is_searchable(self):
         return self.enabled_for_search and self.status in ("available", "partial", "degraded")
 

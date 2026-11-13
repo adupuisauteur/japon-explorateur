@@ -38,6 +38,10 @@ def sync_launch(request, code):
     from .tasks import run_sync_job
 
     catalogue = get_object_or_404(Catalogue, code=code)
+    if not catalogue.can_refresh:
+        messages.warning(request, f"« {catalogue.name} » sert aux recherches et ne propose pas d'actualisation. "
+                                  "Les notices déjà intégrées sont comparées à chaque nouvelle recherche.")
+        return redirect(catalogue.get_absolute_url())
     kind = request.POST.get("kind", "incremental")
     if kind not in dict(SyncJob.KINDS):
         kind = "incremental"
@@ -57,7 +61,7 @@ def sync_all(request):
     n = 0
     for c in Catalogue.objects.exclude(connector="").exclude(code="local").exclude(status__in=["disabled", "to_study",
                                                                                                 "not_configured"]):
-        if c.sync_paused:
+        if c.sync_paused or not c.can_refresh:
             continue
         job = SyncJob.objects.create(catalogue=c, kind="incremental", triggered_by=request.user)
         run_sync_job.delay(job.pk)
