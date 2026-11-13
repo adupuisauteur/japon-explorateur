@@ -29,10 +29,10 @@ index 1acb43c..2ccf0ec 100644
  CONNECTOR_DEFAULT_TIMEOUT=20
 diff --git a/CHANGELOG.md b/CHANGELOG.md
 new file mode 100644
-index 0000000..7f52365
+index 0000000..186db23
 --- /dev/null
 +++ b/CHANGELOG.md
-@@ -0,0 +1,17 @@
+@@ -0,0 +1,18 @@
 +# Historique des versions
 +
 +## 1.2.0 — 13 novembre 2026
@@ -45,13 +45,14 @@ index 0000000..7f52365
 +- **Socle** : numéro de version unique (`VERSION`) ; installation d'essai isolée (projet Docker, volumes, port 8001, image) ; `pypdf` ajouté aux dépendances.
 +- **Outil** : script `reinitialiser-essai.ps1` (Windows) pour remettre l'installation d'essai à zéro, avec contrôles de sécurité qui protègent l'installation principale.
 +- **Correctif (13/11, incident INC-20261113-41FDF0)** : erreur 500 au clic sur « Comparer avec la base » sous Docker. Le module `packaging`, requis par kombu 5.7 (transport Redis de Celery) mais non déclaré par ce paquet, est ajouté aux dépendances. Le même problème touchait toute tâche confiée au worker (synchronisations, exports). Un test de non-régression a été ajouté, et chaque erreur de page reçoit désormais un identifiant de requête.
++- **Correctif (13/11, incident INC-20261113-0AB9C5)** : « Actualiser » était proposé pour NDL Search, Japan Search et CiNii, qui ne savent pas actualiser des notices, et l'échec était enregistré comme « Erreur technique ». Le bouton n'est désormais proposé que pour les connecteurs compatibles (ex. Kokusho), le serveur refuse l'opération sinon, et le planificateur comme « Actualiser les sources compatibles » les ignorent. Une opération non proposée n'est jamais enregistrée comme dysfonctionnement.
 +- Base de données : une migration **additive** (`incidents.0001_initial`), aucune table existante modifiée.
 +
 +## 1.1 — commit 7cb4075
 +
 +Application complète et 13 corrections de l'audit (numéro affiché par erreur : 1.0.0).
 diff --git a/README.md b/README.md
-index 3a68d60..73b0af6 100644
+index 3a68d60..01771d3 100644
 --- a/README.md
 +++ b/README.md
 @@ -2,6 +2,10 @@
@@ -104,7 +105,7 @@ index 3a68d60..73b0af6 100644
  
  ```bash
 -python manage.py test tests            # 95 tests ; PostgreSQL recommandé (DATABASE_URL)
-+python manage.py test tests            # 128 tests ; PostgreSQL recommandé (DATABASE_URL)
++python manage.py test tests            # 130 tests ; PostgreSQL recommandé (DATABASE_URL)
  ```
 -Ils couvrent les critères d'acceptation AT-01 à AT-20 et AT-IA-01 à AT-IA-12 (correspondance détaillée dans `docs/conformite.md`). Les connecteurs et fournisseurs d'IA y sont testés sur des réponses simulées, sans appel réseau. `tests/test_audit_corrections.py` reproduit chacune des anomalies relevées par l'audit et vérifie qu'elle ne se produit plus.
 +Ils couvrent les critères d'acceptation AT-01 à AT-20 et AT-IA-01 à AT-IA-12 (correspondance détaillée dans `docs/conformite.md`). Les connecteurs et fournisseurs d'IA y sont testés sur des réponses simulées, sans appel réseau. `tests/test_audit_corrections.py` reproduit chacune des anomalies relevées par l'audit et vérifie qu'elle ne se produit plus. `tests/test_evolution_120.py` couvre la 1.2.0 sur des réponses enregistrées (`tests/fixtures/reponses/`) : réponse normale, aucun résultat, indisponibilité, réponse mal formée, journal, export, conservation des données.
@@ -118,6 +119,30 @@ index 0000000..26aaba0
 +++ b/VERSION
 @@ -0,0 +1 @@
 +1.2.0
+diff --git a/apps/catalog/models.py b/apps/catalog/models.py
+index bb30154..332917a 100644
+--- a/apps/catalog/models.py
++++ b/apps/catalog/models.py
+@@ -210,6 +210,19 @@ class Catalogue(models.Model):
+         """Connecteur externe jamais vérifié avec succès sur le service réel (audit, point particulier 4)."""
+         return bool(self.connector) and self.connector != "local" and self.real_test_ok_at is None
+ 
++    @property
++    def can_refresh(self):
++        """Le connecteur sait-il actualiser des notices (moisson ou relecture par identifiant) ? (1.2.0)
++
++        NDL Search, Japan Search et CiNii servent aux recherches : ils ne proposent pas d'actualisation.
++        """
++        if not self.connector or self.connector == "local":
++            return False
++        from apps.connectors.registry import connector_class
++
++        cls = connector_class(self.connector)
++        return bool(cls and (cls.supports_harvest or cls.supports_fetch))
++
+     @property
+     def is_searchable(self):
+         return self.enabled_for_search and self.status in ("available", "partial", "degraded")
 diff --git a/apps/catalog/search.py b/apps/catalog/search.py
 index 48d24f0..8a953ec 100644
 --- a/apps/catalog/search.py
@@ -172,10 +197,10 @@ index 48d24f0..8a953ec 100644
 +                            "attestée" if v.verified else "non vérifiée"))
 +    return out[:limit]
 diff --git a/apps/connectors/base.py b/apps/connectors/base.py
-index 1a59881..ef64830 100644
+index 1a59881..610ac6c 100644
 --- a/apps/connectors/base.py
 +++ b/apps/connectors/base.py
-@@ -10,16 +10,52 @@ from dataclasses import dataclass, field
+@@ -10,16 +10,56 @@ from dataclasses import dataclass, field
  from typing import Iterator, Optional
  
  
@@ -188,7 +213,11 @@ index 1a59881..ef64830 100644
 +    "processing": "Erreur de traitement",          # conversion des métadonnées en échec
 +    "config": "Configuration incomplète",          # paramètre ou identifiant d'accès manquant
 +    "query": "Requête non transmise",              # critères vides ou non pris en charge : pas un dysfonctionnement
++    "unsupported": "Opération non proposée par ce connecteur",  # pas un dysfonctionnement
 +}
++
++#: Natures d'échec qui ne sont jamais enregistrées dans le journal des dysfonctionnements.
++NOT_AN_INCIDENT = ("query", "unsupported")
 +
 +
  class ConnectorError(Exception):
@@ -232,7 +261,7 @@ index 1a59881..ef64830 100644
  
  
  @dataclass
-@@ -115,7 +151,7 @@ class BaseConnector:
+@@ -115,7 +155,7 @@ class BaseConnector:
              ms = int((time.monotonic() - started) * 1000)
              return True, f"La source répond ({ms} ms, {response.total if response.total is not None else '?'} résultats).", {}
          except ConnectorError as exc:
@@ -2699,10 +2728,10 @@ index 0000000..589ee51
 +        "fmt": fmt, "hide": hide,
 +    })
 diff --git a/apps/searching/services.py b/apps/searching/services.py
-index 6c793f7..180f3c3 100644
+index 6c793f7..66f9fea 100644
 --- a/apps/searching/services.py
 +++ b/apps/searching/services.py
-@@ -5,7 +5,7 @@ import logging
+@@ -5,12 +5,12 @@ import logging
  import time
  from datetime import timedelta
  
@@ -2711,6 +2740,12 @@ index 6c793f7..180f3c3 100644
  from django.utils import timezone
  
  from apps.catalog.models import Catalogue, Record
+ from apps.catalog.services import _title_key, upsert_record
+-from apps.connectors.base import ConnectorError, SearchQuery
++from apps.connectors.base import NOT_AN_INCIDENT, ConnectorError, SearchQuery
+ from apps.connectors.registry import get_connector
+ from apps.core.models import AppSettings
+ 
 @@ -56,29 +56,73 @@ def create_session(user, *, query="", variants=None, variant_details=None, field
      return session
  
@@ -2774,7 +2809,7 @@ index 6c793f7..180f3c3 100644
 -        stats = {"status": "error", "error": str(exc), "count": 0, "ms": int((time.monotonic() - started) * 1000)}
 +        status = {"unavailable": "unavailable", "unparsable": "unparsable"}.get(exc.kind, "error")
 +        incident = None
-+        if exc.kind != "query":  # une requête refusée pour critères vides n'est pas un dysfonctionnement
++        if exc.kind not in NOT_AN_INCIDENT:  # requête vide, opération non proposée : pas un dysfonctionnement
 +            incident = incidents.record_connector_error(exc, module="recherche", source_code=code,
 +                                                        operation=operation, extra=query_context)
 +        stats = {"status": status, "error": str(exc), "kind": exc.kind, "kind_label": exc.kind_label, "count": 0,
@@ -2941,7 +2976,7 @@ index 7cd393c..553e495 100644
               "collected": ["-collected_at"]}.get(sort, ["rank"])
      return qs.order_by(*order)
 diff --git a/apps/updates/services.py b/apps/updates/services.py
-index de06f71..9f37265 100644
+index de06f71..c0aee07 100644
 --- a/apps/updates/services.py
 +++ b/apps/updates/services.py
 @@ -7,13 +7,15 @@ import logging
@@ -2955,7 +2990,8 @@ index de06f71..9f37265 100644
  from apps.catalog.models import Catalogue, Record
  from apps.catalog.services import (_title_key, clean_source_data, compare_with_existing, set_record_status,
                                     upsert_record)
- from apps.connectors.base import ConnectorError
+-from apps.connectors.base import ConnectorError
++from apps.connectors.base import NOT_AN_INCIDENT, ConnectorError
 +from apps.connectors.http import last_exchange
 +from apps.incidents import services as incidents
  from apps.connectors.registry import get_connector
@@ -2991,7 +3027,19 @@ index de06f71..9f37265 100644
          elif job.kind in ("full", "incremental") and connector.supports_harvest:
              since = catalogue.last_success_at if job.kind == "incremental" else None
              seen = set()
-@@ -236,6 +252,9 @@ def run_sync(job):
+@@ -228,14 +244,19 @@ def run_sync(job):
+         else:
+             # Source sans moisson : actualisation ciblée des notices déjà connues (ex. Kokusho via IIIF).
+             if not connector.supports_fetch:
+-                raise ConnectorError("Ce connecteur ne permet ni moisson ni actualisation par identifiant ; "
+-                                     "utilisez l'import de fichiers.")
++                raise ConnectorError("Ce connecteur sert aux recherches : il ne propose ni moisson ni actualisation "
++                                     "par identifiant. Les notices déjà intégrées sont comparées à chaque nouvelle "
++                                     "recherche (« Déjà connu » / « Modifié »).", kind="unsupported",
++                                     code="unsupported_operation")
+             limit = int(catalogue.config.get("refresh_limit", 200))
+             records = Record.objects.filter(catalogue=catalogue).exclude(record_status="deleted").order_by("collected_at")[:limit]
+             for record in records:
                  try:
                      res = connector.fetch_record(record.source_id)
                  except ConnectorError as exc:
@@ -3001,12 +3049,15 @@ index de06f71..9f37265 100644
                      if "404" in str(exc):
                          IncomingRecord.objects.create(sync_job=job, source_id=record.source_id,
                                                        data={"original_title": record.original_title},
-@@ -255,10 +274,21 @@ def run_sync(job):
+@@ -254,11 +275,23 @@ def run_sync(job):
+     except ConnectorError as exc:
          job.status = "failed"
          job.message = str(exc)
-         Catalogue.objects.filter(pk=catalogue.pk).update(last_error=str(exc)[:1000])
-+        incidents.record_connector_error(exc, module="connecteur", source_code=catalogue.code,
-+                                         operation=f"{job.get_kind_display()} — {catalogue.name}")
+-        Catalogue.objects.filter(pk=catalogue.pk).update(last_error=str(exc)[:1000])
++        if exc.kind not in NOT_AN_INCIDENT:  # une opération non proposée n'est pas un dysfonctionnement
++            Catalogue.objects.filter(pk=catalogue.pk).update(last_error=str(exc)[:1000])
++            incidents.record_connector_error(exc, module="connecteur", source_code=catalogue.code,
++                                             operation=f"{job.get_kind_display()} — {catalogue.name}")
 +    except DatabaseError as exc:
 +        logger.exception("Synchronisation %s : erreur de base de données", catalogue.code)
 +        job.status = "failed"
@@ -3023,11 +3074,38 @@ index de06f71..9f37265 100644
      job.counts = counts
      job.finished_at = timezone.now()
      job.save()
+@@ -290,5 +323,5 @@ def due_catalogues(now=None):
+     now = now or timezone.now()
+     for catalogue in Catalogue.objects.exclude(frequency="manual").exclude(status="disabled").filter(sync_paused=False):
+         due = catalogue.next_sync_due()
+-        if due and due <= now and catalogue.connector:
++        if due and due <= now and catalogue.can_refresh:
+             yield catalogue
 diff --git a/apps/updates/views.py b/apps/updates/views.py
-index f95514f..51b0af9 100644
+index f95514f..86ada69 100644
 --- a/apps/updates/views.py
 +++ b/apps/updates/views.py
-@@ -167,9 +167,15 @@ def import_new(request):
+@@ -38,6 +38,10 @@ def sync_launch(request, code):
+     from .tasks import run_sync_job
+ 
+     catalogue = get_object_or_404(Catalogue, code=code)
++    if not catalogue.can_refresh:
++        messages.warning(request, f"« {catalogue.name} » sert aux recherches et ne propose pas d'actualisation. "
++                                  "Les notices déjà intégrées sont comparées à chaque nouvelle recherche.")
++        return redirect(catalogue.get_absolute_url())
+     kind = request.POST.get("kind", "incremental")
+     if kind not in dict(SyncJob.KINDS):
+         kind = "incremental"
+@@ -57,7 +61,7 @@ def sync_all(request):
+     n = 0
+     for c in Catalogue.objects.exclude(connector="").exclude(code="local").exclude(status__in=["disabled", "to_study",
+                                                                                                 "not_configured"]):
+-        if c.sync_paused:
++        if c.sync_paused or not c.can_refresh:
+             continue
+         job = SyncJob.objects.create(catalogue=c, kind="incremental", triggered_by=request.user)
+         run_sync_job.delay(job.pk)
+@@ -167,9 +171,15 @@ def import_new(request):
          try:
              services.analyze_import(job)
          except Exception as exc:
@@ -3408,10 +3486,10 @@ index 0000000..8fb7976
 +Cet identifiant n'est jamais enregistré dans la base ni dans le journal : il est masqué partout.
 diff --git a/docs/evolution-1.2.0/04-guide-utilisation.md b/docs/evolution-1.2.0/04-guide-utilisation.md
 new file mode 100644
-index 0000000..b126efd
+index 0000000..286f776
 --- /dev/null
 +++ b/docs/evolution-1.2.0/04-guide-utilisation.md
-@@ -0,0 +1,83 @@
+@@ -0,0 +1,86 @@
 +# Guide d'utilisation des nouvelles fonctions — version 1.2.0
 +
 +## 1. Rechercher dans les sources japonaises
@@ -3429,6 +3507,9 @@ index 0000000..b126efd
 +| CiNii Research | Articles, revues savantes, thèses, données | Nécessite l'identifiant CiNii (guide d'installation, annexe) |
 +| CiNii — bibliothèques universitaires | Livres et revues des bibliothèques universitaires | Même identifiant |
 +| Kokusho | Livres anciens et manuscrits (NIJL) | Inchangé |
++
++### Actualisation des notices
++Seul **Kokusho** propose une actualisation des notices déjà intégrées (bouton **Actualiser**, gestionnaire de mises à jour). NDL Search, Japan Search et CiNii servent aux recherches : chaque nouvelle recherche compare automatiquement leurs résultats à vos notices (« Déjà connu », « Modifié »). Aucun bouton d'actualisation n'est donc proposé pour ces sources.
 +
 +### Ajouter une base d'archives, d'université ou de musée
 +**Sources → Japan Search → « Trouver une base Japan Search »**. Tapez le nom de l'institution, de préférence en japonais : 国立公文書館, 早稲田, 京都大学, 日文研, 県立公文書館… Pour chaque base trouvée :
@@ -3497,7 +3578,7 @@ index 0000000..b126efd
 +Le rapport contient la version, le module, l'identifiant, les messages techniques, le contexte et les étapes pour reproduire. Les mots de passe, clés API (dont l'identifiant CiNii), jetons, adresses e-mail, noms d'utilisateur et chemins personnels sont **masqués automatiquement**. Le journal reste sur ce poste : rien n'est envoyé à l'extérieur.
 diff --git a/docs/evolution-1.2.0/05-protocole-verification.md b/docs/evolution-1.2.0/05-protocole-verification.md
 new file mode 100644
-index 0000000..1f71929
+index 0000000..cf81d36
 --- /dev/null
 +++ b/docs/evolution-1.2.0/05-protocole-verification.md
 @@ -0,0 +1,102 @@
@@ -3569,7 +3650,7 @@ index 0000000..1f71929
 +
 +**V14 — Réinitialisation (facultatif, à faire en dernier).** `powershell -ExecutionPolicy Bypass -File .\reinitialiser-essai.ps1` → répondez **O** à la sauvegarde → tapez `REINITIALISER`. Attendu : une sauvegarde `.tar` dans `sauvegardes-essai`, la base vide (l'assistant de première configuration réapparaît sur http://localhost:8001) et l'installation principale (http://localhost:8000) intacte.
 +
-+**V13 — Tests automatiques (facultatif).** `docker compose exec web python manage.py test tests`. Attendu : « OK » à la fin (128 tests).
++**V13 — Tests automatiques (facultatif).** `docker compose exec web python manage.py test tests`. Attendu : « OK » à la fin (130 tests).
 +
 +---
 +
@@ -3605,10 +3686,10 @@ index 0000000..1f71929
 +Après un test réel réussi, le badge « non vérifié » disparaît de la source, et la date du test est enregistrée (« Dernier test réel réussi »). Elle servira à faire passer le connecteur au statut **« testé en conditions réelles »**.
 diff --git a/docs/evolution-1.2.0/06-rapport-technique.md b/docs/evolution-1.2.0/06-rapport-technique.md
 new file mode 100644
-index 0000000..06209a2
+index 0000000..cc47706
 --- /dev/null
 +++ b/docs/evolution-1.2.0/06-rapport-technique.md
-@@ -0,0 +1,108 @@
+@@ -0,0 +1,112 @@
 +# Rapport technique final — Évolution 1.2.0
 +
 +**Japon — Explorateur documentaire** · Sources documentaires et suivi des dysfonctionnements · 13 novembre 2026
@@ -3675,7 +3756,7 @@ index 0000000..06209a2
 +
 +## 4. Tests exécutés
 +
-+Environnement : Python 3.13, Django 5.2, PostgreSQL 16, sous Linux. **Résultat : 128 tests, tous réussis**, avec `DJANGO_DEBUG=true` puis `false`.
++Environnement : Python 3.13, Django 5.2, PostgreSQL 16, sous Linux. **Résultat : 130 tests, tous réussis**, avec `DJANGO_DEBUG=true` puis `false`.
 +
 +| Exigence §6.3 | Test exécuté | Résultat |
 +|---|---|---|
@@ -3709,6 +3790,10 @@ index 0000000..06209a2
 +- **Amélioration associée** : chaque erreur de page reçoit désormais un identifiant de requête.
 +
 +Le journal des dysfonctionnements a joué son rôle : le rapport exporté indiquait le module manquant et le fichier en cause.
++
++**Corrigé le 13/11/2026 : incident INC-20261113-0AB9C5.** Le bouton « Actualiser » sur NDL Search produisait un incident « Erreur technique », origine « Connecteur ».
++- **Cause** : depuis la 1.1, ce bouton était proposé pour toutes les sources dotées d'un connecteur. Or NDL Search, Japan Search et CiNii servent aux recherches : ils ne savent ni moissonner ni relire une notice par identifiant. Le journal 1.2.0 classait à tort ce refus comme un dysfonctionnement.
++- **Correction** : les boutons d'actualisation n'apparaissent que pour les connecteurs compatibles (Kokusho), sur la fiche de la source et dans le gestionnaire de mises à jour. Le serveur refuse la demande dans les autres cas. Le planificateur et « Actualiser les sources compatibles » ignorent ces sources. Une opération non proposée (nature « unsupported ») n'est plus journalisée. Pour ces sources, les notices déjà intégrées restent comparées à chaque nouvelle recherche (« Déjà connu » / « Modifié »). Deux tests de non-régression ont été ajoutés.
 +
 +Aucun autre test ne révèle d'anomalie dans le code livré. Les points d'incertitude sur les formats réels sont listés dans `02-etude-sources.md` §3, et les limitations dans `07-limitations-connues.md`.
 +
@@ -4075,9 +4160,29 @@ index 6f2c528..07863e4 100644
    </div>
  </footer>
 diff --git a/templates/connectors/detail.html b/templates/connectors/detail.html
-index 9d0ba76..1ee0d60 100644
+index 9d0ba76..11893d8 100644
 --- a/templates/connectors/detail.html
 +++ b/templates/connectors/detail.html
+@@ -7,8 +7,8 @@
+   {% if user.is_admin_role %}<div class="d-flex flex-wrap gap-2">
+     {% if catalogue.connector %}
+     <form method="post" action="{% url 'connectors:test' catalogue.code %}">{% csrf_token %}<button class="btn btn-outline-primary"><i class="bi bi-plug"></i> Tester le connecteur</button></form>
+-    <form method="post" action="{% url 'updates:sync_launch' catalogue.code %}">{% csrf_token %}<input type="hidden" name="kind" value="incremental">
+-      <button class="btn btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Actualiser</button></form>
++    {% if catalogue.can_refresh %}<form method="post" action="{% url 'updates:sync_launch' catalogue.code %}">{% csrf_token %}<input type="hidden" name="kind" value="incremental">
++      <button class="btn btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Actualiser</button></form>{% endif %}
+     {% endif %}
+     <a class="btn btn-primary" href="{% url 'updates:import_new' %}?catalogue={{ catalogue.code }}"><i class="bi bi-upload"></i> Importer un fichier</a>
+   </div>{% endif %}</div>
+@@ -26,7 +26,7 @@
+         <dt>Méthode d'accès</dt><dd>{{ catalogue.access_method|default:"—" }}</dd>
+         <dt>Notices locales</dt><dd>{{ n_records }}</dd>
+         <dt>Interrogé en recherche</dt><dd>{{ catalogue.enabled_for_search|yesno_icon }}</dd>
+-        <dt>Fréquence</dt><dd>{{ catalogue.get_frequency_display }}{% if catalogue.sync_paused %} (suspendue){% endif %}</dd>
++        <dt>Fréquence</dt><dd>{% if catalogue.connector and catalogue.connector != 'local' and not catalogue.can_refresh %}Sans objet : cette source sert aux recherches. Les notices déjà intégrées sont comparées à chaque nouvelle recherche (« Déjà connu » / « Modifié »).{% else %}{{ catalogue.get_frequency_display }}{% if catalogue.sync_paused %} (suspendue){% endif %}{% endif %}</dd>
+         <dt>Dernière tentative</dt><dd>{{ catalogue.last_attempt_at|date:"d/m/Y H:i"|default:"—" }}</dd>
+         <dt>Dernière réussite</dt><dd>{{ catalogue.last_success_at|date:"d/m/Y H:i"|default:"—" }}</dd>
+         {% if catalogue.connector and catalogue.connector != 'local' %}<dt>Dernier test réel réussi</dt><dd>{% if catalogue.real_test_ok_at %}{{ catalogue.real_test_ok_at|date:"d/m/Y H:i" }}{% else %}<strong class="text-warning-emphasis">Jamais : fonctionnement non vérifié sur le service réel</strong>{% endif %}</dd>{% endif %}
 @@ -47,6 +47,19 @@
        {% if connector_cls.config_help %}<p class="small mb-1">Paramètres :</p><ul class="small">{% for k, v in connector_cls.config_help.items %}<li><code>{{ k }}</code> — {{ v }}</li>{% endfor %}</ul>{% endif %}
      </div>
@@ -4471,6 +4576,40 @@ index 2e809e6..1464f6d 100644
        </div>
      </form>
    </div>
+diff --git a/templates/updates/dashboard.html b/templates/updates/dashboard.html
+index 479d333..fbd0da6 100644
+--- a/templates/updates/dashboard.html
++++ b/templates/updates/dashboard.html
+@@ -3,7 +3,7 @@
+ {% block content %}
+ <div class="page-head"><div><h1>Gestionnaire de mises à jour</h1>
+   <p>Sources, imports et actualisations. Rien n'est intégré sans rapport ni validation ; aucune notice n'est supprimée parce qu'elle manque dans un export.</p></div>
+-  <div class="d-flex gap-2"><form method="post" action="{% url 'updates:sync_all' %}">{% csrf_token %}<button class="btn btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Lancer toutes les sources activées</button></form>
++  <div class="d-flex gap-2"><form method="post" action="{% url 'updates:sync_all' %}">{% csrf_token %}<button class="btn btn-outline-primary" title="Seules les sources qui proposent une actualisation (ex. Kokusho) sont concernées"><i class="bi bi-arrow-repeat"></i> Actualiser les sources compatibles</button></form>
+   <a class="btn btn-primary" href="{% url 'updates:import_new' %}"><i class="bi bi-upload"></i> Importer un fichier</a></div></div>
+ 
+ {% if reviews %}<div class="alert alert-warning"><strong>À valider :</strong>
+@@ -15,7 +15,7 @@
+   <td><a href="{{ c.get_absolute_url }}">{{ c.name }}</a><div class="small text-muted">{{ c.n_records }} notice(s)</div></td>
+   <td>{{ c|status_badge }}{% if c.sync_paused %} <span class="chip chip-warn">suspendue</span>{% endif %}</td>
+   <td class="small">{% if c.connector %}Connecteur{% else %}Import de fichiers{% endif %}</td>
+-  <td class="small">{{ c.get_frequency_display }}{% if row.due %}<br><span class="text-muted">prochaine : {{ row.due|date:"d/m H:i" }}</span>{% endif %}</td>
++  <td class="small">{% if c.connector and not c.can_refresh %}—{% else %}{{ c.get_frequency_display }}{% endif %}{% if row.due and c.can_refresh %}<br><span class="text-muted">prochaine : {{ row.due|date:"d/m H:i" }}</span>{% endif %}</td>
+   <td class="small">{{ c.last_attempt_at|date:"d/m/Y H:i"|default:"—" }}</td>
+   <td class="small">{{ c.last_success_at|date:"d/m/Y H:i"|default:"—" }}</td>
+   <td class="small">{% if last %}<a href="{{ last.get_absolute_url }}">{{ last.get_status_display }}</a><br>
+@@ -25,9 +25,11 @@
+     {% if c.connector %}
+     <div class="dropdown d-inline-block"><button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">Lancer</button>
+       <ul class="dropdown-menu dropdown-menu-end">
++        {% if c.can_refresh %}
+         <li><form method="post" action="{% url 'updates:sync_launch' c.code %}">{% csrf_token %}<button class="dropdown-item" name="kind" value="incremental">Synchronisation incrémentale</button></form></li>
+         <li><form method="post" action="{% url 'updates:sync_launch' c.code %}">{% csrf_token %}<button class="dropdown-item" name="kind" value="full">Synchronisation complète</button></form></li>
+         <li><form method="post" action="{% url 'updates:sync_launch' c.code %}">{% csrf_token %}<button class="dropdown-item" name="kind" value="refresh">Actualiser les notices connues</button></form></li>
++        {% else %}<li><span class="dropdown-item-text small text-muted">Source de recherche : pas d'actualisation</span></li>{% endif %}
+         <li><form method="post" action="{% url 'connectors:test' c.code %}">{% csrf_token %}<button class="dropdown-item">Tester le connecteur</button></form></li>
+         <li><form method="post" action="{% url 'updates:toggle_pause' c.code %}">{% csrf_token %}<button class="dropdown-item">{% if c.sync_paused %}Reprendre{% else %}Suspendre{% endif %} l'actualisation</button></form></li>
+       </ul></div>
 diff --git a/tests/fixtures/reponses/README.md b/tests/fixtures/reponses/README.md
 new file mode 100644
 index 0000000..7a419e9
@@ -4643,10 +4782,10 @@ index 0000000..a0a968f
 +</rss>
 diff --git a/tests/test_evolution_120.py b/tests/test_evolution_120.py
 new file mode 100644
-index 0000000..02a6251
+index 0000000..75a163b
 --- /dev/null
 +++ b/tests/test_evolution_120.py
-@@ -0,0 +1,543 @@
+@@ -0,0 +1,576 @@
 +"""Évolution 1.2.0 — sources documentaires et journal des dysfonctionnements (cahier des charges, §6.3).
 +
 +Tous les connecteurs sont testés **en simulation**, sur des réponses enregistrées (tests/fixtures/reponses) :
@@ -5190,6 +5329,39 @@ index 0000000..02a6251
 +        from config.celery import app
 +
 +        self.assertTrue(app.conf.broker_url is None or isinstance(app.conf.broker_url, str))
++
++
++class RefreshScopeTests(Evolution120Base):
++    """INC-20261113-0AB9C5 : « Actualiser » sur NDL créait un faux incident « Erreur technique »."""
++
++    def test_search_only_connectors_cannot_be_refreshed(self):
++        for code in ("ndl", "japansearch", "nat-archives", "cinii", "cinii-books"):
++            self.assertFalse(Catalogue.objects.get(code=code).can_refresh, code)
++        self.assertTrue(Catalogue.objects.get(code="kokusho").can_refresh)
++        page = self.client.get("/sources/ndl/")
++        self.assertNotContains(page, "/mises-a-jour/source/ndl/lancer/")
++        self.assertNotContains(page, "> Actualiser</button>")
++        self.assertContains(page, "Sans objet")
++        self.assertContains(self.client.get("/sources/kokusho/"), "Actualiser")
++        self.assertContains(self.client.get("/mises-a-jour/"), "pas d'actualisation")
++
++    def test_refresh_request_is_refused_without_incident(self):
++        from django.urls import reverse
++        from apps.updates.models import SyncJob
++        from apps.updates.services import due_catalogues, run_sync
++
++        response = self.client.post(reverse("updates:sync_launch", args=["ndl"]), {"kind": "incremental"})
++        self.assertRedirects(response, "/sources/ndl/")
++        self.assertFalse(SyncJob.objects.filter(catalogue__code="ndl").exists())
++        # Même si une actualisation est déclenchée autrement : échec expliqué, aucun incident.
++        job = run_sync(SyncJob.objects.create(catalogue=Catalogue.objects.get(code="ndl"), kind="incremental"))
++        self.assertEqual(job.status, "failed")
++        self.assertIn("sert aux recherches", job.message)
++        self.assertFalse(Incident.objects.exists())
++        Catalogue.objects.filter(code="ndl").update(frequency="daily", last_attempt_at=None, status="available")
++        self.assertNotIn("ndl", [c.code for c in due_catalogues()])
++        self.client.post(reverse("updates:sync_all"))
++        self.assertEqual(SyncJob.objects.filter(catalogue__code="ndl").count(), 1)
 diff --git a/tests/test_search_sessions.py b/tests/test_search_sessions.py
 index a82779d..0b447e3 100644
 --- a/tests/test_search_sessions.py
