@@ -5,7 +5,8 @@
 Évolution : module de traduction. Base : version 1.2.0, étiquette `v1.2.0-reference` (commit `4982a3d`). Voir `docs/evolution-1.3.0/`.
 
 - **Socle (lot 0)** : numéro de version 1.3.0 ; installation d'essai 1.3.0 isolée de l'installation principale et de l'essai 1.2.0 (projet Docker `japon-explorateur-essai-130`, port 8002, image `japon-explorateur:1.3.0`) ; les conteneurs refusent de démarrer sous le nom de projet de l'installation principale ou de l'essai 1.2.0 ; le script `reinitialiser-essai.ps1` refuse aussi l'essai 1.2.0 (nom et port 8001).
-- Base de données : aucune migration dans ce lot.
+- **Fondations du module de traduction (lot 1)** : application `apps/translation` (12 tables), rubrique « Traduction » dans le menu (administrateur et chercheur ; pas le lecteur), droits d'accès (projet à un seul propriétaire ; l'administrateur ne voit que les métadonnées d'un projet confidentiel d'autrui ; seul le propriétaire valide). Compte anonymisé ou supprimé : ses projets et glossaires de traduction sont confiés à un administrateur (celui qui anonymise), ses réglages et clés de moteurs effacés ; suppression refusée s'il n'existe aucun autre administrateur actif. Contenu des projets absent de l'interface d'administration Django.
+- Base de données : migration **additive** `translation.0001_initial` (nouvelles tables uniquement ; aucune table existante modifiée). Retour : `python manage.py migrate translation zero`.
 
 ## 1.2.0 — 13 novembre 2026
 

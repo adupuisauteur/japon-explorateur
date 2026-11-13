@@ -1,0 +1,28 @@
+"""Vues du module de traduction. Lot 1 : page d'accueil de la rubrique (les fonctions arrivent par lots)."""
+from django.db.models import Count
+from django.shortcuts import render
+
+from apps.core.permissions import researcher_required
+
+from ..permissions import projects_metadata_only_for, projects_with_content_for
+
+#: Rubriques prévues ; chaque lot active la sienne (plan de développement 1.3.0).
+SECTIONS = [
+    ("bi-cpu", "Moteurs", "Choix des moteurs, clés DeepL et Google, moteurs locaux.", 3),
+    ("bi-folder2", "Projets et documents", "Import, découpage, traduction, versions et validation.", 6),
+    ("bi-journal-text", "Glossaires", "Terminologie, import et export CSV.", 7),
+    ("bi-archive", "Mémoire de traduction", "Paires validées, recherche, exclusion.", 7),
+    ("bi-hourglass-split", "Tâches", "Traductions en cours, progression, reprise.", 4),
+    ("bi-file-earmark-arrow-down", "Exports", "Texte, CSV, DOCX bilingue.", 8),
+]
+
+
+@researcher_required
+def home(request):
+    mine = projects_with_content_for(request.user).filter(owner=request.user).annotate(n_docs=Count("documents"))
+    others = (projects_with_content_for(request.user).exclude(owner=request.user)
+              .select_related("owner").annotate(n_docs=Count("documents")))
+    hidden = projects_metadata_only_for(request.user).select_related("owner").annotate(n_docs=Count("documents"))
+    return render(request, "translation/home.html", {
+        "mine": mine, "others": others, "hidden": hidden, "sections": SECTIONS,
+    })

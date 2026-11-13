@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     "apps.ai",
     "apps.backups",
     "apps.incidents",
+    "apps.translation",
 ]
 
 MIDDLEWARE = [

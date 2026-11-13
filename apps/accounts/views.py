@@ -165,21 +165,41 @@ def user_anonymize(request, pk):
         messages.error(request, "Impossible d'anonymiser votre propre compte.")
         return redirect("accounts:users")
     if request.method == "POST":
-        target.username = f"compte-supprime-{get_random_string(8).lower()}"
-        target.display_name = "Compte supprimé"
-        target.email = target.first_name = target.last_name = ""
-        target.is_active = False
-        target.set_unusable_password()
-        target.save()
-        target.ai_credentials.all().delete()
-        target.collections.filter(visibility="private").delete()
-        target.annotations.filter(visibility="private").delete()
-        target.library.all().delete()
-        target.search_sessions.all().delete()
-        log_action(request, "user.anonymized", target, "Compte anonymisé, données privées supprimées")
-        messages.success(request, "Compte anonymisé ; ses données privées ont été supprimées.")
+        # 1.3.0 : projets et glossaires de traduction confiés à l'administrateur qui anonymise ; réglages et clés
+        # de moteurs effacés.
+        # Refusé, sans aucune modification, s'il n'existe aucun autre administrateur actif.
+        from apps.translation.ownership import TransferImpossible, release_user_translation_data
+
+        try:
+            with transaction.atomic():
+                recipient, n_projects, n_glossaries = release_user_translation_data(target, recipient=request.user)
+                _anonymize(target)
+        except TransferImpossible as exc:
+            messages.error(request, str(exc))
+            return redirect("accounts:user_edit", pk=target.pk)
+        log_action(request, "user.anonymized", target, "Compte anonymisé, données privées supprimées"
+                   + (f" ; {n_projects} projet(s) et {n_glossaries} glossaire(s) de traduction confiés à {recipient}"
+                      if recipient else ""))
+        messages.success(request, "Compte anonymisé ; ses données privées ont été supprimées."
+                         + (f" Ses {n_projects} projet(s) et {n_glossaries} glossaire(s) de traduction ont été "
+                            f"confiés à {recipient}." if recipient else ""))
         return redirect("accounts:users")
     return render(request, "accounts/user_anonymize.html", {"target": target})
+
+
+def _anonymize(target):
+    """Effacement des données personnelles (traitement inchangé depuis la 1.2.0)."""
+    target.username = f"compte-supprime-{get_random_string(8).lower()}"
+    target.display_name = "Compte supprimé"
+    target.email = target.first_name = target.last_name = ""
+    target.is_active = False
+    target.set_unusable_password()
+    target.save()
+    target.ai_credentials.all().delete()
+    target.collections.filter(visibility="private").delete()
+    target.annotations.filter(visibility="private").delete()
+    target.library.all().delete()
+    target.search_sessions.all().delete()
 
 
 class StyledPasswordForm(BootstrapMixin, PasswordChangeForm):

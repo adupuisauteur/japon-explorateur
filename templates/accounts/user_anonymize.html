@@ -5,6 +5,9 @@
 <div class="card-soft" style="max-width:700px">
   <p>Cette action désactive le compte, efface ses données personnelles (identifiant, nom, courriel), ses clés API, sa bibliothèque,
   ses sessions, ses dossiers et notes <strong>privés</strong>. Les notices du fonds commun et les contenus partagés sont conservés.</p>
+  <p>Ses <strong>projets et glossaires de traduction</strong> ne sont pas supprimés : ils sont confiés à un administrateur,
+  y compris les projets confidentiels, qui deviennent alors lisibles par cet administrateur. Ses réglages et clés de
+  moteurs de traduction sont effacés.</p>
   <form method="post">{% csrf_token %}<button class="btn btn-danger" data-confirm="Confirmer l'anonymisation définitive ?">Anonymiser</button>
     <a class="btn btn-link" href="{% url 'accounts:user_edit' target.pk %}">Annuler</a></form>
 </div>
