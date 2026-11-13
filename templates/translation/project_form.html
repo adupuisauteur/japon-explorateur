@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}{% if project %}Modifier le projet{% else %}Nouveau projet{% endif %}{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item"><a href="{% url 'translation:project_list' %}">Projets</a></li><li class="breadcrumb-item active">{% if project %}{{ project.title }}{% else %}Nouveau{% endif %}</li></ol></nav>{% endblock %}
+{% block content %}
+<h1>{% if project %}Modifier « {{ project.title }} »{% else %}Nouveau projet de traduction{% endif %}</h1>
+<form method="post" class="card-soft" style="max-width:900px">{% csrf_token %}
+  {{ form.non_field_errors }}
+  <div class="mb-2">{{ form.title.label_tag }}{{ form.title }}{{ form.title.errors }}</div>
+  <div class="mb-2">{{ form.description.label_tag }}{{ form.description }}</div>
+  <div class="row g-2 mb-2"><div class="col-md-4">{{ form.source_lang.label_tag }}{{ form.source_lang }}</div>
+    <div class="col-md-4">{{ form.target_lang.label_tag }}{{ form.target_lang }}</div>
+    <div class="col-md-4">{{ form.collection.label_tag }}{{ form.collection }}</div></div>
+  <div class="form-check mb-1">{{ form.confidential }} <label class="form-check-label" for="{{ form.confidential.id_for_label }}"><strong>{{ form.confidential.label }}</strong></label>
+    <div class="form-text">{{ form.confidential.help_text }}</div>{{ form.confidential.errors }}</div>
+  <div class="form-check mb-3">{{ form.is_reference_corpus }} <label class="form-check-label" for="{{ form.is_reference_corpus.id_for_label }}">{{ form.is_reference_corpus.label }}</label></div>
+  <h2 class="h6">Moteurs propres au projet (facultatif)</h2>
+  <div class="row g-2">
+    {% for f in form %}{% if "engine" in f.name or "ai_" in f.name %}<div class="col-md-4">{{ f.label_tag }}{{ f }}{% if f.help_text %}<div class="form-text">{{ f.help_text }}</div>{% endif %}{{ f.errors }}</div>{% endif %}{% endfor %}
+  </div>
+  <button class="btn btn-primary mt-3">Enregistrer</button>
+</form>
+{% endblock %}

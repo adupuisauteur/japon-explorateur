@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% load app_tags %}
+{% block title %}Segment {{ segment.position }} — {{ document.title }}{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item"><a href="{% url 'translation:project_detail' project.pk %}">{{ project.title }}</a></li><li class="breadcrumb-item"><a href="{% url 'translation:document_workbench' document.pk %}#seg-{{ segment.pk }}">{{ document.title }}</a></li><li class="breadcrumb-item active">Segment {{ segment.position }}</li></ol></nav>{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2"><h1 class="h3 mb-0">Segment {{ segment.position }}{% if segment.chapter %} <span class="badge text-bg-light fs-6">{{ segment.chapter.title }}</span>{% endif %}</h1>
+  <div>{% if previous %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'translation:segment_detail' previous.pk %}">← {{ previous.position }}</a>{% endif %}
+    {% if next %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'translation:segment_detail' next.pk %}">{{ next.position }} →</a>{% endif %}</div></div>
+<div class="card-soft mb-3"><div class="small text-muted mb-1">Original (texte importé, jamais modifié par une traduction)</div>
+  <div class="fs-5" style="white-space:pre-wrap" lang="{{ project.source_lang }}">{{ segment.source_text }}</div>
+  {% if segment.source_changed %}<div class="small text-danger mt-1">Original modifié depuis la traduction (fusion ou division) : vérifiez les versions ci-dessous.</div>{% endif %}</div>
+
+{% if can_edit %}
+<div class="d-flex flex-wrap gap-2 mb-3">
+  <form method="post" action="{% url 'translation:segment_action' segment.pk %}" class="d-flex gap-1">{% csrf_token %}
+    <select name="engine" class="form-select form-select-sm" style="width:auto" aria-label="Moteur"><option value="default">Moteur par défaut</option><option value="second">Deuxième moteur</option></select>
+    <button class="btn btn-sm btn-primary" name="action" value="translate">Traduire ce segment…</button></form>
+  <form method="post" action="{% url 'translation:segment_action' segment.pk %}">{% csrf_token %}{% if next %}<button class="btn btn-sm btn-outline-secondary" name="action" value="merge" data-confirm="Fusionner avec le segment suivant ?">Fusionner avec le suivant</button>{% endif %}</form>
+</div>
+<details class="mb-3"><summary class="small">Diviser ce segment</summary>
+  <form method="post" action="{% url 'translation:segment_action' segment.pk %}" class="card-soft mt-2">{% csrf_token %}
+    <label class="form-label small" for="first-part">Gardez dans ce champ seulement la PREMIÈRE partie (supprimez la fin) :</label>
+    <textarea id="first-part" name="first_part" class="form-control mb-2" rows="3" lang="{{ project.source_lang }}">{{ segment.source_text }}</textarea>
+    <button class="btn btn-sm btn-outline-secondary" name="action" value="split">Diviser</button></form></details>
+<details class="mb-3"><summary class="small">Commencer un chapitre à ce segment</summary>
+  <form method="post" action="{% url 'translation:segment_action' segment.pk %}" class="d-flex gap-2 mt-2">{% csrf_token %}
+    <input name="title" class="form-control form-control-sm" placeholder="Titre du chapitre" aria-label="Titre du chapitre" style="max-width:400px">
+    <button class="btn btn-sm btn-outline-secondary" name="action" value="chapter">Créer le chapitre</button></form></details>
+<section class="card-soft mb-3"><h2 class="h6">{% if edit_from %}Corriger la version du {{ edit_from.created_at|date:"d/m/Y H:i" }}{% else %}Saisir ma traduction{% endif %}</h2>
+  <form method="post" action="{% url 'translation:segment_action' segment.pk %}">{% csrf_token %}
+    {% if edit_from %}<input type="hidden" name="parent" value="{{ edit_from.pk }}">{% endif %}
+    <textarea name="text" class="form-control mb-2" rows="3" aria-label="Traduction">{% if edit_from %}{{ edit_from.text }}{% endif %}</textarea>
+    <button class="btn btn-sm btn-primary" name="action" value="human">Enregistrer comme nouvelle version</button>
+    <span class="small text-muted">La version d'origine est conservée.</span></form></section>
+{% endif %}
+
+<h2 class="h5">Versions ({{ versions|length }})</h2>
+{% for v in versions %}
+<div class="editorial-box {% if v.origin == 'ai' or v.origin == 'machine' %}ai{% endif %}{% if v.status == 'validated' %} border-success{% endif %}">
+  <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
+    <strong>{{ v.get_status_display }}</strong> <span class="chip">{{ v.get_origin_display }}</span>
+    {% if v.simulated %}<span class="chip chip-warn">Simulation</span>{% endif %}
+    <span class="small text-muted">{% if v.model %}{{ v.model }}{% elif v.engine %}{{ v.get_engine_display }}{% endif %}{% if v.engine_version %} · {{ v.engine_version }}{% endif %} · {{ v.created_at|date:"d/m/Y H:i" }}{% if v.author %} · {{ v.author }}{% endif %}{% if v.cost_estimate is not None %} · ≈ {{ v.cost_estimate|floatformat:5 }} {{ v.currency }}{% endif %}</span>
+    {% if v.parent %}<span class="small text-muted">corrige la version du {{ v.parent.created_at|date:"d/m/Y H:i" }}</span>{% endif %}
+    {% if v.decided_by %}<span class="small text-muted">· décision : {{ v.decided_by }}, {{ v.decided_at|date:"d/m/Y H:i" }}</span>{% endif %}</div>
+  <div style="white-space:pre-wrap">{{ v.text }}</div>
+  {% for a in v.alerts %}<div class="small text-warning">⚠ {{ a }}</div>{% endfor %}
+  {% if v.source_text != segment.source_text %}<div class="small text-danger">Traduite d'un original différent : « {{ v.source_text|truncatechars:80 }} »</div>{% endif %}
+  <div class="d-flex flex-wrap gap-1 mt-2">
+    {% if can_validate %}<form method="post" action="{% url 'translation:version_action' v.pk %}" class="d-flex gap-1">{% csrf_token %}
+      {% if v.status != 'validated' %}<button class="btn btn-sm btn-outline-success" name="action" value="validate">Valider</button>{% endif %}
+      {% if v.status != 'rejected' %}<button class="btn btn-sm btn-outline-secondary" name="action" value="reject">Rejeter</button>{% endif %}</form>{% endif %}
+    {% if can_edit %}<a class="btn btn-sm btn-link" href="?corriger={{ v.pk }}">Corriger</a>{% endif %}
+  </div>
+</div>
+{% empty %}<p class="text-muted">Aucune version : ce segment n'est pas encore traduit.</p>{% endfor %}
+{% if not can_validate %}<p class="small text-muted">Seul le propriétaire du projet valide les traductions.</p>{% endif %}
+{% endblock %}

@@ -87,9 +87,12 @@ def record_translations(request, record_id):
             "adoptable": bool(adopted_field),
             "proposals": [p for p in proposals if p.target_field == field],
         })
+    from ..models import TranslationProject
+
     return render(request, "translation/record_translations.html", {
         "record": record, "rows": rows, "engines": _engine_options(request.user),
         "kanbun": record.language == "lzh",
+        "my_projects": TranslationProject.objects.filter(owner=request.user).order_by("title"),
     })
 
 

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Traduction — Projets{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item active">Projets</li></ol></nav>{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1><i class="bi bi-folder2"></i> Projets de traduction</h1>
+  <p>Un projet regroupe des documents découpés en segments, avec ses moteurs et ses glossaires.</p></div>
+  <a class="btn btn-primary" href="{% url 'translation:project_create' %}"><i class="bi bi-plus-lg"></i> Nouveau projet</a></div>
+{% include "translation/_project_table.html" with projects=mine title="Mes projets" %}
+{% if user.is_admin_role %}
+{% include "translation/_project_table.html" with projects=others title="Projets des autres comptes" show_owner=True %}
+{% if hidden %}<h2 class="h5 mt-4">Projets confidentiels des autres comptes</h2>
+<p class="small text-muted">Métadonnées seulement : le contenu n'est visible que par leur propriétaire.</p>
+<table class="table table-sm"><thead><tr><th>Titre</th><th>Propriétaire</th><th>Documents</th><th>Segments</th></tr></thead><tbody>
+{% for p in hidden %}<tr><td><i class="bi bi-lock-fill"></i> {{ p.title }}</td><td>{{ p.owner }}</td><td>{{ p.n_docs }}</td><td>{{ p.n_segments }}</td></tr>{% endfor %}
+</tbody></table>{% endif %}
+{% endif %}
+{% endblock %}

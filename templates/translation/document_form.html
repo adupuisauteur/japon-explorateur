@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Ajouter un document{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item"><a href="{% url 'translation:project_list' %}">Projets</a></li><li class="breadcrumb-item"><a href="{% url 'translation:project_detail' project.pk %}">{{ project.title }}</a></li><li class="breadcrumb-item active">Nouveau document</li></ol></nav>{% endblock %}
+{% block content %}
+<h1>Ajouter un document à « {{ project.title }} »</h1>
+{% if preview %}
+<div class="card-soft mb-3">
+  <h2 class="h5 text-warning"><i class="bi bi-exclamation-triangle"></i> Encodage incertain : vérifiez l'aperçu</h2>
+  <p class="small">Fichier « {{ preview.filename }} » lu comme <strong>{{ preview.encoding }}</strong>. {% for n in preview.notes %}{{ n }}. {% endfor %}
+    Si le texte ci-dessous est illisible, n'importez pas : enregistrez le fichier en UTF-8 et recommencez.</p>
+  <pre class="border rounded p-2 bg-light" style="max-height:300px;white-space:pre-wrap" lang="ja">{{ preview.text|truncatechars:3000 }}</pre>
+  <form method="post">{% csrf_token %}
+    <input type="hidden" name="title" value="{{ form_data.title }}"><input type="hidden" name="variety" value="{{ form_data.variety }}">
+    <input type="hidden" name="source_kind" value="{{ preview.kind }}"><input type="hidden" name="filename" value="{{ preview.filename }}">
+    <input type="hidden" name="encoding" value="{{ preview.encoding }}">
+    <textarea name="confirmed_text" hidden>{{ preview.text }}</textarea>
+    <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="confirm_encoding" value="1" id="confirm-encoding">
+      <label class="form-check-label" for="confirm-encoding">Le texte est lisible : importer avec cet encodage.</label></div>
+    <button class="btn btn-primary">Importer</button> <a class="btn btn-link" href="{% url 'translation:document_add' project.pk %}">Recommencer</a>
+  </form>
+</div>
+{% else %}
+<form method="post" enctype="multipart/form-data" class="card-soft" style="max-width:900px">{% csrf_token %}
+  {{ form.non_field_errors }}
+  <div class="row g-2 mb-2"><div class="col-md-8">{{ form.title.label_tag }}{{ form.title }}</div><div class="col-md-4">{{ form.variety.label_tag }}{{ form.variety }}</div></div>
+  <div class="mb-2">{{ form.text.label_tag }}{{ form.text }}</div>
+  <div class="mb-2">{{ form.file.label_tag }}{{ form.file }}<div class="form-text">Encodages reconnus : UTF-8, Shift_JIS, EUC-JP, UTF-16. PDF : texte sélectionnable seulement (pas d'OCR). Mise en forme non conservée.</div></div>
+  <p class="small text-muted">Le texte est découpé automatiquement en segments (fins de phrase, citations, retours à la ligne) ; vous pourrez fusionner ou diviser des segments. Le texte importé est conservé à l'identique.</p>
+  <button class="btn btn-primary">Importer et découper</button>
+</form>
+{% endif %}
+{% endblock %}

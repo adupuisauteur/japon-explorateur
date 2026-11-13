@@ -15,6 +15,16 @@
   <button class="btn btn-sm btn-primary" {% if not engines %}disabled{% endif %}>Préparer (confirmation à l'étape suivante)</button>
 </form>
 
+<details class="card-soft mb-4"><summary class="h6 mb-0">Copier cette notice dans un projet de traduction</summary>
+  <p class="small mt-2">Pour un texte long ou un projet <strong>confidentiel</strong> : le texte est copié comme document du projet
+    (un document par champ), sans rien publier dans la notice. Vous pourrez ensuite publier la traduction validée, par une action explicite.</p>
+  {% if my_projects %}<form method="post" action="{% url 'translation:copy_record' record.record_id %}" class="d-flex flex-wrap gap-2 align-items-center">{% csrf_token %}
+    <select name="project" class="form-select form-select-sm" style="width:auto" aria-label="Projet">{% for p in my_projects %}<option value="{{ p.pk }}">{{ p.title }}{% if p.confidential %} (confidentiel){% endif %}</option>{% endfor %}</select>
+    {% for row in rows %}{% if row.original %}<div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="fields" value="{{ row.field }}" id="cp-{{ row.field }}" {% if row.field == 'original_title' or row.field == 'description_original' %}checked{% endif %}><label class="form-check-label small" for="cp-{{ row.field }}">{{ row.label }}</label></div>{% endif %}{% endfor %}
+    <button class="btn btn-sm btn-outline-primary">Copier</button></form>
+  {% else %}<p class="small mb-0">Vous n'avez pas encore de projet : <a href="{% url 'translation:project_create' %}">créer un projet</a>.</p>{% endif %}
+</details>
+
 {% for row in rows %}{% if row.original %}
 <section class="mb-4">
   <h2 class="h5">{{ row.label }}</h2>

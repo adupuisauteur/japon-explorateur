@@ -3,7 +3,7 @@ from django import forms
 from apps.ai.models import PROVIDERS as AI_PROVIDERS
 from apps.core.forms import BootstrapMixin
 
-from .models import EngineSetting, TranslationPreference
+from .models import EngineSetting, TranslationPreference, TranslationProject
 
 
 class EngineSettingForm(BootstrapMixin, forms.Form):
@@ -60,3 +60,62 @@ class PreferenceForm(BootstrapMixin, forms.ModelForm):
 
 
 AI_PROVIDER_LABELS = dict(AI_PROVIDERS)
+
+
+class ProjectForm(BootstrapMixin, forms.ModelForm):
+    """Projet de traduction. Moteurs vides = ceux de Traduction → Moteurs."""
+
+    class Meta:
+        model = TranslationProject
+        fields = ["title", "description", "source_lang", "target_lang", "confidential", "collection",
+                  "default_engine", "default_ai_provider", "default_ai_model", "second_engine", "second_ai_provider",
+                  "second_ai_model", "is_reference_corpus"]
+        widgets = {"description": forms.Textarea(attrs={"rows": 3})}
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        from apps.library.models import Collection
+
+        # Paires de la 1.3.0 (décision B2) : japonais → français, anglais → français.
+        self.fields["source_lang"].choices = [("ja", "Japonais"), ("en", "Anglais")]
+        self.fields["target_lang"].choices = [("fr", "Français")]
+        self.fields["collection"].queryset = Collection.objects.filter(owner=user) if user else Collection.objects.none()
+        self.fields["collection"].required = False
+        for name in ("default_engine", "second_engine"):
+            self.fields[name].help_text = "Vide : moteur choisi dans Traduction → Moteurs."
+
+    def clean(self):
+        data = super().clean()
+        for prefix in ("default", "second"):
+            if data.get(f"{prefix}_engine") == "ai":
+                if not data.get(f"{prefix}_ai_provider") or not data.get(f"{prefix}_ai_model"):
+                    self.add_error(f"{prefix}_ai_provider", "Pour une IA, choisissez le fournisseur et le modèle.")
+            else:
+                data[f"{prefix}_ai_provider"], data[f"{prefix}_ai_model"] = "", ""
+        if data.get("confidential"):
+            from .engines.registry import ENGINE_CLASSES
+
+            for prefix in ("default", "second"):
+                code = data.get(f"{prefix}_engine")
+                if code and ENGINE_CLASSES[code].online:
+                    self.add_error(f"{prefix}_engine", "Projet confidentiel : choisissez un moteur local (Argos) "
+                                                       "ou laissez vide.")
+        return data
+
+
+class DocumentForm(BootstrapMixin, forms.Form):
+    title = forms.CharField(label="Titre du document", max_length=300)
+    variety = forms.ChoiceField(label="Variété de langue", choices=[("modern", "Japonais moderne"),
+                                                                   ("classical", "Japonais classique (bungo)"),
+                                                                   ("kanbun", "Kanbun")], initial="modern")
+    text = forms.CharField(label="Texte à traduire (coller)", required=False, widget=forms.Textarea(attrs={"rows": 8}),
+                           strip=False)
+    file = forms.FileField(label="… ou fichier .txt, .docx, .pdf (avec texte)", required=False)
+
+    def clean(self):
+        data = super().clean()
+        if not data.get("file") and not (data.get("text") or "").strip():
+            raise forms.ValidationError("Collez un texte ou choisissez un fichier.")
+        if data.get("file") and (data.get("text") or "").strip():
+            raise forms.ValidationError("Collez un texte OU choisissez un fichier, pas les deux.")
+        return data
