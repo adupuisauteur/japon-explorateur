@@ -161,7 +161,7 @@ class SiteBuilder:
                 rows += f"<tr><th>{_e(label)}</th><td>{cell}</td></tr>"
             extras = ""
             for ed in rec["editorial"]:
-                ai = ed["origin_code"] == "ai"
+                ai = ed["origin_code"] in ("ai", "mt")  # contenu généré : IA ou traduction automatique
                 extras += (f'<div class="editorial{" ai" if ai else ""}"><span class="badge{" ai" if ai else ""}">{_e(ed["kind"])} — '
                            f'{_e(ed["origin"])}</span> <small>{_e(ed["status"])}</small><div>{_e(ed["content"])}</div></div>')
             if rec["collection_note"]:

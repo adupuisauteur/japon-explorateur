@@ -10,7 +10,8 @@ from django.conf import settings
 from django.db.models import Max, Min
 from django.utils import timezone
 
-from apps.catalog.models import DIGITAL_ACCESS, DOCUMENT_TYPES, MATERIAL_TYPES, PERIODS, RECORD_SOURCE_FIELDS, Record
+from apps.catalog.models import (DIGITAL_ACCESS, DOCUMENT_TYPES, GENERATED_ORIGINS, MATERIAL_TYPES, PERIODS,
+                                 RECORD_SOURCE_FIELDS, Record)
 
 PERIOD_LABELS = dict(PERIODS)
 DOC_LABELS = dict(DOCUMENT_TYPES)
@@ -116,12 +117,12 @@ def _record_dict(record, *, include_ai, include_notes, user, collection_item=Non
         "collection_note": collection_item.note if collection_item else "",
     })
     if not include_ai:
-        if record.translated_title_origin == "ai":
+        if record.translated_title_origin in GENERATED_ORIGINS:
             d["translated_title"] = ""
-        if record.description_translation_origin == "ai":
+        if record.description_translation_origin in GENERATED_ORIGINS:
             d["description_translation"] = ""
     for ed in record.editorial.exclude(status="rejected"):
-        if ed.origin == "ai" and not include_ai:
+        if ed.origin in GENERATED_ORIGINS and not include_ai:
             continue
         d["editorial"].append({"kind": ed.get_kind_display(), "kind_code": ed.kind, "content": ed.content,
                                "origin": ed.get_origin_display(), "origin_code": ed.origin,
@@ -208,8 +209,9 @@ def build_document(job):
             "snapshot_date": row["catalogue__snapshot_date"].isoformat() if row["catalogue__snapshot_date"] else None,
             "is_snapshot": row["catalogue__is_snapshot"],
         })
-    has_ai = any(r["translated_title_origin"] == "ai" or r["description_translation_origin"] == "ai"
-                 or any(e["origin_code"] == "ai" for e in r["editorial"]) for r in flat)
+    # « contains_ai_content » : nom de clé inchangé (compatibilité) ; couvre aussi la traduction automatique (1.3.0).
+    has_ai = any(r["translated_title_origin"] in GENERATED_ORIGINS or r["description_translation_origin"] in GENERATED_ORIGINS
+                 or any(e["origin_code"] in GENERATED_ORIGINS for e in r["editorial"]) for r in flat)
     restrictions = sorted({r["rights_and_access"] for r in flat if r["rights_and_access"]})
     now = job.generated_at or timezone.now()
     metadata = {

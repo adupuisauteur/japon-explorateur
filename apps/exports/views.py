@@ -37,7 +37,8 @@ class ExportForm(BootstrapMixin, forms.Form):
     csv_neutralize = forms.BooleanField(
         label="Neutraliser les formules (CSV) : préfixe ' devant les cellules commençant par = + - @",
         required=False, initial=True)
-    include_ai = forms.BooleanField(label="Inclure traductions et contenus IA (signalés comme tels)", required=False,
+    include_ai = forms.BooleanField(label="Inclure traductions automatiques et contenus IA (signalés comme tels)",
+                                    required=False,
                                     initial=True)
     include_notes = forms.BooleanField(label="Inclure les notes et annotations", required=False, initial=True)
     include_images = forms.BooleanField(label="Inclure les liens vers images (uniquement si droits connus)",

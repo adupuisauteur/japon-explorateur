@@ -12,6 +12,7 @@ from collections import Counter
 from lxml import etree
 
 from apps.core import japanese as jp
+from apps.core.encoding import decode_text  # noqa: F401  (déplacée en 1.3.0 ; nom conservé ici)
 
 # --------------------------------------------------------------------------- synonymes de colonnes
 
@@ -142,13 +143,7 @@ def detect_format(filename, head):
     return "csv"
 
 
-def decode_text(raw):
-    for enc in ("utf-8-sig", "cp932", "euc_jp", "utf-16"):
-        try:
-            return raw.decode(enc), enc
-        except UnicodeDecodeError:
-            continue
-    return raw.decode("latin-1"), "latin-1"
+# decode_text : déplacée dans apps/core/encoding.py (1.3.0), importée ci-dessus sous le même nom.
 
 
 def read_rows(path, fmt, *, delimiter="", sheet_name=""):

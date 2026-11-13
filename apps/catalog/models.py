@@ -34,7 +34,11 @@ ORIGIN = [
     ("rule", "Règle automatique"),
     ("user", "Utilisateur"),
     ("ai", "Intelligence artificielle"),
+    ("mt", "Traduction automatique"),  # 1.3.0 : DeepL, Google, Argos (module de traduction)
 ]
+
+#: Origines produites par une machine (IA ou traduction automatique), signalées et excluables dans les exports (1.3.0).
+GENERATED_ORIGINS = ("ai", "mt")
 
 PERIODS = [
     ("", "—"),

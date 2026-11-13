@@ -21,6 +21,7 @@ MODULES = [
     ("reseau", "Réseau"),
     ("application", "Application (autre)"),
     ("interface", "Interface"),
+    ("traduction", "Traduction"),  # 1.3.0
 ]
 
 CATEGORIES = [
@@ -33,6 +34,15 @@ CATEGORIES = [
     ("erreur_application", "Erreur inattendue de l'application"),
     ("avertissement_source", "Avertissement d'une source"),
     ("signalement", "Signalement manuel"),
+    # 1.3.0 — module de traduction. Jamais de texte original ni traduit dans un incident.
+    ("cle_refusee", "Clé de traduction refusée ou expirée"),
+    ("quota_depasse", "Quota épuisé ou plafond atteint"),
+    ("langue_non_prise", "Paire de langues non prise en charge"),
+    ("glossaire_refuse", "Glossaire refusé par le service"),
+    ("paquet_absent", "Paquet de langue Argos absent ou corrompu"),
+    ("reponse_vide", "Réponse vide, identique à l'original ou mal formée"),
+    ("delai_depasse", "Délai de réponse dépassé"),
+    ("lot_interrompu", "Lot de traduction interrompu"),
 ]
 
 SEVERITIES = [

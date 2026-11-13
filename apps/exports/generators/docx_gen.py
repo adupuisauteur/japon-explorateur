@@ -171,7 +171,7 @@ def generate_docx(doc, out_dir, basename):
                 p = d.add_paragraph()
                 r = p.add_run(f"{ed['kind']} — {ed['origin']} ({ed['status']}) : ")
                 r.bold = True
-                r.font.color.rgb = ACCENT if ed["origin_code"] == "ai" else MUTED
+                r.font.color.rgb = ACCENT if ed["origin_code"] in ("ai", "mt") else MUTED
                 p.add_run(ed["content"])
             if rec["collection_note"]:
                 p = d.add_paragraph()

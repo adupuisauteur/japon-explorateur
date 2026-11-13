@@ -132,7 +132,7 @@
       </form>
       {% endif %}
       {% for ed in editorial %}
-      <div class="editorial-box {% if ed.origin == 'ai' %}ai{% endif %}">
+      <div class="editorial-box {% if ed.origin == 'ai' or ed.origin == 'mt' %}ai{% endif %}">
         <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
           <strong>{{ ed.get_kind_display }}</strong> {% origin_chip ed.origin %}
           <span class="chip">{{ ed.get_status_display }}</span>
@@ -149,7 +149,7 @@
           {% if user.is_admin_role %}
           {% if ed.status != 'validated' %}<button class="btn btn-sm btn-outline-success" name="action" value="validate">Valider</button>{% endif %}
           {% if ed.status != 'rejected' %}<button class="btn btn-sm btn-outline-secondary" name="action" value="reject">Rejeter</button>{% endif %}
-          {% if ed.kind == 'translation' %}<button class="btn btn-sm btn-outline-primary" name="action" value="adopt" title="Recopier dans le titre/description traduits, avec l'origine IA">Adopter</button>{% endif %}
+          {% if ed.kind == 'translation' %}<button class="btn btn-sm btn-outline-primary" name="action" value="adopt" title="Recopier dans le titre/description traduits, avec son origine (IA, traduction automatique…)">Adopter</button>{% endif %}
           {% endif %}
           <button class="btn btn-sm btn-link text-danger" name="action" value="delete" data-confirm="Supprimer ce contenu ?">Supprimer</button>
         </form>

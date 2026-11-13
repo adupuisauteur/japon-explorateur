@@ -9,7 +9,7 @@ register = template.Library()
 SESSION_STATUS = {"ok": "Réponse reçue", "warning": "Réponse avec avertissement", "error": "Erreur",
                   "pending": "En attente", "running": "Interrogation…", "empty": "Aucun résultat",
                   "unavailable": "Source indisponible", "unparsable": "Réponse illisible"}
-ORIGIN_CHIPS = {"ai": ("chip-ai", "IA"), "user": ("", "utilisateur"), "rule": ("", "règle automatique"),
+ORIGIN_CHIPS = {"ai": ("chip-ai", "IA"), "mt": ("chip-ai", "traduction automatique"), "user": ("", "utilisateur"), "rule": ("", "règle automatique"),
                 "source": ("", "source")}
 COMPARISON_CHIPS = {"new": ("chip-new", "Nouveau"), "known": ("", "Déjà connu"), "modified": ("chip-warn", "Modifié"),
                     "unavailable": ("chip-warn", "Indisponible"), "not_comparable": ("", "Non comparable"),

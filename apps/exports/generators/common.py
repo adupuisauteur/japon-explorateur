@@ -113,7 +113,7 @@ def metadata_lines(doc):
         collected = f", collecte du {s['collected_from'][:10]} au {s['collected_to'][:10]}" if s.get("collected_from") else ""
         snap = f" — jeu historique (instantané {s['snapshot_date'][:4]})" if s.get("is_snapshot") and s.get("snapshot_date") else ""
         lines.append((f"Source : {s['name']}", f"{s['records']} notice(s), {when}{collected}{snap}"))
-    lines.append(("Contenus générés par IA", "inclus et signalés" if m["contains_ai_content"] and m["ai_content_included"]
+    lines.append(("Contenus générés (IA, traduction automatique)", "inclus et signalés" if m["contains_ai_content"] and m["ai_content_included"]
                   else ("exclus" if not m["ai_content_included"] else "aucun")))
     lines.append(("Application", f"{m['application']} {m['application_version']} — schéma {m['schema_version']}"))
     return [(k, v) for k, v in lines if v]

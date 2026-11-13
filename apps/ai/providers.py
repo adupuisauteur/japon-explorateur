@@ -15,7 +15,17 @@ from .urlsafety import UnsafeProviderURL, check_provider_url  # noqa: F401
 
 
 class ProviderError(Exception):
-    pass
+    """Erreur présentable à l'utilisateur. Message inchangé depuis la 1.2.0.
+
+    1.3.0 (ajout compatible) : `http_status` et `kind` permettent au module de traduction de classer
+    l'erreur sans analyser le texte du message. `kind` : unavailable, auth, quota, not_found, redirect,
+    technical, unparsable, refused ; vide si non précisé.
+    """
+
+    def __init__(self, message="", *, http_status=None, kind=""):
+        super().__init__(message)
+        self.http_status = http_status
+        self.kind = kind
 
 
 @dataclass
@@ -61,29 +71,32 @@ class BaseProvider:
             try:  # contrôle répété à chaque appel (la résolution DNS peut changer)
                 check_provider_url(self.base_url)
             except UnsafeProviderURL as exc:
-                raise ProviderError(f"Adresse du service refusée : {exc}") from None
+                raise ProviderError(f"Adresse du service refusée : {exc}", kind="refused") from None
         kwargs.setdefault("follow_redirects", False)
         try:
             with self._client(kwargs.pop("timeout", 90)) as client:
                 response = client.request(method, url, **kwargs)
         except httpx.HTTPError as exc:
-            raise ProviderError(f"Fournisseur injoignable ({exc.__class__.__name__}).") from None
-        if response.status_code in (401, 403):
-            raise ProviderError("Clé API refusée par le fournisseur (authentification).")
-        if response.status_code == 429:
-            raise ProviderError("Quota ou limite de débit atteint chez le fournisseur.")
-        if response.status_code == 404:
-            raise ProviderError("Modèle ou service introuvable chez le fournisseur (vérifiez le nom du modèle).")
-        if 300 <= response.status_code < 400:
-            raise ProviderError("Redirection refusée par sécurité.")
-        if response.status_code >= 400:
+            raise ProviderError(f"Fournisseur injoignable ({exc.__class__.__name__}).", kind="unavailable") from None
+        status = response.status_code
+        if status in (401, 403):
+            raise ProviderError("Clé API refusée par le fournisseur (authentification).", http_status=status, kind="auth")
+        if status == 429:
+            raise ProviderError("Quota ou limite de débit atteint chez le fournisseur.", http_status=status, kind="quota")
+        if status == 404:
+            raise ProviderError("Modèle ou service introuvable chez le fournisseur (vérifiez le nom du modèle).",
+                                http_status=status, kind="not_found")
+        if 300 <= status < 400:
+            raise ProviderError("Redirection refusée par sécurité.", http_status=status, kind="redirect")
+        if status >= 400:
             # Le corps de la réponse n'est jamais renvoyé à l'utilisateur (fuite d'information possible).
             detail = _provider_error_message(response) if not self.custom_base_url else ""
-            raise ProviderError(f"Erreur du fournisseur (HTTP {response.status_code}){detail}.")
+            raise ProviderError(f"Erreur du fournisseur (HTTP {status}){detail}.", http_status=status,
+                                kind="unavailable" if status >= 500 else "technical")
         try:
             return response.json()
         except ValueError:
-            raise ProviderError("Réponse illisible du fournisseur.") from None
+            raise ProviderError("Réponse illisible du fournisseur.", http_status=status, kind="unparsable") from None
 
     def list_models(self):
         raise NotImplementedError
@@ -122,7 +135,7 @@ class OpenAIProvider(BaseProvider):
         try:
             text = data["choices"][0]["message"]["content"] or ""
         except (KeyError, IndexError):
-            raise ProviderError("Réponse OpenAI sans contenu.") from None
+            raise ProviderError("Réponse OpenAI sans contenu.", kind="unparsable") from None
         usage = data.get("usage") or {}
         return Completion(text, usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0), data.get("model", model))
 
@@ -177,7 +190,7 @@ class GeminiProvider(BaseProvider):
         try:
             parts = data["candidates"][0]["content"]["parts"]
         except (KeyError, IndexError):
-            raise ProviderError("Réponse Gemini sans contenu (filtrage ou erreur).") from None
+            raise ProviderError("Réponse Gemini sans contenu (filtrage ou erreur).", kind="unparsable") from None
         usage = data.get("usageMetadata") or {}
         return Completion("".join(p.get("text", "") for p in parts), usage.get("promptTokenCount", 0),
                           usage.get("candidatesTokenCount", 0), model)
