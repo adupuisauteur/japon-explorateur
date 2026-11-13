@@ -10,12 +10,12 @@
 </div>
 
 <div class="row g-3 mb-4">
-  {% for icon, name, text, lot in sections %}
-  <div class="col-md-6 col-lg-4"><div class="card-soft h-100">
+  {% for icon, name, text, lot, url_name in sections %}
+  <div class="col-md-6 col-lg-4">{% if url_name %}<a class="card-soft d-block text-decoration-none text-reset h-100" href="{% url url_name %}">{% else %}<div class="card-soft h-100">{% endif %}
     <h2 class="h5"><i class="bi {{ icon }}"></i> {{ name }}</h2>
     <p class="text-muted mb-1">{{ text }}</p>
-    <span class="badge text-bg-light">Prévu au lot {{ lot }}</span>
-  </div></div>
+    {% if not url_name %}<span class="badge text-bg-light">Prévu au lot {{ lot }}</span>{% endif %}
+  {% if url_name %}</a>{% else %}</div>{% endif %}</div>
   {% endfor %}
 </div>
 

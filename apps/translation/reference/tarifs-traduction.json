@@ -1,0 +1,9 @@
+{
+  "date": "2026-11-13",
+  "note": "Tarifs servant UNIQUEMENT aux estimations affichées (décision C4) : devise d'origine, sans conversion. Les valeurs nulles signifient « tarif non vérifié » : l'estimation est alors affichée comme non disponible. Les tarifs n'ont pas pu être vérifiés depuis l'environnement de développement ; à compléter par l'utilisateur à partir des pages officielles, avec la date de vérification.",
+  "engines": {
+    "deepl": {"currency": "EUR", "per_million_chars": null, "free_chars_per_month": null, "source": "https://www.deepl.com/pro-api", "verified_on": null},
+    "google_basic": {"currency": "USD", "per_million_chars": null, "free_chars_per_month": null, "source": "https://cloud.google.com/translate/pricing", "verified_on": null},
+    "argos": {"currency": "", "per_million_chars": 0, "free_chars_per_month": null, "source": "logiciel libre, exécuté localement", "verified_on": "2026-11-13"}
+  }
+}

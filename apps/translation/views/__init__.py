@@ -6,14 +6,14 @@ from apps.core.permissions import researcher_required
 
 from ..permissions import projects_metadata_only_for, projects_with_content_for
 
-#: Rubriques prévues ; chaque lot active la sienne (plan de développement 1.3.0).
+#: Rubriques ; chaque lot active la sienne (plan de développement 1.3.0). Nom d'URL vide = pas encore livrée.
 SECTIONS = [
-    ("bi-cpu", "Moteurs", "Choix des moteurs, clés DeepL et Google, moteurs locaux.", 3),
-    ("bi-folder2", "Projets et documents", "Import, découpage, traduction, versions et validation.", 6),
-    ("bi-journal-text", "Glossaires", "Terminologie, import et export CSV.", 7),
-    ("bi-archive", "Mémoire de traduction", "Paires validées, recherche, exclusion.", 7),
-    ("bi-hourglass-split", "Tâches", "Traductions en cours, progression, reprise.", 4),
-    ("bi-file-earmark-arrow-down", "Exports", "Texte, CSV, DOCX bilingue.", 8),
+    ("bi-cpu", "Moteurs", "Choix des moteurs, clés DeepL et Google, moteurs locaux.", 3, "translation:engines"),
+    ("bi-folder2", "Projets et documents", "Import, découpage, traduction, versions et validation.", 6, ""),
+    ("bi-journal-text", "Glossaires", "Terminologie, import et export CSV.", 7, ""),
+    ("bi-archive", "Mémoire de traduction", "Paires validées, recherche, exclusion.", 7, ""),
+    ("bi-hourglass-split", "Tâches", "Traductions en cours, progression, reprise.", 4, ""),
+    ("bi-file-earmark-arrow-down", "Exports", "Texte, CSV, DOCX bilingue.", 8, ""),
 ]
 
 

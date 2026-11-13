@@ -201,6 +201,18 @@ CONNECTOR_USER_AGENT = env(
 CONNECTOR_DEFAULT_TIMEOUT = env.float("CONNECTOR_DEFAULT_TIMEOUT", default=20.0)
 CONNECTOR_CACHE_SECONDS = env.int("CONNECTOR_CACHE_SECONDS", default=3600)
 
+# Module de traduction (1.3.0)
+TRANSLATION_DEFAULT_TIMEOUT = env.float("TRANSLATION_DEFAULT_TIMEOUT", default=60.0)
+TRANSLATION_TIMEOUTS = {
+    "deepl": env.float("TRANSLATION_TIMEOUT_DEEPL", default=60.0),
+    "google_basic": env.float("TRANSLATION_TIMEOUT_GOOGLE", default=60.0),
+    "argos": env.float("TRANSLATION_TIMEOUT_ARGOS", default=180.0),
+}
+# Adresse interne du service Argos facultatif (profil Docker « hors-ligne », lot 9). Vide = non activé.
+TRANSLATION_ARGOS_URL = env("TRANSLATION_ARGOS_URL", default="")
+# Pendant les tests, tout appel réseau réel d'un moteur de traduction est refusé (réponses enregistrées seulement).
+TRANSLATION_BLOCK_NETWORK = env.bool("TRANSLATION_BLOCK_NETWORK", default=len(sys.argv) > 1 and sys.argv[1] == "test")
+
 # Cache partagé : indispensable pour que la limitation des connexions vaille pour tous les processus gunicorn.
 if env("CACHE_URL", default=""):
     CACHES = {"default": env.cache("CACHE_URL")}
