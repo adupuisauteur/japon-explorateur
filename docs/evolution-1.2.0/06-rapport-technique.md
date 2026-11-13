@@ -64,7 +64,7 @@ Lors du test de bout en bout réalisé ici, de vrais appels vers NDL et Japan Se
 
 ## 4. Tests exécutés
 
-Environnement : Python 3.13, Django 5.2, PostgreSQL 16, sous Linux. **Résultat : 127 tests, tous réussis**, avec `DJANGO_DEBUG=true` puis `false`.
+Environnement : Python 3.13, Django 5.2, PostgreSQL 16, sous Linux. **Résultat : 128 tests, tous réussis**, avec `DJANGO_DEBUG=true` puis `false`.
 
 | Exigence §6.3 | Test exécuté | Résultat |
 |---|---|---|
@@ -92,7 +92,14 @@ Environnement : Python 3.13, Django 5.2, PostgreSQL 16, sous Linux. **Résultat 
 
 ## 6. Problèmes connus
 
-Aucun test ne révèle d'anomalie dans le code livré. Les points d'incertitude sur les formats réels sont listés dans `02-etude-sources.md` §3, et les limitations dans `07-limitations-connues.md`.
+**Corrigé le 13/11/2026 : incident INC-20261113-41FDF0, signalé lors de l'installation sous Windows.** Le clic sur « Comparer avec la base et produire le rapport » provoquait une erreur 500.
+- **Cause** : kombu 5.7.0, installé automatiquement avec Celery (versions non figées), importe le module `packaging` sans le déclarer comme dépendance. Sous Docker, la tâche est confiée au worker par Redis, et l'import échoue. Les tests exécutaient les tâches sans worker (mode « eager ») et ne pouvaient donc pas voir le problème. Toute reconstruction récente de la 1.1 aurait le même défaut.
+- **Correction** : `packaging>=23.0` est ajouté à `requirements.txt`. Un test de non-régression importe le transport Redis. Le scénario a été reproduit, puis vérifié corrigé, avec Redis et un vrai worker Celery (comparaison puis intégration des deux fichiers d'exemple).
+- **Amélioration associée** : chaque erreur de page reçoit désormais un identifiant de requête.
+
+Le journal des dysfonctionnements a joué son rôle : le rapport exporté indiquait le module manquant et le fichier en cause.
+
+Aucun autre test ne révèle d'anomalie dans le code livré. Les points d'incertitude sur les formats réels sont listés dans `02-etude-sources.md` §3, et les limitations dans `07-limitations-connues.md`.
 
 ## 7. Fichiers principaux modifiés ou ajoutés
 

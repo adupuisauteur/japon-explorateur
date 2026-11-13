@@ -15,6 +15,7 @@ class IncidentsConfig(AppConfig):
 def _on_request_exception(sender, request=None, **kwargs):
     """Erreur non prévue lors de l'affichage d'une page (erreur 500) : journalisée avec le chemin, sans paramètres."""
     import sys
+    import uuid
 
     from django.db import DatabaseError
 
@@ -25,9 +26,9 @@ def _on_request_exception(sender, request=None, **kwargs):
         return
     path = getattr(request, "path", "") if request is not None else ""
     operation = f"Affichage de la page {path}" if path else "Traitement d'une requête"
-    extra = {"path": path, "method": getattr(request, "method", ""),
-             "request_id": getattr(request, "request_id", "")}
+    request_id = getattr(request, "request_id", "") or uuid.uuid4().hex[:12]
+    extra = {"path": path, "method": getattr(request, "method", "")}
     if isinstance(exc, DatabaseError):
-        record_database_error(exc, operation=operation)
+        record_database_error(exc, operation=operation, request_id=request_id)
     else:
-        record_exception(exc, module="application", operation=operation, extra=extra)
+        record_exception(exc, module="application", operation=operation, extra=extra, request_id=request_id)

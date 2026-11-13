@@ -336,6 +336,7 @@ class JournalTests(Evolution120Base):
             got_request_exception.send(sender=None, request=request)
         incident = Incident.objects.get(module="application")
         self.assertEqual(incident.context["path"], "/notices/exemple/")
+        self.assertEqual(len(incident.last_request_id), 12, "chaque erreur de page reçoit un identifiant de requête")
         self.assertNotIn("token", json.dumps(incident.context))
 
     def test_empty_query_is_not_an_incident(self):
@@ -525,3 +526,18 @@ class VersionTests(Evolution120Base):
         self.assertIn(f"image: japon-explorateur:{version}", compose)
         self.assertIn("japon-explorateur-essai", compose, "l'installation d'essai a ses propres volumes")
         self.assertIn(version, self.client.get("/").content.decode())
+
+
+class DependencyTests(Evolution120Base):
+    def test_celery_redis_transport_is_importable(self):
+        """Régression 1.2.0 (INC-20261113-41FDF0) : kombu 5.7 importe « packaging » sans le déclarer.
+
+        Les tests exécutent les tâches sans worker (mode « eager ») et ne chargeaient donc jamais le transport
+        Redis utilisé sous Docker ; ce test l'importe explicitement.
+        """
+        import importlib
+
+        importlib.import_module("kombu.transport.redis")
+        from config.celery import app
+
+        self.assertTrue(app.conf.broker_url is None or isinstance(app.conf.broker_url, str))

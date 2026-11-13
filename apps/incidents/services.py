@@ -155,7 +155,7 @@ def short_traceback(exc, limit=6):
 
 
 def record_exception(exc, *, module, operation="", source_code="", category="erreur_application",
-                     severity="error", origin="application", extra=None):
+                     severity="error", origin="application", extra=None, request_id=""):
     """Journalise une exception inattendue (avec un extrait court de la pile d'appels)."""
     context = {"exception": exc.__class__.__name__, "traceback": short_traceback(exc)}
     if extra:
@@ -164,13 +164,15 @@ def record_exception(exc, *, module, operation="", source_code="", category="err
         module=module, category=category, severity=severity, origin=origin, source_code=source_code,
         title=f"{exc.__class__.__name__} pendant : {operation or module}"[:300], message=str(exc)[:2000],
         operation=operation, technical_code=exc.__class__.__name__, context=context,
+        request_id=request_id or context.get("request_id", ""),
     )
 
 
-def record_database_error(exc, *, module="base_de_donnees", operation="", source_code=""):
+def record_database_error(exc, *, module="base_de_donnees", operation="", source_code="", request_id=""):
     """Erreur de base de données : alerte prioritaire (risque de perte ou de corruption de données)."""
     return record_exception(exc, module=module, operation=operation, source_code=source_code,
-                            category="erreur_critique", severity="critical", origin="application")
+                            category="erreur_critique", severity="critical", origin="application",
+                            request_id=request_id)
 
 
 def note_source_recovered(source_code):
