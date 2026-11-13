@@ -2,9 +2,9 @@
 
 Application web progressive (PWA) de recherche, de gestion et d'exploitation de ressources documentaires japonaises, développée d'après le cahier des charges v1.2 du 12 novembre 2026.
 
-**Version 1.2.0** (fichier `VERSION`) : sources documentaires enrichies et journal des dysfonctionnements. Voir `CHANGELOG.md` et le dossier `docs/evolution-1.2.0/` : guide d'installation Windows, guide d'utilisation, protocole de vérification, rapport technique, limitations.
+**Version 1.3.0 — en cours de développement** (fichier `VERSION`), à partir de la 1.2.0 (étiquette `v1.2.0-reference`, commit `4982a3d`) : module de traduction. Voir `CHANGELOG.md` et `docs/evolution-1.3.0/`. La 1.2.0 (sources documentaires enrichies et journal des dysfonctionnements) est décrite dans le dossier `docs/evolution-1.2.0/` : guide d'installation Windows, guide d'utilisation, protocole de vérification, rapport technique, limitations.
 
-> **Installation d'essai 1.2.0 :** elle tourne à côté de l'installation principale, sur **http://localhost:8001**, avec son propre projet Docker (`japon-explorateur-essai`) et ses propres volumes. Suivez `docs/evolution-1.2.0/03-guide-installation-windows.md`.
+> **Installation d'essai 1.3.0 :** elle tourne à côté de l'installation principale (port 8000) et de l'essai 1.2.0 (port 8001), sur **http://localhost:8002**, avec son propre projet Docker (`japon-explorateur-essai-130`) et ses propres volumes. Ne réutilisez pas le fichier `.env` de l'essai 1.2.0 sans corriger `COMPOSE_PROJECT_NAME` et `WEB_PORT`. La procédure d'installation reste celle de `docs/evolution-1.2.0/03-guide-installation-windows.md`, avec le dossier `C:\JaponExplorateur-essai-1.3.0` et ces deux valeurs.
 
 **Stack :** Django 5 · PostgreSQL · HTMX + Bootstrap 5 (sans framework front lourd) · Celery + Redis · Docker Compose · python-docx · ReportLab.
 
@@ -26,7 +26,7 @@ docker compose run --rm --no-deps web python manage.py generate_secrets
 # 3. Démarrer
 docker compose up -d --build
 
-# 4. Ouvrir http://localhost:8001   (installation d'essai 1.2.0 ; port réglable par WEB_PORT dans .env)
+# 4. Ouvrir http://localhost:8002   (installation d'essai 1.3.0 ; port réglable par WEB_PORT dans .env)
 ```
 
 Au premier accès, un **assistant de première configuration** crée le compte administrateur, enregistre le mode d'enregistrement par défaut (« Sélectif » recommandé), active la sauvegarde quotidienne et répertorie toutes les sources du §5.1. Il ouvre ensuite l'assistant d'import.
@@ -66,7 +66,7 @@ Des fichiers d'exemple **fictifs** (illustratifs, non bibliographiques) se trouv
 
 ## 3. Sources et connecteurs
 
-| Source | État livré (1.2.0) | Méthode |
+| Source | État (inchangé depuis la 1.2.0) | Méthode |
 |---|---|---|
 | Base locale | Opérationnel | Recherche PostgreSQL (index trigrammes) sur les champs normalisés |
 | **NDL Search** | Développé et testé en simulation — **test réel à confirmer** | API OpenSearch officielle ; lien vers le document numérisé (dl.ndl.go.jp) |

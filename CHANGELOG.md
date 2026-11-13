@@ -1,5 +1,12 @@
 # Historique des versions
 
+## 1.3.0 — en cours de développement
+
+Évolution : module de traduction. Base : version 1.2.0, étiquette `v1.2.0-reference` (commit `4982a3d`). Voir `docs/evolution-1.3.0/`.
+
+- **Socle (lot 0)** : numéro de version 1.3.0 ; installation d'essai 1.3.0 isolée de l'installation principale et de l'essai 1.2.0 (projet Docker `japon-explorateur-essai-130`, port 8002, image `japon-explorateur:1.3.0`) ; les conteneurs refusent de démarrer sous le nom de projet de l'installation principale ou de l'essai 1.2.0 ; le script `reinitialiser-essai.ps1` refuse aussi l'essai 1.2.0 (nom et port 8001).
+- Base de données : aucune migration dans ce lot.
+
 ## 1.2.0 — 13 novembre 2026
 
 Évolution ciblée : sources documentaires japonaises et journal des dysfonctionnements. Voir `docs/evolution-1.2.0/`.

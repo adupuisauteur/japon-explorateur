@@ -1,13 +1,14 @@
 ﻿<#
 .SYNOPSIS
-    Réinitialise l'installation D'ESSAI de « Japon — Explorateur documentaire » (version 1.2.0).
+    Réinitialise l'installation D'ESSAI de « Japon — Explorateur documentaire » (version 1.3.0).
 
 .DESCRIPTION
     Ce script efface les conteneurs et les données (base, journal, captures, sauvegardes internes)
     de l'installation d'essai, puis la redémarre avec une base vide.
     Il REFUSE de s'exécuter s'il ne se trouve pas dans le dossier d'une installation d'essai :
     le nom du projet Docker doit contenir « essai » et ne jamais être celui de l'installation
-    principale (« japon-explorateur »). L'installation principale n'est jamais touchée.
+    principale (« japon-explorateur », port 8000) ni celui de l'essai 1.2.0
+    (« japon-explorateur-essai », port 8001). Ces deux installations ne sont jamais touchées.
 
 .PARAMETER Complet
     Efface aussi l'image Docker de l'essai, sans redémarrer. Utile avant de supprimer le dossier
@@ -31,6 +32,9 @@ param(
 # Les messages d'erreur de Docker sont contrôlés par leur code de retour (compatible Windows PowerShell 5.1).
 $ErrorActionPreference = 'Continue'
 $NomPrincipal = 'japon-explorateur'
+$NomEssai120 = 'japon-explorateur-essai'
+$NomAttendu = 'japon-explorateur-essai-130'
+$PortAttendu = '8002'
 
 function Arreter([string]$Message) {
     Write-Host ''
@@ -86,7 +90,10 @@ if (-not $Projet) {
     Arreter 'nom du projet Docker introuvable.'
 }
 if ($Projet -eq $NomPrincipal) {
-    Arreter "ce dossier utilise le nom « $Projet », celui de l'INSTALLATION PRINCIPALE. Vérifiez COMPOSE_PROJECT_NAME dans .env (valeur attendue : japon-explorateur-essai)."
+    Arreter "ce dossier utilise le nom « $Projet », celui de l'INSTALLATION PRINCIPALE. Vérifiez COMPOSE_PROJECT_NAME dans .env (valeur attendue : $NomAttendu)."
+}
+if ($Projet -eq $NomEssai120) {
+    Arreter "ce dossier utilise le nom « $Projet », celui de l'INSTALLATION D'ESSAI 1.2.0. Vérifiez COMPOSE_PROJECT_NAME dans .env (valeur attendue : $NomAttendu)."
 }
 if ($Projet -notlike '*essai*') {
     Arreter "le nom du projet Docker « $Projet » ne contient pas « essai ». Par sécurité, seule une installation d'essai peut être réinitialisée."
@@ -95,7 +102,10 @@ if ($Projet -notlike '*essai*') {
 $Port = $null
 try { $Port = $configuration.services.web.ports[0].published } catch { }
 if ("$Port" -eq '8000') {
-    Arreter 'cette installation utilise le port 8000, celui de l''installation principale. Vérifiez WEB_PORT dans .env (valeur attendue : 8001).'
+    Arreter "cette installation utilise le port 8000, celui de l'installation principale. Vérifiez WEB_PORT dans .env (valeur attendue : $PortAttendu)."
+}
+if ("$Port" -eq '8001') {
+    Arreter "cette installation utilise le port 8001, celui de l'installation d'essai 1.2.0. Vérifiez WEB_PORT dans .env (valeur attendue : $PortAttendu)."
 }
 
 Write-Host "Projet Docker : $Projet (version $Version, port $Port)" -ForegroundColor Green

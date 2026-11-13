@@ -1,24 +1,29 @@
 # Japon — Explorateur documentaire : installation locale reproductible (§17.1)
-#   docker compose up -d --build      puis ouvrir http://localhost:8000
+#   docker compose up -d --build      puis ouvrir http://localhost:8002 (port réglable par WEB_PORT)
 # Les mêmes images servent ensuite sur un serveur Linux (voir docs/deploiement.md).
 
-# Version 1.2.0 — installation d'essai INDÉPENDANTE de l'installation principale.
+# Version 1.3.0 — installation d'essai INDÉPENDANTE de l'installation principale ET de l'essai 1.2.0.
 # Le nom du projet (donc des conteneurs et des volumes de données) vient de COMPOSE_PROJECT_NAME
-# (fichier .env) ; par défaut « japon-explorateur-essai ». L'installation principale s'appelle
-# « japon-explorateur » : ses volumes ne sont jamais touchés par cette installation.
-name: ${COMPOSE_PROJECT_NAME:-japon-explorateur-essai}
+# (fichier .env) ; par défaut « japon-explorateur-essai-130 ». Noms réservés, jamais utilisés ici :
+#   « japon-explorateur »        installation principale (port 8000)
+#   « japon-explorateur-essai »  installation d'essai 1.2.0 (port 8001)
+# Les conteneurs refusent de démarrer sous l'un de ces deux noms (voir docker/entrypoint.sh).
+name: ${COMPOSE_PROJECT_NAME:-japon-explorateur-essai-130}
 
 x-app: &app
   build:
     context: .
     dockerfile: docker/Dockerfile
-  # Étiquette d'image propre à la 1.2.0 : l'image de l'installation principale n'est pas remplacée.
-  image: japon-explorateur:1.2.0
+  # Étiquette d'image propre à la 1.3.0 : les images de l'installation principale et de l'essai 1.2.0
+  # ne sont pas remplacées.
+  image: japon-explorateur:1.3.0
   env_file: .env
   environment:
     DATABASE_URL: postgres://japon:${POSTGRES_PASSWORD:?définir POSTGRES_PASSWORD dans .env}@db:5432/japon
     REDIS_URL: redis://redis:6379/0
     DATA_DIR: /data
+    # Nom du projet transmis aux conteneurs pour le contrôle d'isolation de l'entrypoint.
+    COMPOSE_PROJECT_CHECK: ${COMPOSE_PROJECT_NAME:-japon-explorateur-essai-130}
   volumes:
     - app-data:/data
     # Copie externe des sauvegardes : décommentez et adaptez (disque externe, NAS…)
@@ -49,7 +54,7 @@ services:
     <<: *app
     ports:
       # Écoute sur la boucle locale uniquement. Pour un accès réseau, passer par un reverse proxy HTTPS.
-      - "127.0.0.1:${WEB_PORT:-8001}:8000"
+      - "127.0.0.1:${WEB_PORT:-8002}:8000"
     healthcheck:
       test: ["CMD", "curl", "-fs", "http://localhost:8000/hors-ligne/"]
       interval: 30s
@@ -63,6 +68,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       DATA_DIR: /data
       RUN_MIGRATIONS: "0"
+      COMPOSE_PROJECT_CHECK: ${COMPOSE_PROJECT_NAME:-japon-explorateur-essai-130}
     command: ["celery", "-A", "config", "worker", "-l", "info", "--concurrency", "2"]
 
   beat:
@@ -72,6 +78,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       DATA_DIR: /data
       RUN_MIGRATIONS: "0"
+      COMPOSE_PROJECT_CHECK: ${COMPOSE_PROJECT_NAME:-japon-explorateur-essai-130}
     command: ["celery", "-A", "config", "beat", "-l", "info", "--schedule", "/data/celerybeat-schedule"]
 
 volumes:

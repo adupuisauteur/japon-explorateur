@@ -520,7 +520,8 @@ class VersionTests(Evolution120Base):
     def test_single_version_number(self):
         root = Path(settings.BASE_DIR)
         version = (root / "VERSION").read_text(encoding="utf-8").strip()
-        self.assertEqual(version, "1.2.0")
+        # 1.3.0 : la valeur exacte est vérifiée dans test_evolution_130 ; ici, la cohérence du numéro unique.
+        self.assertRegex(version, r"^\d+\.\d+\.\d+$")
         self.assertEqual(settings.APP_VERSION, version)
         compose = (root / "docker-compose.yml").read_text(encoding="utf-8")
         self.assertIn(f"image: japon-explorateur:{version}", compose)
