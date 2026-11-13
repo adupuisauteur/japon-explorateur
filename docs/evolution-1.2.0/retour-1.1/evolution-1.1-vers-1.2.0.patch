@@ -29,10 +29,10 @@ index 1acb43c..2ccf0ec 100644
  CONNECTOR_DEFAULT_TIMEOUT=20
 diff --git a/CHANGELOG.md b/CHANGELOG.md
 new file mode 100644
-index 0000000..382a790
+index 0000000..0898c50
 --- /dev/null
 +++ b/CHANGELOG.md
-@@ -0,0 +1,15 @@
+@@ -0,0 +1,16 @@
 +# Historique des versions
 +
 +## 1.2.0 — 13 novembre 2026
@@ -43,6 +43,7 @@ index 0000000..382a790
 +- **Recherche** : cinq états distincts par source (résultats, aucun résultat, indisponible, erreur technique, réponse illisible) ; variantes de graphie libres, sans suffixe et attestées ; tri par auteur et institution ; filtre « document numérisé ».
 +- **Journal des dysfonctionnements** : enregistrement automatique et expurgé, regroupement, gravités, statuts de correction, réapparitions, signalement manuel, analyse, export de diagnostic.
 +- **Socle** : numéro de version unique (`VERSION`) ; installation d'essai isolée (projet Docker, volumes, port 8001, image) ; `pypdf` ajouté aux dépendances.
++- **Outil** : script `reinitialiser-essai.ps1` (Windows) pour remettre l'installation d'essai à zéro, avec contrôles de sécurité qui protègent l'installation principale.
 +- Base de données : une migration **additive** (`incidents.0001_initial`), aucune table existante modifiée.
 +
 +## 1.1 — commit 7cb4075
@@ -3250,10 +3251,10 @@ index 0000000..aa0f2cd
 +Chaque écart sera visible dans le journal des dysfonctionnements (« Réponse impossible à interpréter », avec un extrait de la réponse) et pourra être exporté pour correction.
 diff --git a/docs/evolution-1.2.0/03-guide-installation-windows.md b/docs/evolution-1.2.0/03-guide-installation-windows.md
 new file mode 100644
-index 0000000..c023cf6
+index 0000000..8fb7976
 --- /dev/null
 +++ b/docs/evolution-1.2.0/03-guide-installation-windows.md
-@@ -0,0 +1,120 @@
+@@ -0,0 +1,147 @@
 +# Guide d'installation sous Windows 11 — version 1.2.0 (installation d'essai)
 +
 +Ce guide installe la version 1.2.0 **à côté** de votre installation actuelle, **sans la toucher** :
@@ -3347,9 +3348,36 @@ index 0000000..c023cf6
 +| Redémarrer | `docker compose restart` |
 +| Voir les messages techniques | `docker compose logs --tail 100 web` |
 +| Lancer les tests automatiques | `docker compose exec web python manage.py test tests` |
++| Réinitialiser l'essai (base vide), avec contrôles de sécurité | `powershell -ExecutionPolicy Bypass -File .\reinitialiser-essai.ps1` |
 +| Supprimer **uniquement** l'installation d'essai et ses données | `docker compose down -v` |
 +
 +> ⚠️ Ne lancez `docker compose down -v` que **dans le dossier de l'essai**. Dans le dossier de l'installation principale, cette commande effacerait votre base réelle.
++
++## Réinitialiser l'installation d'essai
++
++Pour repartir d'une installation propre, utilisez le script fourni **`reinitialiser-essai.ps1`**, situé dans le dossier de l'essai. Dans PowerShell :
++
++```powershell
++cd C:\JaponExplorateur-essai-1.2.0
++powershell -ExecutionPolicy Bypass -File .\reinitialiser-essai.ps1
++```
++
++Le script :
++1. **vérifie** qu'il est bien dans une installation d'essai. Il refuse de continuer si le nom Docker est celui de l'installation principale (`japon-explorateur`), s'il ne contient pas « essai », si le port est 8000, ou si `.env` est absent ;
++2. **affiche** ce qui sera effacé (les volumes de l'essai) et ce qui ne sera pas touché (les volumes de l'installation principale) ;
++3. **propose une sauvegarde** de l'essai si l'application est démarrée. Elle est copiée dans le sous-dossier `sauvegardes-essai` ;
++4. demande de **taper `REINITIALISER`** pour confirmer. Toute autre réponse annule ;
++5. efface les conteneurs et les données de l'essai, puis **redémarre avec une base vide**. L'assistant de première configuration réapparaît sur http://localhost:8001. Le fichier `.env` est conservé.
++
++| Variante | Commande |
++|---|---|
++| Sans proposer de sauvegarde | `powershell -ExecutionPolicy Bypass -File .\reinitialiser-essai.ps1 -SansSauvegarde` |
++| Réinstallation complète : efface aussi l'image de l'essai, sans redémarrer | `powershell -ExecutionPolicy Bypass -File .\reinitialiser-essai.ps1 -Complet` |
++
++Après `-Complet`, pour une installation neuve, supprimez le dossier (mettez de côté `sauvegardes-essai` si besoin), puis reprenez ce guide à l'étape 3.
++
++> Exportez d'abord les diagnostics que vous voulez conserver (**Dysfonctionnements → Exporter un diagnostic**) : la réinitialisation efface le journal de l'essai.
++> N'utilisez pas `docker compose down --rmi all` : cette option supprimerait aussi les images `postgres` et `redis`, partagées avec l'installation principale.
 +
 +## Retour en arrière
 +
@@ -3465,10 +3493,10 @@ index 0000000..b126efd
 +Le rapport contient la version, le module, l'identifiant, les messages techniques, le contexte et les étapes pour reproduire. Les mots de passe, clés API (dont l'identifiant CiNii), jetons, adresses e-mail, noms d'utilisateur et chemins personnels sont **masqués automatiquement**. Le journal reste sur ce poste : rien n'est envoyé à l'extérieur.
 diff --git a/docs/evolution-1.2.0/05-protocole-verification.md b/docs/evolution-1.2.0/05-protocole-verification.md
 new file mode 100644
-index 0000000..398eba3
+index 0000000..c803e66
 --- /dev/null
 +++ b/docs/evolution-1.2.0/05-protocole-verification.md
-@@ -0,0 +1,99 @@
+@@ -0,0 +1,102 @@
 +# Protocole de vérification utilisateur — version 1.2.0 (Windows 11)
 +
 +**Objectif :** confirmer en conditions réelles ce qui n'a pu être testé qu'en simulation. Durée : environ 45 minutes. Prérequis : l'installation d'essai fonctionne (guide d'installation, étapes 1 à 6). Elle est ouverte sur **http://localhost:8001** avec le compte administrateur.
@@ -3535,6 +3563,8 @@ index 0000000..398eba3
 +
 +**V12 — Redémarrage.** `docker compose restart`, puis attendez une minute et rechargez la page. Attendu : connexion possible, et journal, notices, notes et sources activées intacts.
 +
++**V14 — Réinitialisation (facultatif, à faire en dernier).** `powershell -ExecutionPolicy Bypass -File .\reinitialiser-essai.ps1` → répondez **O** à la sauvegarde → tapez `REINITIALISER`. Attendu : une sauvegarde `.tar` dans `sauvegardes-essai`, la base vide (l'assistant de première configuration réapparaît sur http://localhost:8001) et l'installation principale (http://localhost:8000) intacte.
++
 +**V13 — Tests automatiques (facultatif).** `docker compose exec web python manage.py test tests`. Attendu : « OK » à la fin (127 tests).
 +
 +---
@@ -3564,16 +3594,17 @@ index 0000000..398eba3
 +| V11 conservation | | | |
 +| V12 redémarrage | | | |
 +| V13 tests auto | | | |
++| V14 réinitialisation | | | |
 +
 +**À joindre en cas de KO :** le rapport exporté (**Dysfonctionnements → Exporter un diagnostic**, filtré sur la date du test). Avec cette grille, ce rapport suffit pour analyser et corriger les connecteurs.
 +
 +Après un test réel réussi, le badge « non vérifié » disparaît de la source, et la date du test est enregistrée (« Dernier test réel réussi »). Elle servira à faire passer le connecteur au statut **« testé en conditions réelles »**.
 diff --git a/docs/evolution-1.2.0/06-rapport-technique.md b/docs/evolution-1.2.0/06-rapport-technique.md
 new file mode 100644
-index 0000000..86d2f99
+index 0000000..a0cb662
 --- /dev/null
 +++ b/docs/evolution-1.2.0/06-rapport-technique.md
-@@ -0,0 +1,100 @@
+@@ -0,0 +1,101 @@
 +# Rapport technique final — Évolution 1.2.0
 +
 +**Japon — Explorateur documentaire** · Sources documentaires et suivi des dysfonctionnements · 13 novembre 2026
@@ -3655,6 +3686,7 @@ index 0000000..86d2f99
 +| Démarrage et redémarrage | Gunicorn en mode production : 13 pages contrôlées (HTTP 200, pied de page v1.2.0), recherche réelle, signalement manuel et export via le navigateur ; arrêt puis relance : incidents, notices et notes persistants | Réussi (hors Docker) |
 +| Version unique | `VERSION` = `settings.APP_VERSION` = étiquette d'image = pied de page | Réussi |
 +| Configuration Docker | `docker compose config` : projet `japon-explorateur-essai`, port 8001, image 1.2.0 | Réussi (validation hors ligne) |
++| Script `reinitialiser-essai.ps1` | PowerShell 7.4 sous Linux, avec de vrais volumes Docker de test pour l'essai et pour une « installation principale » simulée : annulation, 4 refus de sécurité (nom principal, nom sans « essai », port 8000, `.env` absent), Docker arrêté, effacement en mode normal et en mode `-Complet` (image de l'essai supprimée, image et volumes de l'installation principale intacts) | Réussi. Non testés : la sauvegarde avant effacement et le redémarrage final (aucun conteneur ne peut tourner ici), et l'exécution sous Windows PowerShell 5.1 |
 +
 +## 5. Tests non exécutés
 +
@@ -3671,7 +3703,7 @@ index 0000000..86d2f99
 +
 +## 7. Fichiers principaux modifiés ou ajoutés
 +
-+- **Ajoutés** : `VERSION`, `apps/incidents/` (modèles, services, rapport, vues, formulaires, administration, migration), `apps/connectors/cinii.py`, `templates/incidents/*`, `templates/connectors/jps_databases.html`, `tests/test_evolution_120.py`, `tests/fixtures/reponses/*`, `docs/evolution-1.2.0/*`, `CHANGELOG.md`.
++- **Ajoutés** : `VERSION`, `reinitialiser-essai.ps1`, `apps/incidents/` (modèles, services, rapport, vues, formulaires, administration, migration), `apps/connectors/cinii.py`, `templates/incidents/*`, `templates/connectors/jps_databases.html`, `tests/test_evolution_120.py`, `tests/fixtures/reponses/*`, `docs/evolution-1.2.0/*`, `CHANGELOG.md`.
 +- **Modifiés** : `apps/connectors/{base,http,ndl,japansearch,kokusho,registry,views,urls}.py`, `apps/searching/{services,views}.py`, `apps/updates/{services,views}.py`, `apps/catalog/search.py`, `apps/core/{logging,context_processors}.py`, `apps/core/templatetags/app_tags.py`, `apps/core/management/commands/seed_sources.py`, `config/{settings,urls}.py`, `docker-compose.yml`, `.env.example`, `requirements.txt`, quelques gabarits et la feuille de style.
 +- Le détail ligne à ligne figure dans `docs/evolution-1.2.0/retour-1.1/evolution-1.1-vers-1.2.0.patch`.
 diff --git a/docs/evolution-1.2.0/07-limitations-connues.md b/docs/evolution-1.2.0/07-limitations-connues.md
@@ -3743,6 +3775,225 @@ index 0000000..659a1f0
 +4. En cas de doute, restaurez plutôt la sauvegarde de l'étape 1 avec la commande `restore_backup` de la 1.1.
 +
 +Résultat du test de retour : la base 1.1 avec des données fictives (5 notices, 1 note, 1 favori) a été migrée en 1.2.0, ramenée en 1.1 avec `migrate incidents zero`, puis remontée en 1.2.0. Le code 1.1 démarre sans migration en attente, et les données sont restées identiques à chaque étape.
+diff --git a/reinitialiser-essai.ps1 b/reinitialiser-essai.ps1
+new file mode 100644
+index 0000000..f664a86
+--- /dev/null
++++ b/reinitialiser-essai.ps1
+@@ -0,0 +1,213 @@
++﻿<#
++.SYNOPSIS
++    Réinitialise l'installation D'ESSAI de « Japon — Explorateur documentaire » (version 1.2.0).
++
++.DESCRIPTION
++    Ce script efface les conteneurs et les données (base, journal, captures, sauvegardes internes)
++    de l'installation d'essai, puis la redémarre avec une base vide.
++    Il REFUSE de s'exécuter s'il ne se trouve pas dans le dossier d'une installation d'essai :
++    le nom du projet Docker doit contenir « essai » et ne jamais être celui de l'installation
++    principale (« japon-explorateur »). L'installation principale n'est jamais touchée.
++
++.PARAMETER Complet
++    Efface aussi l'image Docker de l'essai, sans redémarrer. Utile avant de supprimer le dossier
++    pour refaire une installation complète à partir de l'archive.
++
++.PARAMETER SansSauvegarde
++    Ne propose pas de sauvegarde de l'essai avant l'effacement.
++
++.EXAMPLE
++    powershell -ExecutionPolicy Bypass -File .\reinitialiser-essai.ps1
++
++.EXAMPLE
++    powershell -ExecutionPolicy Bypass -File .\reinitialiser-essai.ps1 -Complet
++#>
++[CmdletBinding()]
++param(
++    [switch]$Complet,
++    [switch]$SansSauvegarde
++)
++
++# Les messages d'erreur de Docker sont contrôlés par leur code de retour (compatible Windows PowerShell 5.1).
++$ErrorActionPreference = 'Continue'
++$NomPrincipal = 'japon-explorateur'
++
++function Arreter([string]$Message) {
++    Write-Host ''
++    Write-Host "ARRÊT : $Message" -ForegroundColor Red
++    Write-Host 'Rien n''a été effacé.' -ForegroundColor Red
++    exit 1
++}
++
++function Etape([string]$Message) {
++    Write-Host ''
++    Write-Host "== $Message" -ForegroundColor Cyan
++}
++
++function Docker-Sortie {
++    # Exécute docker et renvoie la sortie standard (les avertissements de Docker sont ignorés).
++    param([string[]]$Arguments)
++    $sortie = & docker @Arguments 2>$null
++    return [pscustomobject]@{ Code = $LASTEXITCODE; Texte = (($sortie | ForEach-Object { "$_" }) -join "`n").Trim() }
++}
++
++Set-Location -LiteralPath $PSScriptRoot
++Write-Host 'Réinitialisation de l''installation d''essai — Japon · Explorateur documentaire' -ForegroundColor White
++Write-Host "Dossier : $PSScriptRoot"
++
++# --- 1. Contrôles de sécurité -------------------------------------------------------------------
++Etape 'Contrôles de sécurité'
++
++if (-not (Test-Path -LiteralPath 'docker-compose.yml') -or -not (Test-Path -LiteralPath 'VERSION')) {
++    Arreter 'ce script doit se trouver dans le dossier de l''installation d''essai (à côté de docker-compose.yml et VERSION).'
++}
++$Version = (Get-Content -LiteralPath 'VERSION' -Raw).Trim()
++
++if (-not (Test-Path -LiteralPath '.env')) {
++    Arreter 'fichier .env absent : l''installation d''essai n''a pas encore été configurée (guide d''installation, étape 4).'
++}
++
++if ((Docker-Sortie @('info')).Code -ne 0) {
++    Arreter 'Docker Desktop ne répond pas. Démarrez-le, attendez « Engine running », puis relancez ce script.'
++}
++
++$config = Docker-Sortie @('compose', 'config', '--format', 'json')
++if ($config.Code -ne 0 -or -not $config.Texte) {
++    Arreter 'impossible de lire la configuration Docker de ce dossier (fichier .env incomplet ?). Lancez « docker compose config » pour voir le message.'
++}
++try {
++    $configuration = $config.Texte | ConvertFrom-Json
++} catch {
++    Arreter 'configuration Docker illisible.'
++}
++$Projet = [string]$configuration.name
++
++if (-not $Projet) {
++    Arreter 'nom du projet Docker introuvable.'
++}
++if ($Projet -eq $NomPrincipal) {
++    Arreter "ce dossier utilise le nom « $Projet », celui de l'INSTALLATION PRINCIPALE. Vérifiez COMPOSE_PROJECT_NAME dans .env (valeur attendue : japon-explorateur-essai)."
++}
++if ($Projet -notlike '*essai*') {
++    Arreter "le nom du projet Docker « $Projet » ne contient pas « essai ». Par sécurité, seule une installation d'essai peut être réinitialisée."
++}
++
++$Port = $null
++try { $Port = $configuration.services.web.ports[0].published } catch { }
++if ("$Port" -eq '8000') {
++    Arreter 'cette installation utilise le port 8000, celui de l''installation principale. Vérifiez WEB_PORT dans .env (valeur attendue : 8001).'
++}
++
++Write-Host "Projet Docker : $Projet (version $Version, port $Port)" -ForegroundColor Green
++
++# Ce qui sera effacé : uniquement les volumes de CE projet.
++$volumes = @((Docker-Sortie @('volume', 'ls', '-q', '--filter', "label=com.docker.compose.project=$Projet")).Texte -split "`n" |
++    Where-Object { $_ })
++foreach ($v in $volumes) {
++    if (-not $v.StartsWith("${Projet}_")) {
++        Arreter "volume inattendu « $v » : nom non conforme au projet d'essai."
++    }
++}
++$principaux = @((Docker-Sortie @('volume', 'ls', '-q', '--filter', "label=com.docker.compose.project=$NomPrincipal")).Texte -split "`n" |
++    Where-Object { $_ })
++
++Write-Host ''
++Write-Host 'Seront EFFACÉS (installation d''essai) :' -ForegroundColor Yellow
++Write-Host "  - les conteneurs du projet $Projet"
++if ($volumes.Count -gt 0) {
++    foreach ($v in $volumes) { Write-Host "  - le volume $v" }
++} else {
++    Write-Host '  - (aucun volume de données existant)'
++}
++Write-Host '    soit : base de données, journal des dysfonctionnements, captures, sauvegardes internes de l''essai'
++if ($Complet) { Write-Host "  - l'image Docker japon-explorateur:$Version" }
++if ($principaux.Count -gt 0) {
++    Write-Host ''
++    Write-Host 'Ne seront PAS touchés (installation principale) :' -ForegroundColor Green
++    foreach ($v in $principaux) { Write-Host "  - le volume $v" }
++}
++
++# --- 2. Sauvegarde facultative ------------------------------------------------------------------
++$enMarche = (Docker-Sortie @('compose', 'ps', '--status', 'running', '--services')).Texte -split "`n"
++if (-not $SansSauvegarde -and ($enMarche -contains 'web')) {
++    Etape 'Sauvegarde avant effacement (facultative)'
++    Write-Host 'Pensez aussi à exporter vos diagnostics (Dysfonctionnements → Exporter un diagnostic) si vous voulez les envoyer.'
++    $reponse = Read-Host 'Faire une sauvegarde complète de l''essai dans le dossier « sauvegardes-essai » ? (O/N)'
++    if ($reponse -match '^[oOyY]') {
++        & docker compose exec -T web python manage.py backup --verify
++        if ($LASTEXITCODE -ne 0) { Arreter 'la sauvegarde a échoué.' }
++        $chemin = (Docker-Sortie @('compose', 'exec', '-T', 'web', 'sh', '-c', 'ls -t /data/backups/*.tar 2>/dev/null | head -n 1')).Texte
++        if (-not $chemin) { Arreter 'fichier de sauvegarde introuvable dans le conteneur.' }
++        New-Item -ItemType Directory -Force -Path 'sauvegardes-essai' | Out-Null
++        & docker compose cp "web:$chemin" '.\sauvegardes-essai\'
++        if ($LASTEXITCODE -ne 0) { Arreter 'la copie de la sauvegarde hors du conteneur a échoué.' }
++        Write-Host "Sauvegarde copiée dans : $PSScriptRoot\sauvegardes-essai" -ForegroundColor Green
++    }
++} elseif (-not $SansSauvegarde) {
++    Write-Host ''
++    Write-Host 'L''essai n''est pas démarré : aucune sauvegarde ne peut être faite avant l''effacement.' -ForegroundColor Yellow
++}
++
++# --- 3. Confirmation ----------------------------------------------------------------------------
++Etape 'Confirmation'
++$saisie = Read-Host 'Pour effacer l''installation d''essai, tapez REINITIALISER (en majuscules)'
++if ($saisie -cne 'REINITIALISER') {
++    Write-Host 'Annulé : rien n''a été effacé.' -ForegroundColor Yellow
++    exit 0
++}
++
++# --- 4. Effacement ------------------------------------------------------------------------------
++Etape "Arrêt et effacement de $Projet"
++& docker compose down -v --remove-orphans
++if ($LASTEXITCODE -ne 0) {
++    Write-Host 'ERREUR : « docker compose down -v » a échoué. Lisez le message ci-dessus.' -ForegroundColor Red
++    exit 1
++}
++$restants = @((Docker-Sortie @('volume', 'ls', '-q', '--filter', "label=com.docker.compose.project=$Projet")).Texte -split "`n" |
++    Where-Object { $_ })
++if ($restants.Count -gt 0) {
++    Write-Host "ATTENTION : volumes encore présents : $($restants -join ', ')" -ForegroundColor Red
++    exit 1
++}
++Write-Host 'Conteneurs et données de l''essai effacés.' -ForegroundColor Green
++
++if ($Complet) {
++    Etape "Suppression de l'image japon-explorateur:$Version"
++    $image = Docker-Sortie @('image', 'inspect', "japon-explorateur:$Version")
++    if ($image.Code -eq 0) {
++        & docker image rm "japon-explorateur:$Version"
++    } else {
++        Write-Host 'Image déjà absente.'
++    }
++    Write-Host ''
++    Write-Host 'Réinitialisation complète terminée.' -ForegroundColor Green
++    Write-Host 'Pour une installation neuve : supprimez ce dossier (après avoir mis de côté « sauvegardes-essai » si besoin),'
++    Write-Host 'puis reprenez le guide d''installation à l''étape 3. Pour réutiliser ce dossier : docker compose up -d --build'
++    exit 0
++}
++
++# --- 5. Redémarrage avec une base vide -----------------------------------------------------------
++Etape 'Redémarrage avec une base vide'
++# --build : l'image de l'application est (re)construite sur ce poste, jamais téléchargée.
++& docker compose up -d --build
++if ($LASTEXITCODE -ne 0) {
++    Write-Host 'ERREUR : le redémarrage a échoué. Lisez le message ci-dessus, ou lancez « docker compose logs --tail 100 web ».' -ForegroundColor Red
++    exit 1
++}
++$adresse = "http://localhost:$Port/"
++Write-Host "Attente de l'application sur $adresse (2 minutes au plus)…"
++$pret = $false
++for ($i = 0; $i -lt 40 -and -not $pret; $i++) {
++    Start-Sleep -Seconds 3
++    try {
++        $r = Invoke-WebRequest -Uri ($adresse + 'hors-ligne/') -UseBasicParsing -TimeoutSec 5
++        if ($r.StatusCode -eq 200) { $pret = $true }
++    } catch { }
++}
++Write-Host ''
++if ($pret) {
++    Write-Host "Terminé. Ouvrez $adresse : l'assistant de première configuration va créer le compte administrateur." -ForegroundColor Green
++} else {
++    Write-Host "L'application ne répond pas encore. Patientez une minute puis ouvrez $adresse ;" -ForegroundColor Yellow
++    Write-Host 'si rien ne s''affiche : docker compose logs --tail 100 web'
++}
 diff --git a/requirements.txt b/requirements.txt
 index c131683..bc0542b 100644
 --- a/requirements.txt
