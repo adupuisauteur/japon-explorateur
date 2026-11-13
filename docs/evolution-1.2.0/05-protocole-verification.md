@@ -64,6 +64,8 @@ Attendu : la notice importée garde sa note et son favori, et le nombre de notic
 
 **V12 — Redémarrage.** `docker compose restart`, puis attendez une minute et rechargez la page. Attendu : connexion possible, et journal, notices, notes et sources activées intacts.
 
+**V14 — Réinitialisation (facultatif, à faire en dernier).** `powershell -ExecutionPolicy Bypass -File .\reinitialiser-essai.ps1` → répondez **O** à la sauvegarde → tapez `REINITIALISER`. Attendu : une sauvegarde `.tar` dans `sauvegardes-essai`, la base vide (l'assistant de première configuration réapparaît sur http://localhost:8001) et l'installation principale (http://localhost:8000) intacte.
+
 **V13 — Tests automatiques (facultatif).** `docker compose exec web python manage.py test tests`. Attendu : « OK » à la fin (127 tests).
 
 ---
@@ -93,6 +95,7 @@ Attendu : la notice importée garde sa note et son favori, et le nombre de notic
 | V11 conservation | | | |
 | V12 redémarrage | | | |
 | V13 tests auto | | | |
+| V14 réinitialisation | | | |
 
 **À joindre en cas de KO :** le rapport exporté (**Dysfonctionnements → Exporter un diagnostic**, filtré sur la date du test). Avec cette grille, ce rapport suffit pour analyser et corriger les connecteurs.
 

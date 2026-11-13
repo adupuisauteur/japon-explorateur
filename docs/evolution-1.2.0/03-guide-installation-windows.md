@@ -91,9 +91,36 @@ Vous devez voir des volumes `japon-explorateur-essai_db-data` et `japon-explorat
 | Redémarrer | `docker compose restart` |
 | Voir les messages techniques | `docker compose logs --tail 100 web` |
 | Lancer les tests automatiques | `docker compose exec web python manage.py test tests` |
+| Réinitialiser l'essai (base vide), avec contrôles de sécurité | `powershell -ExecutionPolicy Bypass -File .\reinitialiser-essai.ps1` |
 | Supprimer **uniquement** l'installation d'essai et ses données | `docker compose down -v` |
 
 > ⚠️ Ne lancez `docker compose down -v` que **dans le dossier de l'essai**. Dans le dossier de l'installation principale, cette commande effacerait votre base réelle.
+
+## Réinitialiser l'installation d'essai
+
+Pour repartir d'une installation propre, utilisez le script fourni **`reinitialiser-essai.ps1`**, situé dans le dossier de l'essai. Dans PowerShell :
+
+```powershell
+cd C:\JaponExplorateur-essai-1.2.0
+powershell -ExecutionPolicy Bypass -File .\reinitialiser-essai.ps1
+```
+
+Le script :
+1. **vérifie** qu'il est bien dans une installation d'essai. Il refuse de continuer si le nom Docker est celui de l'installation principale (`japon-explorateur`), s'il ne contient pas « essai », si le port est 8000, ou si `.env` est absent ;
+2. **affiche** ce qui sera effacé (les volumes de l'essai) et ce qui ne sera pas touché (les volumes de l'installation principale) ;
+3. **propose une sauvegarde** de l'essai si l'application est démarrée. Elle est copiée dans le sous-dossier `sauvegardes-essai` ;
+4. demande de **taper `REINITIALISER`** pour confirmer. Toute autre réponse annule ;
+5. efface les conteneurs et les données de l'essai, puis **redémarre avec une base vide**. L'assistant de première configuration réapparaît sur http://localhost:8001. Le fichier `.env` est conservé.
+
+| Variante | Commande |
+|---|---|
+| Sans proposer de sauvegarde | `powershell -ExecutionPolicy Bypass -File .\reinitialiser-essai.ps1 -SansSauvegarde` |
+| Réinstallation complète : efface aussi l'image de l'essai, sans redémarrer | `powershell -ExecutionPolicy Bypass -File .\reinitialiser-essai.ps1 -Complet` |
+
+Après `-Complet`, pour une installation neuve, supprimez le dossier (mettez de côté `sauvegardes-essai` si besoin), puis reprenez ce guide à l'étape 3.
+
+> Exportez d'abord les diagnostics que vous voulez conserver (**Dysfonctionnements → Exporter un diagnostic**) : la réinitialisation efface le journal de l'essai.
+> N'utilisez pas `docker compose down --rmi all` : cette option supprimerait aussi les images `postgres` et `redis`, partagées avec l'installation principale.
 
 ## Retour en arrière
 

@@ -79,6 +79,7 @@ Environnement : Python 3.13, Django 5.2, PostgreSQL 16, sous Linux. **Résultat 
 | Démarrage et redémarrage | Gunicorn en mode production : 13 pages contrôlées (HTTP 200, pied de page v1.2.0), recherche réelle, signalement manuel et export via le navigateur ; arrêt puis relance : incidents, notices et notes persistants | Réussi (hors Docker) |
 | Version unique | `VERSION` = `settings.APP_VERSION` = étiquette d'image = pied de page | Réussi |
 | Configuration Docker | `docker compose config` : projet `japon-explorateur-essai`, port 8001, image 1.2.0 | Réussi (validation hors ligne) |
+| Script `reinitialiser-essai.ps1` | PowerShell 7.4 sous Linux, avec de vrais volumes Docker de test pour l'essai et pour une « installation principale » simulée : annulation, 4 refus de sécurité (nom principal, nom sans « essai », port 8000, `.env` absent), Docker arrêté, effacement en mode normal et en mode `-Complet` (image de l'essai supprimée, image et volumes de l'installation principale intacts) | Réussi. Non testés : la sauvegarde avant effacement et le redémarrage final (aucun conteneur ne peut tourner ici), et l'exécution sous Windows PowerShell 5.1 |
 
 ## 5. Tests non exécutés
 
@@ -95,6 +96,6 @@ Aucun test ne révèle d'anomalie dans le code livré. Les points d'incertitude 
 
 ## 7. Fichiers principaux modifiés ou ajoutés
 
-- **Ajoutés** : `VERSION`, `apps/incidents/` (modèles, services, rapport, vues, formulaires, administration, migration), `apps/connectors/cinii.py`, `templates/incidents/*`, `templates/connectors/jps_databases.html`, `tests/test_evolution_120.py`, `tests/fixtures/reponses/*`, `docs/evolution-1.2.0/*`, `CHANGELOG.md`.
+- **Ajoutés** : `VERSION`, `reinitialiser-essai.ps1`, `apps/incidents/` (modèles, services, rapport, vues, formulaires, administration, migration), `apps/connectors/cinii.py`, `templates/incidents/*`, `templates/connectors/jps_databases.html`, `tests/test_evolution_120.py`, `tests/fixtures/reponses/*`, `docs/evolution-1.2.0/*`, `CHANGELOG.md`.
 - **Modifiés** : `apps/connectors/{base,http,ndl,japansearch,kokusho,registry,views,urls}.py`, `apps/searching/{services,views}.py`, `apps/updates/{services,views}.py`, `apps/catalog/search.py`, `apps/core/{logging,context_processors}.py`, `apps/core/templatetags/app_tags.py`, `apps/core/management/commands/seed_sources.py`, `config/{settings,urls}.py`, `docker-compose.yml`, `.env.example`, `requirements.txt`, quelques gabarits et la feuille de style.
 - Le détail ligne à ligne figure dans `docs/evolution-1.2.0/retour-1.1/evolution-1.1-vers-1.2.0.patch`.
