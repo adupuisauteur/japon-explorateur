@@ -29,10 +29,10 @@ index 1acb43c..2ccf0ec 100644
  CONNECTOR_DEFAULT_TIMEOUT=20
 diff --git a/CHANGELOG.md b/CHANGELOG.md
 new file mode 100644
-index 0000000..0898c50
+index 0000000..7f52365
 --- /dev/null
 +++ b/CHANGELOG.md
-@@ -0,0 +1,16 @@
+@@ -0,0 +1,17 @@
 +# Historique des versions
 +
 +## 1.2.0 — 13 novembre 2026
@@ -44,13 +44,14 @@ index 0000000..0898c50
 +- **Journal des dysfonctionnements** : enregistrement automatique et expurgé, regroupement, gravités, statuts de correction, réapparitions, signalement manuel, analyse, export de diagnostic.
 +- **Socle** : numéro de version unique (`VERSION`) ; installation d'essai isolée (projet Docker, volumes, port 8001, image) ; `pypdf` ajouté aux dépendances.
 +- **Outil** : script `reinitialiser-essai.ps1` (Windows) pour remettre l'installation d'essai à zéro, avec contrôles de sécurité qui protègent l'installation principale.
++- **Correctif (13/11, incident INC-20261113-41FDF0)** : erreur 500 au clic sur « Comparer avec la base » sous Docker. Le module `packaging`, requis par kombu 5.7 (transport Redis de Celery) mais non déclaré par ce paquet, est ajouté aux dépendances. Le même problème touchait toute tâche confiée au worker (synchronisations, exports). Un test de non-régression a été ajouté, et chaque erreur de page reçoit désormais un identifiant de requête.
 +- Base de données : une migration **additive** (`incidents.0001_initial`), aucune table existante modifiée.
 +
 +## 1.1 — commit 7cb4075
 +
 +Application complète et 13 corrections de l'audit (numéro affiché par erreur : 1.0.0).
 diff --git a/README.md b/README.md
-index 3a68d60..42465b5 100644
+index 3a68d60..73b0af6 100644
 --- a/README.md
 +++ b/README.md
 @@ -2,6 +2,10 @@
@@ -103,7 +104,7 @@ index 3a68d60..42465b5 100644
  
  ```bash
 -python manage.py test tests            # 95 tests ; PostgreSQL recommandé (DATABASE_URL)
-+python manage.py test tests            # 127 tests ; PostgreSQL recommandé (DATABASE_URL)
++python manage.py test tests            # 128 tests ; PostgreSQL recommandé (DATABASE_URL)
  ```
 -Ils couvrent les critères d'acceptation AT-01 à AT-20 et AT-IA-01 à AT-IA-12 (correspondance détaillée dans `docs/conformite.md`). Les connecteurs et fournisseurs d'IA y sont testés sur des réponses simulées, sans appel réseau. `tests/test_audit_corrections.py` reproduit chacune des anomalies relevées par l'audit et vérifie qu'elle ne se produit plus.
 +Ils couvrent les critères d'acceptation AT-01 à AT-20 et AT-IA-01 à AT-IA-12 (correspondance détaillée dans `docs/conformite.md`). Les connecteurs et fournisseurs d'IA y sont testés sur des réponses simulées, sans appel réseau. `tests/test_audit_corrections.py` reproduit chacune des anomalies relevées par l'audit et vérifie qu'elle ne se produit plus. `tests/test_evolution_120.py` couvre la 1.2.0 sur des réponses enregistrées (`tests/fixtures/reponses/`) : réponse normale, aucun résultat, indisponibilité, réponse mal formée, journal, export, conservation des données.
@@ -1349,10 +1350,10 @@ index 0000000..738620e
 +    inlines = [EventInline, OccurrenceInline]
 diff --git a/apps/incidents/apps.py b/apps/incidents/apps.py
 new file mode 100644
-index 0000000..48dac60
+index 0000000..a933fce
 --- /dev/null
 +++ b/apps/incidents/apps.py
-@@ -0,0 +1,33 @@
+@@ -0,0 +1,34 @@
 +from django.apps import AppConfig
 +
 +
@@ -1370,6 +1371,7 @@ index 0000000..48dac60
 +def _on_request_exception(sender, request=None, **kwargs):
 +    """Erreur non prévue lors de l'affichage d'une page (erreur 500) : journalisée avec le chemin, sans paramètres."""
 +    import sys
++    import uuid
 +
 +    from django.db import DatabaseError
 +
@@ -1380,12 +1382,12 @@ index 0000000..48dac60
 +        return
 +    path = getattr(request, "path", "") if request is not None else ""
 +    operation = f"Affichage de la page {path}" if path else "Traitement d'une requête"
-+    extra = {"path": path, "method": getattr(request, "method", ""),
-+             "request_id": getattr(request, "request_id", "")}
++    request_id = getattr(request, "request_id", "") or uuid.uuid4().hex[:12]
++    extra = {"path": path, "method": getattr(request, "method", "")}
 +    if isinstance(exc, DatabaseError):
-+        record_database_error(exc, operation=operation)
++        record_database_error(exc, operation=operation, request_id=request_id)
 +    else:
-+        record_exception(exc, module="application", operation=operation, extra=extra)
++        record_exception(exc, module="application", operation=operation, extra=extra, request_id=request_id)
 diff --git a/apps/incidents/forms.py b/apps/incidents/forms.py
 new file mode 100644
 index 0000000..93266fb
@@ -2243,10 +2245,10 @@ index 0000000..6df9f06
 +    return redact("\n".join(lines))
 diff --git a/apps/incidents/services.py b/apps/incidents/services.py
 new file mode 100644
-index 0000000..3f3db8a
+index 0000000..25f1714
 --- /dev/null
 +++ b/apps/incidents/services.py
-@@ -0,0 +1,218 @@
+@@ -0,0 +1,220 @@
 +"""Enregistrement des incidents : point d'entrée unique pour tous les modules.
 +
 +Règles :
@@ -2404,7 +2406,7 @@ index 0000000..3f3db8a
 +
 +
 +def record_exception(exc, *, module, operation="", source_code="", category="erreur_application",
-+                     severity="error", origin="application", extra=None):
++                     severity="error", origin="application", extra=None, request_id=""):
 +    """Journalise une exception inattendue (avec un extrait court de la pile d'appels)."""
 +    context = {"exception": exc.__class__.__name__, "traceback": short_traceback(exc)}
 +    if extra:
@@ -2413,13 +2415,15 @@ index 0000000..3f3db8a
 +        module=module, category=category, severity=severity, origin=origin, source_code=source_code,
 +        title=f"{exc.__class__.__name__} pendant : {operation or module}"[:300], message=str(exc)[:2000],
 +        operation=operation, technical_code=exc.__class__.__name__, context=context,
++        request_id=request_id or context.get("request_id", ""),
 +    )
 +
 +
-+def record_database_error(exc, *, module="base_de_donnees", operation="", source_code=""):
++def record_database_error(exc, *, module="base_de_donnees", operation="", source_code="", request_id=""):
 +    """Erreur de base de données : alerte prioritaire (risque de perte ou de corruption de données)."""
 +    return record_exception(exc, module=module, operation=operation, source_code=source_code,
-+                            category="erreur_critique", severity="critical", origin="application")
++                            category="erreur_critique", severity="critical", origin="application",
++                            request_id=request_id)
 +
 +
 +def note_source_recovered(source_code):
@@ -3493,7 +3497,7 @@ index 0000000..b126efd
 +Le rapport contient la version, le module, l'identifiant, les messages techniques, le contexte et les étapes pour reproduire. Les mots de passe, clés API (dont l'identifiant CiNii), jetons, adresses e-mail, noms d'utilisateur et chemins personnels sont **masqués automatiquement**. Le journal reste sur ce poste : rien n'est envoyé à l'extérieur.
 diff --git a/docs/evolution-1.2.0/05-protocole-verification.md b/docs/evolution-1.2.0/05-protocole-verification.md
 new file mode 100644
-index 0000000..c803e66
+index 0000000..1f71929
 --- /dev/null
 +++ b/docs/evolution-1.2.0/05-protocole-verification.md
 @@ -0,0 +1,102 @@
@@ -3565,7 +3569,7 @@ index 0000000..c803e66
 +
 +**V14 — Réinitialisation (facultatif, à faire en dernier).** `powershell -ExecutionPolicy Bypass -File .\reinitialiser-essai.ps1` → répondez **O** à la sauvegarde → tapez `REINITIALISER`. Attendu : une sauvegarde `.tar` dans `sauvegardes-essai`, la base vide (l'assistant de première configuration réapparaît sur http://localhost:8001) et l'installation principale (http://localhost:8000) intacte.
 +
-+**V13 — Tests automatiques (facultatif).** `docker compose exec web python manage.py test tests`. Attendu : « OK » à la fin (127 tests).
++**V13 — Tests automatiques (facultatif).** `docker compose exec web python manage.py test tests`. Attendu : « OK » à la fin (128 tests).
 +
 +---
 +
@@ -3601,10 +3605,10 @@ index 0000000..c803e66
 +Après un test réel réussi, le badge « non vérifié » disparaît de la source, et la date du test est enregistrée (« Dernier test réel réussi »). Elle servira à faire passer le connecteur au statut **« testé en conditions réelles »**.
 diff --git a/docs/evolution-1.2.0/06-rapport-technique.md b/docs/evolution-1.2.0/06-rapport-technique.md
 new file mode 100644
-index 0000000..a0cb662
+index 0000000..06209a2
 --- /dev/null
 +++ b/docs/evolution-1.2.0/06-rapport-technique.md
-@@ -0,0 +1,101 @@
+@@ -0,0 +1,108 @@
 +# Rapport technique final — Évolution 1.2.0
 +
 +**Japon — Explorateur documentaire** · Sources documentaires et suivi des dysfonctionnements · 13 novembre 2026
@@ -3671,7 +3675,7 @@ index 0000000..a0cb662
 +
 +## 4. Tests exécutés
 +
-+Environnement : Python 3.13, Django 5.2, PostgreSQL 16, sous Linux. **Résultat : 127 tests, tous réussis**, avec `DJANGO_DEBUG=true` puis `false`.
++Environnement : Python 3.13, Django 5.2, PostgreSQL 16, sous Linux. **Résultat : 128 tests, tous réussis**, avec `DJANGO_DEBUG=true` puis `false`.
 +
 +| Exigence §6.3 | Test exécuté | Résultat |
 +|---|---|---|
@@ -3699,7 +3703,14 @@ index 0000000..a0cb662
 +
 +## 6. Problèmes connus
 +
-+Aucun test ne révèle d'anomalie dans le code livré. Les points d'incertitude sur les formats réels sont listés dans `02-etude-sources.md` §3, et les limitations dans `07-limitations-connues.md`.
++**Corrigé le 13/11/2026 : incident INC-20261113-41FDF0, signalé lors de l'installation sous Windows.** Le clic sur « Comparer avec la base et produire le rapport » provoquait une erreur 500.
++- **Cause** : kombu 5.7.0, installé automatiquement avec Celery (versions non figées), importe le module `packaging` sans le déclarer comme dépendance. Sous Docker, la tâche est confiée au worker par Redis, et l'import échoue. Les tests exécutaient les tâches sans worker (mode « eager ») et ne pouvaient donc pas voir le problème. Toute reconstruction récente de la 1.1 aurait le même défaut.
++- **Correction** : `packaging>=23.0` est ajouté à `requirements.txt`. Un test de non-régression importe le transport Redis. Le scénario a été reproduit, puis vérifié corrigé, avec Redis et un vrai worker Celery (comparaison puis intégration des deux fichiers d'exemple).
++- **Amélioration associée** : chaque erreur de page reçoit désormais un identifiant de requête.
++
++Le journal des dysfonctionnements a joué son rôle : le rapport exporté indiquait le module manquant et le fichier en cause.
++
++Aucun autre test ne révèle d'anomalie dans le code livré. Les points d'incertitude sur les formats réels sont listés dans `02-etude-sources.md` §3, et les limitations dans `07-limitations-connues.md`.
 +
 +## 7. Fichiers principaux modifiés ou ajoutés
 +
@@ -3995,10 +4006,20 @@ index 0000000..f664a86
 +    Write-Host 'si rien ne s''affiche : docker compose logs --tail 100 web'
 +}
 diff --git a/requirements.txt b/requirements.txt
-index c131683..bc0542b 100644
+index c131683..8b67c02 100644
 --- a/requirements.txt
 +++ b/requirements.txt
-@@ -12,3 +12,4 @@ pykakasi>=2.3
+@@ -3,6 +3,9 @@ psycopg[binary]>=3.2
+ django-environ>=0.11
+ celery>=5.4
+ redis>=5.0
++# Requis par kombu 5.7 (transport Redis de Celery) mais non déclaré par ce paquet : sans lui, toute tâche
++# envoyée au worker (comparaison d'import, synchronisation, export…) provoque une erreur 500.
++packaging>=23.0
+ httpx>=0.27
+ python-docx>=1.1
+ reportlab>=4.2
+@@ -12,3 +15,4 @@ pykakasi>=2.3
  cryptography>=43
  whitenoise>=6.7
  gunicorn>=22
@@ -4622,10 +4643,10 @@ index 0000000..a0a968f
 +</rss>
 diff --git a/tests/test_evolution_120.py b/tests/test_evolution_120.py
 new file mode 100644
-index 0000000..8445950
+index 0000000..02a6251
 --- /dev/null
 +++ b/tests/test_evolution_120.py
-@@ -0,0 +1,527 @@
+@@ -0,0 +1,543 @@
 +"""Évolution 1.2.0 — sources documentaires et journal des dysfonctionnements (cahier des charges, §6.3).
 +
 +Tous les connecteurs sont testés **en simulation**, sur des réponses enregistrées (tests/fixtures/reponses) :
@@ -4964,6 +4985,7 @@ index 0000000..8445950
 +            got_request_exception.send(sender=None, request=request)
 +        incident = Incident.objects.get(module="application")
 +        self.assertEqual(incident.context["path"], "/notices/exemple/")
++        self.assertEqual(len(incident.last_request_id), 12, "chaque erreur de page reçoit un identifiant de requête")
 +        self.assertNotIn("token", json.dumps(incident.context))
 +
 +    def test_empty_query_is_not_an_incident(self):
@@ -5153,6 +5175,21 @@ index 0000000..8445950
 +        self.assertIn(f"image: japon-explorateur:{version}", compose)
 +        self.assertIn("japon-explorateur-essai", compose, "l'installation d'essai a ses propres volumes")
 +        self.assertIn(version, self.client.get("/").content.decode())
++
++
++class DependencyTests(Evolution120Base):
++    def test_celery_redis_transport_is_importable(self):
++        """Régression 1.2.0 (INC-20261113-41FDF0) : kombu 5.7 importe « packaging » sans le déclarer.
++
++        Les tests exécutent les tâches sans worker (mode « eager ») et ne chargeaient donc jamais le transport
++        Redis utilisé sous Docker ; ce test l'importe explicitement.
++        """
++        import importlib
++
++        importlib.import_module("kombu.transport.redis")
++        from config.celery import app
++
++        self.assertTrue(app.conf.broker_url is None or isinstance(app.conf.broker_url, str))
 diff --git a/tests/test_search_sessions.py b/tests/test_search_sessions.py
 index a82779d..0b447e3 100644
 --- a/tests/test_search_sessions.py
