@@ -23,7 +23,7 @@ from ..engines.base import TranslationEngineError
 from ..engines.registry import ENGINE_CLASSES, get_engine
 from ..forms import EngineSettingForm, PreferenceForm
 from ..journal import record_translation_error
-from ..models import SETTING_ENGINES, EngineSetting, TranslationPreference
+from ..models import SETTING_ENGINES, EngineSetting
 
 KEY_HELP = {
     "deepl": "Clé de l'API DeepL (compte DeepL API, offre gratuite ou payante).",
@@ -32,8 +32,9 @@ KEY_HELP = {
 
 
 def preference_for(user):
-    pref, _ = TranslationPreference.objects.get_or_create(user=user)
-    return pref
+    from ..services import ensure_preference
+
+    return ensure_preference(user)
 
 
 @researcher_required

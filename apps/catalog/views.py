@@ -11,7 +11,8 @@ from apps.core.redirects import safe_next
 from apps.core.permissions import admin_required, researcher_required
 
 from .models import EditorialContent, Record, RecordLink, RecordVersion, Work
-from .services import propose_duplicate_links, record_editorial_change, set_record_status
+from .services import (adopt_translation, propose_duplicate_links, record_editorial_change, set_record_status,
+                       validate_translation)
 
 
 def _record_context(request, record):
@@ -102,21 +103,16 @@ def editorial_decide(request, pk):
     action = request.POST.get("action")
     if action in ("validate", "reject", "adopt") and not request.user.is_admin_role:
         raise PermissionDenied("Validation et adoption réservées à l'administrateur.")
-    if action in ("validate", "reject"):
+    if action == "validate" and ed.kind == "translation":
+        # 1.3.0 : valider une traduction de notice = l'adopter dans la notice (une seule validée par champ).
+        validate_translation(ed, request.user)
+        log_action(request, "editorial.validate", ed, ed.get_kind_display())
+    elif action in ("validate", "reject"):
         ed.status = "validated" if action == "validate" else "rejected"
         ed.save(update_fields=["status", "updated_at"])
         log_action(request, f"editorial.{action}", ed, ed.get_kind_display())
     elif action == "adopt" and ed.kind == "translation":
-        record = ed.record
-        field = {"original_title": "translated_title", "description_original": "description_translation"}.get(ed.target_field)
-        if field:
-            old = getattr(record, field)
-            setattr(record, field, ed.content)
-            setattr(record, f"{field}_origin", ed.origin)
-            record_editorial_change(record, field, old, ed.content, request.user,
-                                    note=f"Traduction adoptée ({ed.get_origin_display()})")
-            ed.status = "validated"
-            ed.save(update_fields=["status", "updated_at"])
+        adopt_translation(ed, request.user)
     elif action == "delete" and (ed.author_id == request.user.pk or request.user.is_admin_role):
         ed.delete()
         messages.info(request, "Contenu éditorial supprimé.")

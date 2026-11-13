@@ -6,6 +6,7 @@ from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -141,6 +142,9 @@ def bulk(request):
     elif action == "export":
         ids = ",".join(e.record.record_id for e in entries)
         return redirect(f"/exports/preparer/?scope=selection&records={ids}")
+    elif action == "translate":  # 1.3.0 : module de traduction
+        ids = ",".join(e.record.record_id for e in entries)
+        return redirect(f"{reverse('translation:records_prepare')}?records={ids}")
     elif action and action.startswith("ai_"):
         request.session["ai_records"] = [e.record.record_id for e in entries]
         request.session["ai_function"] = action[3:]

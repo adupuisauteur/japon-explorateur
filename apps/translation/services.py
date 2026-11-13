@@ -78,14 +78,34 @@ class EngineChoice:
         return cls(job.engine, job.ai_provider, job.ai_model)
 
 
+def ensure_preference(user):
+    """Préférences de traduction de l'utilisateur, créées au besoin.
+
+    Reprise UNIQUE (lot 5) : si la 1.2.0 traduisait par IA pour cet utilisateur (case « Traduction » cochée et
+    fournisseur + modèle définis, propres à la traduction ou par défaut) et qu'aucun moteur n'est encore choisi,
+    cette IA devient le moteur par défaut. Les préférences IA ne sont pas modifiées.
+    """
+    from apps.ai.models import AIPreferenceProfile
+
+    pref, _ = TranslationPreference.objects.get_or_create(user=user)
+    if not pref.migrated_from_ai:
+        profile = AIPreferenceProfile.objects.filter(user=user, is_active=True).first()
+        if profile is not None and not pref.default_engine and profile.mode != "disabled" and profile.translation_enabled:
+            provider, model = profile.provider_for("translation")
+            if provider and model:
+                pref.default_engine, pref.default_ai_provider, pref.default_ai_model = "ai", provider, model
+        pref.migrated_from_ai = True
+        pref.save()
+    return pref
+
+
 def resolve_choice(user, *, project=None, which="default"):
     """Moteur du projet s'il en a un, sinon celui des préférences (Traduction → Moteurs)."""
     if project is not None:
         choice = EngineChoice.of(project, which)
         if choice:
             return choice
-    pref = TranslationPreference.objects.filter(user=user).first()
-    return EngineChoice.of(pref, which) if pref else None
+    return EngineChoice.of(ensure_preference(user), which)
 
 
 def month_start():
@@ -173,8 +193,7 @@ def _prepare(user, kind, specs, *, project, choice, scope_label):
                         batches=max(1, math.ceil(pending / max(engine.max_items, 1))))
         job.chars_estimated = pending_chars
         job.cost_estimate, job.currency = cost["amount"], cost["currency"]
-        pref = TranslationPreference.objects.filter(user=user).first()
-        threshold = pref.confirmation_threshold if pref else 20000
+        threshold = ensure_preference(user).confirmation_threshold
         extra_ai = False
         if choice.code == "ai":
             from apps.ai.preferences import active_profile

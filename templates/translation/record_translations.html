@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% load app_tags %}
+{% block title %}Traductions — {{ record.original_title }}{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item active">Notice {{ record.record_id }}</li></ol></nav>{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>{{ record.original_title }}</h1>
+  <p><a href="{{ record.get_absolute_url }}">Voir la fiche</a> · {{ record.catalogue.name }}{% if kanbun %} · <span class="badge text-bg-info">kanbun</span>{% endif %}</p></div></div>
+
+<form method="post" action="{% url 'translation:records_prepare' %}" class="card-soft mb-4">{% csrf_token %}
+  <input type="hidden" name="records" value="{{ record.record_id }}">
+  <h2 class="h6">Nouvelle traduction</h2>
+  <div class="mb-2">{% for row in rows %}{% if row.original %}<div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="fields" value="{{ row.field }}" id="nf-{{ row.field }}" {% if row.field == 'original_title' or row.field == 'description_original' %}checked{% endif %}>
+    <label class="form-check-label" for="nf-{{ row.field }}">{{ row.label }}</label></div>{% endif %}{% endfor %}</div>
+  {% include "translation/_engine_choice.html" %}
+  <button class="btn btn-sm btn-primary" {% if not engines %}disabled{% endif %}>Préparer (confirmation à l'étape suivante)</button>
+</form>
+
+{% for row in rows %}{% if row.original %}
+<section class="mb-4">
+  <h2 class="h5">{{ row.label }}</h2>
+  <div class="row g-3">
+    <div class="col-lg-5"><div class="card-soft h-100"><div class="small text-muted mb-1">Original (jamais modifié)</div><div style="white-space:pre-line" lang="ja">{{ row.original }}</div></div></div>
+    <div class="col-lg-7"><div class="card-soft h-100">
+      {% if row.adoptable %}<div class="small text-muted mb-1">Traduction adoptée dans la fiche {% origin_chip row.adopted_origin %}</div>
+        <div style="white-space:pre-line">{{ row.adopted|default:"— aucune —" }}</div>
+      {% else %}<div class="small text-muted">Ce champ n'a pas de traduction adoptée dans la fiche : la traduction validée reste dans la couche éditoriale.</div>{% endif %}
+    </div></div>
+  </div>
+  <h3 class="h6 mt-3">Propositions ({{ row.proposals|length }})</h3>
+  {% for ed in row.proposals %}
+  <div class="editorial-box {% if ed.origin == 'ai' or ed.origin == 'mt' %}ai{% endif %}">
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-1">{% origin_chip ed.origin %} <span class="chip">{{ ed.get_status_display }}</span>
+      {% if ed.data.simulated %}<span class="chip chip-warn">Simulation</span>{% endif %}
+      <span class="small text-muted">{% if ed.ai_task %}{{ ed.ai_task.get_provider_display }} · {{ ed.ai_task.model }}{% else %}{{ ed.data.model|default:ed.data.engine|default:"saisie" }}{% endif %} · {{ ed.created_at|date:"d/m/Y H:i" }}{% if ed.author %} · {{ ed.author }}{% endif %}</span></div>
+    <div style="white-space:pre-line">{{ ed.content }}</div>
+    {% for a in ed.data.alerts %}<div class="small text-warning">⚠ {{ a }}</div>{% endfor %}
+    {% if ed.source_text and ed.source_text != row.original %}<div class="small text-danger">L'original a changé depuis cette traduction.</div>{% endif %}
+    <form method="post" action="{% url 'translation:record_decide' ed.pk %}" class="d-flex flex-wrap gap-1 mt-2">{% csrf_token %}
+      {% if user.is_admin_role %}
+        {% if ed.status != 'validated' %}<button class="btn btn-sm btn-outline-success" name="action" value="validate">{% if row.adoptable %}Valider et adopter{% else %}Valider{% endif %}</button>{% endif %}
+        {% if ed.status != 'rejected' %}<button class="btn btn-sm btn-outline-secondary" name="action" value="reject">Rejeter</button>{% endif %}
+      {% endif %}
+      {% if user.is_admin_role or ed.author == user %}{% if ed.status == 'validated' %}<input type="hidden" name="confirm_validated" value="1">{% endif %}
+        <button class="btn btn-sm btn-link text-danger" name="action" value="delete" data-confirm="Supprimer cette proposition ?">Supprimer</button>{% endif %}
+    </form>
+  </div>
+  {% empty %}<p class="small text-muted">Aucune proposition.</p>{% endfor %}
+  {% if not user.is_admin_role %}<p class="small text-muted">La validation est réservée à l'administrateur.</p>{% endif %}
+</section>
+{% endif %}{% endfor %}
+{% endblock %}

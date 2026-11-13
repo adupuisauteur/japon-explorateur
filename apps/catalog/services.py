@@ -173,6 +173,45 @@ def set_record_status(record, status, *, origin="user", user=None, note=""):
     return record
 
 
+#: champ source → champ de la notice qui reçoit la traduction adoptée
+ADOPTABLE_TRANSLATION_FIELDS = {"original_title": "translated_title", "description_original": "description_translation"}
+
+
+def adopt_translation(ed, user):
+    """Recopie une traduction proposée dans la notice (couche éditoriale), avec son origine, et la valide.
+
+    Logique extraite de la vue editorial_decide (1.2.0), comportement inchangé. Retourne le champ adopté,
+    ou None si la traduction ne porte pas sur un champ adoptable (sujets, lieu…).
+    """
+    record = ed.record
+    field = ADOPTABLE_TRANSLATION_FIELDS.get(ed.target_field)
+    if field:
+        old = getattr(record, field)
+        setattr(record, field, ed.content)
+        setattr(record, f"{field}_origin", ed.origin)
+        record_editorial_change(record, field, old, ed.content, user,
+                                note=f"Traduction adoptée ({ed.get_origin_display()})")
+        ed.status = "validated"
+        ed.save(update_fields=["status", "updated_at"])
+    return field
+
+
+def validate_translation(ed, user):
+    """1.3.0 (décision du 13 novembre 2026) : valider une traduction de notice = l'adopter dans la notice.
+
+    Une seule traduction validée par notice et par champ : la précédente redevient « proposée ».
+    """
+    from .models import EditorialContent
+
+    (EditorialContent.objects.filter(record=ed.record, kind="translation", target_field=ed.target_field,
+                                     status="validated").exclude(pk=ed.pk).update(status="proposed"))
+    field = adopt_translation(ed, user)
+    if not field:
+        ed.status = "validated"
+        ed.save(update_fields=["status", "updated_at"])
+    return field
+
+
 def record_editorial_change(record, field, old, new, user, note=""):
     from .normalization import RULE_FIELDS
 

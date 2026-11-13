@@ -43,6 +43,12 @@ def preferences(request):
         obj = form.save(commit=False)
         overrides = {}
         for fn in OVERRIDABLE:
+            if fn == "translation" and f"ov_{fn}_provider" not in request.POST:
+                # 1.3.0 : choix déplacé dans Traduction → Moteurs ; l'ancienne valeur est conservée telle quelle.
+                previous = (profile.function_overrides or {}).get(fn)
+                if previous:
+                    overrides[fn] = previous
+                continue
             prov = request.POST.get(f"ov_{fn}_provider", "")
             if prov in dict(PROVIDERS):
                 overrides[fn] = {"provider": prov, "model": request.POST.get(f"ov_{fn}_model", "").strip()}
@@ -55,7 +61,8 @@ def preferences(request):
     credentials = {c.provider: c for c in AIProviderCredential.objects.filter(user=request.user)}
     return render(request, "ai/preferences.html", {
         "form": form, "profile": profile, "profiles": AIPreferenceProfile.objects.filter(user=request.user),
-        "functions": [(code, label) for code, label in FUNCTIONS if code in OVERRIDABLE],
+        # 1.3.0 : le moteur de traduction se choisit dans Traduction → Moteurs (ligne retirée de l'affichage).
+        "functions": [(code, label) for code, label in FUNCTIONS if code in OVERRIDABLE and code != "translation"],
         "providers": PROVIDERS, "credentials": credentials,
         "spend": services.monthly_spend(request.user),
     })
