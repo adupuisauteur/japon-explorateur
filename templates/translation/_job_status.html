@@ -1,0 +1,52 @@
+<div id="job-status" {% if polling %}hx-get="{% url 'translation:job_detail' job.pk %}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+{% if job.status == 'draft' %}
+  <section class="card-soft mb-3">
+    <h2 class="h5">À confirmer — rien n'a encore été envoyé</h2>
+    <dl class="row mb-2">
+      <dt class="col-sm-4">Moteur</dt><dd class="col-sm-8">{{ engine_label }} — <span class="text-{{ summary.status.level }}">{{ summary.status.label }}</span>
+        {% if summary.status.simulated %}<span class="chip chip-warn">Simulation</span>{% endif %}
+        {% if summary.engine.online %}<div class="small text-muted">Service en ligne : le texte sera envoyé au fournisseur.</div>{% else %}<div class="small text-muted">Moteur local : aucun texte ne quitte votre ordinateur.</div>{% endif %}</dd>
+      <dt class="col-sm-4">À envoyer</dt><dd class="col-sm-8">{{ summary.counts.pending }} élément(s), {{ job.chars_estimated }} caractère(s)</dd>
+      <dt class="col-sm-4">Non envoyés</dt><dd class="col-sm-8">{{ summary.counts.validated }} déjà validé(s) · {{ summary.counts.memory }} repris de la mémoire de traduction</dd>
+      <dt class="col-sm-4">Coût estimé</dt><dd class="col-sm-8">{% if summary.cost.amount is not None %}{{ summary.cost.amount|floatformat:4 }} {{ summary.cost.currency }} <span class="small text-muted">(estimation : {{ summary.cost.basis }} ; la facture du fournisseur fait foi)</span>{% else %}<span class="text-muted">Non disponible — {{ summary.cost.basis }}</span>{% endif %}</dd>
+      {% if summary.quota.character_limit %}<dt class="col-sm-4">Quota lu</dt><dd class="col-sm-8">{{ summary.quota.character_count }} / {{ summary.quota.character_limit }} caractères</dd>{% endif %}
+      {% if job.project %}<dt class="col-sm-4">Projet</dt><dd class="col-sm-8">{{ job.project.title }}{% if job.project.confidential %} <span class="badge text-bg-dark"><i class="bi bi-lock-fill"></i> confidentiel</span>{% endif %}</dd>{% endif %}
+    </dl>
+    {% if summary.problems %}
+      <div class="alert alert-danger"><strong>Envoi impossible :</strong><ul class="mb-0">{% for p in summary.problems %}<li>{{ p }}</li>{% endfor %}</ul></div>
+    {% endif %}
+    <form method="post" action="{% url 'translation:job_action' job.pk %}" class="d-flex flex-wrap gap-2 align-items-center">{% csrf_token %}
+      {% if job.requires_second_confirmation %}<div class="form-check w-100"><input class="form-check-input" type="checkbox" name="second_confirmation" value="1" id="second-confirmation">
+        <label class="form-check-label" for="second-confirmation">Je confirme l'envoi de ce volume ({{ job.chars_estimated }} caractères).</label></div>{% endif %}
+      <button class="btn btn-primary" name="action" value="confirm" {% if summary.problems %}disabled{% endif %}>Confirmer et lancer</button>
+      <button class="btn btn-outline-secondary" name="action" value="cancel">Annuler</button>
+    </form>
+  </section>
+{% else %}
+  <section class="card-soft mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <div><strong>{% if stale %}Interrompue (aucun signe d'activité){% else %}{{ job.get_status_display }}{% endif %}</strong>
+        <span class="text-muted small">· {{ job.done_items }} traduit(s) / {{ job.total_items }}{% if job.skipped_items %} · {{ job.skipped_items }} non envoyé(s){% endif %}{% if job.failed_items %} · <span class="text-danger">{{ job.failed_items }} échec(s)</span>{% endif %} · {{ job.chars_sent }} caractère(s) envoyé(s)</span></div>
+      <form method="post" action="{% url 'translation:job_action' job.pk %}" class="d-flex flex-wrap gap-1">{% csrf_token %}
+        {% if job.status == 'confirmed' or job.status == 'running' %}<button class="btn btn-sm btn-outline-secondary" name="action" value="cancel">Interrompre</button>{% endif %}
+        {% if stale or job.status == 'failed' or job.status == 'interrupted' %}<button class="btn btn-sm btn-primary" name="action" value="resume">Reprendre</button>{% endif %}
+        {% if job.failed_items and job.status != 'running' and job.status != 'confirmed' %}<button class="btn btn-sm btn-outline-primary" name="action" value="retry">Relancer les échecs</button>
+          <button class="btn btn-sm btn-outline-secondary" name="action" value="second" title="Prépare une nouvelle tâche, à confirmer : aucune bascule automatique">Essayer le deuxième moteur…</button>{% endif %}
+      </form>
+    </div>
+    <div class="progress mt-2" role="progressbar" aria-label="Avancement" aria-valuemin="0" aria-valuemax="{{ job.total_items }}" aria-valuenow="{{ job.done_items }}">
+      <div class="progress-bar" style="width:{% widthratio job.done_items|add:job.skipped_items job.total_items 100 %}%"></div></div>
+    {% if job.error_summary %}<div class="alert alert-warning mt-2 mb-0">{{ job.error_summary }}</div>{% endif %}
+  </section>
+{% endif %}
+<table class="table table-sm align-middle"><thead><tr><th>#</th><th>Élément</th><th>État</th><th>Résultat</th></tr></thead><tbody>
+{% for item in items %}<tr>
+  <td class="text-muted small">{{ item.position }}</td>
+  <td class="small">{% if item.segment %}Segment {{ item.segment.position }}{% elif item.record %}<a href="{{ item.record.get_absolute_url }}">{{ item.record.original_title|truncatechars:40 }}</a> — {{ item.record_field }}{% else %}<span class="text-muted">élément supprimé</span>{% endif %}</td>
+  <td class="small">{% if item.status == 'skipped' %}{% if item.skip_reason == 'memory' %}Mémoire{% else %}Déjà validé{% endif %}{% else %}{{ item.get_status_display }}{% endif %}</td>
+  <td class="small">{% if item.version %}{% if item.version.simulated %}<span class="chip chip-warn">Simulation</span> {% endif %}{{ item.version.text|truncatechars:120 }}{% for a in item.version.alerts %}<div class="text-warning">⚠ {{ a }}</div>{% endfor %}
+    {% elif item.editorial %}{% if item.editorial.data.simulated %}<span class="chip chip-warn">Simulation</span> {% endif %}{{ item.editorial.content|truncatechars:120 }}{% for a in item.editorial.data.alerts %}<div class="text-warning">⚠ {{ a }}</div>{% endfor %}
+    {% elif item.error_message %}<span class="text-danger">{{ item.error_message }}</span>{% endif %}</td>
+</tr>{% endfor %}
+</tbody></table>
+</div>

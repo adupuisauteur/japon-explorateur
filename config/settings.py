@@ -210,6 +210,10 @@ TRANSLATION_TIMEOUTS = {
 }
 # Adresse interne du service Argos facultatif (profil Docker « hors-ligne », lot 9). Vide = non activé.
 TRANSLATION_ARGOS_URL = env("TRANSLATION_ARGOS_URL", default="")
+# Tâche sans signe d'activité au-delà de ce délai (minutes) : présentée comme interrompue, reprise possible.
+TRANSLATION_STALE_MINUTES = env.int("TRANSLATION_STALE_MINUTES", default=10)
+# Alerte « contient encore du japonais » au-delà de cette part de caractères japonais dans la traduction.
+TRANSLATION_JAPANESE_ALERT_SHARE = env.float("TRANSLATION_JAPANESE_ALERT_SHARE", default=0.3)
 # Pendant les tests, tout appel réseau réel d'un moteur de traduction est refusé (réponses enregistrées seulement).
 TRANSLATION_BLOCK_NETWORK = env.bool("TRANSLATION_BLOCK_NETWORK", default=len(sys.argv) > 1 and sys.argv[1] == "test")
 
@@ -235,6 +239,8 @@ CELERY_RESULT_BACKEND = None
 CELERY_TASK_ALWAYS_EAGER = env.bool("CELERY_EAGER", default=not bool(CELERY_BROKER_URL))
 CELERY_TASK_EAGER_PROPAGATES = False
 CELERY_TIMEZONE = TIME_ZONE
+# 1.3.0 : file dédiée aux traductions (le worker écoute « celery » et « traduction », docker-compose.yml)
+CELERY_TASK_ROUTES = {"apps.translation.tasks.*": {"queue": "traduction"}}
 CELERY_BEAT_SCHEDULE = {
     "synchronisations-planifiees": {
         "task": "apps.updates.tasks.run_due_syncs",

@@ -69,7 +69,8 @@ services:
       DATA_DIR: /data
       RUN_MIGRATIONS: "0"
       COMPOSE_PROJECT_CHECK: ${COMPOSE_PROJECT_NAME:-japon-explorateur-essai-130}
-    command: ["celery", "-A", "config", "worker", "-l", "info", "--concurrency", "2"]
+    # 1.3.0 : file « traduction » en plus de la file par défaut (traductions découpées en paquets courts).
+    command: ["celery", "-A", "config", "worker", "-l", "info", "--concurrency", "2", "-Q", "celery,traduction"]
 
   beat:
     <<: *app

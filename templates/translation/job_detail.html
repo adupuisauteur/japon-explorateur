@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Tâche de traduction n° {{ job.pk }}{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item"><a href="{% url 'translation:job_list' %}">Tâches</a></li><li class="breadcrumb-item active">N° {{ job.pk }}</li></ol></nav>{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Tâche de traduction n° {{ job.pk }}</h1><p>{{ job.scope_label }} · {{ engine_label }}</p></div></div>
+{% include "translation/_job_status.html" %}
+{% endblock %}

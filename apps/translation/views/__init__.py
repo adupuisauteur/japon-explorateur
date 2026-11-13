@@ -12,7 +12,7 @@ SECTIONS = [
     ("bi-folder2", "Projets et documents", "Import, découpage, traduction, versions et validation.", 6, ""),
     ("bi-journal-text", "Glossaires", "Terminologie, import et export CSV.", 7, ""),
     ("bi-archive", "Mémoire de traduction", "Paires validées, recherche, exclusion.", 7, ""),
-    ("bi-hourglass-split", "Tâches", "Traductions en cours, progression, reprise.", 4, ""),
+    ("bi-hourglass-split", "Tâches", "Traductions en cours, progression, reprise.", 4, "translation:job_list"),
     ("bi-file-earmark-arrow-down", "Exports", "Texte, CSV, DOCX bilingue.", 8, ""),
 ]
 
