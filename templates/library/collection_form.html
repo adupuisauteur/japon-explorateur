@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<h1>{{ title }}</h1>
+<div class="card-soft" style="max-width:760px">
+  <form method="post">{% csrf_token %}{% include "partials/form.html" %}
+    {% if record_ids %}<input type="hidden" name="record_ids" value="{{ record_ids }}"><p class="small text-muted">Les notices sélectionnées seront ajoutées au dossier.</p>{% endif %}
+    <button class="btn btn-primary">Enregistrer</button>
+    <a class="btn btn-link" href="{% if collection %}{{ collection.get_absolute_url }}{% else %}{% url 'library:collections' %}{% endif %}">Annuler</a></form>
+  {% if collection %}<hr><form method="post" action="{% url 'library:collection_delete' collection.pk %}">{% csrf_token %}
+    <button class="btn btn-sm btn-outline-danger" data-confirm="Supprimer ce dossier ? Les notices restent dans la base et dans votre bibliothèque.">Supprimer le dossier</button></form>{% endif %}
+</div>
+{% endblock %}

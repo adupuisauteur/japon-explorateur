@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Traitements IA{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Traitements IA</h1><p>Historique, fournisseurs, modèles, jetons et coûts estimés.</p></div>
+  <a class="btn btn-outline-secondary" href="{% url 'ai:preferences' %}">Préférences IA</a></div>
+<div class="row g-3 mb-3">
+  <div class="col-md-4"><div class="card-soft"><div class="stat">{{ usage.tin|default:0 }}</div><div class="small text-muted">jetons envoyés ce mois</div></div></div>
+  <div class="col-md-4"><div class="card-soft"><div class="stat">{{ usage.tout|default:0 }}</div><div class="small text-muted">jetons reçus ce mois</div></div></div>
+  <div class="col-md-4"><div class="card-soft"><div class="stat">{{ usage.cost|default:0|floatformat:4 }}</div><div class="small text-muted">USD estimés ce mois{% if profile.monthly_budget %} / plafond {{ profile.monthly_budget }}{% endif %}</div></div></div>
+</div>
+{% if profile.mode != 'disabled' and profile.rag_enabled %}
+<form method="post" action="{% url 'ai:launch' %}" class="card-soft mb-3 d-flex flex-wrap gap-2">{% csrf_token %}<input type="hidden" name="function" value="rag">
+  <input name="question" class="form-control flex-grow-1" style="min-width:260px" placeholder="Question sur le fonds local (réponse citant les notices)" required>
+  <button class="btn btn-outline-primary">Préparer…</button></form>{% endif %}
+<div class="table-responsive"><table class="table align-middle">
+<thead><tr><th>Date</th><th>Fonction</th><th>Périmètre</th><th>Fournisseur / modèle</th><th>Jetons</th><th>Coût estimé</th><th>Statut</th></tr></thead><tbody>
+{% for t in tasks %}<tr><td class="small"><a href="{% url 'ai:task' t.pk %}">{{ t.created_at|date:"d/m/Y H:i" }}</a></td><td>{{ t.get_function_display }}</td><td class="small">{{ t.scope_label }}</td>
+<td class="small">{{ t.get_provider_display }} · {{ t.model }}</td><td class="small">{{ t.tokens_in }} / {{ t.tokens_out }}</td>
+<td class="small">{% if t.cost_estimate is not None %}{{ t.cost_estimate|floatformat:5 }}{% else %}—{% endif %}</td><td>{{ t.get_status_display }}</td></tr>
+{% empty %}<tr><td colspan="7" class="text-muted">Aucun traitement.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

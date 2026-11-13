@@ -1,0 +1,38 @@
+{% load app_tags %}
+<div class="d-flex flex-wrap gap-2 mb-2 small">{% for s in summary %}<span class="chip">{{ s.comparison }} / {{ s.decision }} : {{ s.n }}</span>{% endfor %}</div>
+<form method="get" class="d-flex flex-wrap gap-2 mb-2">
+  <select name="comparison" class="form-select form-select-sm" style="width:auto" aria-label="Comparaison"><option value="">Toutes comparaisons</option>
+    <option value="new">Nouvelles</option><option value="modified">Modifiées</option><option value="unchanged">Inchangées</option><option value="missing">Non retrouvées</option><option value="error">Erreurs</option></select>
+  <select name="decision" class="form-select form-select-sm" style="width:auto" aria-label="Décision"><option value="">Toutes décisions</option>
+    <option value="pending">En attente</option><option value="accept">À intégrer</option><option value="reject">Rejetées</option><option value="hold">Mises en attente</option><option value="applied">Intégrées</option></select>
+  <input name="q" class="form-control form-control-sm" style="width:auto" placeholder="Titre ou identifiant" value="{{ request.GET.q }}">
+  <button class="btn btn-sm btn-outline-secondary">Filtrer</button>
+</form>
+<form method="post" action="{% url 'updates:incoming_decide' %}">{% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+  {% if job_kind == 'import' %}<input type="hidden" name="import_job" value="{{ job.pk }}">{% else %}<input type="hidden" name="sync_job" value="{{ job.pk }}">{% endif %}
+  <div class="d-flex flex-wrap gap-2 mb-2 align-items-center">
+    <div class="form-check"><input class="form-check-input" type="checkbox" id="inc-all" data-select-all=".js-select"><label class="form-check-label small" for="inc-all">Cocher la page</label></div>
+    <span class="small">Pour la sélection :</span>
+    <button class="btn btn-sm btn-outline-success" name="decision" value="accept">À intégrer</button>
+    <button class="btn btn-sm btn-outline-secondary" name="decision" value="reject">Rejeter</button>
+    <button class="btn btn-sm btn-outline-secondary" name="decision" value="hold">Mettre en attente</button>
+    <span class="small ms-3">Pour tout le lot :</span>
+    <select name="comparison" class="form-select form-select-sm" style="width:auto" aria-label="Périmètre"><option value="">tous types</option><option value="new">nouvelles</option><option value="modified">modifiées</option><option value="missing">non retrouvées</option></select>
+    <button class="btn btn-sm btn-outline-success" name="decision" value="accept" data-set-field="scope" data-set-value="all">Tout accepter</button>
+    <button class="btn btn-sm btn-outline-secondary" name="decision" value="hold" data-set-field="scope" data-set-value="all">Tout mettre en attente</button>
+    <input type="hidden" name="scope" value="">
+  </div>
+  <div class="table-responsive"><table class="table table-sm align-middle">
+    <thead><tr><th></th><th>Ligne</th><th>Titre</th><th>Identifiant</th><th>Comparaison</th><th>Champs modifiés / remarque</th><th>Décision</th></tr></thead>
+    <tbody>{% for it in page %}<tr>
+      <td>{% if it.decision != 'applied' and it.comparison != 'error' %}<input class="form-check-input js-select" type="checkbox" name="ids" value="{{ it.pk }}" aria-label="Cocher">{% endif %}</td>
+      <td class="small text-muted">{{ it.row_number|default:"" }}</td>
+      <td class="ja">{% if it.matched_record %}<a href="{{ it.matched_record.get_absolute_url }}">{{ it.title|truncatechars:70 }}</a>{% else %}{{ it.title|truncatechars:70 }}{% endif %}</td>
+      <td class="small"><code>{{ it.source_id|truncatechars:30 }}</code></td>
+      <td>{% comparison_chip it.comparison %}</td>
+      <td class="small">{% if it.changed_fields %}{{ it.changed_fields|join:", " }}{% endif %}{% if it.duplicate_hint %}<div class="text-warning-emphasis">{{ it.duplicate_hint }}</div>{% endif %}{% if it.error %}<div class="text-danger">{{ it.error }}</div>{% endif %}{% for w in it.warnings %}<div class="text-warning-emphasis"><i class="bi bi-exclamation-triangle"></i> {{ w }}</div>{% endfor %}</td>
+      <td class="small">{{ it.get_decision_display }}</td></tr>
+    {% empty %}<tr><td colspan="7" class="text-muted">Aucun élément.</td></tr>{% endfor %}</tbody></table></div>
+</form>
+{% include "partials/pagination.html" %}

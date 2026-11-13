@@ -1,0 +1,84 @@
+{% load app_tags %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-2 small" id="counts">
+  <strong>{{ counts.found }}</strong> trouvé(s) · <span class="text-success">{{ counts.selected }} sélectionné(s)</span> ·
+  <span>{{ counts.excluded }} exclu(s)</span> · {{ counts.in_library }} déjà enregistré(s) · {{ counts.pending }} en attente
+  {% if session.mode == 'auto' %}<span class="chip chip-ok">Enregistrement automatique</span>{% endif %}
+</div>
+
+<div class="selection-bar d-flex flex-wrap gap-2 align-items-center mb-3" style="position:static">
+  <div class="form-check me-2"><input class="form-check-input" type="checkbox" id="check-all" data-select-all=".js-select"><label class="form-check-label small" for="check-all">Cocher la page</label></div>
+  <span class="small text-muted"><span data-selection-count>0</span> cochée(s)</span>
+  <button class="btn btn-sm btn-outline-success" data-needs-selection disabled hx-post="{% url 'searching:decide' session.uid %}" hx-vals='{"action": "select"}' hx-include=".js-select:checked, #results-filters" hx-target="#results"><i class="bi bi-check2-square"></i> Sélectionner</button>
+  <button class="btn btn-sm btn-outline-secondary" data-needs-selection disabled hx-post="{% url 'searching:decide' session.uid %}" hx-vals='{"action": "deselect"}' hx-include=".js-select:checked, #results-filters" hx-target="#results">Désélectionner</button>
+  <div class="input-group input-group-sm" style="width:auto">
+    <select class="form-select form-select-sm" name="reason" id="bulk-reason" aria-label="Motif d'exclusion"><option value="">Motif (facultatif)</option>{% for v, l in reasons %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
+    <button class="btn btn-outline-danger" data-needs-selection disabled hx-post="{% url 'searching:decide' session.uid %}" hx-vals='{"action": "exclude"}' hx-include=".js-select:checked, #results-filters, #bulk-reason" hx-target="#results">Exclure</button>
+  </div>
+  <div class="ms-auto d-flex gap-2">
+    <button class="btn btn-sm btn-light" hx-post="{% url 'searching:decide' session.uid %}" hx-vals='{"action": "select_all"}' hx-include="#results-filters" hx-target="#results">Tout sélectionner</button>
+    <button class="btn btn-sm btn-light" hx-post="{% url 'searching:decide' session.uid %}" hx-vals='{"action": "deselect_all"}' hx-include="#results-filters" hx-target="#results">Tout désélectionner</button>
+    {% if user.can_edit and session.mode != 'auto' %}<a class="btn btn-sm btn-primary" href="{% url 'searching:integrate' session.uid %}"><i class="bi bi-bookmark-plus"></i> Intégrer la sélection ({{ counts.selected }})</a>{% endif %}
+  </div>
+</div>
+
+{% for r in page %}
+{% with n=r.data.norm %}
+<article class="result-card {% if r.decision == 'selected' %}is-selected{% elif r.decision == 'excluded' %}is-excluded{% endif %}">
+  <div class="d-flex gap-3">
+    <div class="pt-1">{% if r.comparison != 'unavailable' %}<input class="form-check-input js-select" type="checkbox" name="result_ids" value="{{ r.pk }}" aria-label="Cocher « {{ r.title }} »">{% endif %}</div>
+    <div class="flex-grow-1 min-w-0">
+      <div class="d-flex flex-wrap justify-content-between gap-2">
+        <h3 class="record-title"><a href="#" hx-get="{% url 'searching:result_panel' session.uid r.pk %}" hx-target="#panel-body">{{ r.title }}</a></h3>
+        <div class="d-flex flex-wrap gap-1 align-items-start">
+          <span class="chip chip-source">{{ r.catalogue.name }}</span>
+          {% comparison_chip r.comparison %}
+          {% if r.in_library %}<span class="chip chip-ok"><i class="bi bi-bookmark-check"></i> enregistré</span>{% endif %}
+          {% if r.possible_duplicate_of_id %}<span class="chip chip-warn" title="Titre identique dans une autre source de la session">doublon possible</span>{% endif %}
+        </div>
+      </div>
+      {% if r.data.reading %}<div class="reading ja">{{ r.data.reading }}</div>{% elif n.title_romaji %}<div class="reading">{{ n.title_romaji }} <span class="chip" title="Lecture automatique non vérifiée">auto</span></div>{% endif %}
+      {% if r.data.translated_title %}<div class="translation">« {{ r.data.translated_title }} »</div>{% endif %}
+      <div class="meta mt-1">
+        {% if r.data.creator_original %}<span class="ja">{{ r.data.creator_original|truncatechars:80 }}</span> · {% endif %}
+        {% if r.data.composition_date_text %}Composition : {{ r.data.composition_date_text }} · {% endif %}
+        {% if r.data.copy_date_text %}Exemplaire : {{ r.data.copy_date_text }} · {% endif %}
+        {% if n.period_label %}{{ n.period_label }} · {% endif %}{% if n.document_type_label %}{{ n.document_type_label }} · {% elif r.data.document_type_original %}{{ r.data.document_type_original|truncatechars:40 }} · {% endif %}
+        {% if r.data.holding_institution_text %}{{ r.data.holding_institution_text|truncatechars:60 }}{% endif %}
+      </div>
+      {% if r.data.description_original %}<div class="small mt-1 ja text-body-secondary">{{ r.data.description_original|truncatechars:220 }}</div>{% endif %}
+      <div class="d-flex flex-wrap gap-2 align-items-center mt-2 small">
+        {% if n.digital_access == 'image' %}<span class="chip chip-ok"><i class="bi bi-image"></i> image</span>{% elif n.digital_access == 'fulltext' %}<span class="chip chip-ok">texte intégral</span>{% elif n.digital_access == 'restricted' %}<span class="chip chip-warn">accès restreint</span>{% elif n.digital_access == 'record_only' %}<span class="chip">notice seule</span>{% endif %}
+        <span class="text-muted">Collecté le {{ r.collected_at|date:"d/m/Y H:i" }}</span>
+        {% if r.data.source_url %}<a href="{{ r.data.source_url }}" target="_blank" rel="noopener">Notice officielle <i class="bi bi-box-arrow-up-right"></i></a>{% endif %}
+        {% if r.local_record %}<a href="{{ r.local_record.get_absolute_url }}" target="_blank">Fiche locale</a>{% endif %}
+        {% if r.decision == 'excluded' %}<span class="chip chip-warn">Exclu{% if r.exclusion_reason %} : {{ r.get_exclusion_reason_display }}{% endif %}</span>{% endif %}
+        <span class="ms-auto d-flex gap-1">
+        {% if r.comparison != 'unavailable' %}
+          {% if r.decision == 'selected' %}
+            <button class="btn btn-sm btn-light btn-touch" hx-post="{% url 'searching:decide' session.uid %}" hx-vals='{"action": "deselect", "result_ids": "{{ r.pk }}"}' hx-include="#results-filters" hx-target="#results">Désélectionner</button>
+          {% elif r.decision == 'excluded' %}
+            <button class="btn btn-sm btn-light btn-touch" hx-post="{% url 'searching:decide' session.uid %}" hx-vals='{"action": "reinstate", "result_ids": "{{ r.pk }}"}' hx-include="#results-filters" hx-target="#results">Réintégrer</button>
+          {% else %}
+            <button class="btn btn-sm btn-outline-success btn-touch" hx-post="{% url 'searching:decide' session.uid %}" hx-vals='{"action": "select", "result_ids": "{{ r.pk }}"}' hx-include="#results-filters" hx-target="#results"><i class="bi bi-check2"></i> Retenir</button>
+            <div class="dropdown"><button class="btn btn-sm btn-outline-secondary dropdown-toggle btn-touch" data-bs-toggle="dropdown">Exclure</button>
+              <ul class="dropdown-menu dropdown-menu-end">{% for v, l in reasons %}<li><button class="dropdown-item" hx-post="{% url 'searching:decide' session.uid %}" hx-vals='{"action": "exclude", "reason": "{{ v }}", "result_ids": "{{ r.pk }}"}' hx-include="#results-filters" hx-target="#results">{{ l }}</button></li>{% endfor %}
+                <li><button class="dropdown-item" hx-post="{% url 'searching:decide' session.uid %}" hx-vals='{"action": "exclude", "result_ids": "{{ r.pk }}"}' hx-include="#results-filters" hx-target="#results">Sans motif</button></li></ul></div>
+          {% endif %}
+        {% endif %}
+        </span>
+      </div>
+    </div>
+  </div>
+</article>
+{% endwith %}
+{% empty %}
+<div class="empty">Aucun résultat pour ces critères{% if session.status == 'running' %} pour l'instant — les sources sont encore interrogées{% endif %}.</div>
+{% endfor %}
+
+{% if page.has_other_pages %}
+<nav class="mt-3"><ul class="pagination pagination-sm">
+  {% if page.has_previous %}<li class="page-item"><a class="page-link" href="#" hx-get="{% url 'searching:results' session.uid %}?page={{ page.previous_page_number }}" hx-include="#results-filters" hx-target="#results">Précédent</a></li>{% endif %}
+  <li class="page-item disabled"><span class="page-link">Page {{ page.number }} / {{ page.paginator.num_pages }}</span></li>
+  {% if page.has_next %}<li class="page-item"><a class="page-link" href="#" hx-get="{% url 'searching:results' session.uid %}?page={{ page.next_page_number }}" hx-include="#results-filters" hx-target="#results">Suivant</a></li>{% endif %}
+</ul></nav>
+{% endif %}

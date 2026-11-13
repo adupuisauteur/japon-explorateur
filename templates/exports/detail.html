@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Export {{ job.export_uid }}{% endblock %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'exports:list' %}">Exports</a></nav>
+<div class="page-head"><div><h1>{{ job.title }}</h1><p><code>{{ job.export_uid }}</code> · {{ job.get_format_display }} · {{ job.get_scope_display }} · {{ job.get_status_display }}</p></div>
+  <form method="post" action="{% url 'exports:regenerate' job.pk %}">{% csrf_token %}<button class="btn btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Régénérer</button></form></div>
+{% if job.status == 'pending' or job.status == 'running' %}
+<div class="alert alert-info" hx-get="{{ request.path }}" hx-trigger="every 2s" hx-select="main" hx-target="main" hx-swap="outerHTML">Génération en cours…</div>{% endif %}
+{% for w in job.metadata.warnings %}<div class="alert alert-warning"><i class="bi bi-exclamation-triangle"></i> {{ w }}</div>{% endfor %}
+{% if job.status == 'failed' %}<div class="alert alert-danger">Échec de la génération : {{ job.error }}</div>{% endif %}
+{% if changed %}<div class="alert alert-warning">Les données ont changé depuis cet export (notices modifiées, ajoutées ou retirées). Régénérez pour obtenir une version à jour.</div>
+{% elif changed == False %}<div class="alert alert-success py-2 small">Les données exportées n'ont pas changé depuis la génération.</div>{% endif %}
+{% if files %}<div class="card-soft mb-3"><h2 class="h6">Fichiers</h2>
+  {% for f in files %}<div class="d-flex flex-wrap justify-content-between align-items-center border-bottom py-2 gap-2">
+    <div><i class="bi bi-file-earmark"></i> {{ f.name }} <span class="small text-muted">— {{ f.get_role_display }} · {{ f.size|filesizeformat }} · SHA-256 {{ f.sha256|slice:":16" }}…</span></div>
+    <a class="btn btn-sm {% if f.role == 'main' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{% url 'exports:download' job.pk f.pk %}"><i class="bi bi-download"></i> Télécharger</a></div>{% endfor %}
+</div>{% endif %}
+{% if job.metadata %}<div class="card-soft"><h2 class="h6">Métadonnées de traçabilité</h2>
+  <dl class="fields small">
+    <dt>Généré le</dt><dd>{{ job.metadata.generated_at_display }}</dd><dt>Préparateur</dt><dd>{{ job.metadata.author|default:"—" }}</dd>
+    <dt>Sujet</dt><dd>{{ job.metadata.subject|default:"—" }}</dd><dt>Références exportées</dt><dd>{{ job.metadata.counts.exported }}</dd>
+    {% if job.metadata.counts.found %}<dt>Trouvés / retenus / exclus</dt><dd>{{ job.metadata.counts.found }} / {{ job.metadata.counts.retained }} / {{ job.metadata.counts.excluded }}</dd>{% endif %}
+    <dt>Sources</dt><dd>{% for s in job.metadata.sources %}{{ s.name }} ({{ s.records }}, vérifiée {{ s.last_verified|slice:":10"|default:"jamais" }}){% if not forloop.last %} ; {% endif %}{% endfor %}</dd>
+    <dt>Contenus IA</dt><dd>{% if job.metadata.contains_ai_content %}{% if job.metadata.ai_content_included %}inclus et signalés{% else %}exclus{% endif %}{% else %}aucun{% endif %}</dd>
+    <dt>Versions</dt><dd>application {{ job.metadata.application_version }} · schéma {{ job.metadata.schema_version }}</dd>
+  </dl></div>{% endif %}
+{% endblock %}

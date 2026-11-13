@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Fournisseurs d'IA{% endblock %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'ai:preferences' %}">Préférences IA</a></nav>
+<div class="page-head"><div><h1>Fournisseurs d'IA et clés API</h1>
+  <p>Saisissez votre propre clé API. L'application ne demande jamais le mot de passe de votre compte ChatGPT, Claude ou Google.</p></div></div>
+{% if not encryption_ok %}<div class="alert alert-danger">La clé de chiffrement <code>AI_KEYS_ENCRYPTION_KEY</code> n'est pas configurée sur le serveur : l'enregistrement de clés API est désactivé. Voir le README (commande <code>generate_secrets</code>).</div>{% endif %}
+<div class="alert alert-info small">Une clé API est distincte d'un abonnement grand public (ChatGPT Plus, Claude Pro, Gemini Advanced) : un abonnement ne donne pas automatiquement accès à l'API. Les frais d'API sont facturés par le fournisseur au titulaire de la clé.
+  Les clés sont chiffrées côté serveur, ne sont jamais renvoyées au navigateur, et n'apparaissent ni dans les journaux, ni dans les exports, ni en clair dans les sauvegardes.</div>
+<div class="row g-3">
+{% for code, label, cred in rows %}
+  <div class="col-lg-6"><div class="card-soft h-100">
+    <div class="d-flex justify-content-between align-items-start"><h2 class="h5">{{ label }}</h2>
+      {% if cred and cred.is_configured %}<span class="chip {% if cred.status == 'ok' %}chip-ok{% elif cred.status == 'error' %}chip-ai{% endif %}">{{ cred.get_status_display }}</span>{% else %}<span class="chip">Non configuré</span>{% endif %}</div>
+    {% if cred and cred.is_configured %}<p class="small text-muted mb-2">Clé enregistrée le {{ cred.updated_at|date:"d/m/Y H:i" }} (non affichable).{% if cred.last_tested_at %} Dernier test : {{ cred.last_tested_at|date:"d/m/Y H:i" }}.{% endif %}</p>
+      {% if cred.last_error %}<p class="small text-danger">{{ cred.last_error }}</p>{% endif %}
+      {% if cred.available_models %}<details class="small mb-2"><summary>{{ cred.available_models|length }} modèle(s) disponible(s)</summary><div class="mt-1" style="max-height:160px;overflow:auto">{{ cred.available_models|join:", " }}</div></details>{% endif %}{% endif %}
+    <form method="post" action="{% url 'ai:provider_save' code %}" autocomplete="off">{% csrf_token %}
+      {% if code == 'openai_compatible' %}
+        {% if user.is_admin_role %}<label class="form-label small" for="bu-{{ code }}">Adresse de l'API (HTTPS publique, ou modèle local autorisé par l'exploitant)</label>
+        <input id="bu-{{ code }}" name="base_url" class="form-control form-control-sm mb-1" value="{{ cred.base_url|default:'' }}" placeholder="https://…">
+        <div class="form-text mb-2">Adresses internes et privées refusées.{% if local_urls %} Modèles locaux autorisés : {{ local_urls|join:", " }}.{% else %} Pour un modèle local, l'exploitant doit l'ajouter à AI_ALLOWED_LOCAL_URLS dans .env.{% endif %}</div>
+        {% else %}<p class="small text-muted">Adresse définie par l'administrateur : {{ cred.base_url|default:"aucune" }}.</p>{% endif %}
+      {% endif %}
+      <label class="form-label small" for="k-{{ code }}">{% if cred and cred.is_configured %}Remplacer la clé{% else %}Clé API{% endif %}</label>
+      <input id="k-{{ code }}" type="password" name="api_key" class="form-control form-control-sm mb-2" autocomplete="new-password" {% if not encryption_ok %}disabled{% endif %}>
+      <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-sm btn-primary" name="action" value="save" {% if not encryption_ok %}disabled{% endif %}>Enregistrer</button>
+        {% if cred and cred.is_configured %}<button class="btn btn-sm btn-outline-primary" name="action" value="test">Tester la connexion</button>
+        <button class="btn btn-sm btn-outline-danger" name="action" value="revoke" data-confirm="Révoquer et effacer cette clé ?">Révoquer</button>{% endif %}
+      </div>
+    </form>
+  </div></div>
+{% endfor %}
+</div>
+{% endblock %}

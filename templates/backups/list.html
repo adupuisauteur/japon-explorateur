@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Sauvegardes{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Sauvegardes</h1>
+  <p>Base complète, fichiers d'import, archives, exports et manifeste d'empreintes. Une sauvegarde non testée n'est pas considérée comme fiable : vérifiez-les régulièrement.</p></div>
+  <form method="post" action="{% url 'backups:create' %}" class="d-flex gap-2">{% csrf_token %}
+    <select name="kind" class="form-select" aria-label="Type"><option value="full">Complète</option><option value="db">Base seule</option><option value="files">Fichiers seuls</option></select>
+    <button class="btn btn-primary text-nowrap"><i class="bi bi-safe"></i> Sauvegarder maintenant</button></form></div>
+<div class="card-soft mb-3 small">
+  <dl class="fields mb-0">
+    <dt>Sauvegarde automatique</dt><dd>{% if settings_obj.backup_enabled %}quotidienne (planificateur Celery beat), {{ settings_obj.backup_retention }} conservées{% else %}désactivée{% endif %} — <a href="{% url 'core:settings' %}">modifier</a></dd>
+    <dt>Dossier des sauvegardes</dt><dd><code>{{ backup_dir }}</code></dd>
+    <dt>Copie externe</dt><dd>{% if external %}<code>{{ external }}</code>{% else %}<span class="text-warning-emphasis">non configurée — définissez BACKUP_EXTERNAL_DIR (disque ou emplacement distinct)</span>{% endif %}</dd>
+    <dt>Secrets</dt><dd>Non inclus : conservez séparément <code>DJANGO_SECRET_KEY</code> et <code>AI_KEYS_ENCRYPTION_KEY</code>.</dd>
+  </dl></div>
+<div class="table-responsive"><table class="table align-middle">
+<thead><tr><th>Date</th><th>Type</th><th>Taille</th><th>Méthode</th><th>Statut</th><th>Vérifiée</th><th></th></tr></thead><tbody>
+{% for j in jobs %}<tr>
+  <td class="small">{{ j.created_at|date:"d/m/Y H:i" }}{% if j.scheduled %}<br><span class="text-muted">planifiée</span>{% endif %}</td>
+  <td>{{ j.get_kind_display }}</td><td class="small">{{ j.size|filesizeformat }}</td><td class="small">{{ j.method }}</td>
+  <td>{{ j.get_status_display }}{% if j.status == 'failed' %}<div class="small text-danger">{{ j.message }}</div>{% endif %}{% if j.external_copy %}<div class="small text-muted">copie externe ✓</div>{% endif %}</td>
+  <td class="small">{{ j.verified_at|date:"d/m/Y H:i"|default:"—" }}</td>
+  <td class="text-end text-nowrap">{% if j.status == 'done' %}
+    <form method="post" action="{% url 'backups:verify' j.pk %}" class="d-inline">{% csrf_token %}<button class="btn btn-sm btn-outline-secondary">Vérifier</button></form>
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'backups:download' j.pk %}">Télécharger</a>
+    <button class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#restore-{{ j.pk }}">Restaurer…</button>{% endif %}</td></tr>
+  {% if j.status == 'done' %}<tr class="collapse" id="restore-{{ j.pk }}"><td colspan="7">
+    <form method="post" action="{% url 'backups:restore' j.pk %}" class="d-flex flex-wrap gap-2 align-items-center">{% csrf_token %}
+      <span class="small text-danger">La base et les fichiers actuels seront remplacés (une sauvegarde de sécurité est créée avant). Tapez RESTAURER :</span>
+      <input name="confirmation" class="form-control form-control-sm" style="max-width:160px" autocomplete="off">
+      <button class="btn btn-sm btn-danger">Restaurer cette sauvegarde</button></form></td></tr>{% endif %}
+{% empty %}<tr><td colspan="7" class="text-muted">Aucune sauvegarde.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

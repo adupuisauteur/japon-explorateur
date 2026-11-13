@@ -1,0 +1,16 @@
+{% load app_tags %}<div data-panel-title="{{ record.original_title|truncatechars:50 }}">
+  <div class="big-title fs-3">{{ record.original_title }}</div>
+  {% if record.reading %}<div class="text-muted ja">{{ record.reading }}</div>{% endif %}
+  {% if record.translated_title %}<div class="fst-italic">« {{ record.translated_title }} » {% origin_chip record.translated_title_origin %}</div>{% endif %}
+  <dl class="fields mt-3 small">
+    {% if record.creator_original %}<dt>Auteur</dt><dd>{{ record.creator_original }}</dd>{% endif %}
+    <dt>Composition</dt><dd>{{ record.composition_display|default:"—" }}</dd>
+    <dt>Copie / impression</dt><dd>{{ record.copy_display|default:"—" }}</dd>
+    {% if record.institution_display %}<dt>Institution</dt><dd>{{ record.institution_display }}</dd>{% endif %}
+    <dt>Source</dt><dd>{{ record.catalogue.name }} · <code>{{ record.source_id }}</code></dd>
+    <dt>Collecte</dt><dd>{{ record.collected_at|date:"d/m/Y" }}</dd>
+    {% if record.description_original %}<dt>Description</dt><dd class="ja">{{ record.description_original|truncatechars:600 }}</dd>{% endif %}
+  </dl>
+  <a class="btn btn-primary btn-sm mt-2" href="{{ record.get_absolute_url }}" target="_blank">Ouvrir la fiche complète</a>
+  {% if record.source_url %}<a class="btn btn-outline-secondary btn-sm mt-2" href="{{ record.source_url }}" target="_blank" rel="noopener">Notice officielle</a>{% endif %}
+</div>

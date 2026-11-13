@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Mon compte{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Mon compte</h1><p>{{ user.get_role_display }} · {{ user.username }}</p></div>
+  {% if user.can_edit %}<a class="btn btn-outline-primary" href="{% url 'ai:preferences' %}"><i class="bi bi-stars"></i> Préférences IA</a>{% endif %}</div>
+<div class="row g-4">
+  <div class="col-lg-7"><div class="card-soft">
+    <h2 class="h5">Préférences</h2>
+    <form method="post">{% csrf_token %}
+      {% for field in form %}
+        {% if field.name == "preferred_sources" %}
+          <div class="mb-3"><div class="form-label">{{ field.label }}</div>
+            {% for cb in field %}<div class="form-check">{{ cb.tag }} <label class="form-check-label" for="{{ cb.id_for_label }}">{{ cb.choice_label }}</label></div>
+            {% empty %}<div class="text-muted small">Aucun catalogue interrogeable pour l'instant.</div>{% endfor %}</div>
+        {% else %}
+          <div class="mb-3"><label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}</div>
+        {% endif %}
+      {% endfor %}
+      <button class="btn btn-primary" name="save_profile">Enregistrer</button>
+    </form></div></div>
+  <div class="col-lg-5"><div class="card-soft">
+    <h2 class="h5">Mot de passe</h2>
+    <form method="post">{% csrf_token %}{% include "partials/form.html" with form=pwd %}
+      <button class="btn btn-outline-primary" name="change_password">Changer le mot de passe</button></form></div></div>
+</div>
+{% endblock %}

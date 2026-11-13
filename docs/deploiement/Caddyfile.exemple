@@ -1,0 +1,7 @@
+# Reverse proxy HTTPS (certificat Let's Encrypt automatique) pour un serveur Linux.
+# Remplacez le domaine, puis lancez Caddy à côté de docker compose (voir docs/deploiement.md).
+japon.example.org {
+    encode gzip
+    reverse_proxy 127.0.0.1:8000
+    header Strict-Transport-Security "max-age=31536000"
+}

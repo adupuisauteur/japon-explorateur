@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Préférences IA{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Préférences IA</h1>
+  <p>L'application fonctionne intégralement sans IA. Activer une fonction la rend seulement disponible : aucun traitement n'est jamais lancé sans votre action explicite.</p></div>
+  <div class="d-flex gap-2"><a class="btn btn-outline-secondary" href="{% url 'ai:providers' %}"><i class="bi bi-key"></i> Fournisseurs et clés API</a>
+  <a class="btn btn-outline-secondary" href="{% url 'ai:tasks' %}"><i class="bi bi-list-check"></i> Historique et consommation</a></div></div>
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card-soft mb-3"><h2 class="h6">Mes profils</h2>
+      {% for p in profiles %}
+      <div class="d-flex justify-content-between align-items-center border-bottom py-2 gap-2">
+        <a href="?profile={{ p.pk }}" class="{% if p == profile %}fw-semibold{% endif %}">{{ p.name }}</a>
+        <div class="d-flex gap-1 align-items-center">{% if p.is_active %}<span class="chip chip-ok">actif</span>{% endif %}<span class="chip">{{ p.get_mode_display }}</span>
+          <div class="dropdown"><button class="btn btn-sm btn-light" data-bs-toggle="dropdown" aria-label="Actions"><i class="bi bi-three-dots"></i></button>
+            <form method="post" action="{% url 'ai:profile_action' p.pk %}" class="dropdown-menu dropdown-menu-end">{% csrf_token %}
+              {% if not p.is_active %}<button class="dropdown-item" name="action" value="activate">Activer</button>{% endif %}
+              <button class="dropdown-item" name="action" value="duplicate">Dupliquer</button>
+              <button class="dropdown-item" name="action" value="disable_all">Régler sur « IA désactivée »</button>
+              <button class="dropdown-item text-danger" name="action" value="delete" data-confirm="Supprimer ce profil ?">Supprimer</button></form></div></div>
+      </div>{% endfor %}
+    </div>
+    <div class="card-soft small"><h2 class="h6">Consommation du mois</h2>
+      <p class="mb-1">Estimation : <strong>{{ spend|floatformat:4 }} USD</strong>{% if profile.monthly_budget %} sur un plafond de {{ profile.monthly_budget }} USD{% endif %}.</p>
+      <p class="text-muted mb-0">Estimation fondée sur les jetons déclarés par le fournisseur et les tarifs saisis par l'administrateur : jamais garantie. Les frais d'API restent à la charge du titulaire de la clé.</p></div>
+  </div>
+  <div class="col-lg-8">
+    <form method="post" class="card-soft">{% csrf_token %}
+      <h2 class="h5">Profil « {{ profile.name }} »{% if profile.is_active %} <span class="chip chip-ok">actif</span>{% endif %}</h2>
+      <div class="mb-3"><label class="form-label" for="{{ form.name.id_for_label }}">Nom</label>{{ form.name }}</div>
+      <div class="mb-3"><div class="form-label">Mode général</div>
+        {% for r in form.mode %}<div class="form-check">{{ r.tag }} <label class="form-check-label" for="{{ r.id_for_label }}">{{ r.choice_label }}
+          <span class="small text-muted">{% if r.data.value == 'disabled' %}— aucun appel, boutons IA masqués{% elif r.data.value == 'demand' %}— vous déclenchez chaque traitement (recommandé){% else %}— chaque opération affiche les données envoyées et demande confirmation{% endif %}</span></label></div>{% endfor %}</div>
+      <h3 class="h6">Fonctions proposées dans l'interface</h3>
+      <div class="row">{% for f in form %}{% if f.name|slice:"-8:" == "_enabled" %}<div class="col-md-6"><div class="form-check">{{ f }} <label class="form-check-label" for="{{ f.id_for_label }}">{{ f.label }}</label></div></div>{% endif %}{% endfor %}</div>
+      <h3 class="h6 mt-3">Fournisseur et modèle par défaut</h3>
+      <div class="row g-2"><div class="col-md-6">{{ form.default_provider }}</div><div class="col-md-6">{{ form.default_model }}<div class="form-text">Nom exact du modèle (liste disponible après un test de connexion).</div></div></div>
+      <details class="mt-3"><summary class="h6">Fournisseur différent pour une fonction</summary>
+        <div class="table-responsive mt-2"><table class="table table-sm align-middle"><tbody>
+        {% for code, label in functions %}{% with ov=profile.function_overrides|default_if_none:"" %}<tr><td class="small">{{ label }}</td>
+          <td><select name="ov_{{ code }}_provider" class="form-select form-select-sm" aria-label="Fournisseur pour {{ label }}"><option value="">— par défaut —</option>
+            {% for pv, pl in providers %}<option value="{{ pv }}" {% for k, v in profile.function_overrides.items %}{% if k == code and v.provider == pv %}selected{% endif %}{% endfor %}>{{ pl }}</option>{% endfor %}</select></td>
+          <td><input name="ov_{{ code }}_model" class="form-control form-control-sm" placeholder="modèle" aria-label="Modèle pour {{ label }}" value="{% for k, v in profile.function_overrides.items %}{% if k == code %}{{ v.model }}{% endif %}{% endfor %}"></td></tr>{% endwith %}{% endfor %}
+        </tbody></table></div></details>
+      <h3 class="h6 mt-3">Sécurité, confidentialité et coûts</h3>
+      <div class="form-check">{{ form.batch_extra_confirmation }} <label class="form-check-label" for="{{ form.batch_extra_confirmation.id_for_label }}">{{ form.batch_extra_confirmation.label }}</label></div>
+      <div class="form-check mb-2">{{ form.store_inputs }} <label class="form-check-label" for="{{ form.store_inputs.id_for_label }}">{{ form.store_inputs.label }}</label></div>
+      <div class="row g-2"><div class="col-md-6"><label class="form-label small" for="{{ form.monthly_budget.id_for_label }}">{{ form.monthly_budget.label }}</label>{{ form.monthly_budget }}</div>
+        <div class="col-md-6"><label class="form-label small" for="{{ form.alert_threshold_pct.id_for_label }}">{{ form.alert_threshold_pct.label }}</label>{{ form.alert_threshold_pct }}</div></div>
+      <button class="btn btn-primary mt-3">Enregistrer les préférences</button>
+      <p class="small text-muted mt-2 mb-0">Enregistrer une clé, choisir un fournisseur ou modifier ces préférences ne vaut ni activation générale, ni consentement à transmettre des données, ni lancement de traitement.</p>
+    </form>
+  </div>
+</div>
+{% endblock %}

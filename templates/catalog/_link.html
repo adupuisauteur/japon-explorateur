@@ -1,0 +1,13 @@
+{% load app_tags %}<div class="border-bottom pb-2 mb-2 small">
+  <div><a href="{{ other.get_absolute_url }}" class="ja">{{ other.original_title|truncatechars:60 }}</a> <span class="text-muted">— {{ other.catalogue.name }}</span></div>
+  <div class="d-flex flex-wrap gap-1 align-items-center mt-1"><span class="chip">{{ l.get_link_type_display }}</span>{% origin_chip l.origin %}
+    <span class="chip {% if l.status == 'validated' %}chip-ok{% endif %}">{{ l.get_status_display }}</span>{% if l.score %}<span class="text-muted">score {{ l.score|floatformat:2 }}</span>{% endif %}</div>
+  {% if l.rationale %}<div class="text-muted mt-1">{{ l.rationale }}</div>{% endif %}
+  {% if user.is_admin_role and l.status == 'proposed' %}
+  <form method="post" action="{% url 'catalog:link_decide' l.pk %}" class="d-flex gap-1 mt-1">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}#doublons">
+    <select name="link_type" class="form-select form-select-sm" style="max-width:160px" aria-label="Relation">
+      <option value="possible_duplicate">Doublon</option><option value="same_work">Même œuvre</option><option value="same_copy">Même exemplaire</option><option value="related">Liée</option></select>
+    <button class="btn btn-sm btn-outline-success" name="action" value="validated">Valider</button>
+    <button class="btn btn-sm btn-outline-secondary" name="action" value="rejected">Rejeter</button></form>
+  {% endif %}
+</div>

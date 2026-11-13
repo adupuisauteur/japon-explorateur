@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "japon-explorateur/export/1.0",
+  "title": "Export Japon — Explorateur documentaire",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "export_metadata",
+    "records"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string"
+    },
+    "export_metadata": {
+      "type": "object",
+      "required": [
+        "export_id",
+        "generated_at",
+        "sources"
+      ]
+    },
+    "sections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "record_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "record_id",
+          "source",
+          "original_title"
+        ],
+        "properties": {
+          "record_id": {
+            "type": "string"
+          },
+          "record_version": {
+            "type": "integer"
+          },
+          "catalogue": {
+            "type": "object"
+          },
+          "source": {
+            "type": "object",
+            "required": [
+              "name",
+              "source_id"
+            ]
+          },
+          "original_title": {
+            "type": "string"
+          },
+          "composition_year_start": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "copy_year_start": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "editorial": {
+            "type": "array"
+          },
+          "notes": {
+            "type": "array"
+          },
+          "collected_at": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

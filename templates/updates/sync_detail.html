@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% load app_tags %}
+{% block title %}{{ job }}{% endblock %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'updates:dashboard' %}">Gestionnaire de mises à jour</a></nav>
+<div class="page-head"><div><h1>{{ job.get_kind_display }} — {{ job.catalogue.name }}</h1>
+  <p>{{ job.get_status_display }} · lancée le {{ job.started_at|date:"d/m/Y H:i"|default:"—" }}{% if job.finished_at %} · terminée le {{ job.finished_at|date:"d/m/Y H:i" }}{% endif %}{% if job.triggered_by %} par {{ job.triggered_by }}{% elif job.scheduled %} (planifiée){% endif %}</p></div>
+  {% if job.status == 'review' or job.status == 'partially_applied' %}
+  <form method="post" action="{% url 'updates:sync_apply' job.pk %}">{% csrf_token %}<button class="btn btn-primary" data-confirm="Intégrer les éléments marqués « À intégrer » ? Les versions antérieures sont conservées.">Intégrer les éléments acceptés</button></form>{% endif %}
+</div>
+{% if job.message %}<div class="alert {% if job.status == 'failed' %}alert-danger{% else %}alert-info{% endif %}">{{ job.message }}</div>{% endif %}
+<div class="row g-3 mb-3">
+  <div class="col"><div class="card-soft text-center"><div class="stat">{{ job.counts.new|default:0 }}</div><div class="small text-muted">nouvelles</div></div></div>
+  <div class="col"><div class="card-soft text-center"><div class="stat">{{ job.counts.modified|default:0 }}</div><div class="small text-muted">modifiées</div></div></div>
+  <div class="col"><div class="card-soft text-center"><div class="stat">{{ job.counts.unchanged|default:0 }}</div><div class="small text-muted">inchangées</div></div></div>
+  <div class="col"><div class="card-soft text-center"><div class="stat">{{ job.counts.missing|default:0 }}</div><div class="small text-muted">non retrouvées</div></div></div>
+  <div class="col"><div class="card-soft text-center"><div class="stat">{{ job.counts.error|default:0 }}</div><div class="small text-muted">erreurs</div></div></div>
+</div>
+<p class="small text-muted">Les notices « non retrouvées » ne sont jamais supprimées : si vous les acceptez, elles sont seulement marquées « indisponibles » (réversible).</p>
+{% if job.errors %}<details class="mb-3"><summary>Détail des erreurs ({{ job.errors|length }})</summary><ul class="small">{% for e in job.errors %}<li>{{ e.source_id }} : {{ e.error }}</li>{% endfor %}</ul></details>{% endif %}
+{% if job.report.applied %}<div class="alert alert-success small">Intégré : {{ job.report.applied.created }} créée(s), {{ job.report.applied.updated }} mise(s) à jour, {{ job.report.applied.marked_unavailable }} indisponible(s).</div>{% endif %}
+{% include "updates/_incoming.html" with job_kind="sync" %}
+{% endblock %}

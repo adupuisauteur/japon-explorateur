@@ -1,0 +1,70 @@
+{% extends "base.html" %}{% load app_tags %}
+{% block title %}{{ session }}{% endblock %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'searching:form' %}">Rechercher</a> › Session du {{ session.started_at|date:"d/m/Y H:i" }}</nav>
+<div class="page-head">
+  <div>
+    <h1 class="ja mb-1">{{ session.query|default:"Recherche avancée" }}</h1>
+    <p>
+      {% if session.variants %}Variantes : <span class="ja">{{ session.variants|join:" · " }}</span> · {% endif %}
+      Mode {{ session.get_mode_display|lower }}
+      {% if session.fields %} · Champs : {% for k, v in session.fields.items %}{{ k }}={{ v }} {% endfor %}{% endif %}
+      {% if session.filters %} · Filtres : {% for k, v in session.filters.items %}{{ k }}={{ v|join:"," }} {% endfor %}{% endif %}
+      {% if session.target_collection %} · Dossier : <a href="{{ session.target_collection.get_absolute_url }}">{{ session.target_collection }}</a>{% endif %}
+    </p>
+    {% if session.previous_session %}<p class="small">Relance comparée à la session du <a href="{{ session.previous_session.get_absolute_url }}">{{ session.previous_session.started_at|date:"d/m/Y H:i" }}</a>.</p>{% endif %}
+    {% if not session.is_saved and session.expires_at %}<p class="small text-muted"><i class="bi bi-hourglass-split"></i> Session temporaire conservée jusqu'au {{ session.expires_at|date:"d/m/Y" }}.</p>{% endif %}
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'searching:form' %}?from_session={{ session.uid }}"><i class="bi bi-pencil"></i> Modifier</a>
+    {% if not session.saved_search %}
+    <button class="btn btn-outline-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#save-box"><i class="bi bi-bookmark-star"></i> Enregistrer la recherche</button>
+    {% else %}<a class="btn btn-outline-secondary btn-sm" href="{{ session.saved_search.get_absolute_url }}"><i class="bi bi-bookmark-star-fill"></i> {{ session.saved_search.name }}</a>{% endif %}
+    {% if not session.is_saved %}<form method="post" action="{% url 'searching:keep' session.uid %}">{% csrf_token %}<button class="btn btn-outline-secondary btn-sm">Conserver la session</button></form>{% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'exports:prepare' %}?scope=session&session={{ session.uid }}"><i class="bi bi-box-arrow-up"></i> Exporter</a>
+  </div>
+</div>
+<div class="collapse mb-3" id="save-box"><form method="post" action="{% url 'searching:save' session.uid %}" class="card-soft d-flex flex-wrap gap-2 align-items-end">{% csrf_token %}
+  <div class="flex-grow-1"><label class="form-label small" for="sname">Nom de la recherche enregistrée</label><input id="sname" name="name" class="form-control" value="{{ session.query }}"></div>
+  <button class="btn btn-primary">Enregistrer</button></form></div>
+
+<div class="row g-2 mb-3" aria-label="État des sources">
+  {% for code, catalogue, stats in sources %}
+  <div class="col-sm-6 col-lg-4"
+       {% if stats.status == 'pending' %}hx-post="{% url 'searching:run_source' session.uid code %}" hx-trigger="load" hx-swap="innerHTML"{% endif %}>
+    {% include "searching/_source_status.html" %}
+  </div>
+  {% endfor %}
+</div>
+
+{% if comparison_counts %}
+<div class="card-soft mb-3 d-flex flex-wrap gap-3 small">
+  <strong>Comparaison avec l'exécution précédente :</strong>
+  <span>{% comparison_chip "new" %} {{ comparison_counts.new }}</span><span>{% comparison_chip "known" %} {{ comparison_counts.known }}</span>
+  <span>{% comparison_chip "modified" %} {{ comparison_counts.modified }}</span><span>{% comparison_chip "unavailable" %} {{ comparison_counts.unavailable }}</span>
+  <span>{% comparison_chip "not_comparable" %} {{ comparison_counts.not_comparable }}</span>
+</div>{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-3">
+    <form id="results-filters" class="filters filters-sticky" hx-get="{% url 'searching:results' session.uid %}" hx-target="#results" hx-trigger="change, keyup changed delay:400ms from:input[name=within]">
+      <button class="btn btn-sm btn-light d-lg-none w-100 mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#filters-body">Filtres et tri</button>
+      <div id="filters-body" class="collapse d-lg-block">
+        <div class="mb-2"><label class="form-label" for="f-within">Dans les résultats</label><input id="f-within" name="within" class="form-control form-control-sm"></div>
+        <div class="mb-2"><label class="form-label" for="f-source">Source</label><select id="f-source" name="source" class="form-select form-select-sm"><option value="">Toutes</option>{% for code, c, s in sources %}<option value="{{ code }}">{{ c.name|default:code }}</option>{% endfor %}</select></div>
+        <div class="mb-2"><label class="form-label" for="f-decision">Décision</label><select id="f-decision" name="decision" class="form-select form-select-sm"><option value="">Toutes</option><option value="pending">En attente</option><option value="selected">Sélectionnés</option><option value="excluded">Exclus</option></select></div>
+        <div class="mb-2"><label class="form-label" for="f-lib">Bibliothèque</label><select id="f-lib" name="in_library" class="form-select form-select-sm"><option value="">Tous</option><option value="1">Déjà enregistrés</option><option value="0">Pas encore enregistrés</option></select></div>
+        {% if session.previous_session %}<div class="mb-2"><label class="form-label" for="f-comp">Comparaison</label><select id="f-comp" name="comparison" class="form-select form-select-sm"><option value="">Toutes</option><option value="new">Nouveaux</option><option value="known">Déjà connus</option><option value="modified">Modifiés</option><option value="unavailable">Indisponibles</option><option value="not_comparable">Non comparables</option></select></div>{% endif %}
+        <div class="mb-2"><label class="form-label" for="f-period">Période</label><select id="f-period" name="period" class="form-select form-select-sm"><option value="">Toutes</option>{% for v, l in periods %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></div>
+        <div class="mb-2"><label class="form-label" for="f-type">Type</label><select id="f-type" name="doc_type" class="form-select form-select-sm"><option value="">Tous</option>{% for v, l in doc_types %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></div>
+        <div class="mb-2"><label class="form-label" for="f-sort">Tri</label><select id="f-sort" name="sort" class="form-select form-select-sm"><option value="relevance">Pertinence</option><option value="title">Titre</option><option value="date">Date</option><option value="source">Source</option><option value="collected">Date de collecte</option></select></div>
+      </div>
+    </form>
+  </div>
+  <div class="col-lg-9">
+    <div id="results" hx-get="{% url 'searching:results' session.uid %}" hx-trigger="load, results-changed from:body delay:300ms" hx-include="#results-filters">
+      <div class="empty">Interrogation des sources…</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,75 @@
+# Japon — Explorateur documentaire : installation locale reproductible (§17.1)
+#   docker compose up -d --build      puis ouvrir http://localhost:8000
+# Les mêmes images servent ensuite sur un serveur Linux (voir docs/deploiement.md).
+
+# Nom fixe : les volumes de données restent les mêmes même si le dossier est renommé.
+name: japon-explorateur
+
+x-app: &app
+  build:
+    context: .
+    dockerfile: docker/Dockerfile
+  image: japon-explorateur:1.0
+  env_file: .env
+  environment:
+    DATABASE_URL: postgres://japon:${POSTGRES_PASSWORD:?définir POSTGRES_PASSWORD dans .env}@db:5432/japon
+    REDIS_URL: redis://redis:6379/0
+    DATA_DIR: /data
+  volumes:
+    - app-data:/data
+    # Copie externe des sauvegardes : décommentez et adaptez (disque externe, NAS…)
+    # - /chemin/vers/disque-externe/japon:/backups-externes
+  depends_on:
+    - db
+    - redis
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:15-bookworm
+    environment:
+      POSTGRES_DB: japon
+      POSTGRES_USER: japon
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C.UTF-8"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    # Pas de port publié : la base n'est jamais exposée (§14).
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  web:
+    <<: *app
+    ports:
+      # Écoute sur la boucle locale uniquement. Pour un accès réseau, passer par un reverse proxy HTTPS.
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8000/hors-ligne/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    <<: *app
+    environment:
+      DATABASE_URL: postgres://japon:${POSTGRES_PASSWORD}@db:5432/japon
+      REDIS_URL: redis://redis:6379/0
+      DATA_DIR: /data
+      RUN_MIGRATIONS: "0"
+    command: ["celery", "-A", "config", "worker", "-l", "info", "--concurrency", "2"]
+
+  beat:
+    <<: *app
+    environment:
+      DATABASE_URL: postgres://japon:${POSTGRES_PASSWORD}@db:5432/japon
+      REDIS_URL: redis://redis:6379/0
+      DATA_DIR: /data
+      RUN_MIGRATIONS: "0"
+    command: ["celery", "-A", "config", "beat", "-l", "info", "--schedule", "/data/celerybeat-schedule"]
+
+volumes:
+  db-data:
+  app-data:

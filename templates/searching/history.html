@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Historique des recherches{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Historique des recherches</h1><p>Toute recherche crée une session identifiable ; les sessions temporaires expirent selon le réglage de l'instance.</p></div></div>
+<div class="table-responsive"><table class="table align-middle">
+<thead><tr><th>Requête</th><th>Date</th><th>Mode</th><th>Sources</th><th>Résultats</th><th>Conservation</th><th></th></tr></thead><tbody>
+{% for s in page %}{% with c=s.counts %}<tr>
+  <td><a class="ja" href="{{ s.get_absolute_url }}">{{ s }}</a>{% if s.saved_search %} <span class="chip">{{ s.saved_search.name }}</span>{% endif %}</td>
+  <td class="small">{{ s.started_at|date:"d/m/Y H:i" }}{% if s.duration_ms %}<br><span class="text-muted">{{ s.duration_ms }} ms</span>{% endif %}</td>
+  <td class="small">{{ s.get_mode_display }}</td><td class="small">{{ s.sources|join:", " }}</td>
+  <td class="small">{{ c.found }} trouvés · {{ c.selected }} retenus · {{ c.excluded }} exclus · {{ c.integrated }} intégrés</td>
+  <td class="small">{% if s.is_saved %}Conservée{% else %}jusqu'au {{ s.expires_at|date:"d/m/Y" }}{% endif %}</td>
+  <td><form method="post" action="{% url 'searching:delete' s.uid %}">{% csrf_token %}<button class="btn btn-sm btn-link text-danger" data-confirm="Supprimer cette session ? Les notices intégrées restent dans la base.">Supprimer</button></form></td>
+</tr>{% endwith %}{% empty %}<tr><td colspan="7" class="text-muted">Aucune session.</td></tr>{% endfor %}
+</tbody></table></div>
+{% include "partials/pagination.html" %}
+{% endblock %}

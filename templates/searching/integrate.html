@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Intégrer la sélection{% endblock %}
+{% block content %}
+<nav class="small mb-2"><a href="{{ session.get_absolute_url }}">← Retour à la session</a></nav>
+<h1>Intégrer la sélection</h1>
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card-soft mb-3">
+      <p class="mb-2"><strong>{{ selected.count }}</strong> résultat(s) sélectionné(s) seront intégrés. {% if already %}{{ already }} déjà intégré(s) ne seront pas repris.{% endif %}
+        {% if excluded_count %}{{ excluded_count }} résultat(s) exclu(s) seront ignorés.{% endif %}</p>
+      <p class="small text-muted mb-0">Une notice déjà présente dans la base est mise à jour avec historisation (l'ancienne version reste consultable) ; aucune notice n'est supprimée.</p>
+    </div>
+    <ul class="list-group mb-3" style="max-height:420px;overflow:auto">
+      {% for r in selected %}<li class="list-group-item"><span class="ja">{{ r.title }}</span> <span class="small text-muted">— {{ r.catalogue.name }}</span></li>
+      {% empty %}<li class="list-group-item text-muted">Aucun résultat sélectionné. Retournez à la session pour en sélectionner.</li>{% endfor %}
+    </ul>
+  </div>
+  <div class="col-lg-5">
+    <form method="post" class="card-soft">{% csrf_token %}
+      <h2 class="h6">Destination</h2>
+      <div class="form-check mb-2"><input class="form-check-input" type="radio" name="dest" id="d-lib" value="library" checked data-toggle-hide="#dest-col"><label class="form-check-label" for="d-lib">Ma bibliothèque uniquement</label></div>
+      <div class="form-check mb-2"><input class="form-check-input" type="radio" name="dest" id="d-col" value="collection" data-toggle-show="#dest-col" {% if session.target_collection %}checked{% endif %}><label class="form-check-label" for="d-col">Ma bibliothèque et un dossier</label></div>
+      <div id="dest-col" class="{% if not session.target_collection %}d-none{% endif %} ms-4">
+        <select name="collection" class="form-select form-select-sm mb-2" aria-label="Dossier existant"><option value="">— Dossier existant —</option>
+          {% for c in collections %}<option value="{{ c.pk }}" {% if c == session.target_collection %}selected{% endif %}>{{ c.title }}</option>{% endfor %}</select>
+        <input name="new_collection" class="form-control form-control-sm mb-2" placeholder="…ou nom d'un nouveau dossier">
+        <div class="form-check"><input class="form-check-input" type="checkbox" name="go_collection" id="go" value="1"><label class="form-check-label small" for="go">Ouvrir le dossier ensuite</label></div>
+      </div>
+      <button class="btn btn-primary mt-3 w-100" {% if not selected %}disabled{% endif %}>Confirmer l'intégration</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

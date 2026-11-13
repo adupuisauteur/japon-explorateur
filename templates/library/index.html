@@ -1,0 +1,71 @@
+{% extends "base.html" %}{% load app_tags %}
+{% block title %}Bibliothèque{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Ma bibliothèque</h1><p>{{ total }} notice(s) retenue(s), conservées indépendamment des sessions temporaires.</p></div>
+  <div class="d-flex gap-2"><a class="btn btn-outline-secondary" href="{% url 'exports:prepare' %}?scope=library"><i class="bi bi-box-arrow-up"></i> Exporter la bibliothèque</a></div></div>
+<div class="row g-3">
+  <div class="col-lg-3">
+    <form class="filters filters-sticky" method="get">
+      <button class="btn btn-sm btn-light d-lg-none w-100 mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#lib-filters">Filtres et tri</button>
+      <div id="lib-filters" class="collapse d-lg-block">
+      <div class="mb-2"><label class="form-label" for="q">Rechercher</label><input id="q" name="q" value="{{ request.GET.q }}" class="form-control form-control-sm"></div>
+      <div class="mb-2"><label class="form-label" for="tag">Tag</label><select id="tag" name="tag" class="form-select form-select-sm"><option value="">Tous</option>{% for t in tags %}<option {% if request.GET.tag == t.name %}selected{% endif %}>{{ t.name }}</option>{% endfor %}</select></div>
+      <div class="mb-2"><label class="form-label" for="ver">Vérification</label><select id="ver" name="verification" class="form-select form-select-sm"><option value="">Tous états</option>{% for v, l in verifications %}<option value="{{ v }}" {% if request.GET.verification == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+      <div class="mb-2"><label class="form-label" for="per">Période</label><select id="per" name="period" class="form-select form-select-sm"><option value="">Toutes</option>{% for v, l in periods %}<option value="{{ v }}" {% if request.GET.period == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+      <div class="mb-2"><label class="form-label" for="dt">Type</label><select id="dt" name="doc_type" class="form-select form-select-sm"><option value="">Tous</option>{% for v, l in doc_types %}<option value="{{ v }}" {% if request.GET.doc_type == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+      <div class="mb-2"><label class="form-label" for="src">Source</label><select id="src" name="source" class="form-select form-select-sm"><option value="">Toutes</option>{% for c in catalogues %}<option value="{{ c.code }}" {% if request.GET.source == c.code %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></div>
+      <div class="form-check"><input class="form-check-input" type="checkbox" name="favorite" value="1" id="fav" {% if request.GET.favorite %}checked{% endif %}><label class="form-check-label small" for="fav">Favoris seulement</label></div>
+      <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="duplicates" value="1" id="dup" {% if request.GET.duplicates %}checked{% endif %}><label class="form-check-label small" for="dup">Doublons potentiels à examiner</label></div>
+      <div class="mb-2"><label class="form-label" for="sort">Tri</label><select id="sort" name="sort" class="form-select form-select-sm"><option value="">Ajout récent</option><option value="title" {% if request.GET.sort == 'title' %}selected{% endif %}>Titre</option><option value="date" {% if request.GET.sort == 'date' %}selected{% endif %}>Date</option><option value="source" {% if request.GET.sort == 'source' %}selected{% endif %}>Source</option><option value="collected" {% if request.GET.sort == 'collected' %}selected{% endif %}>Collecte</option></select></div>
+      <button class="btn btn-sm btn-primary w-100">Appliquer</button>
+      </div>
+    </form>
+  </div>
+  <div class="col-lg-9">
+    <form method="post" action="{% url 'library:bulk' %}" id="bulk-form">{% csrf_token %}
+    {% for e in page %}{% with r=e.record %}
+      <article class="result-card">
+        <div class="d-flex gap-3">
+          <div class="pt-1"><input class="form-check-input js-select" type="checkbox" name="entry_ids" value="{{ e.pk }}" aria-label="Cocher"></div>
+          <div class="flex-grow-1">
+            <div class="d-flex flex-wrap justify-content-between gap-2">
+              <h2 class="record-title h5 mb-0"><a href="{{ r.get_absolute_url }}">{{ r.original_title }}</a>{% if e.favorite %} <i class="bi bi-star-fill text-warning" aria-label="favori"></i>{% endif %}</h2>
+              <div class="d-flex gap-1 flex-wrap"><span class="chip chip-source">{{ r.catalogue.name }}</span><span class="chip">{{ e.get_verification_display }}</span>
+                {% for t in e.tags.all %}<span class="chip">#{{ t.name }}</span>{% endfor %}</div>
+            </div>
+            {% if r.reading %}<div class="reading ja">{{ r.reading }}</div>{% endif %}
+            {% if r.translated_title %}<div class="translation">« {{ r.translated_title }} » {% origin_chip r.translated_title_origin %}</div>{% endif %}
+            <div class="meta">{% if r.creator_original %}<span class="ja">{{ r.creator_original }}</span> · {% endif %}{% if r.composition_display %}Composition : {{ r.composition_display }} · {% endif %}{% if r.copy_display %}Exemplaire : {{ r.copy_display }} · {% endif %}{{ r.get_period_display }}{% if r.institution_display %} · {{ r.institution_display }}{% endif %}</div>
+            <div class="small text-muted mt-1">Ajoutée le {{ e.added_at|date:"d/m/Y" }} · collectée le {{ r.collected_at|date:"d/m/Y" }}{% if r.record_status != 'active' %} · <span class="text-warning-emphasis">{{ r.get_record_status_display }}</span>{% endif %}</div>
+          </div>
+        </div>
+      </article>
+    {% endwith %}{% empty %}
+      <div class="empty">Votre bibliothèque est vide. Lancez une <a href="{% url 'searching:form' %}">recherche</a> et intégrez les résultats retenus.</div>
+    {% endfor %}
+    {% if page.object_list %}
+    <div class="selection-bar d-flex flex-wrap gap-2 align-items-center">
+      <div class="form-check"><input class="form-check-input" type="checkbox" id="all" data-select-all=".js-select"><label class="form-check-label small" for="all">Tout cocher</label></div>
+      <span class="small text-muted"><span data-selection-count>0</span> cochée(s)</span>
+      <div class="input-group input-group-sm" style="width:auto"><select name="collection" class="form-select" aria-label="Dossier">{% for c in collections %}<option value="{{ c.pk }}">{{ c.title|truncatechars:30 }}</option>{% empty %}<option value="">(aucun dossier)</option>{% endfor %}</select>
+        <button class="btn btn-outline-primary" name="action" value="collection" data-needs-selection disabled>Ajouter au dossier</button></div>
+      <div class="input-group input-group-sm" style="width:auto"><input name="tag" class="form-control" placeholder="tag" style="max-width:110px"><button class="btn btn-outline-secondary" name="action" value="tag" data-needs-selection disabled>Taguer</button></div>
+      <div class="input-group input-group-sm" style="width:auto"><select name="verification" class="form-select" aria-label="Vérification">{% for v, l in verifications %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select><button class="btn btn-outline-secondary" name="action" value="verification" data-needs-selection disabled>Appliquer</button></div>
+      <button class="btn btn-sm btn-outline-secondary" name="action" value="export" data-needs-selection disabled><i class="bi bi-box-arrow-up"></i> Exporter</button>
+      {% if ai_ui_enabled %}<div class="dropdown"><button type="button" class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown" data-needs-selection disabled><i class="bi bi-stars"></i> IA…</button>
+        <ul class="dropdown-menu">
+          {% if ai_profile.translation_enabled %}<li><button class="dropdown-item" name="action" value="ai_translation">Traduire</button></li>{% endif %}
+          {% if ai_profile.summary_enabled %}<li><button class="dropdown-item" name="action" value="ai_summary">Résumer</button></li>{% endif %}
+          {% if ai_profile.duplicates_enabled %}<li><button class="dropdown-item" name="action" value="ai_duplicates">Détecter les doublons</button></li>{% endif %}
+          {% if ai_profile.classification_enabled %}<li><button class="dropdown-item" name="action" value="ai_classification">Classifier</button></li>{% endif %}
+          {% if ai_profile.comparison_enabled %}<li><button class="dropdown-item" name="action" value="ai_comparison">Comparer</button></li>{% endif %}
+          {% if ai_profile.extraction_enabled %}<li><button class="dropdown-item" name="action" value="ai_extraction">Extraire les entités</button></li>{% endif %}
+        </ul></div>{% endif %}
+      <button class="btn btn-sm btn-outline-danger ms-auto" name="action" value="remove" data-needs-selection disabled data-confirm="Retirer ces notices de votre bibliothèque ? Elles restent dans la base.">Retirer</button>
+    </div>
+    {% endif %}
+    </form>
+    {% include "partials/pagination.html" %}
+  </div>
+</div>
+{% endblock %}

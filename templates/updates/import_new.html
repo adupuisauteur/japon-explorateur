@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Importer un fichier{% endblock %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'updates:dashboard' %}">Gestionnaire de mises à jour</a></nav>
+<div class="page-head"><div><h1>Importer un fichier</h1><p>CSV, TSV, XLSX, JSON, XML, MARCXML ou Dublin Core. Étapes : dépôt → correspondance des colonnes → rapport → validation.</p></div></div>
+<div class="row g-4">
+  <div class="col-lg-7">
+    <form method="post" enctype="multipart/form-data" class="card-soft">{% csrf_token %}
+      <div class="mb-3"><label class="form-label" for="file"><span class="step">1</span>Fichier</label>
+        <input id="file" type="file" name="file" class="form-control" required accept=".csv,.tsv,.txt,.xlsx,.json,.xml,.marcxml">
+        <div class="form-text">Taille maximale configurée côté serveur. Encodages UTF-8, Shift-JIS (CP932) et EUC-JP détectés automatiquement.</div></div>
+      <div class="mb-3"><label class="form-label" for="cat"><span class="step">2</span>Source de rattachement</label>
+        <select id="cat" name="catalogue" class="form-select" required>{% for c in catalogues %}<option value="{{ c.code }}" {% if c.code == selected %}selected{% endif %}>{{ c.name }}{% if c.is_snapshot %} (jeu historique){% endif %}</option>{% endfor %}</select>
+        <div class="form-text">Pour l'inventaire CODH 2019, choisissez « CODH — PMJT » ; pour votre classeur, « Classeur documentaire central ».</div></div>
+      <div class="row g-3">
+        <div class="col-md-6"><label class="form-label" for="preset">Modèle de correspondance</label>
+          <select id="preset" name="preset" class="form-select">{% for k, l in presets.items %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></div>
+        <div class="col-md-6"><label class="form-label" for="fmt">Format (sinon détecté)</label>
+          <select id="fmt" name="format" class="form-select"><option value="">Détection automatique</option>{% for k, l in formats %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></div>
+        <div class="col-12"><label class="form-label" for="dl">Libellé du jeu de données</label>
+          <input id="dl" name="dataset_label" class="form-control" placeholder="ex. CODH PMJT — instantané CSV 2019"></div>
+        <div class="col-12"><label class="form-label" for="rights">Droits sur le fichier source</label>
+          <input id="rights" name="rights" class="form-control" placeholder="ex. CC BY-SA 4.0 — fourni par l'utilisateur"></div>
+      </div>
+      <div class="form-check mt-3"><input class="form-check-input" type="checkbox" name="archive_source" id="arch" value="1" checked><label class="form-check-label" for="arch">Archiver le fichier source (avec son empreinte) si les droits le permettent</label></div>
+      <button class="btn btn-primary mt-3">Analyser le fichier</button>
+    </form>
+  </div>
+  <div class="col-lg-5"><div class="card-soft">
+    <h2 class="h6">Bon à savoir</h2>
+    <ul class="small mb-0">
+      <li>Rien n'est écrit dans la base avant votre validation du rapport.</li>
+      <li>Les notices déjà présentes (même source, même identifiant) sont comparées : inchangées, modifiées (historisées) ou nouvelles.</li>
+      <li>Un fichier incomplet ne supprime jamais de notice existante.</li>
+      <li>L'import d'un JSON exporté par l'application se rapproche par identifiants internes : pas de doublons.</li>
+      <li>Aucun traitement IA n'est déclenché par un import.</li>
+    </ul></div></div>
+</div>
+{% endblock %}

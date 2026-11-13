@@ -1,0 +1,95 @@
+{% load static %}<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#8a2b23">
+  <title>{% block title %}Accueil{% endblock %} — Japon · Explorateur documentaire</title>
+  <link rel="manifest" href="{% url 'manifest' %}">
+  <link rel="icon" href="{% static 'icons/icon-192.png' %}">
+  <link rel="apple-touch-icon" href="{% static 'icons/icon-192.png' %}">
+  <link rel="stylesheet" href="{% static 'vendor/bootstrap/bootstrap.min.css' %}">
+  <link rel="stylesheet" href="{% static 'vendor/bootstrap-icons/bootstrap-icons.min.css' %}">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+<a class="visually-hidden-focusable skip-link" href="#contenu">Aller au contenu</a>
+{% if user.is_authenticated %}
+<nav class="navbar navbar-expand-xl app-nav" aria-label="Navigation principale">
+  <div class="container-xl">
+    <a class="navbar-brand d-flex align-items-center gap-2" href="{% url 'core:home' %}">
+      <img src="{% static 'icons/icon-192.png' %}" alt="" width="30" height="30" class="rounded">
+      <span><span class="brand-ja">日本</span> <span class="d-xl-none d-xxl-inline">Explorateur documentaire</span><span class="d-none d-xl-inline d-xxl-none">Explorateur</span></span>
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav-main"
+            aria-controls="nav-main" aria-expanded="false" aria-label="Ouvrir le menu">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="nav-main">
+      {% with path=request.path %}
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item"><a class="nav-link {% if path == '/' %}active{% endif %}" href="{% url 'core:home' %}"><i class="bi bi-house"></i> Accueil</a></li>
+        <li class="nav-item"><a class="nav-link {% if '/recherche/' in path %}active{% endif %}" href="{% url 'searching:form' %}"><i class="bi bi-search"></i> Rechercher</a></li>
+        <li class="nav-item"><a class="nav-link {% if path == '/bibliotheque/' or '/bibliotheque/entree' in path %}active{% endif %}" href="{% url 'library:index' %}"><i class="bi bi-bookmark"></i> Bibliothèque</a></li>
+        <li class="nav-item"><a class="nav-link {% if '/dossiers/' in path %}active{% endif %}" href="{% url 'library:collections' %}"><i class="bi bi-folder2-open"></i> Dossiers</a></li>
+        <li class="nav-item"><a class="nav-link {% if '/sources/' in path or '/mises-a-jour/' in path %}active{% endif %}" href="{% url 'connectors:list' %}"><i class="bi bi-diagram-3"></i> Sources</a></li>
+        {% if user.is_admin_role %}
+        <li class="nav-item"><a class="nav-link {% if '/administration/' in path %}active{% endif %}" href="{% url 'core:admin_hub' %}"><i class="bi bi-gear"></i> Administration</a></li>
+        {% endif %}
+      </ul>
+      {% endwith %}
+      <form class="d-flex nav-search me-xl-3 my-2 my-xl-0" role="search" action="{% url 'searching:quick' %}" method="get">
+        <input class="form-control form-control-sm" type="search" name="q" placeholder="Recherche rapide… 書名, rōmaji" aria-label="Recherche rapide" required>
+      </form>
+      <div class="dropdown">
+        <button class="btn btn-sm btn-light dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+          <i class="bi bi-person-circle"></i> {{ user }}
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li><span class="dropdown-item-text small text-muted">{{ user.get_role_display }}</span></li>
+          <li><a class="dropdown-item" href="{% url 'accounts:profile' %}"><i class="bi bi-sliders"></i> Mon compte</a></li>
+          {% if user.can_edit %}<li><a class="dropdown-item" href="{% url 'ai:preferences' %}"><i class="bi bi-stars"></i> Préférences IA</a></li>{% endif %}
+          <li><a class="dropdown-item" href="{% url 'exports:list' %}"><i class="bi bi-box-arrow-up"></i> Mes exports</a></li>
+          <li><a class="dropdown-item" href="{% url 'searching:history' %}"><i class="bi bi-clock-history"></i> Historique des recherches</a></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<button class="dropdown-item"><i class="bi bi-box-arrow-right"></i> Déconnexion</button></form></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</nav>
+{% endif %}
+<div id="offline-banner" class="alert alert-warning rounded-0 mb-0 py-2 text-center d-none" role="status">
+  <i class="bi bi-wifi-off"></i> Vous êtes hors ligne : seules l'interface et les fiches mises en cache sont disponibles.
+</div>
+<main id="contenu" class="container-xl py-4">
+  {% if messages %}
+  <div class="messages">
+    {% for message in messages %}
+    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %} alert-dismissible fade show" role="alert">
+      {{ message }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% block breadcrumb %}{% endblock %}
+  {% block content %}{% endblock %}
+</main>
+<footer class="app-footer">
+  <div class="container-xl d-flex flex-wrap justify-content-between gap-2 small">
+    <span>Japon — Explorateur documentaire · v{{ APP_VERSION }}</span>
+    <span>Les données restent la propriété de leurs institutions ; vérifiez les notices auprès des catalogues d'origine.</span>
+  </div>
+</footer>
+<div class="offcanvas offcanvas-end offcanvas-wide" tabindex="-1" id="panel" aria-labelledby="panel-title">
+  <div class="offcanvas-header"><h2 class="offcanvas-title h5" id="panel-title">Détail</h2>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Fermer"></button></div>
+  <div class="offcanvas-body" id="panel-body"><div class="text-muted">Chargement…</div></div>
+</div>
+<script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
+<script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
+<script src="{% static 'js/app.js' %}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

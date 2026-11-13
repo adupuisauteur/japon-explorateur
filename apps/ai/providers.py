@@ -1,0 +1,194 @@
+"""
+Clients des fournisseurs d'IA (appels REST directs, sans SDK propriétaire).
+
+Ajouter un fournisseur = ajouter une classe Provider et l'enregistrer dans PROVIDER_CLASSES.
+Les clés ne sont déchiffrées qu'ici, au moment de l'appel, et ne sont jamais journalisées.
+"""
+from dataclasses import dataclass
+
+import httpx
+
+from apps.core.logging import redact
+
+from .crypto import decrypt_secret
+from .urlsafety import UnsafeProviderURL, check_provider_url  # noqa: F401
+
+
+class ProviderError(Exception):
+    pass
+
+
+@dataclass
+class Completion:
+    text: str
+    tokens_in: int = 0
+    tokens_out: int = 0
+    model: str = ""
+
+
+class BaseProvider:
+    key = ""
+    label = ""
+    default_base_url = ""
+    #: transport injectable pour les tests
+    transport = None
+
+    #: seuls les services « compatibles » acceptent une adresse personnalisée
+    custom_base_url = False
+
+    def __init__(self, credential):
+        self.credential = credential
+        if self.custom_base_url:
+            if not credential.base_url:
+                raise ProviderError("Aucune adresse n'est définie pour ce service.")
+            self.base_url = credential.base_url.rstrip("/")
+        else:
+            self.base_url = self.default_base_url.rstrip("/")
+
+    def _api_key(self):
+        if not self.credential.is_configured:
+            raise ProviderError("Aucune clé API valide n'est enregistrée pour ce fournisseur.")
+        return decrypt_secret(self.credential.encrypted_key)
+
+    def _client(self, timeout=60):
+        kwargs = {"timeout": timeout}
+        if self.transport is not None:
+            kwargs["transport"] = self.transport
+        return httpx.Client(**kwargs)
+
+    def _request(self, method, url, **kwargs):
+        if self.custom_base_url:
+            try:  # contrôle répété à chaque appel (la résolution DNS peut changer)
+                check_provider_url(self.base_url)
+            except UnsafeProviderURL as exc:
+                raise ProviderError(f"Adresse du service refusée : {exc}") from None
+        kwargs.setdefault("follow_redirects", False)
+        try:
+            with self._client(kwargs.pop("timeout", 90)) as client:
+                response = client.request(method, url, **kwargs)
+        except httpx.HTTPError as exc:
+            raise ProviderError(f"Fournisseur injoignable ({exc.__class__.__name__}).") from None
+        if response.status_code in (401, 403):
+            raise ProviderError("Clé API refusée par le fournisseur (authentification).")
+        if response.status_code == 429:
+            raise ProviderError("Quota ou limite de débit atteint chez le fournisseur.")
+        if response.status_code == 404:
+            raise ProviderError("Modèle ou service introuvable chez le fournisseur (vérifiez le nom du modèle).")
+        if 300 <= response.status_code < 400:
+            raise ProviderError("Redirection refusée par sécurité.")
+        if response.status_code >= 400:
+            # Le corps de la réponse n'est jamais renvoyé à l'utilisateur (fuite d'information possible).
+            detail = _provider_error_message(response) if not self.custom_base_url else ""
+            raise ProviderError(f"Erreur du fournisseur (HTTP {response.status_code}){detail}.")
+        try:
+            return response.json()
+        except ValueError:
+            raise ProviderError("Réponse illisible du fournisseur.") from None
+
+    def list_models(self):
+        raise NotImplementedError
+
+    def complete(self, system, prompt, model, max_tokens=2000):
+        raise NotImplementedError
+
+
+def _provider_error_message(response):
+    """Message d'erreur structuré des API officielles uniquement (champ « message »), tronqué et masqué."""
+    try:
+        data = response.json()
+    except ValueError:
+        return ""
+    err = data.get("error") if isinstance(data, dict) else None
+    message = err.get("message") if isinstance(err, dict) else (data.get("message") if isinstance(data, dict) else None)
+    return f" : {redact(str(message))[:160]}" if message else ""
+
+
+class OpenAIProvider(BaseProvider):
+    key = "openai"
+    label = "OpenAI"
+    default_base_url = "https://api.openai.com/v1"
+
+    def _headers(self):
+        return {"Authorization": f"Bearer {self._api_key()}"}
+
+    def list_models(self):
+        data = self._request("GET", f"{self.base_url}/models", headers=self._headers(), timeout=20)
+        return sorted(m.get("id", "") for m in data.get("data", []) if m.get("id"))
+
+    def complete(self, system, prompt, model, max_tokens=2000):
+        body = {"model": model, "messages": [{"role": "system", "content": system},
+                                             {"role": "user", "content": prompt}]}
+        data = self._request("POST", f"{self.base_url}/chat/completions", headers=self._headers(), json=body)
+        try:
+            text = data["choices"][0]["message"]["content"] or ""
+        except (KeyError, IndexError):
+            raise ProviderError("Réponse OpenAI sans contenu.") from None
+        usage = data.get("usage") or {}
+        return Completion(text, usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0), data.get("model", model))
+
+
+class OpenAICompatibleProvider(OpenAIProvider):
+    key = "openai_compatible"
+    label = "Compatible OpenAI"
+    default_base_url = ""
+    custom_base_url = True
+
+
+class AnthropicProvider(BaseProvider):
+    key = "anthropic"
+    label = "Anthropic (Claude)"
+    default_base_url = "https://api.anthropic.com/v1"
+
+    def _headers(self):
+        return {"x-api-key": self._api_key(), "anthropic-version": "2023-06-01"}
+
+    def list_models(self):
+        data = self._request("GET", f"{self.base_url}/models", headers=self._headers(), timeout=20)
+        return sorted(m.get("id", "") for m in data.get("data", []) if m.get("id"))
+
+    def complete(self, system, prompt, model, max_tokens=2000):
+        body = {"model": model, "max_tokens": max_tokens, "system": system,
+                "messages": [{"role": "user", "content": prompt}]}
+        data = self._request("POST", f"{self.base_url}/messages", headers=self._headers(), json=body)
+        text = "".join(block.get("text", "") for block in data.get("content", []) if block.get("type") == "text")
+        usage = data.get("usage") or {}
+        return Completion(text, usage.get("input_tokens", 0), usage.get("output_tokens", 0), data.get("model", model))
+
+
+class GeminiProvider(BaseProvider):
+    key = "gemini"
+    label = "Google (Gemini)"
+    default_base_url = "https://generativelanguage.googleapis.com/v1beta"
+
+    def _headers(self):
+        return {"x-goog-api-key": self._api_key()}
+
+    def list_models(self):
+        data = self._request("GET", f"{self.base_url}/models", headers=self._headers(), timeout=20)
+        return sorted(m.get("name", "").removeprefix("models/") for m in data.get("models", [])
+                      if "generateContent" in (m.get("supportedGenerationMethods") or []))
+
+    def complete(self, system, prompt, model, max_tokens=2000):
+        body = {"systemInstruction": {"parts": [{"text": system}]},
+                "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+                "generationConfig": {"maxOutputTokens": max_tokens}}
+        data = self._request("POST", f"{self.base_url}/models/{model}:generateContent", headers=self._headers(),
+                             json=body)
+        try:
+            parts = data["candidates"][0]["content"]["parts"]
+        except (KeyError, IndexError):
+            raise ProviderError("Réponse Gemini sans contenu (filtrage ou erreur).") from None
+        usage = data.get("usageMetadata") or {}
+        return Completion("".join(p.get("text", "") for p in parts), usage.get("promptTokenCount", 0),
+                          usage.get("candidatesTokenCount", 0), model)
+
+
+PROVIDER_CLASSES = {cls.key: cls for cls in (OpenAIProvider, AnthropicProvider, GeminiProvider,
+                                             OpenAICompatibleProvider)}
+
+
+def get_provider(credential):
+    cls = PROVIDER_CLASSES.get(credential.provider)
+    if cls is None:
+        raise ProviderError("Fournisseur non pris en charge.")
+    return cls(credential)

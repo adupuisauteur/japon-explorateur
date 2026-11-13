@@ -1,0 +1,16 @@
+{% load app_tags %}<div class="source-status {{ stats.status|default:'pending' }}">
+  <span class="dot" aria-hidden="true"></span>
+  <div class="flex-grow-1">
+    <div class="fw-semibold">{{ catalogue.name|default:code }} {{ catalogue|unverified_chip }}</div>
+    <div class="small text-muted">
+      {% if stats.status == 'pending' or not stats.status %}Interrogation en cours…
+      {% elif stats.status == 'error' %}<span class="text-danger">{{ stats.error }}</span>
+      {% else %}{{ stats.count }} résultat(s){% if stats.total and stats.total != stats.count %} sur {{ stats.total }}{% endif %} · {{ stats.ms }} ms{% endif %}
+    </div>
+    {% for w in stats.warnings %}<div class="small text-warning-emphasis">{{ w }}</div>{% endfor %}
+  </div>
+  {% if stats.status == 'error' %}
+  <button class="btn btn-sm btn-outline-secondary" hx-post="{% url 'searching:run_source' session.uid code %}" hx-vals='{"retry": "1"}'
+          hx-target="closest div.col-sm-6" hx-swap="innerHTML" title="Relancer cette source"><i class="bi bi-arrow-clockwise"></i></button>
+  {% endif %}
+</div>

@@ -1,0 +1,26 @@
+{% if errors %}<div class="alert alert-danger">Formulaire incomplet : {{ errors }}</div>{% else %}
+<h2 class="h5">Prévisualisation</h2>
+<p class="small text-muted">Aperçu indicatif de la couverture, du sommaire, d'une page de contenu et du pied de page. Vous pouvez modifier les paramètres sans perdre la sélection.
+  {% if fmt == 'csv' %}Le CSV ne contient aucune ligne de titre : ces métadonnées figureront dans le manifeste associé.{% endif %}</p>
+<div class="row g-3">
+  <div class="col-md-6 col-xl-4"><div class="preview-page">
+    <div class="text-center" style="margin-top:28%"><div class="fs-4 fw-semibold" style="color:var(--accent)">{{ meta.title }}</div>
+      {% if meta.subtitle %}<div class="text-muted">{{ meta.subtitle }}</div>{% endif %}{% if meta.subject %}<div class="small fst-italic mt-1">{{ meta.subject }}</div>{% endif %}</div>
+    <dl class="small mt-4" style="font-size:.7rem">{% for k, v in lines %}<div><strong>{{ k }}</strong> : {{ v }}</div>{% endfor %}</dl>
+  </div><div class="small text-center text-muted">Couverture</div></div>
+  <div class="col-md-6 col-xl-4"><div class="preview-page">
+    <div class="pv-header">{{ meta.header|default:meta.title }}</div>
+    <div class="fw-semibold mb-2" style="color:var(--accent)">Sommaire</div>
+    <ol class="small">{% if doc.introduction %}<li>Introduction</li>{% endif %}{% for s in doc.sections %}<li>{{ s.title }} ({{ s.records|length }})</li>{% endfor %}<li>Bibliographie</li><li>Méthodologie et provenance</li></ol>
+    <div class="pv-footer"><span>{{ meta.footer }}</span><span>page 2</span></div>
+  </div><div class="small text-center text-muted">Sommaire</div></div>
+  <div class="col-md-6 col-xl-4"><div class="preview-page">
+    <div class="pv-header">{{ meta.header|default:meta.title }}</div>
+    {% if first %}<div class="fw-semibold ja mb-2" style="color:var(--accent)">{{ first.original_title }}</div>
+    <table class="table table-sm" style="font-size:.66rem"><tbody>{% for label, value in rows|slice:":9" %}<tr><th class="text-muted fw-normal" style="width:38%">{{ label }}</th><td class="ja">{{ value|truncatechars:90 }}</td></tr>{% endfor %}</tbody></table>
+    {% else %}<p class="text-muted">Aucune notice dans le périmètre.</p>{% endif %}
+    <div class="pv-footer"><span>{{ meta.footer }} — {{ meta.export_id }}</span><span>page 3</span></div>
+  </div><div class="small text-center text-muted">Page de contenu</div></div>
+</div>
+<p class="small">{{ meta.counts.exported }} référence(s) · {{ meta.sources|length }} source(s){% if meta.contains_ai_content %} · contenus générés par IA {% if meta.ai_content_included %}inclus et signalés{% else %}exclus{% endif %}{% endif %}.</p>
+{% endif %}

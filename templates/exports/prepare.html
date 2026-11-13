@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Préparer un export{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Préparer un export</h1><p>Périmètre : {{ scope_label }}{% if params.record_ids %} ({{ params.record_ids|length }} notice(s)){% endif %}. Choisissez le contenu, la présentation et les métadonnées, puis prévisualisez.</p></div>
+  {% if profiles %}<form method="get" class="d-flex gap-2">{% for k, v in hidden.items %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+    <select name="profile" class="form-select form-select-sm" aria-label="Profil">{% for p in profiles %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}</select>
+    <button class="btn btn-sm btn-outline-secondary text-nowrap">Appliquer le profil</button></form>{% endif %}</div>
+
+<form method="post" id="export-form" action="{% url 'exports:prepare' %}">{% csrf_token %}
+  {% for k, v in hidden.items %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <div class="card-soft mb-3"><h2 class="h6"><span class="step">1</span>Format et modèle</h2>
+        <div class="row g-2">
+          <div class="col-md-6"><label class="form-label" for="{{ form.preset.id_for_label }}">{{ form.preset.label }}</label>{{ form.preset }}</div>
+          <div class="col-md-6"><label class="form-label" for="{{ form.format.id_for_label }}">{{ form.format.label }}</label>{{ form.format }}</div>
+        </div>
+        <div class="form-text">DOCX et PDF : document paginé avec en-têtes et pieds. HTML : site autonome consultable hors ligne (ZIP). ZIP : site + JSON + CSV + TXT + manifeste.</div>
+      </div>
+      <div class="card-soft mb-3"><h2 class="h6"><span class="step">2</span>Métadonnées du document</h2>
+        {% for f in form %}{% if f.name in "title subtitle subject author header_text footer_text" %}
+        <div class="mb-2"><label class="form-label" for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{% for e in f.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</div>
+        {% endif %}{% endfor %}
+        <p class="small text-muted mb-0">La date d'export, les dates de mise à jour par source, le nombre de références et la liste des sources sont calculés automatiquement et ne sont pas modifiables.</p>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card-soft mb-3"><h2 class="h6"><span class="step">3</span>Contenu et présentation</h2>
+        {% for f in form %}{% if f.name in "include_ai include_notes include_images pagination toc only_selected csv_bom csv_neutralize" %}
+          {% if f.name != 'only_selected' or scope == 'session' %}<div class="form-check mb-1">{{ f }} <label class="form-check-label" for="{{ f.id_for_label }}">{{ f.label }}</label></div>{% endif %}
+        {% endif %}{% endfor %}
+        <div class="row g-2 mt-1">
+          <div class="col-md-6"><label class="form-label small" for="{{ form.column_profile.id_for_label }}">{{ form.column_profile.label }}</label>{{ form.column_profile }}</div>
+          <div class="col-md-6"><label class="form-label small" for="{{ form.csv_separator.id_for_label }}">{{ form.csv_separator.label }}</label>{{ form.csv_separator }}</div>
+        </div>
+        <div class="mt-2"><label class="form-label small" for="{{ form.save_profile_as.id_for_label }}">{{ form.save_profile_as.label }}</label>{{ form.save_profile_as }}</div>
+      </div>
+      <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-primary" hx-post="{% url 'exports:preview' %}" hx-include="#export-form" hx-target="#preview"><i class="bi bi-eye"></i> Prévisualiser</button>
+        <button class="btn btn-primary"><i class="bi bi-file-earmark-arrow-down"></i> Générer l'export</button>
+      </div>
+    </div>
+  </div>
+</form>
+<div id="preview" class="mt-4" aria-live="polite"></div>
+{% endblock %}

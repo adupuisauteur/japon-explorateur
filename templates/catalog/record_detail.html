@@ -1,0 +1,244 @@
+{% extends "base.html" %}{% load app_tags %}
+{% block title %}{{ record.original_title|truncatechars:60 }}{% endblock %}
+{% block content %}
+<nav aria-label="Fil d'Ariane" class="small mb-2"><a href="{% url 'library:index' %}">Bibliothèque</a> › <a href="{{ record.catalogue.get_absolute_url }}">{{ record.catalogue.name }}</a></nav>
+
+<div class="d-flex flex-wrap gap-3 justify-content-between align-items-start mb-3">
+  <div class="flex-grow-1" style="min-width:280px">
+    <div class="big-title">{{ record.original_title }}</div>
+    {% if record.reading %}<div class="text-muted fs-5 ja">{{ record.reading }}</div>{% endif %}
+    {% if record.title_romaji %}<div class="text-muted small">{{ record.title_romaji }} <span class="chip" title="Lecture automatique non vérifiée">rōmaji automatique</span></div>{% endif %}
+    {% if record.translated_title %}<div class="mt-1 fst-italic">« {{ record.translated_title }} » {% origin_chip record.translated_title_origin %}</div>{% endif %}
+    <div class="d-flex flex-wrap gap-1 mt-2">
+      <span class="chip chip-source"><i class="bi bi-diagram-3"></i> {{ record.catalogue.name }}</span>
+      {% if record.period %}<span class="chip">{{ record.get_period_display }}</span>{% endif %}
+      {% if record.document_type %}<span class="chip">{{ record.get_document_type_display }}</span>{% endif %}
+      {% if record.material_type %}<span class="chip">{{ record.get_material_type_display }}</span>{% endif %}
+      {% if record.digital_access %}<span class="chip {% if record.digital_access == 'image' or record.digital_access == 'fulltext' %}chip-ok{% endif %}">{{ record.get_digital_access_display }}</span>{% endif %}
+      {% if record.record_status != 'active' %}<span class="chip chip-warn">{{ record.get_record_status_display }}</span>{% endif %}
+      {% if record.catalogue.is_snapshot %}<span class="chip chip-warn" title="Jeu de données historique">instantané {{ record.catalogue.snapshot_date|date:"Y" }}</span>{% endif %}
+    </div>
+  </div>
+  <div class="d-flex flex-column gap-2" style="min-width:240px">
+    {% if user.can_edit %}
+      {% if entry %}
+        <form method="post" action="{% url 'library:entry_update' entry.pk %}" class="d-flex gap-2">{% csrf_token %}
+          <span class="btn btn-sm btn-outline-success disabled flex-grow-1"><i class="bi bi-bookmark-check"></i> Dans ma bibliothèque</span>
+          <button class="btn btn-sm btn-outline-secondary" name="favorite" value="{% if entry.favorite %}0{% else %}1{% endif %}" title="Favori">
+            <i class="bi bi-star{% if entry.favorite %}-fill text-warning{% endif %}"></i></button></form>
+      {% else %}
+        <form method="post" action="{% url 'library:add' %}">{% csrf_token %}<input type="hidden" name="record_ids" value="{{ record.record_id }}">
+          <button class="btn btn-primary btn-sm w-100"><i class="bi bi-bookmark-plus"></i> Ajouter à ma bibliothèque</button></form>
+      {% endif %}
+      {% if my_collections %}
+      <form method="post" action="{% url 'library:add_to_collection' %}" class="input-group input-group-sm">{% csrf_token %}
+        <input type="hidden" name="record_ids" value="{{ record.record_id }}">
+        <select name="collection" class="form-select" aria-label="Dossier">{% for c in my_collections %}<option value="{{ c.pk }}">{{ c.title|truncatechars:40 }}</option>{% endfor %}</select>
+        <button class="btn btn-outline-primary">Ajouter au dossier</button></form>
+      {% endif %}
+    {% endif %}
+    <div class="d-flex gap-2">
+      {% if record.source_url %}<a class="btn btn-sm btn-outline-secondary flex-grow-1" href="{{ record.source_url }}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> Notice officielle</a>{% endif %}
+      <button class="btn btn-sm btn-outline-secondary" data-cache-offline="{{ request.path }}" title="Conserver cette fiche pour une consultation hors ligne"><i class="bi bi-cloud-download"></i> Hors ligne</button>
+    </div>
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'exports:prepare' %}?scope=selection&records={{ record.record_id }}"><i class="bi bi-box-arrow-up"></i> Exporter cette fiche</a>
+    {% if ai_ui_enabled %}
+    <div class="dropdown">
+      <button class="btn btn-sm btn-outline-primary dropdown-toggle w-100" data-bs-toggle="dropdown"><i class="bi bi-stars"></i> Fonctions IA (à la demande)</button>
+      <div class="dropdown-menu dropdown-menu-end p-2" style="min-width:260px">
+        <p class="small text-muted mb-2">Rien n'est envoyé avant votre confirmation sur l'écran suivant.</p>
+        <form method="post" action="{% url 'ai:launch' %}" class="d-grid gap-1">{% csrf_token %}
+          <input type="hidden" name="record_ids" value="{{ record.record_id }}"><input type="hidden" name="next" value="{{ request.path }}">
+          {% if ai_profile.translation_enabled %}<button class="btn btn-sm btn-light text-start" name="function" value="translation">Traduire titre et description</button>{% endif %}
+          {% if ai_profile.summary_enabled %}<button class="btn btn-sm btn-light text-start" name="function" value="summary">Résumé documentaire</button>{% endif %}
+          {% if ai_profile.classification_enabled %}<button class="btn btn-sm btn-light text-start" name="function" value="classification">Proposer une classification</button>{% endif %}
+          {% if ai_profile.extraction_enabled %}<button class="btn btn-sm btn-light text-start" name="function" value="extraction">Extraire les entités</button>{% endif %}
+        </form>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-8">
+    <section class="layer layer-original" aria-labelledby="h-orig">
+      <h2 id="h-orig">Données originales de la source</h2>
+      <dl class="fields">
+        <dt>Titre original</dt><dd class="ja">{{ record.original_title }}</dd>
+        {% if record.reading %}<dt>Lecture</dt><dd class="ja">{{ record.reading }}</dd>{% endif %}
+        {% if record.creator_original %}<dt>Auteur</dt><dd class="ja">{{ record.creator_original }}{% if record.creator_reading %} <span class="text-muted">({{ record.creator_reading }})</span>{% endif %}</dd>{% endif %}
+        <dt>Date de composition (œuvre)</dt><dd>{{ record.composition_date_text|default:"—" }}</dd>
+        <dt>Date de copie / impression (exemplaire)</dt><dd>{{ record.copy_date_text|default:"—" }}</dd>
+        {% if record.document_type_original %}<dt>Type documentaire</dt><dd>{{ record.document_type_original }}</dd>{% endif %}
+        {% if record.material_type_original %}<dt>Support</dt><dd>{{ record.material_type_original }}</dd>{% endif %}
+        {% if record.institution_display %}<dt>Institution détentrice</dt><dd>{{ record.institution_display }}</dd>{% endif %}
+        {% if record.shelfmark %}<dt>Cote</dt><dd>{{ record.shelfmark }}</dd>{% endif %}
+        {% if record.place_original %}<dt>Lieu</dt><dd>{{ record.place_original }}</dd>{% endif %}
+        {% if record.subjects_original %}<dt>Sujets</dt><dd>{{ record.subjects_original }}</dd>{% endif %}
+        {% if record.description_original %}<dt>Description (解題)</dt><dd class="ja" style="white-space:pre-line">{{ record.description_original }}</dd>{% endif %}
+        {% if record.digital_access_url %}<dt>Numérisation</dt><dd><a href="{{ record.digital_access_url }}" target="_blank" rel="noopener">{{ record.digital_access_url }}</a></dd>{% endif %}
+        {% if record.image_url %}<dt>Manifeste IIIF / image</dt><dd><a href="{{ record.image_url }}" target="_blank" rel="noopener">{{ record.image_url }}</a></dd>{% endif %}
+        {% if record.rights_and_access %}<dt>Droits et conditions</dt><dd>{{ record.rights_and_access }}</dd>{% endif %}
+      </dl>
+      <h3 class="h6 mt-3 text-muted">Provenance</h3>
+      <dl class="fields small">
+        <dt>Catalogue</dt><dd><a href="{{ record.catalogue.get_absolute_url }}">{{ record.catalogue.name }}</a> {{ record.catalogue.name_original }}</dd>
+        <dt>Identifiant source</dt><dd><code>{{ record.source_id }}</code></dd>
+        <dt>URL officielle</dt><dd>{% if record.source_url %}<a href="{{ record.source_url }}" target="_blank" rel="noopener">{{ record.source_url }}</a>{% else %}<span class="text-muted">non fournie par la source</span>{% endif %}</dd>
+        <dt>Collecte</dt><dd>{{ record.collected_at|date:"d/m/Y H:i" }}</dd>
+        {% if record.source_updated_at %}<dt>Mise à jour à la source</dt><dd>{{ record.source_updated_at }}</dd>{% endif %}
+        {% if record.dataset_label %}<dt>Jeu de données</dt><dd>{{ record.dataset_label }}</dd>{% endif %}
+        <dt>Identifiant interne</dt><dd><code>{{ record.record_id }}</code> · version {{ record.version }}</dd>
+      </dl>
+      {% if record.raw_data %}
+      <details class="mt-2"><summary class="small">Réponse brute de la source ({{ record.raw_format }})</summary><pre class="json">{{ record.raw_data|pretty_json }}</pre></details>
+      {% endif %}
+    </section>
+
+    <section class="layer layer-normalized" aria-labelledby="h-norm">
+      <h2 id="h-norm">Données normalisées</h2>
+      <dl class="fields">
+        <dt>Période</dt><dd>{{ record.get_period_display|default:"—" }}</dd>
+        <dt>Composition</dt><dd>{% if record.composition_year_start %}{{ record.composition_year_start }}{% if record.composition_year_end and record.composition_year_end != record.composition_year_start %}–{{ record.composition_year_end }}{% endif %} · {{ record.get_composition_date_precision_display }} {% origin_chip record.composition_date_origin %}{% else %}—{% endif %}</dd>
+        <dt>Copie / impression</dt><dd>{% if record.copy_year_start %}{{ record.copy_year_start }}{% if record.copy_year_end and record.copy_year_end != record.copy_year_start %}–{{ record.copy_year_end }}{% endif %} · {{ record.get_copy_date_precision_display }} {% origin_chip record.copy_date_origin %}{% else %}—{% endif %}</dd>
+        <dt>Type documentaire</dt><dd>{{ record.get_document_type_display|default:"—" }}</dd>
+        <dt>Support</dt><dd>{{ record.get_material_type_display|default:"—" }}</dd>
+        <dt>Langue</dt><dd>{{ record.get_language_display|default:"—" }}</dd>
+      </dl>
+      {% if record.normalization_log %}
+      <details class="mt-2 small"><summary>Règles appliquées</summary><ul class="mb-0">{% for l in record.normalization_log %}<li><code>{{ l.field }}</code> : {{ l.rule }} → {{ l.value }}</li>{% endfor %}</ul></details>
+      {% endif %}
+      {% if record.work %}<p class="mt-2 small">Œuvre : <a href="{{ record.work.get_absolute_url }}">{{ record.work }}</a></p>
+      {% elif user.is_admin_role %}
+      <form method="post" action="{% url 'catalog:attach_work' record.record_id %}" class="mt-2 d-flex gap-2 small align-items-center">{% csrf_token %}
+        <span class="text-muted">Œuvre intellectuelle :</span>
+        <input name="work_uid" class="form-control form-control-sm" style="max-width:180px" placeholder="WRK-… (vide = créer)">
+        <button class="btn btn-sm btn-outline-secondary">Rattacher</button></form>
+      {% endif %}
+    </section>
+
+    <section class="layer layer-editorial" id="editoriale" aria-labelledby="h-edit">
+      <h2 id="h-edit">Couche éditoriale</h2>
+      {% if user.can_edit %}
+      <form method="post" action="{% url 'catalog:translation_edit' record.record_id %}" class="mb-3">{% csrf_token %}
+        <div class="mb-2"><label class="form-label small" for="tt">Titre traduit {% origin_chip record.translated_title_origin %}</label>
+          <input id="tt" name="translated_title" class="form-control" value="{{ record.translated_title }}"></div>
+        <div class="mb-2"><label class="form-label small" for="td">Traduction de la description {% origin_chip record.description_translation_origin %}</label>
+          <textarea id="td" name="description_translation" rows="3" class="form-control">{{ record.description_translation }}</textarea></div>
+        {% if not user.is_admin_role %}<input name="justification" class="form-control form-control-sm mb-2" placeholder="Justification (facultatif)">{% endif %}
+        <button class="btn btn-sm btn-outline-primary">{% if user.is_admin_role %}Enregistrer la traduction{% else %}Proposer cette traduction{% endif %}</button>
+        <span class="small text-muted ms-2">Le texte source n'est jamais modifié.{% if not user.is_admin_role %} Votre proposition sera validée par un administrateur.{% endif %}</span>
+      </form>
+      {% endif %}
+      {% for ed in editorial %}
+      <div class="editorial-box {% if ed.origin == 'ai' %}ai{% endif %}">
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
+          <strong>{{ ed.get_kind_display }}</strong> {% origin_chip ed.origin %}
+          <span class="chip">{{ ed.get_status_display }}</span>
+          {% if ed.ai_task %}<span class="small text-muted">{{ ed.ai_task.get_provider_display }} · {{ ed.ai_task.model }} · {{ ed.created_at|date:"d/m/Y" }}</span>{% endif %}
+          {% if ed.target_field %}<span class="small text-muted">champ : {{ ed.target_field }}</span>{% endif %}
+        </div>
+        <div style="white-space:pre-line">{{ ed.content }}</div>
+        {% if ed.kind == 'classification' %}<pre class="json mt-2 mb-0">{{ ed.data|pretty_json }}</pre>{% endif %}
+        {% if ed.kind == 'extraction' %}<ul class="small mt-1 mb-0">{% for e in ed.data.entities %}<li>{{ e.type }} : {{ e.value }} <span class="text-muted">({{ e.field }})</span></li>{% endfor %}</ul>{% endif %}
+        {% if ed.data.uncertainty %}<div class="small text-muted mt-1">Incertitudes : {{ ed.data.uncertainty }}</div>{% endif %}
+        {% if ed.data.limits %}<div class="small text-muted mt-1">Limites : {{ ed.data.limits }}</div>{% endif %}
+        {% if user.is_admin_role or ed.author == user %}
+        <form method="post" action="{% url 'catalog:editorial_decide' ed.pk %}" class="d-flex gap-1 mt-2">{% csrf_token %}
+          {% if user.is_admin_role %}
+          {% if ed.status != 'validated' %}<button class="btn btn-sm btn-outline-success" name="action" value="validate">Valider</button>{% endif %}
+          {% if ed.status != 'rejected' %}<button class="btn btn-sm btn-outline-secondary" name="action" value="reject">Rejeter</button>{% endif %}
+          {% if ed.kind == 'translation' %}<button class="btn btn-sm btn-outline-primary" name="action" value="adopt" title="Recopier dans le titre/description traduits, avec l'origine IA">Adopter</button>{% endif %}
+          {% endif %}
+          <button class="btn btn-sm btn-link text-danger" name="action" value="delete" data-confirm="Supprimer ce contenu ?">Supprimer</button>
+        </form>
+        {% endif %}
+      </div>
+      {% empty %}<p class="text-muted small">Aucun résumé, traduction générée ou analyse pour l'instant.</p>{% endfor %}
+    </section>
+
+    <section class="mb-4" id="notes"><h2>Notes et annotations</h2>
+      {% for a in annotations %}
+      <div class="editorial-box"><div class="small text-muted mb-1">{{ a.author }} · {{ a.get_visibility_display }} · {{ a.updated_at|date:"d/m/Y H:i" }}{% if a.locator %} · {{ a.get_locator_type_display }} {{ a.locator }}{% endif %}</div>
+        <div style="white-space:pre-line">{{ a.body }}</div>
+        {% if a.author == user or user.is_admin_role %}<form method="post" action="{% url 'library:annotation_delete' a.pk %}" class="mt-1">{% csrf_token %}<button class="btn btn-sm btn-link text-danger p-0" data-confirm="Supprimer cette note ?">Supprimer</button></form>{% endif %}
+      </div>
+      {% empty %}<p class="text-muted small">Aucune note.</p>{% endfor %}
+      {% if user.can_edit %}
+      <form method="post" action="{% url 'library:annotation_add' %}" class="card-soft mt-2">{% csrf_token %}
+        <input type="hidden" name="record" value="{{ record.pk }}"><input type="hidden" name="next" value="{{ request.path }}#notes">
+        <div class="row g-2">
+          <div class="col-md-4"><select name="visibility" class="form-select form-select-sm" aria-label="Visibilité"><option value="private">Note privée</option><option value="shared">Note partagée</option><option value="editorial">Commentaire éditorial</option></select></div>
+          <div class="col-md-3"><select name="locator_type" class="form-select form-select-sm" aria-label="Repère"><option value="">Repère —</option><option value="page">Page</option><option value="folio">Folio</option><option value="image">Image</option><option value="passage">Passage</option></select></div>
+          <div class="col-md-5"><input name="locator" class="form-control form-control-sm" placeholder="ex. f. 12 r°, image 34"></div>
+          <div class="col-12"><textarea name="body" class="form-control" rows="2" required placeholder="Votre note…"></textarea></div>
+        </div>
+        <button class="btn btn-sm btn-primary mt-2">Ajouter la note</button>
+      </form>
+      {% endif %}
+    </section>
+  </div>
+
+  <div class="col-lg-4">
+    {% if entry %}
+    <div class="card-soft mb-3"><h2 class="h6">Dans ma bibliothèque</h2>
+      <form method="post" action="{% url 'library:entry_update' entry.pk %}">{% csrf_token %}
+        <label class="form-label small" for="verif">État de vérification</label>
+        <select id="verif" name="verification" class="form-select form-select-sm mb-2" data-autosubmit>
+          {% for v, l in entry.VERIFICATION %}<option value="{{ v }}" {% if entry.verification == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+        <label class="form-label small" for="tags">Tags (séparés par des virgules)</label>
+        <input id="tags" name="tags" class="form-control form-control-sm" value="{% for t in entry.tags.all %}{{ t.name }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+        <button class="btn btn-sm btn-outline-primary mt-2">Enregistrer</button>
+      </form>
+      <form method="post" action="{% url 'library:remove' %}" class="mt-2">{% csrf_token %}<input type="hidden" name="record_ids" value="{{ record.record_id }}">
+        <button class="btn btn-sm btn-link text-danger p-0" data-confirm="Retirer de votre bibliothèque ? La notice reste dans la base.">Retirer de ma bibliothèque</button></form>
+    </div>
+    {% endif %}
+
+    {% if collections_in %}<div class="card-soft mb-3"><h2 class="h6">Dossiers</h2><ul class="mb-0 small">
+      {% for ci in collections_in %}<li><a href="{{ ci.collection.get_absolute_url }}">{{ ci.collection.title }}</a></li>{% endfor %}</ul></div>{% endif %}
+
+    <div class="card-soft mb-3" id="doublons"><h2 class="h6">Doublons et notices liées</h2>
+      {% for l in links %}{% if l.record_a == record %}{% with other=l.record_b %}{% include "catalog/_link.html" %}{% endwith %}{% else %}{% with other=l.record_a %}{% include "catalog/_link.html" %}{% endwith %}{% endif %}
+      {% empty %}<p class="small text-muted">Aucun rapprochement proposé.</p>{% endfor %}
+      {% if user.can_edit %}
+      <form method="post" action="{% url 'catalog:compute_duplicates' record.record_id %}">{% csrf_token %}
+        <button class="btn btn-sm btn-outline-secondary w-100">Chercher des doublons (règles)</button></form>
+      {% if ai_ui_enabled and ai_profile.duplicates_enabled %}
+      <form method="post" action="{% url 'ai:launch' %}" class="mt-1">{% csrf_token %}<input type="hidden" name="function" value="duplicates">
+        <input type="hidden" name="record_ids" value="{{ record.record_id }}"><input type="hidden" name="with_candidates" value="1"><input type="hidden" name="next" value="{{ request.path }}">
+        <button class="btn btn-sm btn-outline-primary w-100"><i class="bi bi-stars"></i> Détection assistée par IA…</button></form>
+      {% endif %}{% endif %}
+      <p class="small text-muted mt-2 mb-0">Aucune fusion automatique : chaque rapprochement est soumis à validation.</p>
+    </div>
+
+    <div class="card-soft mb-3"><h2 class="h6">Historique des versions</h2>
+      <ul class="list-unstyled small mb-0">{% for v in versions %}
+        <li class="mb-1"><a href="{% url 'catalog:version_detail' record.record_id v.version %}">v{{ v.version }}</a> — {{ v.get_change_type_display }}
+          <span class="text-muted">({{ v.origin }}, {{ v.created_at|date:"d/m/Y H:i" }})</span>{% if v.changed_fields %}<br><span class="text-muted">{{ v.changed_fields|join:", " }}</span>{% endif %}</li>
+      {% endfor %}</ul></div>
+
+    {% if user.can_edit %}
+    <div class="card-soft mb-3"><h2 class="h6">Proposer une correction</h2>
+      <p class="small text-muted">Porte sur la couche normalisée ou éditoriale ; la donnée source n'est jamais modifiée.</p>
+      <form method="post" action="{% url 'library:correction_add' record.record_id %}">{% csrf_token %}
+        <select name="field" class="form-select form-select-sm mb-2" aria-label="Champ">{% for v, l in correction_fields %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
+        <input name="proposed_value" class="form-control form-control-sm mb-2" placeholder="Valeur proposée" required>
+        <textarea name="justification" class="form-control form-control-sm mb-2" rows="2" placeholder="Justification (source, raisonnement)" required></textarea>
+        <button class="btn btn-sm btn-outline-primary">Proposer</button></form>
+      {% for c in corrections %}<div class="small mt-2"><strong>{{ c.get_field_display }}</strong> → {{ c.proposed_value }} <span class="chip">{{ c.get_status_display }}</span></div>{% endfor %}
+    </div>
+    {% endif %}
+
+    {% if user.is_admin_role %}
+    <div class="card-soft"><h2 class="h6">Statut de la notice (administration)</h2>
+      <form method="post" action="{% url 'catalog:record_status' record.record_id %}" class="d-flex gap-2">{% csrf_token %}
+        <select name="status" class="form-select form-select-sm" aria-label="Statut">
+          <option value="active">Active</option><option value="to_check">À vérifier</option><option value="unavailable">Indisponible</option>
+          <option value="withdrawn">Retirée</option><option value="deleted">Mettre à la corbeille</option></select>
+        <button class="btn btn-sm btn-outline-secondary" data-confirm="Modifier le statut ? L'opération est historisée et réversible.">Appliquer</button></form></div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

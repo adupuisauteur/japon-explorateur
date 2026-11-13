@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% load app_tags %}
+{% block title %}Comptes{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Comptes et rôles</h1><p>L'ouverture à d'autres utilisateurs suppose un hébergement sécurisé (HTTPS).</p></div>
+  <a class="btn btn-primary" href="{% url 'accounts:user_create' %}"><i class="bi bi-person-plus"></i> Nouveau compte</a></div>
+<div class="table-responsive"><table class="table align-middle">
+<thead><tr><th>Identifiant</th><th>Nom</th><th>Rôle</th><th>Actif</th><th>Dernière connexion</th><th></th></tr></thead>
+<tbody>{% for u in users %}<tr><td>{{ u.username }}</td><td>{{ u.display_name }}</td><td>{{ u.get_role_display }}</td>
+<td>{{ u.is_active|yesno_icon }}</td><td class="small">{{ u.last_login|date:"d/m/Y H:i"|default:"—" }}</td>
+<td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="{% url 'accounts:user_edit' u.pk %}">Modifier</a></td></tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}{% load app_tags %}
+{% block title %}{{ catalogue.name }}{% endblock %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'connectors:list' %}">Sources</a></nav>
+<div class="page-head"><div><h1>{{ catalogue.name }} {{ catalogue|status_badge }}</h1>
+  {% if catalogue.name_original %}<p class="ja">{{ catalogue.name_original }}</p>{% endif %}</div>
+  {% if user.is_admin_role %}<div class="d-flex flex-wrap gap-2">
+    {% if catalogue.connector %}
+    <form method="post" action="{% url 'connectors:test' catalogue.code %}">{% csrf_token %}<button class="btn btn-outline-primary"><i class="bi bi-plug"></i> Tester le connecteur</button></form>
+    <form method="post" action="{% url 'updates:sync_launch' catalogue.code %}">{% csrf_token %}<input type="hidden" name="kind" value="incremental">
+      <button class="btn btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Actualiser</button></form>
+    {% endif %}
+    <a class="btn btn-primary" href="{% url 'updates:import_new' %}?catalogue={{ catalogue.code }}"><i class="bi bi-upload"></i> Importer un fichier</a>
+  </div>{% endif %}</div>
+
+{% if request.session.detected_db and request.session.detected_db.code == catalogue.code %}
+<div class="alert alert-info d-flex flex-wrap align-items-center gap-2">Base Japan Search détectée pour Kokusho : <code>{{ request.session.detected_db.value }}</code>
+  <form method="post" action="{% url 'connectors:apply_detection' catalogue.code %}" class="ms-auto">{% csrf_token %}<button class="btn btn-sm btn-primary">Enregistrer ce paramètre</button></form></div>
+{% endif %}
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card-soft mb-3">
+      <dl class="fields">
+        <dt>Rôle</dt><dd>{{ catalogue.role|default:"—" }}</dd>
+        <dt>Méthode d'accès</dt><dd>{{ catalogue.access_method|default:"—" }}</dd>
+        <dt>Notices locales</dt><dd>{{ n_records }}</dd>
+        <dt>Interrogé en recherche</dt><dd>{{ catalogue.enabled_for_search|yesno_icon }}</dd>
+        <dt>Fréquence</dt><dd>{{ catalogue.get_frequency_display }}{% if catalogue.sync_paused %} (suspendue){% endif %}</dd>
+        <dt>Dernière tentative</dt><dd>{{ catalogue.last_attempt_at|date:"d/m/Y H:i"|default:"—" }}</dd>
+        <dt>Dernière réussite</dt><dd>{{ catalogue.last_success_at|date:"d/m/Y H:i"|default:"—" }}</dd>
+        {% if catalogue.connector and catalogue.connector != 'local' %}<dt>Dernier test réel réussi</dt><dd>{% if catalogue.real_test_ok_at %}{{ catalogue.real_test_ok_at|date:"d/m/Y H:i" }}{% else %}<strong class="text-warning-emphasis">Jamais : fonctionnement non vérifié sur le service réel</strong>{% endif %}</dd>{% endif %}
+        {% if catalogue.last_error %}<dt>Dernière erreur</dt><dd class="text-danger">{{ catalogue.last_error }}</dd>{% endif %}
+        {% if catalogue.base_url %}<dt>Catalogue</dt><dd><a href="{{ catalogue.base_url }}" target="_blank" rel="noopener">{{ catalogue.base_url }}</a></dd>{% endif %}
+        {% if catalogue.terms_url %}<dt>Conditions / documentation</dt><dd><a href="{{ catalogue.terms_url }}" target="_blank" rel="noopener">{{ catalogue.terms_url }}</a></dd>{% endif %}
+        {% if catalogue.license_notes %}<dt>Droits et restrictions</dt><dd>{{ catalogue.license_notes }}</dd>{% endif %}
+        {% if catalogue.unsupported_fields %}<dt>Champs non pris en charge</dt><dd>{{ catalogue.unsupported_fields }}</dd>{% endif %}
+        {% if catalogue.is_snapshot %}<dt>Jeu historique</dt><dd>Instantané {{ catalogue.snapshot_date|date:"Y" }} — ni actuel ni exhaustif.</dd>{% endif %}
+        {% if catalogue.notes %}<dt>Notes</dt><dd>{{ catalogue.notes }}</dd>{% endif %}
+      </dl>
+    </div>
+    {% if connector_cls %}
+    <div class="card-soft mb-3"><h2 class="h6">Capacités du connecteur « {{ connector_cls.label }} »</h2>
+      <p class="small text-muted">{{ connector_cls.description }}</p>
+      <ul class="list-unstyled small mb-2">{% for label, ok in connector_cls.capabilities %}<li>{{ ok|yesno_icon }} {{ label }}</li>{% endfor %}</ul>
+      {% if connector_cls.unsupported_fields %}<p class="small mb-1">Champs non fournis : {{ connector_cls.unsupported_fields|join:", " }}</p>{% endif %}
+      {% if connector_cls.config_help %}<p class="small mb-1">Paramètres :</p><ul class="small">{% for k, v in connector_cls.config_help.items %}<li><code>{{ k }}</code> — {{ v }}</li>{% endfor %}</ul>{% endif %}
+    </div>
+    {% endif %}
+    <h2 class="h5">Exécutions récentes</h2>
+    <table class="table table-sm"><tbody>
+      {% for j in jobs %}<tr><td><a href="{{ j.get_absolute_url }}">{{ j.get_kind_display }}</a></td><td class="small">{{ j.started_at|date:"d/m/Y H:i" }}</td><td>{{ j.get_status_display }}</td><td class="small text-muted">{{ j.message|truncatechars:80 }}</td></tr>{% endfor %}
+      {% for j in imports %}<tr><td><a href="{{ j.get_absolute_url }}">Import {{ j.file_name }}</a></td><td class="small">{{ j.created_at|date:"d/m/Y H:i" }}</td><td>{{ j.get_status_display }}</td><td class="small text-muted">{{ j.total_rows }} ligne(s)</td></tr>{% endfor %}
+      {% if not jobs and not imports %}<tr><td class="text-muted">Aucune exécution.</td></tr>{% endif %}
+    </tbody></table>
+  </div>
+  {% if form %}
+  <div class="col-lg-5"><div class="card-soft"><h2 class="h5">Configuration</h2>
+    <form method="post">{% csrf_token %}{% include "partials/form.html" %}<button class="btn btn-primary">Enregistrer</button></form></div></div>
+  {% endif %}
+</div>
+{% endblock %}

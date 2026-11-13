@@ -1,0 +1,11 @@
+{% if suggestions %}
+<div class="small fw-semibold mb-1">Variantes suggérées <span class="text-muted fw-normal">— cochez celles à inclure ; elles ne sont pas considérées comme équivalentes automatiquement.</span></div>
+<div class="d-flex flex-wrap gap-2">
+{% for s in suggestions %}
+  <label class="chip py-1 px-2" style="cursor:pointer" title="{{ s.kind }} — {{ s.origin }} — {{ s.verification }}">
+    <input class="form-check-input me-1 mt-0" type="checkbox" name="variants" value="{{ s.value }}">
+    <span class="ja">{{ s.value }}</span> <span class="text-muted">· {{ s.kind }} · {{ s.verification }}</span>
+  </label>
+{% endfor %}
+</div>
+{% endif %}

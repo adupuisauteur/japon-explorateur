@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Corrections{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Propositions de correction</h1><p>Les corrections portent sur la couche normalisée ou éditoriale ; la donnée source n'est jamais modifiée.</p></div>
+  <div class="btn-group">
+    <a class="btn btn-sm {% if status == 'proposed' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="?status=proposed">En attente</a>
+    <a class="btn btn-sm {% if status == 'accepted' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="?status=accepted">Acceptées</a>
+    <a class="btn btn-sm {% if status == 'rejected' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="?status=rejected">Rejetées</a></div></div>
+{% for c in items %}
+<div class="card-soft mb-2">
+  <div class="d-flex flex-wrap justify-content-between gap-2"><a class="ja fw-semibold" href="{{ c.record.get_absolute_url }}">{{ c.record.original_title }}</a>
+    <span class="small text-muted">{{ c.author }} · {{ c.created_at|date:"d/m/Y H:i" }}</span></div>
+  <div class="mt-1"><strong>{{ c.get_field_display }}</strong> : <span class="text-muted text-decoration-line-through">{{ c.current_value|default:"(vide)" }}</span> → <strong>{{ c.proposed_value }}</strong></div>
+  <div class="small mt-1">Justification : {{ c.justification }}</div>
+  {% if c.status == 'proposed' %}
+  <form method="post" action="{% url 'library:correction_decide' c.pk %}" class="d-flex flex-wrap gap-2 mt-2">{% csrf_token %}
+    <input name="note" class="form-control form-control-sm" style="max-width:320px" placeholder="Commentaire (facultatif)">
+    <button class="btn btn-sm btn-success" name="decision" value="accept">Accepter</button>
+    <button class="btn btn-sm btn-outline-secondary" name="decision" value="reject">Rejeter</button></form>
+  {% else %}<div class="small text-muted mt-1">{{ c.get_status_display }} par {{ c.reviewed_by }} le {{ c.reviewed_at|date:"d/m/Y" }} {% if c.review_note %}— {{ c.review_note }}{% endif %}</div>{% endif %}
+</div>
+{% empty %}<div class="empty">Aucune proposition.</div>{% endfor %}
+{% endblock %}

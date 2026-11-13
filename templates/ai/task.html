@@ -1,0 +1,62 @@
+{% extends "base.html" %}{% load app_tags %}
+{% block title %}{{ task.get_function_display }}{% endblock %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'ai:tasks' %}">Traitements IA</a></nav>
+<h1>{{ task.get_function_display }}</h1>
+{% if task.status == 'draft' %}
+<div class="card-soft mb-3" style="max-width:900px">
+  <h2 class="h5">Avant tout envoi externe</h2>
+  <dl class="fields">
+    <dt>Fonction demandée</dt><dd>{{ task.get_function_display }}</dd>
+    <dt>Périmètre</dt><dd>{{ task.scope_label }}</dd>
+    <dt>Fournisseur</dt><dd><strong>{{ task.get_provider_display }}</strong></dd>
+    <dt>Modèle</dt><dd><strong>{{ task.model }}</strong></dd>
+    <dt>Catégories de données transmises</dt><dd>{{ task.data_categories|join:", " }}</dd>
+    <dt>Conservation</dt><dd>{% if profile.store_inputs %}Le contenu envoyé sera conservé dans l'historique de cette tâche.{% else %}Le contenu envoyé ne sera pas conservé.{% endif %}</dd>
+    <dt>Consommation du mois</dt><dd>{{ spend|floatformat:4 }} USD (estimation){% if profile.monthly_budget %} / plafond {{ profile.monthly_budget }} USD{% endif %}</dd>
+  </dl>
+  {% if records %}<details class="mt-2"><summary class="small">Notices concernées ({{ records|length }})</summary><ul class="small mt-1">{% for r in records %}<li class="ja">{{ r.original_title }} <span class="text-muted">— {{ r.catalogue.name }}</span></li>{% endfor %}</ul></details>{% endif %}
+  {% if show_payload %}<details class="mt-2" open><summary class="small fw-semibold">Données exactes qui seront envoyées (mode « Confirmation systématique »)</summary>
+    <pre class="json">{{ task.instruction }}
+
+{{ task.input_payload|pretty_json }}</pre></details>{% endif %}
+  <form method="post" class="mt-3 d-flex flex-wrap gap-2 align-items-center">{% csrf_token %}
+    {% if profile.batch_extra_confirmation and records|length > 1 %}<div class="form-check w-100"><input class="form-check-input" type="checkbox" name="confirm_batch" id="cb" value="1">
+      <label class="form-check-label" for="cb">Je confirme le traitement par lot de {{ records|length }} notices.</label></div>{% endif %}
+    <button class="btn btn-primary" name="action" value="confirm"><i class="bi bi-send"></i> Confirmer et envoyer</button>
+    <button class="btn btn-outline-secondary" name="action" value="cancel">Annuler</button>
+  </form>
+</div>
+{% else %}
+<p class="text-muted">{{ task.get_status_display }} · {{ task.get_provider_display }} · {{ task.model }} · préparée le {{ task.created_at|date:"d/m/Y H:i" }}{% if task.confirmed_at %} · confirmée le {{ task.confirmed_at|date:"d/m/Y H:i" }}{% endif %}</p>
+{% if task.status == 'confirmed' or task.status == 'running' %}<div class="alert alert-info" hx-get="{{ request.path }}" hx-trigger="every 2s" hx-select="main" hx-target="main" hx-swap="outerHTML">Traitement en cours…</div>{% endif %}
+{% if task.error %}<div class="alert alert-danger">{{ task.error }}</div>{% endif %}
+{% if task.status == 'done' %}
+<div class="alert alert-success">Résultats enregistrés comme <strong>productions IA non validées</strong>, séparées des données de catalogue.
+  Jetons : {{ task.tokens_in }} en entrée, {{ task.tokens_out }} en sortie{% if task.cost_estimate is not None %} · coût estimé {{ task.cost_estimate|floatformat:5 }} USD (estimation){% else %} · coût non estimé (aucun tarif saisi){% endif %}.</div>
+{% if task.function == 'query_extension' %}
+  <div class="card-soft mb-3"><h2 class="h6">Variantes proposées</h2><ul>{% for v in task.output.variants %}<li><span class="ja">{{ v.value }}</span> <span class="small text-muted">— {{ v.kind }} · {{ v.status }} · {{ v.rationale }}</span></li>{% endfor %}</ul>
+    <a class="btn btn-primary btn-sm" href="{% url 'searching:form' %}?q={{ task.parameters.query|urlencode }}">Revenir à la recherche pour choisir les variantes</a></div>
+{% elif task.function == 'rag' %}
+  <div class="card-soft mb-3"><h2 class="h6">Réponse (fondée sur le fonds local)</h2><p style="white-space:pre-line">{{ task.output.answer }}</p>
+    <p class="small">Notices citées : {% for rid in task.output.sources %}<a href="{% url 'catalog:record_detail' rid %}"><code>{{ rid }}</code></a> {% endfor %}</p>
+    {% if task.output.limits %}<p class="small text-muted">Limites : {{ task.output.limits }}</p>{% endif %}</div>
+{% elif task.function == 'comparison' %}
+  <div class="card-soft mb-3"><h2 class="h6">Comparaison</h2><p style="white-space:pre-line">{{ task.output.comparison }}</p>
+    <ul class="small">{% for p in task.output.points %}<li>{{ p.record_ids|join:", " }} — {{ p.field }} : {{ p.observation }}</li>{% endfor %}</ul></div>
+{% elif task.function == 'duplicates' %}
+  <div class="card-soft mb-3"><h2 class="h6">Rapprochements proposés</h2><p class="small text-muted">À valider sur chaque fiche ; aucune fusion n'est effectuée.</p>
+    <ul class="small">{% for p in task.output.pairs %}<li><a href="{% url 'catalog:record_detail' p.a %}">{{ p.a }}</a> ↔ <a href="{% url 'catalog:record_detail' p.b %}">{{ p.b }}</a> — {{ p.relation }} ({{ p.score }}) : {{ p.rationale }}</li>{% empty %}<li>Aucun rapprochement proposé.</li>{% endfor %}</ul></div>
+{% else %}
+  <div class="card-soft mb-3"><h2 class="h6">Notices traitées</h2><ul>{% for r in records %}<li><a class="ja" href="{{ r.get_absolute_url }}#editoriale">{{ r.original_title }}</a></li>{% endfor %}</ul>
+    <p class="small text-muted mb-0">Les traductions, résumés et propositions figurent dans la couche éditoriale de chaque fiche, où vous pouvez les valider, rejeter, corriger ou supprimer.</p></div>
+{% endif %}
+{% endif %}
+<details><summary class="small">Traçabilité : instruction, version et données transmises</summary>
+  <p class="small mt-2">Version d'instruction {{ task.prompt_version }} · catégories : {{ task.data_categories|join:", " }}</p>
+  <pre class="json">{{ task.instruction }}
+
+{{ task.input_payload|pretty_json }}</pre>
+  {% if task.output_text %}<pre class="json">{{ task.output_text }}</pre>{% endif %}</details>
+{% endif %}
+{% endblock %}

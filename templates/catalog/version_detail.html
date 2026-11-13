@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% load app_tags %}
+{% block title %}Version {{ v.version }}{% endblock %}
+{% block content %}
+<nav class="small mb-2"><a href="{{ record.get_absolute_url }}">← {{ record.original_title|truncatechars:60 }}</a></nav>
+<h1>Version {{ v.version }} — {{ v.get_change_type_display }}</h1>
+<p class="text-muted">{{ v.created_at|date:"d/m/Y H:i" }} · origine : {{ v.origin|default:"—" }} · {{ v.created_by|default:"système" }}{% if v.note %} · {{ v.note }}{% endif %}</p>
+{% if v.changed_fields %}
+<h2>Champs modifiés</h2>
+<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Champ</th><th>Valeur précédente</th><th>Valeur de cette version</th></tr></thead><tbody>
+{% for f in v.changed_fields %}<tr><td><code>{{ f }}</code></td><td class="text-muted">{{ v.previous_values|get_item:f|default:"—" }}</td><td>{{ v.snapshot|get_item:f|default:"—" }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% endif %}
+<h2>Instantané complet</h2><pre class="json">{{ v.snapshot|pretty_json }}</pre>
+{% endblock %}

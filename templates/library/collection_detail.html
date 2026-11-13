@@ -1,0 +1,92 @@
+{% extends "base.html" %}{% load app_tags %}
+{% block title %}{{ collection.title }}{% endblock %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'library:collections' %}">Dossiers</a></nav>
+<div class="page-head">
+  <div><h1>{{ collection.title }}</h1>
+    <p>{{ count }} référence(s) · {{ collection.get_visibility_display }} · par {{ collection.owner }} · modifié le {{ collection.updated_at|date:"d/m/Y H:i" }}</p>
+    {% if collection.keywords %}<div class="mt-1">{% for k in collection.keywords.split %}<span class="chip">{{ k }}</span> {% endfor %}</div>{% endif %}</div>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-primary" href="{% url 'exports:prepare' %}?scope=collection&collection={{ collection.pk }}"><i class="bi bi-box-arrow-up"></i> Préparer un export</a>
+    {% if can_edit %}<a class="btn btn-outline-secondary" href="{% url 'library:collection_edit' collection.pk %}"><i class="bi bi-pencil"></i> Modifier</a>
+    <a class="btn btn-outline-secondary" href="{% url 'searching:form' %}"><i class="bi bi-search"></i> Rechercher pour ce dossier</a>{% endif %}
+  </div>
+</div>
+{% if collection.description %}<div class="card-soft mb-3" style="white-space:pre-line">{{ collection.description }}</div>{% endif %}
+
+<div class="row g-4">
+  <div class="col-lg-8">
+    {% for section, items in grouped %}
+      {% if section or items %}
+      <section class="mb-4">
+        {% if section %}<div class="d-flex justify-content-between align-items-baseline"><h2>{{ section.title }}</h2><span class="small text-muted">{{ items|length }} référence(s)</span></div>
+          {% if section.description %}<p class="text-muted">{{ section.description }}</p>{% endif %}
+        {% elif sections %}<h2>Sans sous-section</h2>{% endif %}
+        {% for it in items %}{% with r=it.record %}
+        <article class="result-card" id="item-{{ it.pk }}">
+          <div class="d-flex flex-wrap justify-content-between gap-2">
+            <h3 class="record-title"><a href="{{ r.get_absolute_url }}">{{ r.original_title }}</a></h3><span class="chip chip-source">{{ r.catalogue.name }}</span></div>
+          {% if r.reading %}<div class="reading ja">{{ r.reading }}</div>{% endif %}
+          {% if r.translated_title %}<div class="translation">« {{ r.translated_title }} » {% origin_chip r.translated_title_origin %}</div>{% endif %}
+          <div class="meta">{% if r.creator_original %}{{ r.creator_original }} · {% endif %}{% if r.composition_display %}Composition : {{ r.composition_display }} · {% endif %}{% if r.copy_display %}Exemplaire : {{ r.copy_display }}{% endif %}</div>
+          {% if it.note %}<div class="editorial-box mt-2 mb-0 small" style="white-space:pre-line"><strong>Note de dossier :</strong> {{ it.note }}</div>{% endif %}
+          {% if can_edit %}
+          <details class="mt-2"><summary class="small">Organiser / annoter</summary>
+            <form method="post" action="{% url 'library:item_update' collection.pk it.pk %}" class="row g-2 mt-1">{% csrf_token %}
+              <div class="col-md-5"><select name="section" class="form-select form-select-sm" aria-label="Sous-section"><option value="">— Sans sous-section</option>{% for s in sections %}<option value="{{ s.pk }}" {% if s.pk == it.section_id %}selected{% endif %}>{{ s.title }}</option>{% endfor %}</select></div>
+              <div class="col-md-2"><input name="order" type="number" class="form-control form-control-sm" value="{{ it.order }}" aria-label="Ordre"></div>
+              <div class="col-12"><textarea name="note" rows="2" class="form-control form-control-sm" placeholder="Note de dossier (page, folio, passage…)">{{ it.note }}</textarea></div>
+              <div class="col-12 d-flex gap-2"><button class="btn btn-sm btn-outline-primary">Enregistrer</button>
+                <button class="btn btn-sm btn-link text-danger" name="remove" value="1" data-confirm="Retirer du dossier ? La notice reste dans la bibliothèque.">Retirer du dossier</button></div>
+            </form></details>
+          {% endif %}
+        </article>
+        {% endwith %}{% empty %}{% if section %}<p class="small text-muted">Aucune référence dans cette sous-section.</p>{% endif %}{% endfor %}
+      </section>
+      {% endif %}
+    {% endfor %}
+    {% if not count %}<div class="empty">Ce dossier est vide. Ajoutez des notices depuis une session de recherche, la bibliothèque ou une fiche.</div>{% endif %}
+  </div>
+
+  <div class="col-lg-4">
+    {% if can_edit %}
+    <div class="card-soft mb-3"><h2 class="h6">Sous-sections</h2>
+      {% for s in sections %}
+      <form method="post" action="{% url 'library:section_save' collection.pk %}" class="d-flex gap-1 mb-1">{% csrf_token %}<input type="hidden" name="section_id" value="{{ s.pk }}">
+        <input name="order" type="number" class="form-control form-control-sm" style="width:60px" value="{{ s.order }}" aria-label="Ordre">
+        <input name="title" class="form-control form-control-sm" value="{{ s.title }}" aria-label="Titre">
+        <button class="btn btn-sm btn-outline-secondary" title="Enregistrer"><i class="bi bi-check2"></i></button>
+        <button class="btn btn-sm btn-outline-danger" name="delete" value="1" title="Supprimer" data-confirm="Supprimer cette sous-section ?"><i class="bi bi-x"></i></button></form>
+      {% endfor %}
+      <form method="post" action="{% url 'library:section_save' collection.pk %}" class="mt-2">{% csrf_token %}
+        <input name="title" class="form-control form-control-sm mb-1" placeholder="Nouvelle sous-section (ex. Sources primaires)" required>
+        <textarea name="description" class="form-control form-control-sm mb-1" rows="2" placeholder="Description (facultatif)"></textarea>
+        <button class="btn btn-sm btn-outline-primary">Ajouter</button></form>
+    </div>
+    {% endif %}
+
+    <div class="card-soft mb-3"><h2 class="h6">Notes sur le dossier</h2>
+      {% for a in annotations %}<div class="editorial-box small"><div class="text-muted">{{ a.author }} · {{ a.get_visibility_display }} · {{ a.updated_at|date:"d/m/Y" }}</div><div style="white-space:pre-line">{{ a.body }}</div></div>{% endfor %}
+      {% if user.can_edit %}<form method="post" action="{% url 'library:annotation_add' %}">{% csrf_token %}
+        <input type="hidden" name="collection" value="{{ collection.pk }}"><input type="hidden" name="next" value="{{ request.path }}">
+        <select name="visibility" class="form-select form-select-sm mb-1" aria-label="Visibilité"><option value="private">Note privée</option><option value="shared">Note partagée</option><option value="editorial">Commentaire éditorial</option></select>
+        <textarea name="body" rows="2" class="form-control form-control-sm mb-1" required></textarea><button class="btn btn-sm btn-outline-primary">Ajouter</button></form>{% endif %}
+    </div>
+
+    {% if collection.owner == user or user.is_admin_role %}
+    <div class="card-soft mb-3" id="partage"><h2 class="h6">Partage</h2>
+      <p class="small text-muted">Visibilité : {{ collection.get_visibility_display }}. La publication publique n'est pas prévue en V1.</p>
+      {% for s in shares %}<form method="post" action="{% url 'library:share' collection.pk %}" class="d-flex justify-content-between align-items-center small mb-1">{% csrf_token %}
+        <span>{{ s.user }} — {% if s.can_edit %}modification{% else %}lecture{% endif %}</span><button class="btn btn-sm btn-link text-danger" name="remove" value="{{ s.pk }}">Retirer</button></form>{% endfor %}
+      {% if users %}<form method="post" action="{% url 'library:share' collection.pk %}" class="mt-2">{% csrf_token %}
+        <select name="user" class="form-select form-select-sm mb-1" aria-label="Utilisateur">{% for u in users %}<option value="{{ u.pk }}">{{ u }} ({{ u.get_role_display }})</option>{% endfor %}</select>
+        <div class="form-check small mb-1"><input class="form-check-input" type="checkbox" name="can_edit" id="ce" value="1"><label class="form-check-label" for="ce">Autoriser la modification</label></div>
+        <button class="btn btn-sm btn-outline-primary">Partager</button></form>{% else %}<p class="small text-muted mb-0">Aucun autre compte sur l'instance.</p>{% endif %}
+    </div>
+    {% endif %}
+
+    {% if collection.methodology %}<div class="card-soft mb-3"><h2 class="h6">Méthodologie</h2><p class="small mb-0" style="white-space:pre-line">{{ collection.methodology }}</p></div>{% endif %}
+    {% if exports %}<div class="card-soft"><h2 class="h6">Exports récents</h2><ul class="small mb-0">{% for e in exports %}<li><a href="{{ e.get_absolute_url }}">{{ e.get_format_display }}</a> — {{ e.created_at|date:"d/m/Y H:i" }}</li>{% endfor %}</ul></div>{% endif %}
+  </div>
+</div>
+{% endblock %}

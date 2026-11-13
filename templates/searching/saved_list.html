@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Recherches enregistrées{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Recherches enregistrées</h1><p>Relancez une recherche pour détecter les nouveautés : rien n'est écrasé, vous choisissez ce qui est intégré.</p></div></div>
+{% for s in saved %}
+<div class="result-card d-flex flex-wrap gap-2 justify-content-between align-items-center">
+  <div><a href="{{ s.get_absolute_url }}" class="fw-semibold">{{ s.name }}</a>
+    <div class="meta">Requête : <span class="ja">{{ s.params.query|default:"(avancée)" }}</span> · {{ s.params.sources|join:", " }} · {% if s.last_run_at %}dernière relance {{ s.last_run_at|date:"d/m/Y H:i" }}{% else %}jamais relancée{% endif %}</div></div>
+  <form method="post" action="{% url 'searching:saved_replay' s.pk %}">{% csrf_token %}<button class="btn btn-sm btn-primary"><i class="bi bi-arrow-repeat"></i> Relancer et comparer</button></form>
+</div>
+{% empty %}<div class="empty">Aucune recherche enregistrée. Depuis une session, cliquez sur « Enregistrer la recherche ».</div>{% endfor %}
+{% endblock %}

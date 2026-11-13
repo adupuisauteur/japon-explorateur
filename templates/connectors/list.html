@@ -1,0 +1,27 @@
+{% extends "base.html" %}{% load app_tags %}
+{% block title %}Sources{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Sources documentaires</h1>
+  <p>Chaque catalogue est intégré par un connecteur indépendant : l'indisponibilité d'une source ne bloque pas les autres.</p></div>
+  <div class="d-flex gap-2"><a class="btn btn-outline-primary" href="{% url 'updates:dashboard' %}"><i class="bi bi-arrow-repeat"></i> Gestionnaire de mises à jour</a>
+  {% if user.is_admin_role %}<a class="btn btn-primary" href="{% url 'updates:import_new' %}"><i class="bi bi-upload"></i> Importer un fichier</a>{% endif %}</div></div>
+<div class="row g-3">
+{% for c in catalogues %}
+  <div class="col-md-6 col-xl-4">
+    <a href="{{ c.get_absolute_url }}" class="card-soft d-block h-100 text-decoration-none text-reset">
+      <div class="d-flex justify-content-between align-items-start gap-2"><h2 class="h6 mb-1">{{ c.name }}</h2>{{ c|status_badge }}</div>
+      {% if c.name_original %}<div class="ja text-muted small">{{ c.name_original }}</div>{% endif %}
+      <p class="small mt-2 mb-2">{{ c.role|truncatechars:140 }}</p>
+      <div class="d-flex flex-wrap gap-1 small">
+        <span class="chip">{{ c.n_records }} notice(s)</span>
+        {% if c.enabled_for_search %}<span class="chip chip-ok">Interrogé</span>{% endif %}
+        {% if c.connector %}<span class="chip">Connecteur</span>{% else %}<span class="chip">Import de fichiers</span>{% endif %}
+        {% if c.frequency != 'manual' %}<span class="chip">{{ c.get_frequency_display }}</span>{% endif %}
+        {% if c.is_snapshot %}<span class="chip chip-warn">Instantané</span>{% endif %}
+      </div>
+      {% if c.last_error %}<div class="small text-danger mt-2"><i class="bi bi-exclamation-triangle"></i> {{ c.last_error|truncatechars:120 }}</div>{% endif %}
+    </a>
+  </div>
+{% endfor %}
+</div>
+{% endblock %}

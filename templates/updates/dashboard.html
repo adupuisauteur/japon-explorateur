@@ -1,0 +1,49 @@
+{% extends "base.html" %}{% load app_tags %}
+{% block title %}Gestionnaire de mises à jour{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Gestionnaire de mises à jour</h1>
+  <p>Sources, imports et actualisations. Rien n'est intégré sans rapport ni validation ; aucune notice n'est supprimée parce qu'elle manque dans un export.</p></div>
+  <div class="d-flex gap-2"><form method="post" action="{% url 'updates:sync_all' %}">{% csrf_token %}<button class="btn btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Lancer toutes les sources activées</button></form>
+  <a class="btn btn-primary" href="{% url 'updates:import_new' %}"><i class="bi bi-upload"></i> Importer un fichier</a></div></div>
+
+{% if reviews %}<div class="alert alert-warning"><strong>À valider :</strong>
+  {% for r in reviews %}<a class="ms-2" href="{{ r.get_absolute_url }}">{{ r }}</a>{% endfor %}</div>{% endif %}
+
+<div class="table-responsive card-soft mb-4"><table class="table align-middle mb-0">
+<thead><tr><th>Source</th><th>Statut</th><th>Méthode</th><th>Fréquence</th><th>Dernière tentative</th><th>Dernière réussite</th><th>Dernier rapport</th><th></th></tr></thead>
+<tbody>{% for row in rows %}{% with c=row.c last=row.last %}<tr>
+  <td><a href="{{ c.get_absolute_url }}">{{ c.name }}</a><div class="small text-muted">{{ c.n_records }} notice(s)</div></td>
+  <td>{{ c|status_badge }}{% if c.sync_paused %} <span class="chip chip-warn">suspendue</span>{% endif %}</td>
+  <td class="small">{% if c.connector %}Connecteur{% else %}Import de fichiers{% endif %}</td>
+  <td class="small">{{ c.get_frequency_display }}{% if row.due %}<br><span class="text-muted">prochaine : {{ row.due|date:"d/m H:i" }}</span>{% endif %}</td>
+  <td class="small">{{ c.last_attempt_at|date:"d/m/Y H:i"|default:"—" }}</td>
+  <td class="small">{{ c.last_success_at|date:"d/m/Y H:i"|default:"—" }}</td>
+  <td class="small">{% if last %}<a href="{{ last.get_absolute_url }}">{{ last.get_status_display }}</a><br>
+    <span class="text-muted">{{ last.counts.new|default:0 }} nouv. · {{ last.counts.modified|default:0 }} modif. · {{ last.counts.unchanged|default:0 }} inch. · {{ last.counts.missing|default:0 }} retir. · {{ last.counts.error|default:0 }} err.</span>{% else %}—{% endif %}
+    {% if c.last_error %}<div class="text-danger">{{ c.last_error|truncatechars:70 }}</div>{% endif %}</td>
+  <td class="text-end text-nowrap">
+    {% if c.connector %}
+    <div class="dropdown d-inline-block"><button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">Lancer</button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><form method="post" action="{% url 'updates:sync_launch' c.code %}">{% csrf_token %}<button class="dropdown-item" name="kind" value="incremental">Synchronisation incrémentale</button></form></li>
+        <li><form method="post" action="{% url 'updates:sync_launch' c.code %}">{% csrf_token %}<button class="dropdown-item" name="kind" value="full">Synchronisation complète</button></form></li>
+        <li><form method="post" action="{% url 'updates:sync_launch' c.code %}">{% csrf_token %}<button class="dropdown-item" name="kind" value="refresh">Actualiser les notices connues</button></form></li>
+        <li><form method="post" action="{% url 'connectors:test' c.code %}">{% csrf_token %}<button class="dropdown-item">Tester le connecteur</button></form></li>
+        <li><form method="post" action="{% url 'updates:toggle_pause' c.code %}">{% csrf_token %}<button class="dropdown-item">{% if c.sync_paused %}Reprendre{% else %}Suspendre{% endif %} l'actualisation</button></form></li>
+      </ul></div>
+    {% endif %}
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'updates:import_new' %}?catalogue={{ c.code }}" title="Importer un fichier"><i class="bi bi-upload"></i></a>
+  </td></tr>{% endwith %}{% endfor %}</tbody></table></div>
+
+<div class="row g-4">
+  <div class="col-lg-6"><h2 class="h5">Historique des exécutions</h2>
+    <table class="table table-sm"><tbody>{% for j in syncs %}<tr><td><a href="{{ j.get_absolute_url }}">{{ j.get_kind_display }}</a><div class="small text-muted">{{ j.catalogue }}</div></td>
+      <td class="small">{{ j.started_at|date:"d/m H:i" }}{% if j.scheduled %} · planifiée{% endif %}</td><td class="small">{{ j.get_status_display }}</td></tr>
+      {% empty %}<tr><td class="text-muted">Aucune exécution.</td></tr>{% endfor %}</tbody></table></div>
+  <div class="col-lg-6"><h2 class="h5">Imports</h2>
+    <table class="table table-sm"><tbody>{% for j in imports %}<tr><td><a href="{{ j.get_absolute_url }}">{{ j.file_name }}</a><div class="small text-muted">{{ j.catalogue }}</div></td>
+      <td class="small">{{ j.created_at|date:"d/m H:i" }}</td><td class="small">{{ j.get_status_display }} · {{ j.total_rows }} ligne(s)</td></tr>
+      {% empty %}<tr><td class="text-muted">Aucun import.</td></tr>{% endfor %}</tbody></table></div>
+</div>
+<p class="small text-muted">Les actualisations planifiées ne s'exécutent que lorsque le service (et le planificateur Celery beat) fonctionne. Aucun calendrier ne garantit des nouveautés.</p>
+{% endblock %}

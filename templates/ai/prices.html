@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Tarifs IA{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Tarifs pour l'estimation des coûts</h1><p>Saisis manuellement d'après les grilles publiées par chaque fournisseur ; utilisés uniquement pour des estimations affichées comme telles.</p></div></div>
+<table class="table align-middle"><thead><tr><th>Fournisseur</th><th>Modèle (préfixe)</th><th>Entrée / Mtok</th><th>Sortie / Mtok</th><th>Mis à jour</th><th></th></tr></thead><tbody>
+{% for p in prices %}<tr><td>{{ p.get_provider_display }}</td><td><code>{{ p.model_prefix }}</code></td><td>{{ p.input_per_million }}</td><td>{{ p.output_per_million }}</td><td class="small">{{ p.updated_at|date:"d/m/Y" }}</td>
+<td><form method="post">{% csrf_token %}<button class="btn btn-sm btn-link text-danger" name="delete" value="{{ p.pk }}">Supprimer</button></form></td></tr>
+{% empty %}<tr><td colspan="6" class="text-muted">Aucun tarif : les coûts ne seront pas estimés.</td></tr>{% endfor %}</tbody></table>
+<form method="post" class="card-soft row g-2 align-items-end" style="max-width:900px">{% csrf_token %}
+  <div class="col-md-3"><label class="form-label small" for="pv">Fournisseur</label><select id="pv" name="provider" class="form-select form-select-sm">{% for v, l in providers %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></div>
+  <div class="col-md-3"><label class="form-label small" for="mp">Modèle (préfixe)</label><input id="mp" name="model_prefix" class="form-control form-control-sm" required></div>
+  <div class="col-md-2"><label class="form-label small" for="ip">Entrée (USD/Mtok)</label><input id="ip" name="input_per_million" type="number" step="0.0001" class="form-control form-control-sm" required></div>
+  <div class="col-md-2"><label class="form-label small" for="op">Sortie (USD/Mtok)</label><input id="op" name="output_per_million" type="number" step="0.0001" class="form-control form-control-sm" required></div>
+  <div class="col-md-2"><button class="btn btn-sm btn-primary w-100">Ajouter</button></div>
+</form>
+{% endblock %}

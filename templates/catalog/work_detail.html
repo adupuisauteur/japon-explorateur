@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}{{ work }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><div class="text-muted small">Œuvre intellectuelle · <code>{{ work.uid }}</code></div>
+  <h1 class="big-title">{{ work.title_original }}</h1>{% if work.title_reading %}<p class="ja">{{ work.title_reading }}</p>{% endif %}</div></div>
+<dl class="fields card-soft mb-4">
+  <dt>Composition</dt><dd>{{ work.composition_display|default:"—" }}</dd>
+  <dt>Période</dt><dd>{{ work.get_period_display|default:"—" }}</dd>
+  <dt>Type</dt><dd>{{ work.get_document_type_display|default:"—" }}</dd>
+</dl>
+<h2>Notices et exemplaires rattachés</h2>
+<p class="text-muted small">Plusieurs notices de catalogues différents peuvent décrire la même œuvre sans être fusionnées.</p>
+{% for r in records %}<div class="result-card"><a class="record-title" href="{{ r.get_absolute_url }}">{{ r.original_title }}</a>
+  <div class="meta">{{ r.catalogue.name }} · {{ r.copy_display|default:"date d'exemplaire inconnue" }} · {{ r.institution_display }}</div></div>
+{% empty %}<div class="empty">Aucune notice.</div>{% endfor %}
+{% endblock %}

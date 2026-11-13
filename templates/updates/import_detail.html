@@ -1,0 +1,66 @@
+{% extends "base.html" %}{% load app_tags %}
+{% block title %}Import {{ job.file_name }}{% endblock %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'updates:dashboard' %}">Gestionnaire de mises à jour</a></nav>
+<div class="page-head"><div><h1>Import « {{ job.file_name }} »</h1>
+  <p>{{ job.get_status_display }} · {{ job.get_format_display|default:"format inconnu" }}{% if job.encoding %} · {{ job.encoding }}{% endif %}{% if job.delimiter %} · séparateur « {% if job.delimiter == '	' %}tabulation{% else %}{{ job.delimiter }}{% endif %} »{% endif %}
+    · {{ job.total_rows }} ligne(s) · source : {{ job.catalogue.name }} · empreinte <code>{{ job.file_sha256|slice:":12" }}</code></p></div>
+  {% if job.status != 'applied' and job.status != 'cancelled' %}<form method="post">{% csrf_token %}<button class="btn btn-outline-secondary" name="action" value="cancel" data-confirm="Annuler cet import ?">Annuler l'import</button></form>{% endif %}
+</div>
+{% if job.status == 'failed' %}<div class="alert alert-danger">{% for e in job.errors %}{{ e.error }}<br>{% endfor %}</div>{% endif %}
+
+{% if job.status == 'pending' or job.status == 'review' or job.status == 'failed' %}
+<form method="post" class="card-soft mb-4">{% csrf_token %}
+  <h2 class="h5"><span class="step">1</span>Correspondance des colonnes</h2>
+  <p class="small text-muted">Proposition automatique à vérifier. Pour la description et les sujets, plusieurs colonnes peuvent être combinées (Ctrl ou Cmd + clic ; valeurs jointes par « ; »).
+    {% if job.unknown_columns %}<br><strong>Colonnes non utilisées :</strong> {{ job.unknown_columns|join:", " }} — elles restent conservées dans les données brutes de chaque notice.{% endif %}</p>
+  {% if job.report.sheets|length > 1 %}<div class="mb-2"><label class="form-label small" for="sheet">Feuille</label><select id="sheet" name="sheet_name" class="form-select form-select-sm" style="max-width:300px">{% for s in job.report.sheets %}<option {% if s == job.sheet_name %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>{% endif %}
+  <div class="row g-2">
+    {% for field, label, current in mapping_rows %}
+    <div class="col-md-6 col-xl-4"><label class="form-label small mb-0" for="m-{{ field }}">{{ label }}{% if field == 'source_id' or field == 'original_title' %} <span class="text-danger">*</span>{% endif %}</label>
+      <select id="m-{{ field }}" name="map_{{ field }}" class="form-select form-select-sm" {% if field == 'description_original' or field == 'subjects_original' %}multiple size="3" title="Ctrl ou Cmd + clic pour combiner plusieurs colonnes"{% endif %}>
+        {% if field != 'description_original' and field != 'subjects_original' %}<option value="">—</option>{% endif %}{% for col in job.columns %}<option value="{{ col }}" {% if col in current %}selected{% endif %}>{{ col }}</option>{% endfor %}</select></div>
+    {% endfor %}
+  </div>
+  <div class="row g-3 mt-2">
+    <div class="col-md-6"><label class="form-label small" for="ds">Stratégie pour les notices déjà présentes</label>
+      <select id="ds" name="duplicate_strategy" class="form-select form-select-sm">{% for v, l in strategies %}<option value="{{ v }}" {% if v == job.duplicate_strategy %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-6"><label class="form-label small" for="dl">Libellé du jeu de données</label><input id="dl" name="dataset_label" class="form-control form-control-sm" value="{{ job.dataset_label }}"></div>
+  </div>
+  <div class="form-check mt-2"><input class="form-check-input" type="checkbox" name="generate_ids" id="gid" value="1" {% if job.report.generate_ids %}checked{% endif %}>
+    <label class="form-check-label small" for="gid">Pas d'identifiant dans le fichier : générer un identifiant stable à partir du contenu (titre, auteur, date, institution, cote)</label></div>
+
+  <h3 class="h6 mt-4">Échantillon du fichier</h3>
+  <div class="table-responsive" style="max-height:300px"><table class="table table-sm small"><thead><tr>{% for c in job.columns %}<th class="text-nowrap">{{ c }}</th>{% endfor %}</tr></thead>
+    <tbody>{% for row in sample_rows %}<tr>{% for v in row %}<td class="ja">{{ v|truncatechars:60 }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
+  {% if preview %}<h3 class="h6 mt-3">Aperçu des notices produites</h3>
+  {% for p in preview %}<div class="editorial-box small"><strong class="ja">{{ p.original_title|default:"(titre non mappé)" }}</strong> — <code>{{ p.source_id|default:"(identifiant non mappé)" }}</code>
+    <div class="text-muted">{% for k, v in p.items %}{% if k != 'original_title' and k != 'source_id' %}{{ k }} : {{ v|truncatechars:50 }} · {% endif %}{% endfor %}</div></div>{% endfor %}{% endif %}
+
+  <div class="d-flex gap-2 mt-3">
+    <button class="btn btn-outline-primary" name="action" value="save_mapping">Enregistrer la correspondance</button>
+    <button class="btn btn-primary" name="action" value="stage"><span class="step bg-white">2</span>Comparer avec la base et produire le rapport</button>
+  </div>
+</form>
+{% endif %}
+
+{% if page %}
+<section class="mb-4">
+  <h2 class="h5"><span class="step">3</span>Rapport avant intégration</h2>
+  <div class="row g-3 mb-3">
+    <div class="col"><div class="card-soft text-center"><div class="stat">{{ job.counts.new|default:0 }}</div><div class="small text-muted">nouvelles</div></div></div>
+    <div class="col"><div class="card-soft text-center"><div class="stat">{{ job.counts.modified|default:0 }}</div><div class="small text-muted">modifiées</div></div></div>
+    <div class="col"><div class="card-soft text-center"><div class="stat">{{ job.counts.unchanged|default:0 }}</div><div class="small text-muted">inchangées</div></div></div>
+    <div class="col"><div class="card-soft text-center"><div class="stat">{{ job.counts.possible_duplicate|default:0 }}</div><div class="small text-muted">doublons potentiels</div></div></div>
+    <div class="col"><div class="card-soft text-center"><div class="stat">{{ job.counts.error|default:0 }}</div><div class="small text-muted">erreurs</div></div></div>
+    <div class="col"><div class="card-soft text-center"><div class="stat">{{ job.counts.warnings|default:0 }}</div><div class="small text-muted">avec avertissement</div></div></div>
+  </div>
+  {% if job.report.applied %}<div class="alert alert-success small">Intégré le {{ job.applied_at|date:"d/m/Y H:i" }} : {{ job.report.applied.created }} créée(s), {{ job.report.applied.updated }} mise(s) à jour, {{ job.report.applied.errors }} erreur(s){% if job.report.pending_after_apply %} ; {{ job.report.pending_after_apply }} élément(s) restent en attente{% endif %}.</div>{% endif %}
+  {% if job.status == 'review' or job.status == 'partially_applied' %}
+  <form method="post" class="mb-3">{% csrf_token %}<input type="hidden" name="action" value="apply">
+    <button class="btn btn-primary" {% if job.status != 'review' %}disabled{% endif %} data-confirm="Intégrer les éléments « À intégrer » ? Les notices existantes modifiées seront historisées.">Valider et intégrer</button>
+    <span class="small text-muted ms-2">Les éléments en attente ou rejetés ne sont pas intégrés.</span></form>{% endif %}
+  {% include "updates/_incoming.html" with job_kind="import" %}
+</section>
+{% endif %}
+{% endblock %}

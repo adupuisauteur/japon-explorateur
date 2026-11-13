@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Exports{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Historique des exports</h1><p>Date, profil, format, périmètre, identifiant et fichiers ; régénération possible avec les mêmes paramètres.</p></div></div>
+<div class="table-responsive"><table class="table align-middle">
+<thead><tr><th>Identifiant</th><th>Titre</th><th>Format</th><th>Périmètre</th><th>Date</th><th>Statut</th></tr></thead><tbody>
+{% for j in jobs %}<tr><td><a href="{{ j.get_absolute_url }}"><code>{{ j.export_uid }}</code></a></td><td>{{ j.title }}</td><td>{{ j.get_format_display }}</td>
+<td class="small">{{ j.get_scope_display }}</td><td class="small">{{ j.created_at|date:"d/m/Y H:i" }}</td><td>{{ j.get_status_display }}</td></tr>
+{% empty %}<tr><td colspan="6" class="text-muted">Aucun export.</td></tr>{% endfor %}</tbody></table></div>
+<h2 class="h5 mt-4">Profils d'export</h2>
+{% for p in profiles %}<div class="d-flex justify-content-between align-items-center border-bottom py-2"><span>{{ p.name }} <span class="text-muted small">— {{ p.get_preset_display }}, {{ p.get_format_display }}</span></span>
+  <form method="post" action="{% url 'exports:profile_delete' p.pk %}">{% csrf_token %}<button class="btn btn-sm btn-link text-danger">Supprimer</button></form></div>
+{% empty %}<p class="text-muted small">Aucun profil : enregistrez-en un depuis l'écran de préparation.</p>{% endfor %}
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}IA indisponible{% endblock %}
+{% block content %}
+<h1>Traitement IA non lancé</h1>
+<div class="card-soft" style="max-width:760px">
+  <p class="fs-5">{{ error }}</p>
+  <p class="text-muted small">Aucun basculement automatique vers un autre fournisseur n'est effectué. Rien n'a été envoyé.</p>
+  {% if alternatives %}
+  <form method="post" action="{% url 'ai:launch' %}" class="mt-3">{% csrf_token %}
+    <input type="hidden" name="function" value="{{ function }}"><input type="hidden" name="record_ids" value="{{ record_ids }}"><input type="hidden" name="next" value="{{ next }}">
+    {% if parameters.query %}<input type="hidden" name="q" value="{{ parameters.query }}">{% endif %}
+    {% if parameters.question %}<input type="hidden" name="question" value="{{ parameters.question }}">{% endif %}
+    <p>Souhaitez-vous utiliser un autre fournisseur configuré pour cette opération ?</p>
+    <div class="row g-2"><div class="col-md-5"><select name="provider" class="form-select" aria-label="Fournisseur">{% for a in alternatives %}<option value="{{ a }}">{% for k, v in provider_labels.items %}{% if k == a %}{{ v }}{% endif %}{% endfor %}</option>{% endfor %}</select></div>
+      <div class="col-md-4"><input name="model" class="form-control" placeholder="modèle" required aria-label="Modèle"></div>
+      <div class="col-md-3"><button class="btn btn-primary w-100">Préparer</button></div></div>
+  </form>{% endif %}
+  <div class="mt-3 d-flex gap-2"><a class="btn btn-outline-secondary" href="{% url 'ai:providers' %}">Configurer les fournisseurs</a>
+    <a class="btn btn-outline-secondary" href="{% url 'ai:preferences' %}">Préférences IA</a>
+    <a class="btn btn-link" href="{{ next|default:'/' }}">Retour</a></div>
+</div>
+{% endblock %}

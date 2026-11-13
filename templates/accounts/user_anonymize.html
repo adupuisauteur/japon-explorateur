@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Anonymiser un compte{% endblock %}
+{% block content %}
+<h1>Anonymiser le compte « {{ target.username }} »</h1>
+<div class="card-soft" style="max-width:700px">
+  <p>Cette action désactive le compte, efface ses données personnelles (identifiant, nom, courriel), ses clés API, sa bibliothèque,
+  ses sessions, ses dossiers et notes <strong>privés</strong>. Les notices du fonds commun et les contenus partagés sont conservés.</p>
+  <form method="post">{% csrf_token %}<button class="btn btn-danger" data-confirm="Confirmer l'anonymisation définitive ?">Anonymiser</button>
+    <a class="btn btn-link" href="{% url 'accounts:user_edit' target.pk %}">Annuler</a></form>
+</div>
+{% endblock %}

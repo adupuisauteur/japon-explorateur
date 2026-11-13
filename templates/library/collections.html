@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Dossiers{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Dossiers documentaires</h1><p>Regroupez notices, sous-sections et annotations, puis exportez un dossier complet.</p></div>
+  {% if user.can_edit %}<a class="btn btn-primary" href="{% url 'library:collection_create' %}"><i class="bi bi-folder-plus"></i> Nouveau dossier</a>{% endif %}</div>
+<h2 class="h5">Mes dossiers</h2>
+<div class="row g-3 mb-4">
+{% for c in mine %}<div class="col-md-6 col-xl-4"><a class="card-soft d-block h-100 text-decoration-none text-reset" href="{{ c.get_absolute_url }}">
+  <div class="d-flex justify-content-between gap-2"><h3 class="h6">{{ c.title }}</h3><span class="chip">{{ c.get_visibility_display }}</span></div>
+  <p class="small text-muted mb-2">{{ c.description|truncatechars:140 }}</p>
+  <div class="small">{{ c.items.count }} référence(s) · {{ c.sections.count }} sous-section(s) · modifié le {{ c.updated_at|date:"d/m/Y" }}</div></a></div>
+{% empty %}<div class="col-12"><div class="empty">Aucun dossier. Exemple : « Musashi — sources anciennes ».</div></div>{% endfor %}
+</div>
+{% if others %}<h2 class="h5">Partagés avec moi et communs</h2>
+<div class="row g-3">{% for c in others %}<div class="col-md-6 col-xl-4"><a class="card-soft d-block h-100 text-decoration-none text-reset" href="{{ c.get_absolute_url }}">
+  <h3 class="h6">{{ c.title }}</h3><div class="small text-muted">par {{ c.owner }} · {{ c.get_visibility_display }}</div></a></div>{% endfor %}</div>{% endif %}
+{% endblock %}
