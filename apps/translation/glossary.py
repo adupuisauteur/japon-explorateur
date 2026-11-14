@@ -180,6 +180,9 @@ def _cell(value):
     return "'" + value if value.startswith(FORMULA_START) else value
 
 
+protect_cell = _cell
+
+
 def _uncell(value):
     value = value or ""
     return value[1:] if value.startswith("'") and value[1:2] in FORMULA_START else value

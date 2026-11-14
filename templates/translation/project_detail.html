@@ -7,6 +7,7 @@
   {% if project.description %}<p class="text-muted">{{ project.description }}</p>{% endif %}
   {% if project.confidential %}<p class="small">Moteurs en ligne refusés pour ce projet : seuls les moteurs locaux (Argos) sont utilisables.</p>{% endif %}</div>
   {% if can_edit %}<div class="d-flex gap-2"><a class="btn btn-outline-secondary" href="{% url 'translation:project_edit' project.pk %}">Modifier</a>
+    {% if project.owner == user %}<a class="btn btn-outline-secondary" href="{% url 'translation:project_export' project.pk %}"><i class="bi bi-download"></i> Exporter</a>{% endif %}
     <a class="btn btn-primary" href="{% url 'translation:document_add' project.pk %}"><i class="bi bi-plus-lg"></i> Ajouter un document</a></div>{% endif %}</div>
 
 <h2 class="h5">Documents</h2>

@@ -8,6 +8,7 @@
     {% if project.confidential %} · <span class="badge text-bg-dark"><i class="bi bi-lock-fill"></i> confidentiel</span>{% endif %}</p>
   {% if document.variety != 'modern' %}<p class="small text-warning">Texte marqué {{ document.get_variety_display|lower }} : les moteurs automatiques y sont peu fiables ; les IA reçoivent une consigne adaptée.</p>{% endif %}
   {% if not integrity %}<div class="alert alert-danger">Anomalie : les segments ne redonnent plus exactement le texte importé. Signalez-le (journal des dysfonctionnements).</div>{% endif %}</div>
+  {% if project.owner == user %}<a class="btn btn-outline-secondary align-self-start" href="{% url 'translation:project_export' project.pk %}?document={{ document.pk }}"><i class="bi bi-download"></i> Exporter ce document</a>{% endif %}
   <div class="progress" style="width:220px" role="progressbar" aria-label="Segments validés" aria-valuenow="{{ counts.validated }}" aria-valuemin="0" aria-valuemax="{{ total }}"><div class="progress-bar bg-success" style="width:{% widthratio counts.validated total 100 %}%"></div></div></div>
 
 <form method="get" class="d-flex flex-wrap gap-2 mb-2 align-items-center">

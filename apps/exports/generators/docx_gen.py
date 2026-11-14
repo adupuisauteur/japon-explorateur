@@ -15,7 +15,12 @@ ACCENT = RGBColor(0x8A, 0x2B, 0x23)
 MUTED = RGBColor(0x55, 0x5B, 0x66)
 
 
-def _set_fonts(style, latin, east_asian, size=None):
+def set_fonts(style, latin, east_asian, size=None):
+    """Polices d'un style Word, dont la police des caractères japonais (w:eastAsia).
+
+    Nom public depuis la 1.3.0 (réutilisé par les exports du module de traduction) ; `_set_fonts` reste
+    disponible sous son ancien nom.
+    """
     style.font.name = latin
     rpr = style.element.get_or_add_rPr()
     fonts = rpr.find(qn("w:rFonts"))
@@ -27,6 +32,9 @@ def _set_fonts(style, latin, east_asian, size=None):
     fonts.set(qn("w:eastAsia"), east_asian)
     if size:
         style.font.size = Pt(size)
+
+
+_set_fonts = set_fonts
 
 
 def _field(paragraph, instruction, placeholder=""):

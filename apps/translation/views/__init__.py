@@ -14,7 +14,7 @@ SECTIONS = [
     ("bi-journal-text", "Glossaires", "Terminologie, import et export CSV.", 7, "translation:glossary_list"),
     ("bi-archive", "Mémoire de traduction", "Paires validées, recherche, exclusion.", 7, "translation:memory"),
     ("bi-hourglass-split", "Tâches", "Traductions en cours, progression, reprise.", 4, "translation:job_list"),
-    ("bi-file-earmark-arrow-down", "Exports", "Texte, CSV, DOCX bilingue.", 8, ""),
+    ("bi-file-earmark-arrow-down", "Exports", "Texte, CSV, DOCX bilingue.", 8, "translation:exports"),
 ]
 
 

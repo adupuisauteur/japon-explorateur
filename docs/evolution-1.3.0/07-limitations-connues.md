@@ -48,3 +48,16 @@
   japonaises ne sont pas reconnues : le contrôle peut signaler un écart qui n'en est pas un. Il ne corrige jamais.
 - Les glossaires s'appliquent aux projets ; la traduction directe des notices (lot 5) ne les utilise pas.
 - La mémoire de traduction reste une correspondance exacte (décision A5) : pas de correspondance approchée.
+
+## Exports (lot 8)
+
+- Les exports sont produits pendant la requête de téléchargement, sans tâche de fond : pour un très gros
+  projet (plusieurs dizaines de milliers de segments), le téléchargement peut prendre plusieurs secondes.
+  Rien n'est conservé sur le serveur, donc il n'y a rien à reprendre en cas d'interruption : il suffit de
+  relancer le téléchargement.
+- Word : la police japonaise déclarée est Yu Mincho (présente sous Windows 11) ; sur un poste qui ne l'a pas,
+  Word la remplace par une autre police japonaise installée. Pas de mise en page autre qu'un tableau à deux
+  colonnes par chapitre.
+- Export TMX reporté (décision B1).
+- Les exports sont réservés au propriétaire du projet (décision E4) : l'administrateur peut consulter un projet
+  non confidentiel d'un autre compte mais pas l'exporter.

@@ -1,7 +1,7 @@
 from django.urls import path
 
 from . import views
-from .views import documents, engines, glossaries, jobs, memory, projects, records
+from .views import documents, engines, exports, glossaries, jobs, memory, projects, records
 
 app_name = "translation"
 
@@ -41,6 +41,8 @@ urlpatterns = [
     path("glossaires/<int:pk>/import/", glossaries.glossary_import, name="glossary_import"),
     path("glossaires/<int:pk>/export.csv", glossaries.glossary_export, name="glossary_export"),
     path("glossaires/<int:pk>/deepl/", glossaries.glossary_deepl, name="glossary_deepl"),
+    path("exports/", exports.exports_home, name="exports"),
+    path("projets/<int:pk>/exporter/", exports.project_export, name="project_export"),
     path("memoire/", memory.memory_list, name="memory"),
     path("memoire/<int:pk>/", memory.memory_toggle, name="memory_toggle"),
 ]
