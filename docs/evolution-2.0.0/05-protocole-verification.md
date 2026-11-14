@@ -5,6 +5,31 @@ une copie de travail. Inscris le résultat (« OK » ou ce que tu as constaté) 
 vérifications complètent les tests automatiques : elles portent sur ce qui ne peut pas être testé dans
 l'environnement de développement (Docker, Windows, Argos réel, clés réelles).
 
+## Vérification automatique (à faire en premier, puis après chaque mise à jour)
+
+Dans PowerShell, depuis le dossier de l'installation :
+
+```
+powershell -ExecutionPolicy Bypass -File .\verifier-j-ed.ps1
+```
+
+Ce que fait le script :
+
+- il contrôle le poste, Docker, les conteneurs, l'adresse et le `.env` ;
+- il essaie ensuite chaque fonction de l'application avec des données fictives, sans modifier ta base ;
+- il enregistre un rapport `verification-j-ed-<date>.txt` à côté du dossier de l'installation.
+
+Deux options s'ajoutent à la commande :
+
+- `-AvecSources` interroge aussi chaque source en ligne, sur Internet ;
+- `-AvecTests` lance les tests automatiques dans le conteneur, en 3 à 10 minutes, sur une base de test séparée.
+
+Attendu : aucun « Problème ». Les lignes « À surveiller » et « Non vérifié » disent pourquoi. Joins le rapport
+à la grille.
+
+Ce que le script ne remplace pas : les vérifications ci-dessous qui demandent une action de ta part, comme
+arrêter un conteneur ou utiliser une vraie clé, et ton appréciation de l'affichage.
+
 ## Lot 0 — corrections et fiabilité
 
 **V0-1 — Mise à jour par le script.**
@@ -74,6 +99,7 @@ ton compte en a davantage.
 
 | Vérification | Résultat | Remarque |
 | --- | --- | --- |
+| Vérification automatique (`verifier-j-ed.ps1`) | | rapport joint |
 | V0-1 Mise à jour par le script | | |
 | V0-2 Arrêts du script | | |
 | V0-3 Page « État » | | |

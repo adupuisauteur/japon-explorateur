@@ -40,6 +40,17 @@ Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquet
   - tests : isolation des tests en exécution parallèle (dossier temporaire partagé supprimé trop tôt ; journal
     du service Argos écrit avant la réponse) ; tests de la 1.3.0 propres aux valeurs de l'essai 1.3.0 remplacés
     par leurs équivalents 2.0.0 ; tests qui utilisaient la simulation d'Argos passés en mode démonstration.
+- **Outils de vérification** (14 novembre 2026, en complément du protocole manuel) :
+  - `manage.py verifier_fonctionnalites` (`--json`, `--sources`) : exerce avec des données **fictives**, dans
+    une transaction annulée, la recherche, les notices et leurs versions, les doublons, la lecture des imports, la
+    Bibliothèque et les dossiers, les six formats d'export (police japonaise des PDF comprise), les projets de
+    traduction (découpage, validation, mémoire, glossaire, export bilingue), Argos, un aller-retour avec un worker,
+    l'intégrité de la dernière sauvegarde, 17 pages principales avec leur politique de sécurité et les droits
+    d'accès ; **la base n'est pas modifiée** ; code de sortie 1 en cas de problème ;
+  - `verifier-j-ed.ps1` (Windows) : contrôle le dossier, le `.env` (valeurs à remplacer, nom protégé), le dossier
+    des sauvegardes, Docker (mémoire, conteneurs, port publié seulement sur l'ordinateur, volumes), les pages qui
+    répondent, puis lance la vérification ci-dessus (`-AvecSources`, `-AvecTests`) ; rapport texte sans clé ni
+    nom de compte.
   - Base de données : migrations **additives** `core.0002` (champ `argos_demo_mode`) et `core.0003` (table
     `core_servicecheck`), testées en aller-retour 1.3.0 → 2.0.0 → 1.3.0 sur une base temporaire.
 
