@@ -364,7 +364,8 @@ def make_server(backend, host="0.0.0.0", port=5000):
 
 def main():
     project = os.environ.get("COMPOSE_PROJECT_CHECK", "")
-    if project in RESERVED_PROJECTS:
+    # Même règle que docker/entrypoint.sh : un nom réservé n'est accepté que sur autorisation explicite.
+    if project in RESERVED_PROJECTS and os.environ.get("AUTORISER_NOM_PROJET", "") != project:
         sys.stderr.write(f"ARRÊT : le projet Docker « {project} » appartient à une autre installation "
                          "(principale ou essai 1.2.0). Corrigez COMPOSE_PROJECT_NAME dans .env.\n")
         sys.exit(1)

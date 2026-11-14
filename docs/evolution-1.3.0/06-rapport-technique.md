@@ -73,6 +73,9 @@ instruction SQL). Aller-retour testé sur une base d'essai : `recette-migrations
 - Projet confidentiel d'autrui : l'administrateur ne voit que les métadonnées ; mémoire de traduction propre à
   chaque compte ; exports réservés au propriétaire.
 - Les textes des projets confidentiels ne sont **pas chiffrés** dans la base et les sauvegardes (limite écrite).
+- Isolation : les conteneurs refusent de démarrer sous le nom de projet de l'installation principale ou de
+  l'essai 1.2.0, sauf autorisation explicite `AUTORISER_NOM_PROJET=<même nom>` dans `.env`, prévue pour
+  mettre à jour une installation existante en gardant ses données.
 
 ## 5. Dépendances
 
@@ -87,8 +90,8 @@ instruction SQL). Aller-retour testé sur une base d'essai : `recette-migrations
 | Ensemble | Nombre | Résultat |
 |---|---|---|
 | Tests de la 1.2.0 (7 fichiers) | 130 | Tous passent ; un seul adapté : le numéro de version (`test_evolution_120`) |
-| Tests de la 1.3.0 (14 fichiers) | 253 | Tous passent |
-| **Total** | **383** | **OK** (`python manage.py test tests`) |
+| Tests de la 1.3.0 (14 fichiers) | 257 | Tous passent |
+| **Total** | **387** | **OK** (`python manage.py test tests`) |
 
 Correspondance avec le cahier des charges (§ 23.1) : T1 contrat des moteurs ; T2–T4 DeepL, glossaires DeepL et
 Google sur réponses enregistrées (`tests/fixtures/traduction/`) ; T5 consignes IA ; T6 Argos ; T7 découpage ;

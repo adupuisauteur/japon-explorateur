@@ -3,12 +3,19 @@ set -e
 
 # Isolation (1.3.0) : refus de démarrer sous le nom de projet Docker de l'installation principale
 # ou de l'installation d'essai 1.2.0, ce qui ferait utiliser leur base de données et leurs fichiers.
+# Exception VOLONTAIRE : la mise à jour d'une de ces installations vers la 1.3.0, en gardant ses données,
+# est permise seulement si .env contient AUTORISER_NOM_PROJET avec exactement le même nom de projet.
 case "${COMPOSE_PROJECT_CHECK:-}" in
   japon-explorateur|japon-explorateur-essai)
-    echo "ARRÊT : le projet Docker « ${COMPOSE_PROJECT_CHECK} » appartient à une autre installation" >&2
-    echo "(principale ou essai 1.2.0). Corrigez COMPOSE_PROJECT_NAME dans .env (valeur attendue :" >&2
-    echo "japon-explorateur-essai-130), puis relancez « docker compose up -d »." >&2
-    exit 1 ;;
+    if [ "${AUTORISER_NOM_PROJET:-}" = "${COMPOSE_PROJECT_CHECK}" ]; then
+      echo "Projet Docker « ${COMPOSE_PROJECT_CHECK} » : démarrage autorisé par AUTORISER_NOM_PROJET (mise à jour d'une installation existante)." >&2
+    else
+      echo "ARRÊT : le projet Docker « ${COMPOSE_PROJECT_CHECK} » appartient à une autre installation" >&2
+      echo "(principale ou essai 1.2.0). Pour un essai séparé, corrigez COMPOSE_PROJECT_NAME dans .env (valeur" >&2
+      echo "attendue : japon-explorateur-essai-130). Pour mettre à jour CETTE installation en gardant ses données," >&2
+      echo "ajoutez dans .env la ligne AUTORISER_NOM_PROJET=${COMPOSE_PROJECT_CHECK} (après une sauvegarde)." >&2
+      exit 1
+    fi ;;
 esac
 
 # Commandes utilitaires sans base de données (ex. génération des clés) : exécution directe.

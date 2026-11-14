@@ -16,7 +16,7 @@ notez l'identifiant d'incident (`INC-…`) et exportez le diagnostic (Dysfonctio
 **TR1 — Installation et version.** Pied de page « v1.3.0 », menu « Traduction ». L'installation principale
 (port 8000) et l'essai 1.2.0 (port 8001) s'ouvrent toujours avec leurs données. `docker volume ls` montre des
 volumes `japon-explorateur-essai-130_…` distincts. *Facultatif :* `docker compose exec web python manage.py test
-tests` → « OK » (382 tests ou plus).
+tests` → « OK » (387 tests ou plus).
 
 **TR2 — Clé DeepL.** Suivez `notice-cle-deepl.md`. Attendu : « Tester » affiche « Connexion réussie » avec votre
 consommation ; la clé n'est plus jamais affichée ; une offre erronée (gratuite au lieu de payante) donne un

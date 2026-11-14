@@ -104,6 +104,13 @@ est activé) sont **distincts** de ceux de l'installation principale et de l'ess
 > ⚠️ N'utilisez `docker compose down -v` que dans le dossier de l'essai, jamais dans celui de l'installation
 > principale. Préférez le script de réinitialisation, qui contrôle le nom du projet et le port avant d'effacer.
 
+## Mettre à jour une installation 1.2.0 existante en gardant ses données
+
+Ce guide installe un essai **séparé**, avec une base neuve. Pour passer une installation 1.2.0 en 1.3.0 en
+conservant ses notices et dossiers, suivez la notice « Mettre à jour, vider ou réinstaller » : même nom de projet
+et même port que la 1.2.0, `.env` recopié, et la ligne `AUTORISER_NOM_PROJET=<nom du projet>` ajoutée à `.env`.
+Sans cette ligne, la 1.3.0 refuse de démarrer sous le nom d'une autre installation.
+
 ## Retour en arrière
 
 Vos autres installations n'étant pas modifiées, il suffit d'arrêter ou de réinitialiser l'essai 1.3.0. Pour

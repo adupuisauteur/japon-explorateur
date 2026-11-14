@@ -11,6 +11,9 @@
     le nom du projet Docker doit contenir « essai » et ne jamais être celui de l'installation
     principale (« japon-explorateur », port 8000) ni celui de l'essai 1.2.0
     (« japon-explorateur-essai », port 8001). Ces deux installations ne sont jamais touchées.
+    Seule exception : un essai 1.2.0 MIS À JOUR en 1.3.0 (projet « japon-explorateur-essai ») peut être
+    réinitialisé si son fichier .env contient AUTORISER_NOM_PROJET=japon-explorateur-essai. L'installation
+    principale ne peut jamais l'être.
 
 .PARAMETER Complet
     Efface aussi les paquets Argos (volume argos-packages) et les images Docker de l'essai
@@ -97,7 +100,14 @@ if (-not $Projet) {
 if ($Projet -eq $NomPrincipal) {
     Arreter "ce dossier utilise le nom « $Projet », celui de l'INSTALLATION PRINCIPALE. Vérifiez COMPOSE_PROJECT_NAME dans .env (valeur attendue : $NomAttendu)."
 }
-if ($Projet -eq $NomEssai120) {
+# Essai 1.2.0 mis à jour en 1.3.0 : autorisé seulement par AUTORISER_NOM_PROJET égal au nom du projet.
+$Autorisation = $null
+try { $Autorisation = [string]$configuration.services.web.environment.AUTORISER_NOM_PROJET } catch { }
+$EssaiMisAJour = ($Projet -eq $NomEssai120) -and ($Autorisation -eq $Projet)
+if ($EssaiMisAJour) {
+    Write-Host "Essai 1.2.0 mis à jour en 1.3.0 : réinitialisation autorisée par AUTORISER_NOM_PROJET." -ForegroundColor Yellow
+}
+if (($Projet -eq $NomEssai120) -and -not $EssaiMisAJour) {
     Arreter "ce dossier utilise le nom « $Projet », celui de l'INSTALLATION D'ESSAI 1.2.0. Vérifiez COMPOSE_PROJECT_NAME dans .env (valeur attendue : $NomAttendu)."
 }
 if ($Projet -notlike '*essai*') {
@@ -109,7 +119,7 @@ try { $Port = $configuration.services.web.ports[0].published } catch { }
 if ("$Port" -eq '8000') {
     Arreter "cette installation utilise le port 8000, celui de l'installation principale. Vérifiez WEB_PORT dans .env (valeur attendue : $PortAttendu)."
 }
-if ("$Port" -eq '8001') {
+if (("$Port" -eq '8001') -and -not $EssaiMisAJour) {
     Arreter "cette installation utilise le port 8001, celui de l'installation d'essai 1.2.0. Vérifiez WEB_PORT dans .env (valeur attendue : $PortAttendu)."
 }
 

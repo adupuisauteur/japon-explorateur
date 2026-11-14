@@ -193,11 +193,16 @@ class ServerTests(ServerMixin, SimpleTestCase):
         self.assertEqual(status, 200)
         self.assertEqual(self.call("POST", "/remove", {"from": "en", "to": "fr"})[1]["code"], "paquet_absent")
 
+    def test_reserved_name_needs_matching_authorisation(self):
+        script = (ROOT / "docker" / "argos" / "server.py").read_text(encoding="utf-8")
+        self.assertIn('os.environ.get("AUTORISER_NOM_PROJET", "") != project', script)
+
     def test_reserved_project_names_refuse_to_start(self):
         for name in ("japon-explorateur", "japon-explorateur-essai"):
             with self.subTest(name=name):
                 result = subprocess.run(["python3", str(ROOT / "docker" / "argos" / "server.py")],
-                                        env=dict(os.environ, COMPOSE_PROJECT_CHECK=name), capture_output=True,
+                                        env={k: v for k, v in dict(os.environ, COMPOSE_PROJECT_CHECK=name).items()
+                                             if k != "AUTORISER_NOM_PROJET"}, capture_output=True,
                                         text=True, timeout=30)
                 self.assertEqual(result.returncode, 1)
                 self.assertIn("ARRÊT", result.stderr)
@@ -519,13 +524,13 @@ def read(name):
 
 
 class DeliveryTests(SimpleTestCase):
-    def compose_config(self, *profile):
+    def compose_config(self, *profile, env_text=""):
         if shutil.which("docker") is None:
             self.skipTest("Docker Compose absent")
         tmp = Path(tempfile.mkdtemp(prefix="compose-"))
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
         shutil.copy(ROOT / "docker-compose.yml", tmp)
-        (tmp / ".env").write_text("")
+        (tmp / ".env").write_text(env_text)
         args = ["docker", "compose", *(["--profile", profile[0]] if profile else []), "config", "--format", "json"]
         result = subprocess.run(args, cwd=tmp, capture_output=True, text=True, timeout=60,
                                 env=dict(os.environ, POSTGRES_PASSWORD="fictif-pour-test"))
@@ -546,7 +551,22 @@ class DeliveryTests(SimpleTestCase):
         self.assertEqual(mounts["argos-packages"]["target"], "/argos")
         self.assertTrue(mounts["argos-depot"]["read_only"])
         self.assertEqual(argos["environment"]["COMPOSE_PROJECT_CHECK"], "japon-explorateur-essai-130")
+        self.assertEqual(argos["environment"]["AUTORISER_NOM_PROJET"], "")
         self.assertIn("argos-packages", config["volumes"])
+
+    def test_compose_for_an_updated_120_installation(self):
+        """Mise à jour de l'essai 1.2.0 en place : mêmes nom de projet, port et volumes, autorisation transmise."""
+        env = ("COMPOSE_PROJECT_NAME=japon-explorateur-essai\nWEB_PORT=8001\n"
+               "AUTORISER_NOM_PROJET=japon-explorateur-essai\n")
+        config = self.compose_config("hors-ligne", env_text=env)
+        self.assertEqual(config["name"], "japon-explorateur-essai")
+        self.assertEqual(config["services"]["web"]["ports"][0]["published"], "8001")
+        for service in ("web", "worker", "beat", "argos"):
+            with self.subTest(service=service):
+                self.assertEqual(config["services"][service]["environment"]["AUTORISER_NOM_PROJET"],
+                                 "japon-explorateur-essai")
+        mounts = {v["source"] for v in config["services"]["web"]["volumes"]}
+        self.assertIn("app-data", mounts)  # volume du projet : japon-explorateur-essai_app-data, celui de la 1.2.0
 
     def test_argos_dependencies_are_pinned_and_cpu_only(self):
         lines = [l for l in read("docker/argos/requirements.txt").splitlines() if l and not l.startswith("#")]

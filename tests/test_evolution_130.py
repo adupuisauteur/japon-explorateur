@@ -57,8 +57,11 @@ class IsolationTests(SimpleTestCase):
     def test_reset_script_refuses_main_and_120_installations(self):
         script = read("reinitialiser-essai.ps1")
         self.assertIn("$NomEssai120 = 'japon-explorateur-essai'", script)
-        self.assertIn("if ($Projet -eq $NomEssai120)", script)
-        self.assertIn("if (\"$Port\" -eq '8001')", script)
+        self.assertIn("if (($Projet -eq $NomEssai120) -and -not $EssaiMisAJour)", script)
+        self.assertIn("if ((\"$Port\" -eq '8001') -and -not $EssaiMisAJour)", script)
+        # l'exception exige l'autorisation explicite ET ne vaut jamais pour l'installation principale
+        self.assertIn("$EssaiMisAJour = ($Projet -eq $NomEssai120) -and ($Autorisation -eq $Projet)", script)
+        self.assertIn("if ($Projet -eq $NomPrincipal) {", script)
         self.assertIn("if (\"$Port\" -eq '8000')", script)
         self.assertIn("$NomAttendu = '%s'" % EXPECTED_PROJECT, script)
 
@@ -71,9 +74,12 @@ class IsolationTests(SimpleTestCase):
 class EntrypointGuardTests(SimpleTestCase):
     """Exécute réellement docker/entrypoint.sh avec /bin/sh, hors Docker."""
 
-    def run_entrypoint(self, project):
+    def run_entrypoint(self, project, authorise=None):
         env = dict(os.environ, COMPOSE_PROJECT_CHECK=project, DATABASE_URL="", RUN_MIGRATIONS="0",
                    PATH=os.path.dirname(sys.executable) + os.pathsep + os.environ.get("PATH", ""))
+        env.pop("AUTORISER_NOM_PROJET", None)
+        if authorise is not None:
+            env["AUTORISER_NOM_PROJET"] = authorise
         return subprocess.run(["sh", str(ROOT / "docker" / "entrypoint.sh"), "echo", "demarrage-autorise"],
                               env=env, capture_output=True, text=True, timeout=60)
 
@@ -84,6 +90,21 @@ class EntrypointGuardTests(SimpleTestCase):
                 self.assertEqual(result.returncode, 1)
                 self.assertIn("ARRÊT", result.stderr)
                 self.assertNotIn("demarrage-autorise", result.stdout)
+
+    def test_explicit_authorisation_allows_updating_an_existing_installation(self):
+        for name in RESERVED:
+            with self.subTest(name=name):
+                result = self.run_entrypoint(name, authorise=name)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("demarrage-autorise", result.stdout)
+                self.assertIn("autorisé par AUTORISER_NOM_PROJET", result.stderr)
+
+    def test_authorisation_must_match_the_project_name_exactly(self):
+        for wrong in ("japon-explorateur", "oui", "japon-explorateur-essai-130", " japon-explorateur-essai"):
+            with self.subTest(wrong=wrong):
+                result = self.run_entrypoint("japon-explorateur-essai", authorise=wrong)
+                self.assertEqual(result.returncode, 1)
+                self.assertIn("AUTORISER_NOM_PROJET=japon-explorateur-essai", result.stderr)
 
     def test_130_project_name_is_accepted(self):
         result = self.run_entrypoint(EXPECTED_PROJECT)
