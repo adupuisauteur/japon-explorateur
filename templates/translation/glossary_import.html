@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Import CSV — {{ glossary.name }}{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item"><a href="{% url 'translation:glossary_list' %}">Glossaires</a></li><li class="breadcrumb-item"><a href="{% url 'translation:glossary_detail' glossary.pk %}">{{ glossary.name }}</a></li><li class="breadcrumb-item active">Import CSV</li></ol></nav>{% endblock %}
+{% block content %}
+<h1>Import CSV dans « {{ glossary.name }} »</h1>
+{% if report %}
+<div class="card-soft mb-3">
+  <p class="mb-1">{% if report.saved %}<strong>Import enregistré.</strong>{% else %}<strong>Vérification : rien n'a encore été enregistré.</strong>{% endif %}
+    Encodage détecté : {{ report.encoding }}{% if report.encoding_confidence == "uncertain" %} <span class="text-warning">(incertain : vérifiez les termes ci-dessous)</span>{% endif %} · séparateur : {{ report.delimiter_label }}</p>
+  <ul class="small mb-0"><li>{{ report.added|length }} entrée(s) {% if report.saved %}ajoutée(s){% else %}à ajouter{% endif %}{% if report.added %} : <span lang="{{ glossary.source_lang }}">{{ report.added|slice:":30"|join:", " }}</span>{% if report.added|length > 30 %}…{% endif %}{% endif %}</li>
+    <li>{{ report.updated|length }} entrée(s) {% if report.saved %}mise(s) à jour{% else %}à mettre à jour{% endif %}</li>
+    <li>{{ report.skipped|length }} ignorée(s) (doublons)</li><li>{{ report.errors|length }} ligne(s) en erreur</li></ul>
+  {% if report.skipped %}<details class="small mt-2"><summary>Doublons ignorés</summary><ul>{% for line, term, reason in report.skipped %}<li>ligne {{ line }} : « {{ term }} » — {{ reason }}</li>{% endfor %}</ul></details>{% endif %}
+  {% if report.errors %}<details class="small mt-2" open><summary>Erreurs</summary><ul>{% for line, msg in report.errors %}<li>ligne {{ line }} : {{ msg }}</li>{% endfor %}</ul></details>{% endif %}
+</div>
+{% endif %}
+{% if not report.saved %}
+<form method="post" enctype="multipart/form-data" class="card-soft" style="max-width:800px">{% csrf_token %}
+  {{ form.non_field_errors }}
+  <div class="mb-2">{{ form.file.label_tag }}{{ form.file }}{{ form.file.errors }}<div class="form-text">Sélectionnez à nouveau le fichier pour l'importer.</div></div>
+  <div class="form-check mb-2">{{ form.update_existing }} <label class="form-check-label" for="{{ form.update_existing.id_for_label }}">{{ form.update_existing.label }}</label></div>
+  {% if report and report.encoding_confidence == "uncertain" %}<div class="form-check mb-2">{{ form.confirm_encoding }} <label class="form-check-label" for="{{ form.confirm_encoding.id_for_label }}">{{ form.confirm_encoding.label }}</label></div>{% endif %}
+  <button class="btn btn-outline-primary" name="action" value="check">Vérifier</button>
+  {% if report %}<button class="btn btn-primary" name="action" value="import">Importer</button>{% endif %}
+</form>
+{% else %}<a class="btn btn-primary" href="{% url 'translation:glossary_detail' glossary.pk %}">Retour au glossaire</a>{% endif %}
+{% endblock %}

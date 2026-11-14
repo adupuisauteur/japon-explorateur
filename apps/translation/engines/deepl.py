@@ -8,12 +8,22 @@ Vérifié sur la documentation officielle (13 novembre 2026) :
 - GET /v2/usage : character_count et character_limit (1000000000000 = aucune limite configurée) ;
 - HTTP 456 : quota épuisé (ne pas réessayer) ; 429 : trop de requêtes (réessayer) ; 403 : authentification.
 L'offre (gratuite ou payante) est choisie par l'utilisateur ; elle n'est pas devinée à partir de la clé.
-Glossaires DeepL : lot 7.
+
+Glossaires (lot 7, vérifié sur la documentation officielle le 14 novembre 2026) :
+- gestion par les points d'accès v3 : POST /v3/glossaries {"name", "dictionaries": [{"source_lang",
+  "target_lang", "entries", "entries_format": "tsv"}]} → "glossary_id" ; DELETE /v3/glossaries/{id} ;
+- la traduction reste sur /v2/translate avec "glossary_id" ; "source_lang" y est obligatoire (toujours
+  fourni ici) ; un seul glossaire par requête ;
+- langues prises en charge : GET /v3/languages?resource=glossary (liste d'objets « lang »,
+  « usable_as_source », « usable_as_target ») ;
+- entrées : pas de doublon, pas de terme vide, ni tabulation, ni retour à la ligne, ni espace en début ou
+  en fin ; 1024 octets au plus par terme.
+Aucun glossaire n'est envoyé sans action explicite de l'utilisateur (voir apps/translation/glossary.py).
 """
 from apps.ai.crypto import decrypt_secret
 
 from ..http import TranslationHTTP
-from .base import EngineResult, EngineStatus, TranslationEngine, engine_error
+from .base import EngineResult, EngineStatus, TranslationEngine, TranslationEngineError, engine_error
 
 BASE_URLS = {"free": "https://api-free.deepl.com", "pro": "https://api.deepl.com"}
 #: codes de langue DeepL (source / cible)
@@ -100,8 +110,9 @@ class DeepLEngine(TranslationEngine):
         for batch in self.batches(segments):
             body = {"text": [s.text for s in batch], "source_lang": SOURCE_CODES[source],
                     "target_lang": TARGET_CODES[target]}
-            if glossary and isinstance(glossary, dict) and glossary.get("deepl_glossary_id"):
-                body["glossary_id"] = glossary["deepl_glossary_id"]
+            glossary_id = getattr(glossary, "deepl_glossary_id", "") if glossary is not None else ""
+            if glossary_id:
+                body["glossary_id"] = glossary_id
             n = sum(len(s.text) for s in batch)
             data = self._http().request("POST", url, headers=headers, json=body, n_texts=len(batch), n_chars=n)
             items = data.get("translations") if isinstance(data, dict) else None
@@ -115,3 +126,43 @@ class DeepLEngine(TranslationEngine):
                 translations[seg.id] = text
             chars += n
         return EngineResult(translations, chars_sent=chars, model="DeepL API")
+
+    # --- glossaires (v3) ---------------------------------------------------------------------------
+    def glossary_pair_supported(self, source, target):
+        """Interroge DeepL (aucun texte envoyé). Lève une erreur si la réponse n'a pas la forme attendue."""
+        data = self._http().request("GET", f"{self.base_url}/v3/languages", headers=self._headers(),
+                                    params={"resource": "glossary"})
+        if not isinstance(data, list) or not all(isinstance(x, dict) and "lang" in x for x in data):
+            raise engine_error("Réponse inattendue de DeepL (langues des glossaires) : envoi annulé par prudence.",
+                               kind="unparsable", code="reponse_vide")
+        langs = {str(x["lang"]).lower(): x for x in data}
+        src, tgt = langs.get(source.lower()), langs.get(target.lower())
+        return bool(src and tgt and src.get("usable_as_source", True) and tgt.get("usable_as_target", True))
+
+    def create_glossary(self, name, source, target, lines):
+        """Crée un glossaire DeepL d'un dictionnaire (source → cible). Retourne (identifiant, nombre d'entrées)."""
+        body = {"name": name[:200], "dictionaries": [{"source_lang": source.lower(), "target_lang": target.lower(),
+                                                      "entries": "\n".join(lines), "entries_format": "tsv"}]}
+        try:
+            data = self._http().request("POST", f"{self.base_url}/v3/glossaries", headers=self._headers(), json=body,
+                                        n_texts=len(lines), n_chars=sum(len(x) for x in lines))
+        except TranslationEngineError as exc:
+            if exc.http_status in (400, 413, 422):
+                raise engine_error(f"Glossaire refusé par DeepL : {exc}", kind="technical", code="glossaire_refuse",
+                                   http_status=exc.http_status, diagnostic=exc.diagnostic) from None
+            raise
+        glossary_id = data.get("glossary_id") if isinstance(data, dict) else None
+        if not glossary_id:
+            raise engine_error("Réponse DeepL sans identifiant de glossaire.", kind="unparsable", code="glossaire_refuse")
+        count = sum(int(d.get("entry_count") or 0) for d in data.get("dictionaries") or [] if isinstance(d, dict))
+        return str(glossary_id), count
+
+    def delete_glossary(self, glossary_id):
+        """Supprime la copie distante. Retourne False si DeepL ne la connaît plus (404)."""
+        try:
+            self._http().request("DELETE", f"{self.base_url}/v3/glossaries/{glossary_id}", headers=self._headers())
+        except TranslationEngineError as exc:
+            if exc.http_status == 404:
+                return False
+            raise
+        return True

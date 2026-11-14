@@ -10,6 +10,10 @@
   <div class="fs-5" style="white-space:pre-wrap" lang="{{ project.source_lang }}">{{ segment.source_text }}</div>
   {% if segment.source_changed %}<div class="small text-danger mt-1">Original modifié depuis la traduction (fusion ou division) : vérifiez les versions ci-dessous.</div>{% endif %}</div>
 
+{% if terms_found %}<div class="card-soft mb-3 small"><strong>Termes du glossaire présents :</strong>
+  {% for term, form in terms_found %}<span class="chip"><span lang="{{ project.source_lang }}">{{ form }}</span> → {{ term.target }}{% if term.avoid %} <span class="text-danger">(éviter : {{ term.avoid|join:", " }})</span>{% endif %}</span> {% endfor %}
+  <span class="text-muted">({% for term, form in terms_found %}{% ifchanged term.glossary_name %}{{ term.glossary_name }}{% if not forloop.last %}, {% endif %}{% endifchanged %}{% endfor %})</span></div>{% endif %}
+
 {% if can_edit %}
 <div class="d-flex flex-wrap gap-2 mb-3">
   <form method="post" action="{% url 'translation:segment_action' segment.pk %}" class="d-flex gap-1">{% csrf_token %}
@@ -26,6 +30,13 @@
   <form method="post" action="{% url 'translation:segment_action' segment.pk %}" class="d-flex gap-2 mt-2">{% csrf_token %}
     <input name="title" class="form-control form-control-sm" placeholder="Titre du chapitre" aria-label="Titre du chapitre" style="max-width:400px">
     <button class="btn btn-sm btn-outline-secondary" name="action" value="chapter">Créer le chapitre</button></form></details>
+{% if term_glossaries %}<details class="mb-3"><summary class="small">Ajouter un terme au glossaire</summary>
+  <form method="post" action="{% url 'translation:segment_term' segment.pk %}" class="card-soft mt-2">{% csrf_token %}
+    <div class="row g-2"><div class="col-md-3"><label class="form-label small" for="term-src">Terme source (copié de l'original)</label><input id="term-src" name="source_term" class="form-control form-control-sm" lang="{{ project.source_lang }}" required></div>
+      <div class="col-md-3"><label class="form-label small" for="term-tgt">Traduction imposée</label><input id="term-tgt" name="target_term" class="form-control form-control-sm" required></div>
+      <div class="col-md-2"><label class="form-label small" for="term-cat">Catégorie</label><select id="term-cat" name="category" class="form-select form-select-sm">{% for code, label in term_categories %}<option value="{{ code }}" {% if code == "other" %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+      <div class="col-md-4"><label class="form-label small" for="term-gl">Glossaire</label><select id="term-gl" name="glossary" class="form-select form-select-sm">{% for g in term_glossaries %}<option value="{{ g.pk }}">{{ g.name }}</option>{% endfor %}</select></div></div>
+    <button class="btn btn-sm btn-outline-primary mt-2">Ajouter</button> <span class="small text-muted">Les traductions existantes ne sont pas modifiées.</span></form></details>{% endif %}
 <section class="card-soft mb-3"><h2 class="h6">{% if edit_from %}Corriger la version du {{ edit_from.created_at|date:"d/m/Y H:i" }}{% else %}Saisir ma traduction{% endif %}</h2>
   <form method="post" action="{% url 'translation:segment_action' segment.pk %}">{% csrf_token %}
     {% if edit_from %}<input type="hidden" name="parent" value="{{ edit_from.pk }}">{% endif %}

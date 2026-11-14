@@ -1,7 +1,7 @@
 from django.urls import path
 
 from . import views
-from .views import documents, engines, jobs, projects, records
+from .views import documents, engines, glossaries, jobs, memory, projects, records
 
 app_name = "translation"
 
@@ -29,4 +29,18 @@ urlpatterns = [
     path("segments/<int:pk>/", documents.segment_detail, name="segment_detail"),
     path("segments/<int:pk>/action/", documents.segment_action, name="segment_action"),
     path("versions/<int:pk>/action/", documents.version_action, name="version_action"),
+    path("projets/<int:pk>/glossaires/", glossaries.project_glossaries, name="project_glossaries"),
+    path("segments/<int:pk>/glossaire/", glossaries.segment_term, name="segment_term"),
+    path("glossaires/", glossaries.glossary_list, name="glossary_list"),
+    path("glossaires/nouveau/", glossaries.glossary_create, name="glossary_create"),
+    path("glossaires/<int:pk>/", glossaries.glossary_detail, name="glossary_detail"),
+    path("glossaires/<int:pk>/modifier/", glossaries.glossary_edit, name="glossary_edit"),
+    path("glossaires/<int:pk>/supprimer/", glossaries.glossary_delete, name="glossary_delete"),
+    path("glossaires/<int:pk>/entrees/", glossaries.entry_save, name="entry_save"),
+    path("glossaires/<int:pk>/entrees/<int:entry_pk>/supprimer/", glossaries.entry_delete, name="entry_delete"),
+    path("glossaires/<int:pk>/import/", glossaries.glossary_import, name="glossary_import"),
+    path("glossaires/<int:pk>/export.csv", glossaries.glossary_export, name="glossary_export"),
+    path("glossaires/<int:pk>/deepl/", glossaries.glossary_deepl, name="glossary_deepl"),
+    path("memoire/", memory.memory_list, name="memory"),
+    path("memoire/<int:pk>/", memory.memory_toggle, name="memory_toggle"),
 ]

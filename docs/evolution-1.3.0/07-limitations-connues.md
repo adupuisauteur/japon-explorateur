@@ -26,3 +26,25 @@
   seules la fusion et la division sont proposées.
 - Un projet n'a qu'un propriétaire (pas de partage en 1.3.0). Les projets confidentiels ne sont pas
   chiffrés : la base de données et les sauvegardes les contiennent en clair.
+
+## Glossaires et mémoire (lot 7)
+
+- **Glossaires DeepL non testés en conditions réelles** : création (`POST /v3/glossaries`), vérification des
+  langues (`GET /v3/languages?resource=glossary`), utilisation (`glossary_id` dans `/v2/translate`) et suppression
+  (`DELETE /v3/glossaries/{id}`) sont conformes à la documentation officielle consultée le 14 novembre 2026, mais
+  testées uniquement avec un DeepL simulé. La forme exacte de la réponse de `/v3/languages?resource=glossary`
+  n'est pas illustrée dans la documentation : si elle diffère, l'envoi est annulé avec un message explicite
+  (jamais d'envoi « à l'aveugle »).
+- **Un seul glossaire par requête DeepL** (limite du service) : lorsque plusieurs glossaires d'un projet ont une
+  copie à jour, seul le plus prioritaire est appliqué par DeepL ; les autres font l'objet du contrôle local, et
+  l'alerte jointe aux segments concernés le dit.
+- Une copie DeepL est liée au compte et à l'offre (gratuite ou payante) utilisés pour l'envoi ; après un
+  changement d'offre, elle est considérée comme périmée et doit être renvoyée. Si un compte est supprimé ou
+  anonymisé, ses copies DeepL restent sur son compte DeepL (la clé est effacée) : à supprimer depuis DeepL.
+- L'offre gratuite de DeepL limite le nombre de glossaires et d'entrées (selon le compte) : un refus de DeepL est
+  affiché et journalisé (catégorie « glossaire refusé »).
+- **Contrôle terminologique** : comparaison exacte après normalisation (casse, accents, macrons, pluriels en
+  « s » ou « x »). Les formes fléchies plus complexes (« cheval/chevaux », féminins, élisions) et les conjugaisons
+  japonaises ne sont pas reconnues : le contrôle peut signaler un écart qui n'en est pas un. Il ne corrige jamais.
+- Les glossaires s'appliquent aux projets ; la traduction directe des notices (lot 5) ne les utilise pas.
+- La mémoire de traduction reste une correspondance exacte (décision A5) : pas de correspondance approchée.

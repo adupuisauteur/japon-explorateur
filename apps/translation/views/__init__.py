@@ -11,8 +11,8 @@ SECTIONS = [
     ("bi-cpu", "Moteurs", "Choix des moteurs, clés DeepL et Google, moteurs locaux.", 3, "translation:engines"),
     ("bi-folder2", "Projets et documents", "Import, découpage, traduction, versions et validation.", 6,
      "translation:project_list"),
-    ("bi-journal-text", "Glossaires", "Terminologie, import et export CSV.", 7, ""),
-    ("bi-archive", "Mémoire de traduction", "Paires validées, recherche, exclusion.", 7, ""),
+    ("bi-journal-text", "Glossaires", "Terminologie, import et export CSV.", 7, "translation:glossary_list"),
+    ("bi-archive", "Mémoire de traduction", "Paires validées, recherche, exclusion.", 7, "translation:memory"),
     ("bi-hourglass-split", "Tâches", "Traductions en cours, progression, reprise.", 4, "translation:job_list"),
     ("bi-file-earmark-arrow-down", "Exports", "Texte, CSV, DOCX bilingue.", 8, ""),
 ]

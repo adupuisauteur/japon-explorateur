@@ -45,15 +45,37 @@ def prompts():
     return json.loads(PROMPTS_FILE.read_text(encoding="utf-8"))
 
 
+def _present_terms(glossary, text, source):
+    """Seules les entrées dont le terme figure dans les segments du paquet sont envoyées (lot 7).
+
+    `glossary` : GlossaryBundle (apps/translation/glossary.py) ou liste de (source, cible[, à éviter]).
+    """
+    if not glossary:
+        return []
+    if hasattr(glossary, "found_in"):
+        return [(form, term.target, term.avoid) for term, form in glossary.found_in(text)]
+    out = []
+    for item in glossary:
+        a, b, *rest = item
+        if a and a in text:
+            out.append((a, b, rest[0] if rest else []))
+    return out
+
+
+def _term_text(term):
+    a, b, avoid = term
+    return f"{a} → {b}" + (f" (à éviter : {', '.join(avoid)})" if avoid else "")
+
+
 def build_prompt(batch, source, target, *, glossary=None, variety="modern", context=None):
     p = prompts()
     labels = p["language_labels"]
     joined_sources = "\n".join(s.text for s in batch)
-    terms = [(a, b) for a, b in (glossary or []) if a and a in joined_sources]
+    terms = _present_terms(glossary, joined_sources, source)
     instruction = p["instruction"].format(
         source_label=labels.get(source, source), target_label=labels.get(target, target),
         variety_note=p["variety_notes"].get(variety, ""),
-        glossary_note=p["glossary_note"].format(terms=" ; ".join(f"{a} → {b}" for a, b in terms)) if terms else "",
+        glossary_note=p["glossary_note"].format(terms=" ; ".join(_term_text(t) for t in terms)) if terms else "",
         context_note=p["context_note"].format(context=" / ".join(context)) if context else "",
     )
     data = {"segments": [{"id": s.id, "text": s.text} for s in batch]}

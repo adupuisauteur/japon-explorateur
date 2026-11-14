@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}{{ glossary.name }} — Glossaires{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item"><a href="{% url 'translation:glossary_list' %}">Glossaires</a></li><li class="breadcrumb-item active">{{ glossary.name }}</li></ol></nav>{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>{{ glossary.name }} <span class="badge text-bg-light fs-6">version {{ glossary.version }}</span></h1>
+  <p>{{ glossary.get_source_lang_display }} → {{ glossary.get_target_lang_display }} · propriétaire : {{ glossary.owner }} · {{ glossary.entries.count }} entrée(s)</p>
+  {% if glossary.description %}<p class="text-muted">{{ glossary.description }}</p>{% endif %}
+  {% if projects %}<p class="small">Utilisé par : {% for p in projects %}<a href="{% url 'translation:project_detail' p.pk %}">{{ p.title }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</p>{% else %}<p class="small text-muted">Rattaché à aucun projet : ajoutez-le depuis la page d'un projet.</p>{% endif %}</div>
+  <div class="d-flex gap-2">{% if can_edit %}<a class="btn btn-outline-secondary" href="{% url 'translation:glossary_edit' glossary.pk %}">Modifier</a>{% endif %}
+    <a class="btn btn-outline-secondary" href="{% url 'translation:glossary_export' glossary.pk %}"><i class="bi bi-download"></i> Exporter en CSV</a></div></div>
+
+{% if contradictions %}<div class="alert alert-warning small"><strong>Incohérences possibles :</strong><ul class="mb-0">
+{% for e, bad, other in contradictions %}<li>« {{ e.source_term }} » interdit « {{ bad }} », qui est la traduction imposée de « {{ other.source_term }} ».</li>{% endfor %}</ul></div>{% endif %}
+
+{% if can_edit %}
+<section class="card-soft mb-3" id="saisie"><h2 class="h6">{% if editing %}Modifier l'entrée « {{ editing.source_term }} »{% else %}Ajouter une entrée{% endif %}</h2>
+<form method="post" action="{% url 'translation:entry_save' glossary.pk %}">{% csrf_token %}
+  {% if editing %}<input type="hidden" name="entry" value="{{ editing.pk }}">{% endif %}
+  <div class="row g-2">
+    <div class="col-md-3">{{ entry_form.source_term.label_tag }}{{ entry_form.source_term }}</div>
+    <div class="col-md-2">{{ entry_form.reading.label_tag }}{{ entry_form.reading }}</div>
+    <div class="col-md-3">{{ entry_form.target_term.label_tag }}{{ entry_form.target_term }}</div>
+    <div class="col-md-2">{{ entry_form.category.label_tag }}{{ entry_form.category }}</div>
+    <div class="col-md-2">{{ entry_form.decision_source.label_tag }}{{ entry_form.decision_source }}</div>
+    <div class="col-md-4">{{ entry_form.variants.label_tag }}{{ entry_form.variants }}<div class="form-text">{{ entry_form.variants.help_text }}</div></div>
+    <div class="col-md-4">{{ entry_form.avoid.label_tag }}{{ entry_form.avoid }}<div class="form-text">{{ entry_form.avoid.help_text }}</div></div>
+    <div class="col-md-4">{{ entry_form.note.label_tag }}{{ entry_form.note }}</div>
+  </div>
+  <button class="btn btn-sm btn-primary mt-2">Enregistrer l'entrée</button>{% if editing %} <a class="btn btn-sm btn-link mt-2" href="{% url 'translation:glossary_detail' glossary.pk %}">Annuler</a>{% endif %}
+  <span class="small text-muted">Un terme déjà présent (ou une variante déjà utilisée) est refusé.</span>
+</form></section>
+{% endif %}
+
+<form method="get" class="d-flex gap-2 mb-2" style="max-width:700px">
+  <input name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Rechercher un terme" aria-label="Rechercher">
+  <select name="categorie" class="form-select form-select-sm" style="width:auto" aria-label="Catégorie"><option value="">Toutes catégories</option>{% for code, label in categories %}<option value="{{ code }}" {% if code == category %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+  <button class="btn btn-sm btn-outline-secondary">Filtrer</button></form>
+<table class="table table-sm align-middle"><thead><tr><th>Terme source</th><th>Lecture</th><th>Terme cible</th><th>Catégorie</th><th>Variantes</th><th>À éviter</th><th>Remarque / source</th>{% if can_edit %}<th></th>{% endif %}</tr></thead><tbody>
+{% for e in entries %}<tr><td lang="{{ glossary.source_lang }}">{{ e.source_term }}</td><td class="small">{{ e.reading }}</td><td>{{ e.target_term }}</td>
+  <td class="small">{{ e.get_category_display }}</td><td class="small" lang="{{ glossary.source_lang }}">{{ e.variants|join:" · " }}</td><td class="small text-danger">{{ e.avoid|join:" · " }}</td>
+  <td class="small">{{ e.note|truncatechars:80 }}{% if e.decision_source %}<div class="text-muted">{{ e.decision_source }}</div>{% endif %}</td>
+  {% if can_edit %}<td class="text-nowrap"><a class="btn btn-sm btn-link" href="?modifier={{ e.pk }}#saisie">Modifier</a>
+    <form method="post" action="{% url 'translation:entry_delete' glossary.pk e.pk %}" class="d-inline">{% csrf_token %}<button class="btn btn-sm btn-link text-danger" data-confirm="Supprimer l'entrée « {{ e.source_term }} » ?">Supprimer</button></form></td>{% endif %}</tr>
+{% empty %}<tr><td colspan="8" class="text-muted">Aucune entrée{% if q or category %} pour ce filtre{% endif %}.</td></tr>{% endfor %}
+</tbody></table>
+
+{% if can_edit %}
+<section class="card-soft mb-3"><h2 class="h6">Importer un fichier CSV</h2>
+<form method="post" action="{% url 'translation:glossary_import' glossary.pk %}" enctype="multipart/form-data">{% csrf_token %}
+  <div class="mb-2">{{ import_form.file }}<div class="form-text">{{ import_form.file.help_text }} Séparateur virgule, point-virgule ou tabulation ; listes séparées par « | ».</div></div>
+  <div class="form-check mb-2">{{ import_form.update_existing }} <label class="form-check-label" for="{{ import_form.update_existing.id_for_label }}">{{ import_form.update_existing.label }}</label></div>
+  <button class="btn btn-sm btn-outline-primary" name="action" value="check">Vérifier le fichier (rien n'est enregistré)</button>
+</form></section>
+{% endif %}
+
+<section class="card-soft mb-3"><h2 class="h6">DeepL</h2>
+{% if remote %}<p class="small mb-1">Copie envoyée le {{ remote.sent_at|slice:":10" }} ({{ remote.entries }} entrée(s), version {{ remote.version }}, offre {{ remote.plan }}).
+  {% if remote_current %}<span class="text-success">À jour : DeepL l'applique aux traductions de vos projets.</span>{% else %}<span class="text-warning">Périmée : le glossaire a changé depuis l'envoi ; seul le contrôle local s'applique tant que vous ne la renvoyez pas.</span>{% endif %}</p>{% else %}<p class="small mb-1 text-muted">Aucune copie envoyée par votre compte : avec DeepL, seul le contrôle local s'applique.</p>{% endif %}
+{% if send_problem %}<p class="small text-muted mb-0">{{ send_problem }}</p>{% else %}
+<form method="post" action="{% url 'translation:glossary_deepl' glossary.pk %}" class="mb-2">{% csrf_token %}
+  <div class="form-check small"><input class="form-check-input" type="checkbox" name="confirm" id="deepl-confirm" value="1">
+    <label class="form-check-label" for="deepl-confirm">J'accepte d'envoyer à DeepL, avec ma clé, le nom du glossaire et {{ n_deepl_entries }} paire(s) de termes (les termes à éviter et les remarques ne sont pas envoyés). L'envoi ne consomme pas de caractères de traduction.</label></div>
+  <button class="btn btn-sm btn-outline-primary mt-1" name="action" value="send">{% if remote %}Renvoyer la version {{ glossary.version }} à DeepL{% else %}Envoyer à DeepL{% endif %}</button></form>{% endif %}
+{% if remote %}<form method="post" action="{% url 'translation:glossary_deepl' glossary.pk %}">{% csrf_token %}
+  <button class="btn btn-sm btn-outline-danger" name="action" value="delete" data-confirm="Supprimer la copie de ce glossaire chez DeepL ?">Supprimer la copie DeepL</button></form>{% endif %}
+</section>
+
+{% if can_edit %}
+<details class="mt-4"><summary class="text-danger small">Supprimer le glossaire</summary>
+  <form method="post" action="{% url 'translation:glossary_delete' glossary.pk %}" class="card-soft mt-2" style="max-width:600px">{% csrf_token %}
+    <p class="small">Supprime le glossaire et ses entrées ; il est retiré des projets qui l'utilisent. Les traductions déjà faites ne changent pas. {% if glossary.remote_copies %}<strong>Supprimez d'abord la copie DeepL.</strong>{% endif %} Recopiez le nom pour confirmer.</p>
+    <input name="confirm_name" class="form-control form-control-sm mb-2" aria-label="Nom du glossaire">
+    <button class="btn btn-sm btn-danger">Supprimer définitivement</button></form></details>
+{% endif %}
+{% endblock %}

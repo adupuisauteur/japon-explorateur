@@ -32,6 +32,7 @@ from apps.incidents.services import record_incident, short_traceback
 
 from . import memory as tm
 from .checks import check_translation
+from .glossary import bundle_for as glossary_bundle_for
 from .engines.base import Segment, TranslationEngineError
 from .engines.registry import get_engine
 from .journal import record_translation_error
@@ -218,7 +219,8 @@ def summary(job):
                     batches=max(1, math.ceil(counts["pending"] / max(engine.max_items, 1))))
     setting = EngineSetting.objects.filter(user=job.user, engine=job.engine).first()
     return {"engine": engine, "status": engine.status(), "counts": counts, "cost": cost,
-            "quota": (setting.quota_info if setting else {}) or {}, "problems": blocking_problems(job)}
+            "quota": (setting.quota_info if setting else {}) or {}, "problems": blocking_problems(job),
+            "glossary": _bundle(job)}
 
 
 def blocking_problems(job, *, resuming=False):
@@ -484,7 +486,17 @@ def _call_cost(job, result):
     return cost["amount"], cost["currency"]
 
 
-def _store(job, chunk, result, ai_task):
+def _glossary_alerts(bundle, source, text, simulated):
+    """Contrôle terminologique local (tous moteurs) : signale, ne corrige jamais."""
+    if not bundle or not bundle.found_in(source):
+        return []
+    alerts = list(bundle.notes)
+    if not simulated:
+        alerts += bundle.check(source, text)
+    return alerts
+
+
+def _store(job, chunk, result, ai_task, bundle=None):
     from apps.catalog.models import EditorialContent
 
     call_cost, currency = _call_cost(job, result)
@@ -492,7 +504,8 @@ def _store(job, chunk, result, ai_task):
     for item in chunk:
         text = result.translations[str(item.pk)]
         source = _source_text(item)
-        alerts = list(result.alerts.get(str(item.pk), [])) + check_translation(source, text, simulated=result.simulated)
+        alerts = (list(result.alerts.get(str(item.pk), [])) + check_translation(source, text, simulated=result.simulated)
+                  + _glossary_alerts(bundle, source, text, result.simulated))
         share = (call_cost * Decimal(item.chars) / Decimal(total_chars)) if call_cost is not None else None
         variety = _variety(item)
         if item.segment_id:
@@ -501,7 +514,7 @@ def _store(job, chunk, result, ai_task):
                 model=result.model, engine_version=result.engine_version, simulated=result.simulated,
                 variety=variety, origin="ai" if job.engine == "ai" else "machine", author=job.user,
                 chars_sent=0 if result.simulated else item.chars, cost_estimate=share, currency=currency,
-                alerts=alerts)
+                alerts=alerts, glossaries=bundle.refs if bundle else [])
             item.version = version
             update_segment_state(item.segment)
         else:
@@ -526,16 +539,23 @@ def _fail(chunk, exc):
         item.save(update_fields=["status", "error_kind", "error_message", "attempts", "updated_at"])
 
 
-def _translate(job, engine, chunk, variety):
+def _bundle(job):
+    """Glossaires du projet pour cette tâche (lot 7) ; aucun pour les traductions de notices."""
+    if job.kind != "segments" or not job.project_id:
+        return None
+    return glossary_bundle_for(job.project, job.user, job.engine)
+
+
+def _translate(job, engine, chunk, variety, bundle=None):
     segments = [Segment(str(i.pk), _source_text(i)) for i in chunk]
     source, target = (job.project.source_lang, job.project.target_lang) if job.project_id else ("ja", "fr")
-    return engine.translate(segments, source, target, glossary=None, variety=variety, context=_context(job, chunk))
+    return engine.translate(segments, source, target, glossary=bundle, variety=variety, context=_context(job, chunk))
 
 
-def _run_chunk(job, engine, chunk, variety):
+def _run_chunk(job, engine, chunk, variety, bundle=None):
     """Traduit un paquet ; retourne False si la tâche doit s'arrêter (clé, configuration, quota)."""
     try:
-        result = _translate(job, engine, chunk, variety)
+        result = _translate(job, engine, chunk, variety, bundle)
     except TranslationEngineError as exc:
         if job.engine == "ai":
             _record_ai_task(job, chunk, error=exc)
@@ -545,13 +565,13 @@ def _run_chunk(job, engine, chunk, variety):
             return False
         if len(chunk) > 1 and exc.kind in ("unparsable", "technical"):
             for item in chunk:  # isole l'élément fautif : les autres sont traduits
-                if not _run_chunk(job, engine, [item], variety):
+                if not _run_chunk(job, engine, [item], variety, bundle):
                     return False
             return True
         _fail(chunk, exc)
         return True
     ai_task = _record_ai_task(job, chunk, result=result) if job.engine == "ai" else None
-    _store(job, chunk, result, ai_task)
+    _store(job, chunk, result, ai_task, bundle)
     job.chars_sent += result.chars_sent
     return True
 
@@ -579,7 +599,7 @@ def process_next_chunk(job_id):
         _touch(job, status="done", finished_at=timezone.now(), done_items=job.done_items,
                failed_items=job.failed_items, skipped_items=job.skipped_items, chars_sent=job.chars_sent)
         return False
-    keep_going = _run_chunk(job, engine, chunk, variety)
+    keep_going = _run_chunk(job, engine, chunk, variety, _bundle(job))
     _refresh_counters(job)
     job.refresh_from_db(fields=["status"])  # annulation demandée pendant le paquet ?
     if job.status == "cancelled":

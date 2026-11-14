@@ -80,9 +80,16 @@ def project_detail(request, pk):
         n_segments=Count("segments", distinct=True),
         n_validated=Count("segments", filter=Q(segments__state="validated"), distinct=True),
         n_alert=Count("segments", filter=Q(segments__state="alert"), distinct=True))
+    from .. import glossary as G
+    from .glossaries import linkable_glossaries
+
+    can_edit = can_edit_project(request.user, project)
     return render(request, "translation/project_detail.html", {
         "project": project, "documents": documents, "jobs": project.jobs.filter(user=request.user)[:10],
-        "can_edit": can_edit_project(request.user, project),
+        "can_edit": can_edit,
+        "glossary_links": project.glossary_links.select_related("glossary").annotate(n_entries=Count("glossary__entries")),
+        "linkable": linkable_glossaries(request, project) if can_edit else [],
+        "contradictions": G.project_contradictions(project),
     })
 
 

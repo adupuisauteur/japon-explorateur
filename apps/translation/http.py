@@ -89,6 +89,8 @@ class TranslationHTTP:
                 raise self.classify(status, service_code, service_message,
                                     diag(attempts=attempt, http_status=status, service_code=service_code,
                                          service_message=service_message))
+            if status == 204 or not response.content:
+                return {}  # suppression réussie (DeepL : DELETE /v3/glossaries/{id})
             try:
                 return response.json()
             except ValueError:

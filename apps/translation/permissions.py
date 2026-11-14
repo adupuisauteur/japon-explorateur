@@ -62,7 +62,30 @@ def projects_metadata_only_for(user):
 
 
 def can_view_glossary(user, glossary):
-    return can_use_translation(user) and (glossary.owner_id == user.pk or user.is_admin_role)
+    """Propriétaire ; administrateur aussi, sauf si le glossaire sert un projet confidentiel (décision D3)."""
+    if not can_use_translation(user):
+        return False
+    if glossary.owner_id == user.pk:
+        return True
+    return user.is_admin_role and not glossary.projects.filter(confidential=True).exists()
+
+
+def glossaries_visible_for(user):
+    from .models import Glossary
+
+    if not can_use_translation(user):
+        return Glossary.objects.none()
+    if user.is_admin_role:
+        return Glossary.objects.exclude(pk__in=glossaries_metadata_only_for(user).values("pk"))
+    return Glossary.objects.filter(owner=user)
+
+
+def glossaries_metadata_only_for(user):
+    from .models import Glossary
+
+    if not (can_use_translation(user) and user.is_admin_role):
+        return Glossary.objects.none()
+    return Glossary.objects.exclude(owner=user).filter(projects__confidential=True).distinct()
 
 
 def can_edit_glossary(user, glossary):

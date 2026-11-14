@@ -12,12 +12,13 @@ from django.views.decorators.http import require_POST
 from apps.core.audit import log_action
 from apps.core.permissions import researcher_required
 
+from .. import glossary as G
 from .. import projects as P
 from .. import services
 from ..forms import DocumentForm
 from ..importers import ImportRefused, import_file
 from ..models import SEGMENT_STATES, TranslationDocument, TranslationSegment, TranslationVersion
-from ..permissions import can_edit_project, can_validate_project, can_view_project, require
+from ..permissions import can_edit_glossary, can_edit_project, can_validate_project, can_view_project, require
 from ..segmentation import is_translatable
 from .projects import get_project_for
 
@@ -167,6 +168,9 @@ def segment_detail(request, pk):
         "next": next((s for s in neighbours if s.position > segment.position), None),
         "can_edit": can_edit_project(request.user, project), "can_validate": can_validate_project(request.user, project),
         "edit_from": versions.filter(pk=request.GET.get("corriger")).first() if request.GET.get("corriger") else None,
+        "terms_found": G.terms_in(segment.source_text, G.project_terms(project), project.source_lang),
+        "term_glossaries": [g for g in G.project_glossaries(project) if can_edit_glossary(request.user, g)],
+        "term_categories": G.GLOSSARY_CATEGORIES,
     })
 
 

@@ -16,6 +16,7 @@ from django.db.models import F, Max
 from django.utils import timezone
 
 from . import memory as tm
+from .glossary import check_terminology, project_terms
 from .models import TranslationChapter, TranslationDocument, TranslationSegment, TranslationVersion
 from .segmentation import is_translatable, split_text
 from .services import RECORD_FIELDS, update_segment_state
@@ -126,11 +127,13 @@ def add_human_version(segment, user, text, *, parent=None):
     text = (text or "").strip("\n")
     if not text.strip():
         raise ProjectError("La traduction saisie est vide.")
+    project = segment.document.project
+    alerts = check_terminology(segment.source_text, text, project_terms(project), project.source_lang)
     version = TranslationVersion.objects.create(
         segment=segment, text=text, source_text=segment.source_text, origin="human_edit" if parent else "human",
         parent=parent, author=user, variety=segment.variety or segment.document.variety,
         engine=parent.engine if parent else "", model=parent.model if parent else "",
-        simulated=False)
+        simulated=False, alerts=alerts)
     update_segment_state(segment)
     return version
 

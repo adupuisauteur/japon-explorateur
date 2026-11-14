@@ -3,7 +3,7 @@ from django import forms
 from apps.ai.models import PROVIDERS as AI_PROVIDERS
 from apps.core.forms import BootstrapMixin
 
-from .models import EngineSetting, TranslationPreference, TranslationProject
+from .models import GLOSSARY_CATEGORIES, EngineSetting, Glossary, TranslationPreference, TranslationProject
 
 
 class EngineSettingForm(BootstrapMixin, forms.Form):
@@ -119,3 +119,52 @@ class DocumentForm(BootstrapMixin, forms.Form):
         if data.get("file") and (data.get("text") or "").strip():
             raise forms.ValidationError("Collez un texte OU choisissez un fichier, pas les deux.")
         return data
+
+
+class GlossaryForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = Glossary
+        fields = ["name", "description", "source_lang", "target_lang"]
+        widgets = {"description": forms.Textarea(attrs={"rows": 2})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["source_lang"].choices = [("ja", "Japonais"), ("en", "Anglais")]
+        self.fields["target_lang"].choices = [("fr", "Français")]
+
+    def clean(self):
+        data = super().clean()
+        g = self.instance
+        if g.pk and (data.get("source_lang"), data.get("target_lang")) != (g.source_lang, g.target_lang):
+            if g.project_links.exists():
+                raise forms.ValidationError("Ce glossaire est utilisé par des projets : sa paire de langues ne peut "
+                                            "plus changer (retirez-le d'abord des projets).")
+        return data
+
+
+class GlossaryEntryForm(BootstrapMixin, forms.Form):
+    """Entrée de glossaire. Listes (à éviter, variantes) : valeurs séparées par « | »."""
+
+    source_term = forms.CharField(label="Terme source", max_length=300)
+    reading = forms.CharField(label="Lecture", max_length=300, required=False)
+    target_term = forms.CharField(label="Terme cible", max_length=300)
+    category = forms.ChoiceField(label="Catégorie", choices=GLOSSARY_CATEGORIES, initial="other")
+    variants = forms.CharField(label="Variantes de graphie de l'original", required=False,
+                               help_text="Séparées par « | » (exemple : 徳川家康 | 德川家康).")
+    avoid = forms.CharField(label="Traductions à éviter", required=False, help_text="Séparées par « | ».")
+    note = forms.CharField(label="Remarque", required=False, widget=forms.Textarea(attrs={"rows": 2}))
+    decision_source = forms.CharField(label="Source de la décision", max_length=300, required=False)
+
+    @classmethod
+    def initial_for(cls, entry):
+        return {"source_term": entry.source_term, "reading": entry.reading, "target_term": entry.target_term,
+                "category": entry.category, "variants": " | ".join(entry.variants), "avoid": " | ".join(entry.avoid),
+                "note": entry.note, "decision_source": entry.decision_source}
+
+
+class GlossaryImportForm(BootstrapMixin, forms.Form):
+    file = forms.FileField(label="Fichier CSV", help_text="Colonnes : source_term, target_term (obligatoires), reading, "
+                                                          "category, avoid, variants, note, decision_source.")
+    update_existing = forms.BooleanField(label="Mettre à jour les termes déjà présents (sinon ils sont ignorés)",
+                                         required=False)
+    confirm_encoding = forms.BooleanField(label="J'ai vérifié l'aperçu : l'encodage détecté est correct", required=False)

@@ -9,6 +9,9 @@
       <dt class="col-sm-4">À envoyer</dt><dd class="col-sm-8">{{ summary.counts.pending }} élément(s), {{ job.chars_estimated }} caractère(s)</dd>
       <dt class="col-sm-4">Non envoyés</dt><dd class="col-sm-8">{{ summary.counts.validated }} déjà validé(s) · {{ summary.counts.memory }} repris de la mémoire de traduction</dd>
       <dt class="col-sm-4">Coût estimé</dt><dd class="col-sm-8">{% if summary.cost.amount is not None %}{{ summary.cost.amount|floatformat:4 }} {{ summary.cost.currency }} <span class="small text-muted">(estimation : {{ summary.cost.basis }} ; la facture du fournisseur fait foi)</span>{% else %}<span class="text-muted">Non disponible — {{ summary.cost.basis }}</span>{% endif %}</dd>
+      {% if summary.glossary %}<dt class="col-sm-4">Glossaires</dt><dd class="col-sm-8">{% for g in summary.glossary.refs %}{{ g.name }} (v{{ g.version }}, {% if g.application == 'native' %}appliqué par DeepL{% elif g.application == 'consigne' %}termes présents ajoutés à la consigne de l'IA{% else %}contrôle local{% endif %}){% if not forloop.last %} · {% endif %}{% endfor %}
+        {% for n in summary.glossary.notes %}<div class="small text-muted">{{ n|capfirst }}.</div>{% endfor %}
+        <div class="small text-muted">Contrôle terminologique local après traduction : il signale les écarts sans les corriger.</div></dd>{% endif %}
       {% if summary.quota.character_limit %}<dt class="col-sm-4">Quota lu</dt><dd class="col-sm-8">{{ summary.quota.character_count }} / {{ summary.quota.character_limit }} caractères</dd>{% endif %}
       {% if job.project %}<dt class="col-sm-4">Projet</dt><dd class="col-sm-8">{{ job.project.title }}{% if job.project.confidential %} <span class="badge text-bg-dark"><i class="bi bi-lock-fill"></i> confidentiel</span>{% endif %}</dd>{% endif %}
     </dl>

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}{% if glossary %}Modifier le glossaire{% else %}Nouveau glossaire{% endif %}{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item"><a href="{% url 'translation:glossary_list' %}">Glossaires</a></li><li class="breadcrumb-item active">{% if glossary %}{{ glossary.name }}{% else %}Nouveau{% endif %}</li></ol></nav>{% endblock %}
+{% block content %}
+<h1>{% if glossary %}Modifier « {{ glossary.name }} »{% else %}Nouveau glossaire{% endif %}</h1>
+<form method="post" class="card-soft" style="max-width:800px">{% csrf_token %}
+  {{ form.non_field_errors }}
+  <div class="mb-2">{{ form.name.label_tag }}{{ form.name }}{{ form.name.errors }}</div>
+  <div class="mb-2">{{ form.description.label_tag }}{{ form.description }}</div>
+  <div class="row g-2 mb-2"><div class="col-md-6">{{ form.source_lang.label_tag }}{{ form.source_lang }}</div>
+    <div class="col-md-6">{{ form.target_lang.label_tag }}{{ form.target_lang }}</div></div>
+  <button class="btn btn-primary">Enregistrer</button>
+</form>
+{% endblock %}
