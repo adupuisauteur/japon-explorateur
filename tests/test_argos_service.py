@@ -172,6 +172,10 @@ class ServerTests(ServerMixin, SimpleTestCase):
         log = self.log.getvalue()
         self.assertIn("POST /translate 200", log)
         self.assertNotIn("秘密", log)
+        # 1.3.0-rc3 : le journal donne le type de l'erreur interne (jamais son message)
+        self.assertIn("POST /translate 500", log)
+        self.assertIn("erreur interne RuntimeError", log)
+        self.assertNotIn("secret", log)
 
     def test_one_installation_at_a_time(self):
         svc = server_mod.Service(self.backend)
@@ -256,6 +260,19 @@ class EngineTests(ClientMixin, AppTestCase):
         status = self.engine().status()
         self.assertTrue(status.simulated)
         self.assertIn("modèle de découpage en phrases manquant", status.detail)
+
+    def test_internal_error_type_is_shown_not_hidden(self):
+        # 1.3.0-rc3 : constaté au protocole TR8 — « momentanément indisponible (HTTP 500) » cachait la cause
+        from apps.translation.engines.base import Segment, TranslationEngineError
+
+        self.connect(installed=(("ja", "en", "1.1"), ("en", "fr", "1.9")))
+        with self.assertRaises(TranslationEngineError) as ctx:
+            self.engine().translate([Segment("1", "ERREUR 秘密")], "en", "fr")
+        message = str(ctx.exception)
+        self.assertIn("Erreur interne (RuntimeError)", message)
+        self.assertNotIn("momentanément indisponible", message)
+        self.assertNotIn("secret", message)
+        self.assertEqual(ctx.exception.kind, "technical")
 
     def test_real_translation_records_package_versions(self):
         self.connect(installed=(("ja", "en", "1.1"), ("en", "fr", "1.9")))
@@ -503,6 +520,42 @@ class RealBackendTests(SimpleTestCase):
         self.assertTrue(self.backend.installed()[0]["sbd_ready"])
         self.backend.translate_step(["x"], "en", "fr")
         self.assertEqual(self.lib.stanza.Pipeline(lang="en"), {"lang": "en", "download_method": None})
+
+    def test_old_format_stanza_resources_are_read_from_an_adapted_copy(self):
+        """1.3.0-rc3, constaté au protocole TR8 : les paquets ja→en 1.1 et en→fr 1.9 livrent un resources.json
+        de Stanza à l'ancien format (sans « packages ») ; Stanza 1.10 levait KeyError: 'packages'."""
+        from unittest import mock
+
+        stanza_dir = self.tmp / "translate-en_fr-1_9" / "stanza"
+        (stanza_dir / "en" / "tokenize").mkdir(parents=True)
+        old = {"en": {"tokenize": {"ewt": {"md5": "a"}}, "mwt": {"ewt": {"md5": "b"}},
+                      "default_processors": {"tokenize": "ewt", "mwt": "ewt", "pos": "ewt"}, "lang_name": "English"},
+               "english": {"alias": "en"},
+               "ja": {"tokenize": {"gsd": {"md5": "c"}}, "default_processors": {"tokenize": "gsd"}}}
+        original = json.dumps(old, indent=2)
+        (stanza_dir / "resources.json").write_text(original, encoding="utf-8")
+        self.lib.installed.append(self.lib.Pkg("en", "fr", "1.9", sbd=stanza_dir))
+        with mock.patch.dict(os.environ, {"XDG_CACHE_HOME": str(self.tmp / "cache")}):
+            self.backend.translate_step(["x"], "en", "fr")  # installe la protection hors ligne
+            for lang, model in (("en", "ewt"), ("english", "ewt"), ("ja", "gsd")):
+                kwargs = self.lib.stanza.Pipeline(lang=lang, dir=str(stanza_dir), processors="tokenize")
+                self.assertIsNone(kwargs["download_method"])
+                adapted = Path(kwargs["resources_filepath"])
+                self.assertEqual(adapted.parent, self.tmp / "cache" / "japon-stanza")
+                resources = json.loads(adapted.read_text(encoding="utf-8"))
+                target = resources["en"] if lang == "english" else resources[lang]
+                self.assertEqual(target["packages"], {"default": {"tokenize": model}})  # découpage seul, pas de mwt
+            first = self.lib.stanza.Pipeline(lang="en", dir=str(stanza_dir))["resources_filepath"]
+            self.assertEqual(self.lib.stanza.Pipeline(lang="en", dir=str(stanza_dir))["resources_filepath"], first)
+        self.assertEqual((stanza_dir / "resources.json").read_text(encoding="utf-8"), original)  # paquet intact
+        self.assertEqual(self.lib.network, [])  # rien de téléchargé
+        # format récent (rubrique « packages ») ou fichier absent : rien à adapter
+        recent = self.tmp / "recent"
+        recent.mkdir()
+        (recent / "resources.json").write_text(json.dumps({"en": {"packages": {"default": {}}}}), encoding="utf-8")
+        self.assertIsNone(server_mod.compatible_stanza_resources(recent, "en", cache_dir=self.tmp / "c2"))
+        self.assertIsNone(server_mod.compatible_stanza_resources(self.tmp / "absent", "en", cache_dir=self.tmp / "c2"))
+        self.assertNotIn("resources_filepath", self.lib.stanza.Pipeline(lang="en", dir=str(recent)))
 
     def test_index_lists_only_module_languages_and_translation_packages(self):
         codes = [(p["from"], p["to"]) for p in self.backend.available()]

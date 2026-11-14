@@ -47,10 +47,10 @@ index 2ccf0ec..7ae8734 100644
  # PDF_JAPANESE_FONT=/usr/share/fonts/opentype/ipaexfont-mincho/ipaexm.ttf
  # PDF : polices de secours supplémentaires pour les caractères rares (TrueType, séparées par des virgules)
 diff --git a/CHANGELOG.md b/CHANGELOG.md
-index 186db23..31fff54 100644
+index 186db23..de2e946 100644
 --- a/CHANGELOG.md
 +++ b/CHANGELOG.md
-@@ -1,5 +1,25 @@
+@@ -1,5 +1,26 @@
  # Historique des versions
  
 +## 1.3.0 — 14 novembre 2026 (candidate, en attente du protocole de vérification)
@@ -71,6 +71,7 @@ index 186db23..31fff54 100644
 +- **Conditions des fournisseurs avant le premier envoi (complément du lot 10, cahier des charges § 13)** : résumé daté de ce que chaque fournisseur en ligne fait des textes envoyés (conservation, utilisation pour l'amélioration du service, différences entre offre gratuite et payante), avec les liens vers les conditions officielles, vérifié sur leurs pages le 14 novembre 2026 (`reference/conditions-fournisseurs.json` : DeepL, Google Cloud Translation, OpenAI, Anthropic, Gemini, service compatible OpenAI). Avant le premier envoi à un fournisseur (traduction, comparaison sur le corpus, envoi d'un glossaire à DeepL), le résumé s'affiche et l'envoi exige la case « J'ai pris connaissance » ; la prise de connaissance est enregistrée dans le journal des actions (aucune nouvelle table) et redemandée quand le résumé du fournisseur est revérifié. Argos n'est pas concerné (rien ne quitte l'ordinateur). Tous les résumés sont consultables dans Traduction → Moteurs. Aucune migration.
 +- **Recette (14 novembre 2026)** : migrations aller-retour testées sur une base d'essai temporaire avec données fictives (aucune perte ; `docs/evolution-1.3.0/recette-migrations.md`) ; commande en lecture seule `verifier_retour_120` (avec `--exporter`) et procédure de retour à la 1.2.0 (`retour-1.2.0.md`, correctif inverse) ; guide d'installation, guide d'utilisation, notices DeepL, Google et Argos, protocole TR1 à TR13, rapport technique. Statut de chaque moteur : **développé et testé en simulation ; test réel à confirmer**.
 +- **Mise à jour d'une installation existante (14 novembre 2026)** : la 1.3.0 refuse toujours de démarrer sous le nom de projet Docker de l'installation principale ou de l'essai 1.2.0, **sauf autorisation explicite** : la ligne `AUTORISER_NOM_PROJET=<même nom>` dans `.env` permet de mettre à jour cette installation en gardant ses données (conteneurs de l'application et service Argos). `reinitialiser-essai.ps1` accepte, avec la même autorisation, l'essai 1.2.0 mis à jour (jamais l'installation principale). Notice pour débutant : mettre à jour, vider ou réinstaller dans Docker, avec l'installation de Docker Desktop sous Windows 11 en annexe.
++- **Correctifs du protocole TR8 (1.3.0-rc3, 14 novembre 2026)** : premier essai réel d'Argos sur le poste de l'utilisateur. (1) Les paquets ja→en 1.1 et en→fr 1.9 de l'index livrent un `resources.json` de Stanza à l'ancien format (sans rubrique « packages ») : Stanza 1.10, appelé sans téléchargement, levait `KeyError: 'packages'` et toute traduction échouait (HTTP 500). Le service lit désormais une **copie adaptée** de ce fichier, écrite dans son cache (découpage en phrases seul, modèle fourni par le paquet) ; le paquet n'est pas modifié et rien n'est téléchargé. Vérifié avec le code de résolution réel de Stanza 1.10.1 ; le chargement des modèles des paquets reste à confirmer sur le poste. (2) Une erreur interne du service n'est plus présentée comme « momentanément indisponible (HTTP 500) » : l'application affiche son type (par exemple « Service Argos : Erreur interne (KeyError). ») et le journal du service l'enregistre, toujours sans aucun texte. Relevé, non corrigé dans la 1.3.0 : la commande `backup` affiche « Échec » mais se termine sans code d'erreur (présent depuis la 1.2.0 ; prévu au lot 0 de la 2.0.0).
 +- Base de données : migrations `catalog.0005` et `incidents.0002`, **listes de choix uniquement, aucune instruction SQL** ; migration **additive** `translation.0001_initial` (nouvelles tables uniquement ; aucune table existante modifiée) ; `translation.0002_paquets_argos` (nouvelle nature de tâche « Installation de paquets Argos », **liste de choix uniquement, aucune instruction SQL**). Retour : `python manage.py migrate translation zero`.
 +
  ## 1.2.0 — 13 novembre 2026
@@ -1564,10 +1565,10 @@ index 0000000..45f8c21
 +                            tokens_out=tokens_out, alerts=alerts)
 diff --git a/apps/translation/engines/argos.py b/apps/translation/engines/argos.py
 new file mode 100644
-index 0000000..6bd76b0
+index 0000000..5e1f910
 --- /dev/null
 +++ b/apps/translation/engines/argos.py
-@@ -0,0 +1,181 @@
+@@ -0,0 +1,183 @@
 +"""
 +Argos Translate : moteur local, hors ligne, sans clé (décision A1 : service Docker séparé et facultatif).
 +
@@ -1612,6 +1613,8 @@ index 0000000..6bd76b0
 +    "occupe": ("unavailable", ""),
 +    "index_injoignable": ("unavailable", ""),
 +    "telechargement_echoue": ("unavailable", ""),
++    # erreur interne du service : son type est affiché (jamais masqué derrière « momentanément indisponible »)
++    "erreur_interne": ("technical", ""),
 +}
 +
 +
@@ -9286,10 +9289,10 @@ index 0000000..a64d4ff
 +wrapt==2.5.2
 diff --git a/docker/argos/server.py b/docker/argos/server.py
 new file mode 100644
-index 0000000..94352b8
+index 0000000..9cdc852
 --- /dev/null
 +++ b/docker/argos/server.py
-@@ -0,0 +1,379 @@
+@@ -0,0 +1,435 @@
 +"""
 +Service Argos Translate de « Japon — Explorateur documentaire » (version 1.3.0, décision A1).
 +
@@ -9321,7 +9324,15 @@ index 0000000..94352b8
 +Le service l'empêche : Stanza est appelé sans téléchargement (download_method=None) et une traduction
 +est refusée, avec un message clair, si le modèle MiniSBD nécessaire manque. Ce modèle (quelques Mo) est
 +récupéré pendant le téléchargement d'un paquet depuis l'index, ou sur demande explicite (/install-sbd).
++
++Correctif 1.3.0-rc3 (constaté au protocole TR8, 14 novembre 2026) : les paquets de l'index (ja→en 1.1,
++en→fr 1.9) livrent un resources.json de Stanza à l'ancien format, sans rubrique « packages ». Stanza 1.10
++ne sait plus le lire (KeyError: 'packages') ; en ligne, il le remplaçait silencieusement par un fichier
++téléchargé. Le service en lit une COPIE adaptée (rubrique « packages » reconstituée à partir de
++« default_processors », découpage seul), écrite dans son cache : le paquet n'est pas modifié et rien
++n'est téléchargé.
 +"""
++import hashlib
 +import json
 +import os
 +import re
@@ -9342,6 +9353,47 @@ index 0000000..94352b8
 +    def __init__(self, status, code, message):
 +        super().__init__(message)
 +        self.status, self.code, self.message = status, code, message
++
++
++# --------------------------------------------------------------------------- Stanza hors ligne
++
++
++def stanza_cache_dir():
++    return Path(os.environ.get("XDG_CACHE_HOME") or "/tmp") / "japon-stanza"
++
++
++def compatible_stanza_resources(model_dir, lang, cache_dir=None):
++    """Chemin d'une copie de <model_dir>/resources.json lisible par Stanza 1.10, ou None si inutile.
++
++    Ancien format (paquets Argos) : la langue n'a pas de rubrique « packages ». On la reconstitue avec le
++    seul modèle de découpage (« tokenize ») déclaré par défaut, qui est celui fourni dans le paquet.
++    Le fichier du paquet n'est jamais modifié ; la copie est écrite dans le cache du service.
++    """
++    source = Path(model_dir) / "resources.json"
++    if not source.is_file():
++        return None
++    raw = source.read_bytes()
++    resources = json.loads(raw.decode("utf-8"))
++    key, seen = str(lang).strip().lower(), set()
++    while isinstance(resources.get(key), dict) and "alias" in resources[key] and key not in seen:
++        seen.add(key)
++        key = resources[key]["alias"]
++    entry = resources.get(key)
++    if not isinstance(entry, dict) or "packages" in entry:
++        return None
++    tokenize = (entry.get("default_processors") or {}).get("tokenize") or next(iter(entry.get("tokenize") or {}), None)
++    if not tokenize:
++        return None
++    entry["packages"] = {"default": {"tokenize": tokenize}}
++    target_dir = Path(cache_dir) if cache_dir else stanza_cache_dir()
++    target_dir.mkdir(parents=True, exist_ok=True)
++    digest = hashlib.sha256(str(source.resolve()).encode("utf-8") + b"\0" + raw).hexdigest()[:24]
++    target = target_dir / f"resources-{key}-{digest}.json"
++    if not target.is_file():
++        tmp = target.with_suffix(".tmp")
++        tmp.write_text(json.dumps(resources, ensure_ascii=False), encoding="utf-8")
++        tmp.replace(target)
++    return str(target)
 +
 +
 +# --------------------------------------------------------------------------- moteur Argos réel
@@ -9376,6 +9428,11 @@ index 0000000..94352b8
 +
 +        def offline_pipeline(*args, **kwargs):
 +            kwargs.setdefault("download_method", None)
++            lang = kwargs.get("lang", args[0] if args else None)
++            if lang and kwargs.get("dir") and "resources_filepath" not in kwargs:
++                adapted = compatible_stanza_resources(kwargs["dir"], lang)
++                if adapted:
++                    kwargs["resources_filepath"] = adapted
 +            return original(*args, **kwargs)
 +
 +        offline_pipeline._japon_original = original
@@ -9602,8 +9659,9 @@ index 0000000..94352b8
 +            self.end_headers()
 +            self.wfile.write(raw)
 +
-+        def _log(self, status, started):
-+            sys.stderr.write(f"{self.command} {self.path} {status} {int((time.monotonic() - started) * 1000)} ms\n")
++        def _log(self, status, started, error=""):
++            detail = f" — {error}" if error else ""
++            sys.stderr.write(f"{self.command} {self.path} {status} {int((time.monotonic() - started) * 1000)} ms{detail}\n")
 +
 +        def _body(self):
 +            length = int(self.headers.get("Content-Length") or 0)
@@ -9621,7 +9679,7 @@ index 0000000..94352b8
 +
 +        def _dispatch(self, routes):
 +            started = time.monotonic()
-+            status = 200
++            status, error = 200, ""
 +            try:
 +                route = routes.get(self.path.split("?")[0])
 +                if route is None:
@@ -9631,8 +9689,9 @@ index 0000000..94352b8
 +                status, data = exc.status, {"code": exc.code, "message": exc.message}
 +            except Exception as exc:  # noqa: BLE001 — type seulement, jamais le message (il pourrait contenir du texte)
 +                status, data = 500, {"code": "erreur_interne", "message": f"Erreur interne ({exc.__class__.__name__})."}
++                error = f"erreur interne {exc.__class__.__name__}"
 +            self._send(status, data)
-+            self._log(status, started)
++            self._log(status, started, error)
 +
 +        def do_GET(self):  # noqa: N802
 +            self._dispatch({"/health": service.health})
@@ -10340,10 +10399,10 @@ index 0000000..d05bba1
 +(« certaine », « probable », « incertaine »). Une correction de l'import pourrait réutiliser `detect_text`.
 diff --git a/docs/evolution-1.3.0/notice-argos.md b/docs/evolution-1.3.0/notice-argos.md
 new file mode 100644
-index 0000000..a7153eb
+index 0000000..e2cd1e5
 --- /dev/null
 +++ b/docs/evolution-1.3.0/notice-argos.md
-@@ -0,0 +1,84 @@
+@@ -0,0 +1,87 @@
 +# Notice — Installer Argos Translate et ses paquets de langues (version 1.3.0)
 +
 +Argos Translate est le moteur de traduction **hors ligne** du module : il traduit sur votre ordinateur, sans
@@ -10351,8 +10410,10 @@ index 0000000..a7153eb
 +concerne que l'installation d'essai 1.3.0 (projet `japon-explorateur-essai-130`, port 8002).
 +
 +> Statut : service **développé et testé en simulation** (traducteur factice, bibliothèque Argos imitée).
-+> La construction de l'image, sa taille réelle, le téléchargement des paquets et la traduction réelle,
-+> y compris connexion Internet coupée (protocole TR8), sont **à vérifier sur votre poste**.
++> Premier essai réel (14 novembre 2026) : construction de l'image et installation des paquets ja→en et
++> en→fr **réussies** sur le poste de l'utilisateur ; la traduction échouait (HTTP 500, `KeyError: 'packages'`),
++> corrigé en 1.3.0-rc3. La traduction réelle, y compris connexion Internet coupée (protocole TR8), reste
++> **à vérifier sur votre poste**.
 +
 +## 1. Démarrer le service
 +
@@ -10424,6 +10485,7 @@ index 0000000..a7153eb
 +| « service Argos injoignable — démarré avec le profil Docker « hors-ligne » ? » | Lancer la commande du § 1. |
 +| « paquets de langues nécessaires non installés » | Installer les paquets du § 2. |
 +| « modèle de découpage en phrases manquant » | Cliquer sur « Télécharger » à côté du paquet (Internet). |
++| « Service Argos : Erreur interne (…) » | Transmettre ce message et le journal du service (ci-dessous) : le type d'erreur y figure. |
 +| « Index des paquets Argos injoignable » | Vérifier la connexion, ou installer depuis un fichier. |
 +
 +Journal du service : `docker compose --profile hors-ligne logs --tail 100 argos` (il ne contient jamais
@@ -12298,10 +12360,10 @@ index 64a9183..d8ed906 100644
 +        terms.acknowledge(user, key)
 diff --git a/tests/test_argos_service.py b/tests/test_argos_service.py
 new file mode 100644
-index 0000000..9db76c6
+index 0000000..ac0bdaa
 --- /dev/null
 +++ b/tests/test_argos_service.py
-@@ -0,0 +1,591 @@
+@@ -0,0 +1,644 @@
 +"""Évolution 1.3.0 — lot 9 : service Argos Translate facultatif (T6) et gestion des paquets.
 +
 +Le serveur réel (docker/argos/server.py) est démarré sur la boucle locale avec un traducteur FACTICE :
@@ -12476,6 +12538,10 @@ index 0000000..9db76c6
 +        log = self.log.getvalue()
 +        self.assertIn("POST /translate 200", log)
 +        self.assertNotIn("秘密", log)
++        # 1.3.0-rc3 : le journal donne le type de l'erreur interne (jamais son message)
++        self.assertIn("POST /translate 500", log)
++        self.assertIn("erreur interne RuntimeError", log)
++        self.assertNotIn("secret", log)
 +
 +    def test_one_installation_at_a_time(self):
 +        svc = server_mod.Service(self.backend)
@@ -12560,6 +12626,19 @@ index 0000000..9db76c6
 +        status = self.engine().status()
 +        self.assertTrue(status.simulated)
 +        self.assertIn("modèle de découpage en phrases manquant", status.detail)
++
++    def test_internal_error_type_is_shown_not_hidden(self):
++        # 1.3.0-rc3 : constaté au protocole TR8 — « momentanément indisponible (HTTP 500) » cachait la cause
++        from apps.translation.engines.base import Segment, TranslationEngineError
++
++        self.connect(installed=(("ja", "en", "1.1"), ("en", "fr", "1.9")))
++        with self.assertRaises(TranslationEngineError) as ctx:
++            self.engine().translate([Segment("1", "ERREUR 秘密")], "en", "fr")
++        message = str(ctx.exception)
++        self.assertIn("Erreur interne (RuntimeError)", message)
++        self.assertNotIn("momentanément indisponible", message)
++        self.assertNotIn("secret", message)
++        self.assertEqual(ctx.exception.kind, "technical")
 +
 +    def test_real_translation_records_package_versions(self):
 +        self.connect(installed=(("ja", "en", "1.1"), ("en", "fr", "1.9")))
@@ -12807,6 +12886,42 @@ index 0000000..9db76c6
 +        self.assertTrue(self.backend.installed()[0]["sbd_ready"])
 +        self.backend.translate_step(["x"], "en", "fr")
 +        self.assertEqual(self.lib.stanza.Pipeline(lang="en"), {"lang": "en", "download_method": None})
++
++    def test_old_format_stanza_resources_are_read_from_an_adapted_copy(self):
++        """1.3.0-rc3, constaté au protocole TR8 : les paquets ja→en 1.1 et en→fr 1.9 livrent un resources.json
++        de Stanza à l'ancien format (sans « packages ») ; Stanza 1.10 levait KeyError: 'packages'."""
++        from unittest import mock
++
++        stanza_dir = self.tmp / "translate-en_fr-1_9" / "stanza"
++        (stanza_dir / "en" / "tokenize").mkdir(parents=True)
++        old = {"en": {"tokenize": {"ewt": {"md5": "a"}}, "mwt": {"ewt": {"md5": "b"}},
++                      "default_processors": {"tokenize": "ewt", "mwt": "ewt", "pos": "ewt"}, "lang_name": "English"},
++               "english": {"alias": "en"},
++               "ja": {"tokenize": {"gsd": {"md5": "c"}}, "default_processors": {"tokenize": "gsd"}}}
++        original = json.dumps(old, indent=2)
++        (stanza_dir / "resources.json").write_text(original, encoding="utf-8")
++        self.lib.installed.append(self.lib.Pkg("en", "fr", "1.9", sbd=stanza_dir))
++        with mock.patch.dict(os.environ, {"XDG_CACHE_HOME": str(self.tmp / "cache")}):
++            self.backend.translate_step(["x"], "en", "fr")  # installe la protection hors ligne
++            for lang, model in (("en", "ewt"), ("english", "ewt"), ("ja", "gsd")):
++                kwargs = self.lib.stanza.Pipeline(lang=lang, dir=str(stanza_dir), processors="tokenize")
++                self.assertIsNone(kwargs["download_method"])
++                adapted = Path(kwargs["resources_filepath"])
++                self.assertEqual(adapted.parent, self.tmp / "cache" / "japon-stanza")
++                resources = json.loads(adapted.read_text(encoding="utf-8"))
++                target = resources["en"] if lang == "english" else resources[lang]
++                self.assertEqual(target["packages"], {"default": {"tokenize": model}})  # découpage seul, pas de mwt
++            first = self.lib.stanza.Pipeline(lang="en", dir=str(stanza_dir))["resources_filepath"]
++            self.assertEqual(self.lib.stanza.Pipeline(lang="en", dir=str(stanza_dir))["resources_filepath"], first)
++        self.assertEqual((stanza_dir / "resources.json").read_text(encoding="utf-8"), original)  # paquet intact
++        self.assertEqual(self.lib.network, [])  # rien de téléchargé
++        # format récent (rubrique « packages ») ou fichier absent : rien à adapter
++        recent = self.tmp / "recent"
++        recent.mkdir()
++        (recent / "resources.json").write_text(json.dumps({"en": {"packages": {"default": {}}}}), encoding="utf-8")
++        self.assertIsNone(server_mod.compatible_stanza_resources(recent, "en", cache_dir=self.tmp / "c2"))
++        self.assertIsNone(server_mod.compatible_stanza_resources(self.tmp / "absent", "en", cache_dir=self.tmp / "c2"))
++        self.assertNotIn("resources_filepath", self.lib.stanza.Pipeline(lang="en", dir=str(recent)))
 +
 +    def test_index_lists_only_module_languages_and_translation_packages(self):
 +        codes = [(p["from"], p["to"]) for p in self.backend.available()]

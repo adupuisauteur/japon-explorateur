@@ -29,7 +29,15 @@ télécharger un fichier (resources.json de Stanza, ou modèle MiniSBD quand le 
 Le service l'empêche : Stanza est appelé sans téléchargement (download_method=None) et une traduction
 est refusée, avec un message clair, si le modèle MiniSBD nécessaire manque. Ce modèle (quelques Mo) est
 récupéré pendant le téléchargement d'un paquet depuis l'index, ou sur demande explicite (/install-sbd).
+
+Correctif 1.3.0-rc3 (constaté au protocole TR8, 14 novembre 2026) : les paquets de l'index (ja→en 1.1,
+en→fr 1.9) livrent un resources.json de Stanza à l'ancien format, sans rubrique « packages ». Stanza 1.10
+ne sait plus le lire (KeyError: 'packages') ; en ligne, il le remplaçait silencieusement par un fichier
+téléchargé. Le service en lit une COPIE adaptée (rubrique « packages » reconstituée à partir de
+« default_processors », découpage seul), écrite dans son cache : le paquet n'est pas modifié et rien
+n'est téléchargé.
 """
+import hashlib
 import json
 import os
 import re
@@ -50,6 +58,47 @@ class ServiceError(Exception):
     def __init__(self, status, code, message):
         super().__init__(message)
         self.status, self.code, self.message = status, code, message
+
+
+# --------------------------------------------------------------------------- Stanza hors ligne
+
+
+def stanza_cache_dir():
+    return Path(os.environ.get("XDG_CACHE_HOME") or "/tmp") / "japon-stanza"
+
+
+def compatible_stanza_resources(model_dir, lang, cache_dir=None):
+    """Chemin d'une copie de <model_dir>/resources.json lisible par Stanza 1.10, ou None si inutile.
+
+    Ancien format (paquets Argos) : la langue n'a pas de rubrique « packages ». On la reconstitue avec le
+    seul modèle de découpage (« tokenize ») déclaré par défaut, qui est celui fourni dans le paquet.
+    Le fichier du paquet n'est jamais modifié ; la copie est écrite dans le cache du service.
+    """
+    source = Path(model_dir) / "resources.json"
+    if not source.is_file():
+        return None
+    raw = source.read_bytes()
+    resources = json.loads(raw.decode("utf-8"))
+    key, seen = str(lang).strip().lower(), set()
+    while isinstance(resources.get(key), dict) and "alias" in resources[key] and key not in seen:
+        seen.add(key)
+        key = resources[key]["alias"]
+    entry = resources.get(key)
+    if not isinstance(entry, dict) or "packages" in entry:
+        return None
+    tokenize = (entry.get("default_processors") or {}).get("tokenize") or next(iter(entry.get("tokenize") or {}), None)
+    if not tokenize:
+        return None
+    entry["packages"] = {"default": {"tokenize": tokenize}}
+    target_dir = Path(cache_dir) if cache_dir else stanza_cache_dir()
+    target_dir.mkdir(parents=True, exist_ok=True)
+    digest = hashlib.sha256(str(source.resolve()).encode("utf-8") + b"\0" + raw).hexdigest()[:24]
+    target = target_dir / f"resources-{key}-{digest}.json"
+    if not target.is_file():
+        tmp = target.with_suffix(".tmp")
+        tmp.write_text(json.dumps(resources, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(target)
+    return str(target)
 
 
 # --------------------------------------------------------------------------- moteur Argos réel
@@ -84,6 +133,11 @@ class ArgosBackend:
 
         def offline_pipeline(*args, **kwargs):
             kwargs.setdefault("download_method", None)
+            lang = kwargs.get("lang", args[0] if args else None)
+            if lang and kwargs.get("dir") and "resources_filepath" not in kwargs:
+                adapted = compatible_stanza_resources(kwargs["dir"], lang)
+                if adapted:
+                    kwargs["resources_filepath"] = adapted
             return original(*args, **kwargs)
 
         offline_pipeline._japon_original = original
@@ -310,8 +364,9 @@ def make_handler(service):
             self.end_headers()
             self.wfile.write(raw)
 
-        def _log(self, status, started):
-            sys.stderr.write(f"{self.command} {self.path} {status} {int((time.monotonic() - started) * 1000)} ms\n")
+        def _log(self, status, started, error=""):
+            detail = f" — {error}" if error else ""
+            sys.stderr.write(f"{self.command} {self.path} {status} {int((time.monotonic() - started) * 1000)} ms{detail}\n")
 
         def _body(self):
             length = int(self.headers.get("Content-Length") or 0)
@@ -329,7 +384,7 @@ def make_handler(service):
 
         def _dispatch(self, routes):
             started = time.monotonic()
-            status = 200
+            status, error = 200, ""
             try:
                 route = routes.get(self.path.split("?")[0])
                 if route is None:
@@ -339,8 +394,9 @@ def make_handler(service):
                 status, data = exc.status, {"code": exc.code, "message": exc.message}
             except Exception as exc:  # noqa: BLE001 — type seulement, jamais le message (il pourrait contenir du texte)
                 status, data = 500, {"code": "erreur_interne", "message": f"Erreur interne ({exc.__class__.__name__})."}
+                error = f"erreur interne {exc.__class__.__name__}"
             self._send(status, data)
-            self._log(status, started)
+            self._log(status, started, error)
 
         def do_GET(self):  # noqa: N802
             self._dispatch({"/health": service.health})

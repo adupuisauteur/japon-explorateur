@@ -5,8 +5,10 @@ envoyer de texte sur Internet. Il est **facultatif** et fonctionne dans un servi
 concerne que l'installation d'essai 1.3.0 (projet `japon-explorateur-essai-130`, port 8002).
 
 > Statut : service **développé et testé en simulation** (traducteur factice, bibliothèque Argos imitée).
-> La construction de l'image, sa taille réelle, le téléchargement des paquets et la traduction réelle,
-> y compris connexion Internet coupée (protocole TR8), sont **à vérifier sur votre poste**.
+> Premier essai réel (14 novembre 2026) : construction de l'image et installation des paquets ja→en et
+> en→fr **réussies** sur le poste de l'utilisateur ; la traduction échouait (HTTP 500, `KeyError: 'packages'`),
+> corrigé en 1.3.0-rc3. La traduction réelle, y compris connexion Internet coupée (protocole TR8), reste
+> **à vérifier sur votre poste**.
 
 ## 1. Démarrer le service
 
@@ -78,6 +80,7 @@ redémarre avec ses paquets.
 | « service Argos injoignable — démarré avec le profil Docker « hors-ligne » ? » | Lancer la commande du § 1. |
 | « paquets de langues nécessaires non installés » | Installer les paquets du § 2. |
 | « modèle de découpage en phrases manquant » | Cliquer sur « Télécharger » à côté du paquet (Internet). |
+| « Service Argos : Erreur interne (…) » | Transmettre ce message et le journal du service (ci-dessous) : le type d'erreur y figure. |
 | « Index des paquets Argos injoignable » | Vérifier la connexion, ou installer depuis un fichier. |
 
 Journal du service : `docker compose --profile hors-ligne logs --tail 100 argos` (il ne contient jamais

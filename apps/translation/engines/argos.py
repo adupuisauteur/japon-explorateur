@@ -42,6 +42,8 @@ SERVICE_CODES = {
     "occupe": ("unavailable", ""),
     "index_injoignable": ("unavailable", ""),
     "telechargement_echoue": ("unavailable", ""),
+    # erreur interne du service : son type est affiché (jamais masqué derrière « momentanément indisponible »)
+    "erreur_interne": ("technical", ""),
 }
 
 
