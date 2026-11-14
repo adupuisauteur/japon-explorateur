@@ -82,6 +82,10 @@ empreintes sont calculées colonne par colonne en SQL, sans le code de l'applica
 - La liste complète des modèles reste à vérifier avec une vraie clé (V0-8) : statut « testé en simulation ;
   test réel à confirmer ».
 
+- **Guides pour débutant** (documents en ligne du 14 novembre 2026, installation et mise à jour) : décision
+  de l'utilisateur, **à chaque lot qui ajoute des migrations, mettre à jour la commande de retour** de la section
+  « Revenir à la version précédente » du guide de mise à jour (actuellement `migrate core 0001`).
+
 ## 5. Livrables du lot
 
 - Archive intermédiaire `japon-explorateur-2.0.0-lot0.zip`, son empreinte `.sha256`, et `mettre-a-jour.ps1` à
