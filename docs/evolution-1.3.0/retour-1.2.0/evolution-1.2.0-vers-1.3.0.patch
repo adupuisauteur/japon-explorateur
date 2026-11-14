@@ -1,5 +1,5 @@
 diff --git a/.env.example b/.env.example
-index 2ccf0ec..a7ecd63 100644
+index 2ccf0ec..7ae8734 100644
 --- a/.env.example
 +++ b/.env.example
 @@ -1,11 +1,13 @@
@@ -21,10 +21,15 @@ index 2ccf0ec..a7ecd63 100644
  # ------------------------------------------------------------------------------------------------
  # Générez les valeurs avec :  docker compose run --rm web python manage.py generate_secrets
  #                       (ou, hors Docker :  python manage.py generate_secrets)
-@@ -46,6 +48,19 @@ CINII_APPID=
+@@ -46,6 +48,24 @@ CINII_APPID=
  # CONNECTOR_USER_AGENT=JaponExplorateurDocumentaire/1.0 (contact : votre-adresse)
  CONNECTOR_DEFAULT_TIMEOUT=20
  
++# Mise à jour d'une installation existante (1.2.0 ou principale) en gardant ses données : la 1.3.0
++# refuse de démarrer sous les noms « japon-explorateur » et « japon-explorateur-essai », sauf si cette
++# ligne reprend EXACTEMENT la valeur de COMPOSE_PROJECT_NAME. Laissez-la commentée pour un essai séparé.
++# AUTORISER_NOM_PROJET=
++
 +# --- Module de traduction (1.3.0) --------------------------------------------------------------
 +# Les clés DeepL et Google se saisissent dans l'application (Traduction → Moteurs), jamais ici.
 +# Délais de réponse (secondes) :
@@ -42,10 +47,10 @@ index 2ccf0ec..a7ecd63 100644
  # PDF_JAPANESE_FONT=/usr/share/fonts/opentype/ipaexfont-mincho/ipaexm.ttf
  # PDF : polices de secours supplémentaires pour les caractères rares (TrueType, séparées par des virgules)
 diff --git a/CHANGELOG.md b/CHANGELOG.md
-index 186db23..db2cabd 100644
+index 186db23..31fff54 100644
 --- a/CHANGELOG.md
 +++ b/CHANGELOG.md
-@@ -1,5 +1,24 @@
+@@ -1,5 +1,25 @@
  # Historique des versions
  
 +## 1.3.0 — 14 novembre 2026 (candidate, en attente du protocole de vérification)
@@ -65,6 +70,7 @@ index 186db23..db2cabd 100644
 +- **Évaluation et consommation (lot 10)** : rubrique **Traduction → Évaluation** (cahier des charges § 15) — un projet coché « Corpus de référence » peut être traduit par plusieurs moteurs choisis (DeepL, Google, Argos, jusqu'à deux IA) ; une tâche par moteur, sur tous les segments du corpus, sans reprise de la mémoire ni exclusion des segments validés ; **rien n'est envoyé avant la confirmation** du coût estimé de chaque moteur (seconde confirmation au-delà du seuil ; moteurs en ligne écartés pour un corpus confidentiel) ; résultats datés et conservés (versions proposées), affichés côte à côte ; **notation humaine** (correcte, acceptable, fautive, contresens, avec commentaire) et répartition des notes données — aucun score automatique. Rubrique **Traduction → Consommation** (§ 14) — par moteur et par mois (12 derniers mois) : tâches, caractères envoyés, traductions reçues, coût estimé par devise (somme des coûts enregistrés avec chaque traduction ; coût des tâches IA pour les IA, avec leurs jetons), ligne à part pour les traductions de l'ancien module IA, détail des tâches du mois ; plafonds du mois en cours (caractères par moteur, budget IA) ; montants présentés comme des estimations, la facture du fournisseur faisant foi. Aucune migration.
 +- **Conditions des fournisseurs avant le premier envoi (complément du lot 10, cahier des charges § 13)** : résumé daté de ce que chaque fournisseur en ligne fait des textes envoyés (conservation, utilisation pour l'amélioration du service, différences entre offre gratuite et payante), avec les liens vers les conditions officielles, vérifié sur leurs pages le 14 novembre 2026 (`reference/conditions-fournisseurs.json` : DeepL, Google Cloud Translation, OpenAI, Anthropic, Gemini, service compatible OpenAI). Avant le premier envoi à un fournisseur (traduction, comparaison sur le corpus, envoi d'un glossaire à DeepL), le résumé s'affiche et l'envoi exige la case « J'ai pris connaissance » ; la prise de connaissance est enregistrée dans le journal des actions (aucune nouvelle table) et redemandée quand le résumé du fournisseur est revérifié. Argos n'est pas concerné (rien ne quitte l'ordinateur). Tous les résumés sont consultables dans Traduction → Moteurs. Aucune migration.
 +- **Recette (14 novembre 2026)** : migrations aller-retour testées sur une base d'essai temporaire avec données fictives (aucune perte ; `docs/evolution-1.3.0/recette-migrations.md`) ; commande en lecture seule `verifier_retour_120` (avec `--exporter`) et procédure de retour à la 1.2.0 (`retour-1.2.0.md`, correctif inverse) ; guide d'installation, guide d'utilisation, notices DeepL, Google et Argos, protocole TR1 à TR13, rapport technique. Statut de chaque moteur : **développé et testé en simulation ; test réel à confirmer**.
++- **Mise à jour d'une installation existante (14 novembre 2026)** : la 1.3.0 refuse toujours de démarrer sous le nom de projet Docker de l'installation principale ou de l'essai 1.2.0, **sauf autorisation explicite** : la ligne `AUTORISER_NOM_PROJET=<même nom>` dans `.env` permet de mettre à jour cette installation en gardant ses données (conteneurs de l'application et service Argos). `reinitialiser-essai.ps1` accepte, avec la même autorisation, l'essai 1.2.0 mis à jour (jamais l'installation principale). Notice pour débutant : mettre à jour, vider ou réinstaller dans Docker, avec l'installation de Docker Desktop sous Windows 11 en annexe.
 +- Base de données : migrations `catalog.0005` et `incidents.0002`, **listes de choix uniquement, aucune instruction SQL** ; migration **additive** `translation.0001_initial` (nouvelles tables uniquement ; aucune table existante modifiée) ; `translation.0002_paquets_argos` (nouvelle nature de tâche « Installation de paquets Argos », **liste de choix uniquement, aucune instruction SQL**). Retour : `python manage.py migrate translation zero`.
 +
  ## 1.2.0 — 13 novembre 2026
@@ -9052,10 +9058,10 @@ index e2611f6..7a47700 100644
      # PWA : le service worker doit être servi à la racine pour couvrir tout le site.
      path("sw.js", core_views.service_worker, name="service_worker"),
 diff --git a/docker-compose.yml b/docker-compose.yml
-index 70e3d98..09b8dd3 100644
+index 70e3d98..56b0fa2 100644
 --- a/docker-compose.yml
 +++ b/docker-compose.yml
-@@ -1,26 +1,36 @@
+@@ -1,26 +1,37 @@
  # Japon — Explorateur documentaire : installation locale reproductible (§17.1)
 -#   docker compose up -d --build      puis ouvrir http://localhost:8000
 +#   docker compose up -d --build      puis ouvrir http://localhost:8002 (port réglable par WEB_PORT)
@@ -9070,7 +9076,8 @@ index 70e3d98..09b8dd3 100644
 +# (fichier .env) ; par défaut « japon-explorateur-essai-130 ». Noms réservés, jamais utilisés ici :
 +#   « japon-explorateur »        installation principale (port 8000)
 +#   « japon-explorateur-essai »  installation d'essai 1.2.0 (port 8001)
-+# Les conteneurs refusent de démarrer sous l'un de ces deux noms (voir docker/entrypoint.sh).
++# Les conteneurs refusent de démarrer sous l'un de ces deux noms (voir docker/entrypoint.sh), sauf
++# autorisation explicite AUTORISER_NOM_PROJET=<même nom> dans .env, pour mettre à jour cette installation.
 +name: ${COMPOSE_PROJECT_NAME:-japon-explorateur-essai-130}
  
  x-app: &app
@@ -9099,7 +9106,7 @@ index 70e3d98..09b8dd3 100644
      # Copie externe des sauvegardes : décommentez et adaptez (disque externe, NAS…)
      # - /chemin/vers/disque-externe/japon:/backups-externes
    depends_on:
-@@ -49,7 +59,7 @@ services:
+@@ -49,7 +60,7 @@ services:
      <<: *app
      ports:
        # Écoute sur la boucle locale uniquement. Pour un accès réseau, passer par un reverse proxy HTTPS.
@@ -9108,7 +9115,7 @@ index 70e3d98..09b8dd3 100644
      healthcheck:
        test: ["CMD", "curl", "-fs", "http://localhost:8000/hors-ligne/"]
        interval: 30s
-@@ -63,7 +73,11 @@ services:
+@@ -63,7 +74,11 @@ services:
        REDIS_URL: redis://redis:6379/0
        DATA_DIR: /data
        RUN_MIGRATIONS: "0"
@@ -9121,7 +9128,7 @@ index 70e3d98..09b8dd3 100644
  
    beat:
      <<: *app
-@@ -72,8 +86,28 @@ services:
+@@ -72,8 +87,29 @@ services:
        REDIS_URL: redis://redis:6379/0
        DATA_DIR: /data
        RUN_MIGRATIONS: "0"
@@ -9140,6 +9147,7 @@ index 70e3d98..09b8dd3 100644
 +    image: japon-explorateur-argos:1.3.0
 +    environment:
 +      COMPOSE_PROJECT_CHECK: ${COMPOSE_PROJECT_NAME:-japon-explorateur-essai-130}
++      AUTORISER_NOM_PROJET: ${AUTORISER_NOM_PROJET:-}
 +    volumes:
 +      - argos-packages:/argos
 +      - argos-depot:/depot:ro
@@ -9278,10 +9286,10 @@ index 0000000..a64d4ff
 +wrapt==2.5.2
 diff --git a/docker/argos/server.py b/docker/argos/server.py
 new file mode 100644
-index 0000000..6d3b359
+index 0000000..94352b8
 --- /dev/null
 +++ b/docker/argos/server.py
-@@ -0,0 +1,378 @@
+@@ -0,0 +1,379 @@
 +"""
 +Service Argos Translate de « Japon — Explorateur documentaire » (version 1.3.0, décision A1).
 +
@@ -9648,7 +9656,8 @@ index 0000000..6d3b359
 +
 +def main():
 +    project = os.environ.get("COMPOSE_PROJECT_CHECK", "")
-+    if project in RESERVED_PROJECTS:
++    # Même règle que docker/entrypoint.sh : un nom réservé n'est accepté que sur autorisation explicite.
++    if project in RESERVED_PROJECTS and os.environ.get("AUTORISER_NOM_PROJET", "") != project:
 +        sys.stderr.write(f"ARRÊT : le projet Docker « {project} » appartient à une autre installation "
 +                         "(principale ou essai 1.2.0). Corrigez COMPOSE_PROJECT_NAME dans .env.\n")
 +        sys.exit(1)
@@ -9661,21 +9670,28 @@ index 0000000..6d3b359
 +if __name__ == "__main__":
 +    main()
 diff --git a/docker/entrypoint.sh b/docker/entrypoint.sh
-index 0cd7c81..547547b 100644
+index 0cd7c81..54119d7 100644
 --- a/docker/entrypoint.sh
 +++ b/docker/entrypoint.sh
-@@ -1,6 +1,16 @@
+@@ -1,6 +1,23 @@
  #!/bin/sh
  set -e
  
 +# Isolation (1.3.0) : refus de démarrer sous le nom de projet Docker de l'installation principale
 +# ou de l'installation d'essai 1.2.0, ce qui ferait utiliser leur base de données et leurs fichiers.
++# Exception VOLONTAIRE : la mise à jour d'une de ces installations vers la 1.3.0, en gardant ses données,
++# est permise seulement si .env contient AUTORISER_NOM_PROJET avec exactement le même nom de projet.
 +case "${COMPOSE_PROJECT_CHECK:-}" in
 +  japon-explorateur|japon-explorateur-essai)
-+    echo "ARRÊT : le projet Docker « ${COMPOSE_PROJECT_CHECK} » appartient à une autre installation" >&2
-+    echo "(principale ou essai 1.2.0). Corrigez COMPOSE_PROJECT_NAME dans .env (valeur attendue :" >&2
-+    echo "japon-explorateur-essai-130), puis relancez « docker compose up -d »." >&2
-+    exit 1 ;;
++    if [ "${AUTORISER_NOM_PROJET:-}" = "${COMPOSE_PROJECT_CHECK}" ]; then
++      echo "Projet Docker « ${COMPOSE_PROJECT_CHECK} » : démarrage autorisé par AUTORISER_NOM_PROJET (mise à jour d'une installation existante)." >&2
++    else
++      echo "ARRÊT : le projet Docker « ${COMPOSE_PROJECT_CHECK} » appartient à une autre installation" >&2
++      echo "(principale ou essai 1.2.0). Pour un essai séparé, corrigez COMPOSE_PROJECT_NAME dans .env (valeur" >&2
++      echo "attendue : japon-explorateur-essai-130). Pour mettre à jour CETTE installation en gardant ses données," >&2
++      echo "ajoutez dans .env la ligne AUTORISER_NOM_PROJET=${COMPOSE_PROJECT_CHECK} (après une sauvegarde)." >&2
++      exit 1
++    fi ;;
 +esac
 +
  # Commandes utilitaires sans base de données (ex. génération des clés) : exécution directe.
@@ -9707,10 +9723,10 @@ index 0000000..1b6057e
 +Ordre conseillé : 03 (installer), 05 (vérifier, avec les notices), puis 04 et 06.
 diff --git a/docs/evolution-1.3.0/03-guide-installation-windows.md b/docs/evolution-1.3.0/03-guide-installation-windows.md
 new file mode 100644
-index 0000000..8d75646
+index 0000000..105991c
 --- /dev/null
 +++ b/docs/evolution-1.3.0/03-guide-installation-windows.md
-@@ -0,0 +1,117 @@
+@@ -0,0 +1,124 @@
 +# Guide d'installation sous Windows 11 — version 1.3.0 (installation d'essai)
 +
 +Ce guide installe la version 1.3.0 **à côté** de vos installations actuelles, **sans les toucher** :
@@ -9816,6 +9832,13 @@ index 0000000..8d75646
 +
 +> ⚠️ N'utilisez `docker compose down -v` que dans le dossier de l'essai, jamais dans celui de l'installation
 +> principale. Préférez le script de réinitialisation, qui contrôle le nom du projet et le port avant d'effacer.
++
++## Mettre à jour une installation 1.2.0 existante en gardant ses données
++
++Ce guide installe un essai **séparé**, avec une base neuve. Pour passer une installation 1.2.0 en 1.3.0 en
++conservant ses notices et dossiers, suivez la notice « Mettre à jour, vider ou réinstaller » : même nom de projet
++et même port que la 1.2.0, `.env` recopié, et la ligne `AUTORISER_NOM_PROJET=<nom du projet>` ajoutée à `.env`.
++Sans cette ligne, la 1.3.0 refuse de démarrer sous le nom d'une autre installation.
 +
 +## Retour en arrière
 +
@@ -9945,7 +9968,7 @@ index 0000000..b5715a5
 +aux moteurs actuels sur les mêmes textes.
 diff --git a/docs/evolution-1.3.0/05-protocole-verification.md b/docs/evolution-1.3.0/05-protocole-verification.md
 new file mode 100644
-index 0000000..77935cd
+index 0000000..be0d8c5
 --- /dev/null
 +++ b/docs/evolution-1.3.0/05-protocole-verification.md
 @@ -0,0 +1,104 @@
@@ -9967,7 +9990,7 @@ index 0000000..77935cd
 +**TR1 — Installation et version.** Pied de page « v1.3.0 », menu « Traduction ». L'installation principale
 +(port 8000) et l'essai 1.2.0 (port 8001) s'ouvrent toujours avec leurs données. `docker volume ls` montre des
 +volumes `japon-explorateur-essai-130_…` distincts. *Facultatif :* `docker compose exec web python manage.py test
-+tests` → « OK » (382 tests ou plus).
++tests` → « OK » (387 tests ou plus).
 +
 +**TR2 — Clé DeepL.** Suivez `notice-cle-deepl.md`. Attendu : « Tester » affiche « Connexion réussie » avec votre
 +consommation ; la clé n'est plus jamais affichée ; une offre erronée (gratuite au lieu de payante) donne un
@@ -10055,10 +10078,10 @@ index 0000000..77935cd
 +| Script de réinitialisation | | |
 diff --git a/docs/evolution-1.3.0/06-rapport-technique.md b/docs/evolution-1.3.0/06-rapport-technique.md
 new file mode 100644
-index 0000000..24b8de1
+index 0000000..1ba1b64
 --- /dev/null
 +++ b/docs/evolution-1.3.0/06-rapport-technique.md
-@@ -0,0 +1,121 @@
+@@ -0,0 +1,124 @@
 +# Rapport technique — Évolution 1.3.0 (module de traduction)
 +
 +**Japon — Explorateur documentaire** · 14 novembre 2026
@@ -10134,6 +10157,9 @@ index 0000000..24b8de1
 +- Projet confidentiel d'autrui : l'administrateur ne voit que les métadonnées ; mémoire de traduction propre à
 +  chaque compte ; exports réservés au propriétaire.
 +- Les textes des projets confidentiels ne sont **pas chiffrés** dans la base et les sauvegardes (limite écrite).
++- Isolation : les conteneurs refusent de démarrer sous le nom de projet de l'installation principale ou de
++  l'essai 1.2.0, sauf autorisation explicite `AUTORISER_NOM_PROJET=<même nom>` dans `.env`, prévue pour
++  mettre à jour une installation existante en gardant ses données.
 +
 +## 5. Dépendances
 +
@@ -10148,8 +10174,8 @@ index 0000000..24b8de1
 +| Ensemble | Nombre | Résultat |
 +|---|---|---|
 +| Tests de la 1.2.0 (7 fichiers) | 130 | Tous passent ; un seul adapté : le numéro de version (`test_evolution_120`) |
-+| Tests de la 1.3.0 (14 fichiers) | 253 | Tous passent |
-+| **Total** | **383** | **OK** (`python manage.py test tests`) |
++| Tests de la 1.3.0 (14 fichiers) | 257 | Tous passent |
++| **Total** | **387** | **OK** (`python manage.py test tests`) |
 +
 +Correspondance avec le cahier des charges (§ 23.1) : T1 contrat des moteurs ; T2–T4 DeepL, glossaires DeepL et
 +Google sur réponses enregistrées (`tests/fixtures/traduction/`) ; T5 consignes IA ; T6 Argos ; T7 découpage ;
@@ -10762,10 +10788,10 @@ index 0000000..3947f80
 +
 +Le numéro est lu dans le seul fichier `VERSION` (`1.3.0`). Il se propage automatiquement à l'interface, au journal des dysfonctionnements, aux rapports de diagnostic, aux sauvegardes, aux exports, au cache hors ligne et à l'identifiant envoyé aux sources. Les mentions « 1.2.0 » qui datent une fonction dans le code et la documentation de la 1.2.0 sont conservées.
 diff --git a/reinitialiser-essai.ps1 b/reinitialiser-essai.ps1
-index f664a86..9f25f78 100644
+index f664a86..241ee94 100644
 --- a/reinitialiser-essai.ps1
 +++ b/reinitialiser-essai.ps1
-@@ -1,16 +1,20 @@
+@@ -1,16 +1,23 @@
  ﻿<#
  .SYNOPSIS
 -    Réinitialise l'installation D'ESSAI de « Japon — Explorateur documentaire » (version 1.2.0).
@@ -10781,6 +10807,9 @@ index f664a86..9f25f78 100644
 -    principale (« japon-explorateur »). L'installation principale n'est jamais touchée.
 +    principale (« japon-explorateur », port 8000) ni celui de l'essai 1.2.0
 +    (« japon-explorateur-essai », port 8001). Ces deux installations ne sont jamais touchées.
++    Seule exception : un essai 1.2.0 MIS À JOUR en 1.3.0 (projet « japon-explorateur-essai ») peut être
++    réinitialisé si son fichier .env contient AUTORISER_NOM_PROJET=japon-explorateur-essai. L'installation
++    principale ne peut jamais l'être.
  
  .PARAMETER Complet
 -    Efface aussi l'image Docker de l'essai, sans redémarrer. Utile avant de supprimer le dossier
@@ -10789,7 +10818,7 @@ index f664a86..9f25f78 100644
      pour refaire une installation complète à partir de l'archive.
  
  .PARAMETER SansSauvegarde
-@@ -31,6 +35,11 @@ param(
+@@ -31,6 +38,11 @@ param(
  # Les messages d'erreur de Docker sont contrôlés par leur code de retour (compatible Windows PowerShell 5.1).
  $ErrorActionPreference = 'Continue'
  $NomPrincipal = 'japon-explorateur'
@@ -10801,31 +10830,38 @@ index f664a86..9f25f78 100644
  
  function Arreter([string]$Message) {
      Write-Host ''
-@@ -86,7 +95,10 @@ if (-not $Projet) {
+@@ -86,7 +98,17 @@ if (-not $Projet) {
      Arreter 'nom du projet Docker introuvable.'
  }
  if ($Projet -eq $NomPrincipal) {
 -    Arreter "ce dossier utilise le nom « $Projet », celui de l'INSTALLATION PRINCIPALE. Vérifiez COMPOSE_PROJECT_NAME dans .env (valeur attendue : japon-explorateur-essai)."
 +    Arreter "ce dossier utilise le nom « $Projet », celui de l'INSTALLATION PRINCIPALE. Vérifiez COMPOSE_PROJECT_NAME dans .env (valeur attendue : $NomAttendu)."
 +}
-+if ($Projet -eq $NomEssai120) {
++# Essai 1.2.0 mis à jour en 1.3.0 : autorisé seulement par AUTORISER_NOM_PROJET égal au nom du projet.
++$Autorisation = $null
++try { $Autorisation = [string]$configuration.services.web.environment.AUTORISER_NOM_PROJET } catch { }
++$EssaiMisAJour = ($Projet -eq $NomEssai120) -and ($Autorisation -eq $Projet)
++if ($EssaiMisAJour) {
++    Write-Host "Essai 1.2.0 mis à jour en 1.3.0 : réinitialisation autorisée par AUTORISER_NOM_PROJET." -ForegroundColor Yellow
++}
++if (($Projet -eq $NomEssai120) -and -not $EssaiMisAJour) {
 +    Arreter "ce dossier utilise le nom « $Projet », celui de l'INSTALLATION D'ESSAI 1.2.0. Vérifiez COMPOSE_PROJECT_NAME dans .env (valeur attendue : $NomAttendu)."
  }
  if ($Projet -notlike '*essai*') {
      Arreter "le nom du projet Docker « $Projet » ne contient pas « essai ». Par sécurité, seule une installation d'essai peut être réinitialisée."
-@@ -95,7 +107,10 @@ if ($Projet -notlike '*essai*') {
+@@ -95,7 +117,10 @@ if ($Projet -notlike '*essai*') {
  $Port = $null
  try { $Port = $configuration.services.web.ports[0].published } catch { }
  if ("$Port" -eq '8000') {
 -    Arreter 'cette installation utilise le port 8000, celui de l''installation principale. Vérifiez WEB_PORT dans .env (valeur attendue : 8001).'
 +    Arreter "cette installation utilise le port 8000, celui de l'installation principale. Vérifiez WEB_PORT dans .env (valeur attendue : $PortAttendu)."
 +}
-+if ("$Port" -eq '8001') {
++if (("$Port" -eq '8001') -and -not $EssaiMisAJour) {
 +    Arreter "cette installation utilise le port 8001, celui de l'installation d'essai 1.2.0. Vérifiez WEB_PORT dans .env (valeur attendue : $PortAttendu)."
  }
  
  Write-Host "Projet Docker : $Projet (version $Version, port $Port)" -ForegroundColor Green
-@@ -108,19 +123,32 @@ foreach ($v in $volumes) {
+@@ -108,19 +133,32 @@ foreach ($v in $volumes) {
          Arreter "volume inattendu « $v » : nom non conforme au projet d'essai."
      }
  }
@@ -10861,7 +10897,7 @@ index f664a86..9f25f78 100644
  if ($principaux.Count -gt 0) {
      Write-Host ''
      Write-Host 'Ne seront PAS touchés (installation principale) :' -ForegroundColor Green
-@@ -128,7 +156,8 @@ if ($principaux.Count -gt 0) {
+@@ -128,7 +166,8 @@ if ($principaux.Count -gt 0) {
  }
  
  # --- 2. Sauvegarde facultative ------------------------------------------------------------------
@@ -10871,7 +10907,7 @@ index f664a86..9f25f78 100644
  if (-not $SansSauvegarde -and ($enMarche -contains 'web')) {
      Etape 'Sauvegarde avant effacement (facultative)'
      Write-Host 'Pensez aussi à exporter vos diagnostics (Dysfonctionnements → Exporter un diagnostic) si vous voulez les envoyer.'
-@@ -158,26 +187,39 @@ if ($saisie -cne 'REINITIALISER') {
+@@ -158,26 +197,39 @@ if ($saisie -cne 'REINITIALISER') {
  
  # --- 4. Effacement ------------------------------------------------------------------------------
  Etape "Arrêt et effacement de $Projet"
@@ -10919,7 +10955,7 @@ index f664a86..9f25f78 100644
      }
      Write-Host ''
      Write-Host 'Réinitialisation complète terminée.' -ForegroundColor Green
-@@ -189,7 +231,12 @@ if ($Complet) {
+@@ -189,7 +241,12 @@ if ($Complet) {
  # --- 5. Redémarrage avec une base vide -----------------------------------------------------------
  Etape 'Redémarrage avec une base vide'
  # --build : l'image de l'application est (re)construite sur ce poste, jamais téléchargée.
@@ -12262,10 +12298,10 @@ index 64a9183..d8ed906 100644
 +        terms.acknowledge(user, key)
 diff --git a/tests/test_argos_service.py b/tests/test_argos_service.py
 new file mode 100644
-index 0000000..e240dd7
+index 0000000..9db76c6
 --- /dev/null
 +++ b/tests/test_argos_service.py
-@@ -0,0 +1,571 @@
+@@ -0,0 +1,591 @@
 +"""Évolution 1.3.0 — lot 9 : service Argos Translate facultatif (T6) et gestion des paquets.
 +
 +Le serveur réel (docker/argos/server.py) est démarré sur la boucle locale avec un traducteur FACTICE :
@@ -12461,11 +12497,16 @@ index 0000000..e240dd7
 +        self.assertEqual(status, 200)
 +        self.assertEqual(self.call("POST", "/remove", {"from": "en", "to": "fr"})[1]["code"], "paquet_absent")
 +
++    def test_reserved_name_needs_matching_authorisation(self):
++        script = (ROOT / "docker" / "argos" / "server.py").read_text(encoding="utf-8")
++        self.assertIn('os.environ.get("AUTORISER_NOM_PROJET", "") != project', script)
++
 +    def test_reserved_project_names_refuse_to_start(self):
 +        for name in ("japon-explorateur", "japon-explorateur-essai"):
 +            with self.subTest(name=name):
 +                result = subprocess.run(["python3", str(ROOT / "docker" / "argos" / "server.py")],
-+                                        env=dict(os.environ, COMPOSE_PROJECT_CHECK=name), capture_output=True,
++                                        env={k: v for k, v in dict(os.environ, COMPOSE_PROJECT_CHECK=name).items()
++                                             if k != "AUTORISER_NOM_PROJET"}, capture_output=True,
 +                                        text=True, timeout=30)
 +                self.assertEqual(result.returncode, 1)
 +                self.assertIn("ARRÊT", result.stderr)
@@ -12787,13 +12828,13 @@ index 0000000..e240dd7
 +
 +
 +class DeliveryTests(SimpleTestCase):
-+    def compose_config(self, *profile):
++    def compose_config(self, *profile, env_text=""):
 +        if shutil.which("docker") is None:
 +            self.skipTest("Docker Compose absent")
 +        tmp = Path(tempfile.mkdtemp(prefix="compose-"))
 +        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
 +        shutil.copy(ROOT / "docker-compose.yml", tmp)
-+        (tmp / ".env").write_text("")
++        (tmp / ".env").write_text(env_text)
 +        args = ["docker", "compose", *(["--profile", profile[0]] if profile else []), "config", "--format", "json"]
 +        result = subprocess.run(args, cwd=tmp, capture_output=True, text=True, timeout=60,
 +                                env=dict(os.environ, POSTGRES_PASSWORD="fictif-pour-test"))
@@ -12814,7 +12855,22 @@ index 0000000..e240dd7
 +        self.assertEqual(mounts["argos-packages"]["target"], "/argos")
 +        self.assertTrue(mounts["argos-depot"]["read_only"])
 +        self.assertEqual(argos["environment"]["COMPOSE_PROJECT_CHECK"], "japon-explorateur-essai-130")
++        self.assertEqual(argos["environment"]["AUTORISER_NOM_PROJET"], "")
 +        self.assertIn("argos-packages", config["volumes"])
++
++    def test_compose_for_an_updated_120_installation(self):
++        """Mise à jour de l'essai 1.2.0 en place : mêmes nom de projet, port et volumes, autorisation transmise."""
++        env = ("COMPOSE_PROJECT_NAME=japon-explorateur-essai\nWEB_PORT=8001\n"
++               "AUTORISER_NOM_PROJET=japon-explorateur-essai\n")
++        config = self.compose_config("hors-ligne", env_text=env)
++        self.assertEqual(config["name"], "japon-explorateur-essai")
++        self.assertEqual(config["services"]["web"]["ports"][0]["published"], "8001")
++        for service in ("web", "worker", "beat", "argos"):
++            with self.subTest(service=service):
++                self.assertEqual(config["services"][service]["environment"]["AUTORISER_NOM_PROJET"],
++                                 "japon-explorateur-essai")
++        mounts = {v["source"] for v in config["services"]["web"]["volumes"]}
++        self.assertIn("app-data", mounts)  # volume du projet : japon-explorateur-essai_app-data, celui de la 1.2.0
 +
 +    def test_argos_dependencies_are_pinned_and_cpu_only(self):
 +        lines = [l for l in read("docker/argos/requirements.txt").splitlines() if l and not l.startswith("#")]
@@ -12853,10 +12909,10 @@ index 75a163b..8640f39 100644
          self.assertIn(f"image: japon-explorateur:{version}", compose)
 diff --git a/tests/test_evolution_130.py b/tests/test_evolution_130.py
 new file mode 100644
-index 0000000..ad10216
+index 0000000..c0b197d
 --- /dev/null
 +++ b/tests/test_evolution_130.py
-@@ -0,0 +1,96 @@
+@@ -0,0 +1,117 @@
 +"""Évolution 1.3.0 — lot 0 : numéro de version et isolation de l'installation d'essai.
 +
 +L'essai 1.3.0 doit pouvoir tourner à côté de l'installation principale (projet « japon-explorateur »,
@@ -12916,8 +12972,11 @@ index 0000000..ad10216
 +    def test_reset_script_refuses_main_and_120_installations(self):
 +        script = read("reinitialiser-essai.ps1")
 +        self.assertIn("$NomEssai120 = 'japon-explorateur-essai'", script)
-+        self.assertIn("if ($Projet -eq $NomEssai120)", script)
-+        self.assertIn("if (\"$Port\" -eq '8001')", script)
++        self.assertIn("if (($Projet -eq $NomEssai120) -and -not $EssaiMisAJour)", script)
++        self.assertIn("if ((\"$Port\" -eq '8001') -and -not $EssaiMisAJour)", script)
++        # l'exception exige l'autorisation explicite ET ne vaut jamais pour l'installation principale
++        self.assertIn("$EssaiMisAJour = ($Projet -eq $NomEssai120) -and ($Autorisation -eq $Projet)", script)
++        self.assertIn("if ($Projet -eq $NomPrincipal) {", script)
 +        self.assertIn("if (\"$Port\" -eq '8000')", script)
 +        self.assertIn("$NomAttendu = '%s'" % EXPECTED_PROJECT, script)
 +
@@ -12930,9 +12989,12 @@ index 0000000..ad10216
 +class EntrypointGuardTests(SimpleTestCase):
 +    """Exécute réellement docker/entrypoint.sh avec /bin/sh, hors Docker."""
 +
-+    def run_entrypoint(self, project):
++    def run_entrypoint(self, project, authorise=None):
 +        env = dict(os.environ, COMPOSE_PROJECT_CHECK=project, DATABASE_URL="", RUN_MIGRATIONS="0",
 +                   PATH=os.path.dirname(sys.executable) + os.pathsep + os.environ.get("PATH", ""))
++        env.pop("AUTORISER_NOM_PROJET", None)
++        if authorise is not None:
++            env["AUTORISER_NOM_PROJET"] = authorise
 +        return subprocess.run(["sh", str(ROOT / "docker" / "entrypoint.sh"), "echo", "demarrage-autorise"],
 +                              env=env, capture_output=True, text=True, timeout=60)
 +
@@ -12943,6 +13005,21 @@ index 0000000..ad10216
 +                self.assertEqual(result.returncode, 1)
 +                self.assertIn("ARRÊT", result.stderr)
 +                self.assertNotIn("demarrage-autorise", result.stdout)
++
++    def test_explicit_authorisation_allows_updating_an_existing_installation(self):
++        for name in RESERVED:
++            with self.subTest(name=name):
++                result = self.run_entrypoint(name, authorise=name)
++                self.assertEqual(result.returncode, 0, result.stderr)
++                self.assertIn("demarrage-autorise", result.stdout)
++                self.assertIn("autorisé par AUTORISER_NOM_PROJET", result.stderr)
++
++    def test_authorisation_must_match_the_project_name_exactly(self):
++        for wrong in ("japon-explorateur", "oui", "japon-explorateur-essai-130", " japon-explorateur-essai"):
++            with self.subTest(wrong=wrong):
++                result = self.run_entrypoint("japon-explorateur-essai", authorise=wrong)
++                self.assertEqual(result.returncode, 1)
++                self.assertIn("AUTORISER_NOM_PROJET=japon-explorateur-essai", result.stderr)
 +
 +    def test_130_project_name_is_accepted(self):
 +        result = self.run_entrypoint(EXPECTED_PROJECT)
