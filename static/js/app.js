@@ -45,6 +45,29 @@
     }
   });
 
+  // 2.0.0 : copie d'un texte dans le presse-papiers (« Copier le diagnostic »), sans script en ligne
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-copy-target]");
+    if (!btn) { return; }
+    var source = document.querySelector(btn.getAttribute("data-copy-target"));
+    if (!source) { return; }
+    var text = source.textContent;
+    var status = document.querySelector("[data-copy-status]");
+    function done(ok) {
+      if (status) { status.textContent = ok ? (btn.getAttribute("data-copy-done") || "Copié") : "Copie impossible : sélectionnez le texte puis Ctrl+C"; }
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); });
+    } else {
+      var range = document.createRange();
+      range.selectNodeContents(source);
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      try { done(document.execCommand("copy")); } catch (err) { done(false); }
+    }
+  });
+
   // Comportements déclaratifs (remplacent les gestionnaires en ligne, interdits par la politique CSP)
   document.addEventListener("change", function (e) {
     var t = e.target;

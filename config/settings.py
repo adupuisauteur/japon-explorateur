@@ -153,6 +153,8 @@ MEDIA_ROOT = env("MEDIA_ROOT", default=str(DATA_DIR / "files"))
 MEDIA_URL = "/fichiers/"
 BACKUP_DIR = Path(env("BACKUP_DIR", default=str(DATA_DIR / "backups")))
 BACKUP_EXTERNAL_DIR = env("BACKUP_EXTERNAL_DIR", default="")
+# 2.0.0 : chemin du même dossier vu depuis l'ordinateur (DOSSIER_SAUVEGARDES de .env), pour l'affichage seulement.
+BACKUP_EXTERNAL_HOST_DIR = env("DOSSIER_SAUVEGARDES", default="")
 
 # Limites d'import (exigence de sécurité §14).
 IMPORT_MAX_FILE_SIZE_MB = env.int("IMPORT_MAX_FILE_SIZE_MB", default=50)
@@ -262,7 +264,14 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.backups.tasks.scheduled_backup",
         "schedule": crontab(hour=2, minute=23),
     },
+    # 2.0.0 : signe de vie du planificateur et d'un worker (page « État de l'installation »).
+    "signe-de-vie": {
+        "task": "apps.core.tasks.heartbeat",
+        "schedule": crontab(minute="*/5"),
+    },
 }
+#: 2.0.0 : au-delà de ce délai sans signe de vie, le planificateur ou les workers sont signalés arrêtés.
+HEARTBEAT_STALE_MINUTES = env.int("HEARTBEAT_STALE_MINUTES", default=15)
 
 # Sécurité : HTTPS obligatoire hors boucle locale (§14).
 SECURE_HTTPS = env.bool("SECURE_HTTPS", default=False)

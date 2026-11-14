@@ -22,37 +22,11 @@ def read(name):
     return (ROOT / name).read_text(encoding="utf-8-sig")
 
 
-class VersionTests(SimpleTestCase):
-    def test_version_is_130_everywhere(self):
-        self.assertEqual(read("VERSION").strip(), "1.3.0")
-        self.assertEqual(settings.APP_VERSION, "1.3.0")
-        self.assertIn("image: japon-explorateur:1.3.0", read("docker-compose.yml"))
-        self.assertIn("## 1.3.0", read("CHANGELOG.md"))
-
-    def test_no_stale_120_install_values(self):
-        compose = read("docker-compose.yml")
-        self.assertNotIn("japon-explorateur:1.2.0", compose)
-        self.assertNotIn("WEB_PORT:-8001", compose)
-        self.assertNotIn("COMPOSE_PROJECT_NAME:-japon-explorateur-essai}", compose)
-
-
 class IsolationTests(SimpleTestCase):
-    def test_compose_defaults_are_specific_to_130(self):
-        compose = read("docker-compose.yml")
-        self.assertIn("name: ${COMPOSE_PROJECT_NAME:-%s}" % EXPECTED_PROJECT, compose)
-        self.assertIn('"127.0.0.1:${WEB_PORT:-8002}:8000"', compose)
-
-    def test_every_app_container_receives_the_project_check(self):
-        """web hérite de x-app ; worker et beat redéfinissent « environment » et doivent la porter aussi.
-
-        1.3.0, lot 9 : le service Argos facultatif la porte aussi (quatrième occurrence)."""
-        compose = read("docker-compose.yml")
-        self.assertEqual(compose.count("COMPOSE_PROJECT_CHECK: ${COMPOSE_PROJECT_NAME:-%s}" % EXPECTED_PROJECT), 4)
-
-    def test_env_example_values(self):
-        env = read(".env.example")
-        self.assertRegex(env, r"(?m)^COMPOSE_PROJECT_NAME=%s$" % re.escape(EXPECTED_PROJECT))
-        self.assertRegex(env, r"(?m)^WEB_PORT=8002$")
+    # 2.0.0 : les tests de numéro de version et des valeurs par défaut de l'essai 1.3.0 (nom de projet
+    # « japon-explorateur-essai-130 », port 8002, image 1.3.0) sont remplacés par
+    # tests/test_evolution_200.py (décision D3 : plus de nom de projet par défaut). Le script
+    # reinitialiser-essai.ps1, propre à l'essai 1.3.0, est conservé tel quel : ses tests restent ici.
 
     def test_reset_script_refuses_main_and_120_installations(self):
         script = read("reinitialiser-essai.ps1")

@@ -25,7 +25,7 @@ from apps.translation.http import NetworkBlocked
 from apps.translation.journal import record_translation_error
 from apps.translation.models import EngineSetting, TranslationPreference
 
-from .helpers import AppTestCase
+from .helpers import AppTestCase, set_argos_demo
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "traduction"
 SECRET_TEXT = "秘密の架空原文"  # sert à vérifier qu'aucun texte n'atteint le journal ni les diagnostics
@@ -219,7 +219,10 @@ class ArgosTests(EngineTestCase):
         self.assertFalse(get_engine("argos", self.researcher).status().usable)
 
     def test_simulation_when_service_is_not_activated(self):
+        # 2.0.0 (décision D4) : simulation uniquement en mode démonstration, activé par l'administrateur.
         engine = self.enable()
+        self.assertFalse(engine.status().usable)
+        set_argos_demo(True)
         status = engine.status()
         self.assertTrue(status.simulated)
         result = engine.translate(self.segs("架空の文。"), "ja", "fr")
@@ -251,6 +254,7 @@ class ArgosTests(EngineTestCase):
             lambda r: httpx.Response(200, json={"argos_version": "1.11.0", "packages": []}))
         engine = self.enable()
         self.assertIn("paquets", engine.status().detail)
+        set_argos_demo(True)
         self.assertTrue(engine.translate(self.segs("文。"), "ja", "fr").simulated)
         ArgosEngine.transport = httpx.MockTransport(lambda r: (_ for _ in ()).throw(httpx.ConnectError("arrêt")))
         self.assertTrue(engine.status().simulated)

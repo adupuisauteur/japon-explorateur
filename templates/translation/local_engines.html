@@ -9,7 +9,7 @@
 <section class="card-soft mb-3"><h2 class="h5">Service</h2>
 {% if health %}<p class="mb-1"><span class="badge text-bg-success">En service</span> Argos Translate {{ health.argos_version }}{% if health.busy %} · <span class="text-warning">installation en cours</span>{% endif %}</p>
 {% else %}<p class="mb-1"><span class="badge text-bg-warning">Indisponible</span> {{ problem }}</p>
-<p class="small text-muted mb-0">Tant que le service et ses paquets ne sont pas installés, Argos fonctionne en <strong>mode simulé</strong> : aucune traduction réelle, mention « Simulation » sur chaque résultat.</p>{% endif %}
+<p class="small text-muted mb-0">Tant que le service et ses paquets ne sont pas installés, aucune traduction Argos n'est possible : elle est refusée ou interrompue, jamais simulée. Pour une démonstration sans traduction réelle, l'administrateur peut activer le <strong>mode démonstration</strong> (Administration → Paramètres) : chaque résultat porte alors la mention « Simulation ».</p>{% endif %}
 </section>
 
 <section class="card-soft mb-3"><h2 class="h5">Paquets nécessaires</h2>

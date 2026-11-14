@@ -1,4 +1,4 @@
-# Service Argos Translate facultatif (version 1.3.0, profil Docker « hors-ligne »).
+# Service Argos Translate de J-ed (version 2.0.0 ; profil Docker « hors-ligne » jusqu'au lot 7).
 # Image séparée : l'application principale ne reçoit ni PyTorch ni Argos.
 # Construite sur votre poste par « docker compose --profile hors-ligne up -d --build ».
 FROM python:3.12-slim-bookworm

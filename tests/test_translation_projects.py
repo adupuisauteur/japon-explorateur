@@ -20,7 +20,7 @@ from apps.translation.engines.deepl import DeepLEngine
 from apps.translation.models import (EngineSetting, TranslationDocument, TranslationJob, TranslationPreference,
                                      TranslationProject, TranslationSegment, TranslationVersion)
 
-from .helpers import AppTestCase, acknowledge_terms
+from .helpers import AppTestCase, acknowledge_terms, set_argos_demo
 
 TEXT = "武士道と云は死ぬ事と見付たり。彼は「行く。」と言った。\n\n次の段落。"
 
@@ -84,6 +84,7 @@ class ProjectTestCase(AppTestCase):
         EngineSetting.objects.create(user=self.owner, engine="deepl", plan="free", status="ok",
                                      encrypted_key=encrypt_secret("fake-deepl-key-0000000000"))
         EngineSetting.objects.create(user=self.owner, engine="argos", enabled=True)
+        set_argos_demo(True)  # 2.0.0 (D4) : Argos sert ici en mode démonstration
         TranslationPreference.objects.create(user=self.owner, default_engine="deepl", migrated_from_ai=True)
         self.project = TranslationProject.objects.create(owner=self.owner, title="Projet fictif")
         acknowledge_terms(self.owner, "deepl")

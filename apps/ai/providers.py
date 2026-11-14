@@ -36,6 +36,12 @@ class Completion:
     model: str = ""
 
 
+#: 2.0.0 : nombre maximal de pages lues pour la liste des modèles (garde-fou contre une boucle sans fin).
+MAX_MODEL_PAGES = 20
+#: 2.0.0 : nombre maximal de modèles conservés avec la clé (300 en 1.3.0).
+MAX_STORED_MODELS = 2000
+
+
 class BaseProvider:
     key = ""
     label = ""
@@ -156,8 +162,15 @@ class AnthropicProvider(BaseProvider):
         return {"x-api-key": self._api_key(), "anthropic-version": "2023-06-01"}
 
     def list_models(self):
-        data = self._request("GET", f"{self.base_url}/models", headers=self._headers(), timeout=20)
-        return sorted(m.get("id", "") for m in data.get("data", []) if m.get("id"))
+        """Liste complète : l'API renvoie 20 modèles par page par défaut (2.0.0 : toutes les pages sont lues)."""
+        ids, params = [], {"limit": 1000}
+        for _ in range(MAX_MODEL_PAGES):
+            data = self._request("GET", f"{self.base_url}/models", headers=self._headers(), params=params, timeout=20)
+            ids += [m.get("id", "") for m in data.get("data", []) if m.get("id")]
+            if not data.get("has_more") or not data.get("last_id"):
+                break
+            params = {"limit": 1000, "after_id": data["last_id"]}
+        return sorted(set(ids))
 
     def complete(self, system, prompt, model, max_tokens=2000):
         body = {"model": model, "max_tokens": max_tokens, "system": system,
@@ -177,9 +190,16 @@ class GeminiProvider(BaseProvider):
         return {"x-goog-api-key": self._api_key()}
 
     def list_models(self):
-        data = self._request("GET", f"{self.base_url}/models", headers=self._headers(), timeout=20)
-        return sorted(m.get("name", "").removeprefix("models/") for m in data.get("models", [])
-                      if "generateContent" in (m.get("supportedGenerationMethods") or []))
+        """Modèles de texte (generateContent) ; 50 par page par défaut (2.0.0 : toutes les pages sont lues)."""
+        names, params = [], {"pageSize": 1000}
+        for _ in range(MAX_MODEL_PAGES):
+            data = self._request("GET", f"{self.base_url}/models", headers=self._headers(), params=params, timeout=20)
+            names += [m.get("name", "").removeprefix("models/") for m in data.get("models", [])
+                      if "generateContent" in (m.get("supportedGenerationMethods") or [])]
+            if not data.get("nextPageToken"):
+                break
+            params = {"pageSize": 1000, "pageToken": data["nextPageToken"]}
+        return sorted(set(n for n in names if n))
 
     def complete(self, system, prompt, model, max_tokens=2000):
         body = {"systemInstruction": {"parts": [{"text": system}]},

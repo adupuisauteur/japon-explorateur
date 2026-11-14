@@ -17,7 +17,7 @@ from apps.translation.engines.deepl import DeepLEngine
 from apps.translation.models import (EngineSetting, Glossary, ProjectGlossary, TranslationJob, TranslationPreference,
                                      TranslationProject)
 
-from .helpers import AppTestCase
+from .helpers import AppTestCase, set_argos_demo
 
 
 class ReferenceFileTests(AppTestCase):
@@ -61,6 +61,7 @@ class FirstSendTests(AppTestCase):
         EngineSetting.objects.create(user=self.owner, engine="deepl", plan="free", status="ok",
                                      encrypted_key=encrypt_secret("fake-deepl-key-0000000000"))
         EngineSetting.objects.create(user=self.owner, engine="argos", enabled=True)
+        set_argos_demo(True)  # 2.0.0 (D4) : Argos sert ici en mode démonstration
         TranslationPreference.objects.create(user=self.owner, default_engine="deepl", migrated_from_ai=True)
         self.project = TranslationProject.objects.create(owner=self.owner, title="Projet fictif")
         self.document = P.create_document(self.project, title="Doc", text="架空の文。")

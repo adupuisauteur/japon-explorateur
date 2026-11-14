@@ -24,7 +24,7 @@ class EngineSettingForm(BootstrapMixin, forms.Form):
             del self.fields["plan"]
         if engine == "argos":
             del self.fields["api_key"]
-            self.fields["enabled"].label = "Activer Argos (mode simulé tant que le service n'est pas installé)"
+            self.fields["enabled"].label = "Activer Argos (service local, sans clé)"
 
 
 class PreferenceForm(BootstrapMixin, forms.ModelForm):

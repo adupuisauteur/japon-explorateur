@@ -1,4 +1,5 @@
 """Export PDF (ReportLab) : police japonaise incorporée, sommaire, signets, liens, en-têtes/pieds paginés."""
+import logging
 import os
 from pathlib import Path
 from xml.sax.saxutils import escape
@@ -17,6 +18,8 @@ from reportlab.platypus import (KeepTogether, PageBreak, Paragraph, SimpleDocTem
 from reportlab.platypus.tableofcontents import TableOfContents
 
 from .common import citation, fiche_rows, metadata_lines
+
+logger = logging.getLogger(__name__)
 
 ACCENT = colors.HexColor("#8A2B23")
 MUTED = colors.HexColor("#555B66")
@@ -44,7 +47,9 @@ def font_set():
                 pdfmetrics.registerFont(font)
                 primary, primary_cmap, embedded = "JaponText", _cmap(font), True
                 break
-            except Exception:
+            except Exception as exc:  # 2.0.0 : police configurée mais illisible → signalée, jamais ignorée en silence
+                logger.warning("Police PDF %s illisible (%s : %s) : police suivante essayée.", path,
+                               exc.__class__.__name__, exc)
                 continue
     if primary is None:
         pdfmetrics.registerFont(UnicodeCIDFont("HeiseiMin-W3"))
@@ -56,7 +61,9 @@ def font_set():
                 font = TTFont(f"JaponSecours{i}", path)
                 pdfmetrics.registerFont(font)
                 fallbacks.append((f"JaponSecours{i}", _cmap(font)))
-            except Exception:
+            except Exception as exc:  # 2.0.0 : signalée dans le journal
+                logger.warning("Police PDF de secours %s illisible (%s : %s) : ignorée.", path,
+                               exc.__class__.__name__, exc)
                 continue
     _FONTS = (primary, primary_cmap, fallbacks, embedded)
     return _FONTS

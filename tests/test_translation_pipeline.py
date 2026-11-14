@@ -28,7 +28,7 @@ from apps.translation.engines.registry import ENGINE_CLASSES
 from apps.translation.models import (EngineSetting, TranslationDocument, TranslationJob, TranslationPreference,
                                      TranslationProject, TranslationSegment, TranslationVersion)
 
-from .helpers import AppTestCase, acknowledge_terms
+from .helpers import AppTestCase, acknowledge_terms, set_argos_demo
 
 SECRET = "秘密の架空文"
 
@@ -200,6 +200,7 @@ class ConfidentialityAndLimitsTests(PipelineTestCase):
         self.project.confidential = True
         self.project.save()
         EngineSetting.objects.create(user=self.user, engine="argos", enabled=True)
+        set_argos_demo(True)  # 2.0.0 (D4) : Argos sert ici en mode démonstration
         segs = self.doc("機密の文。")
         job = services.prepare_segments_job(self.user, segs, project=self.project,
                                             choice=services.EngineChoice("argos"))
@@ -341,6 +342,7 @@ class FailureAndResumeTests(PipelineTestCase):
 
     def test_second_engine_is_proposed_never_used_automatically(self):
         EngineSetting.objects.create(user=self.user, engine="argos", enabled=True)
+        set_argos_demo(True)  # 2.0.0 (D4) : Argos sert ici en mode démonstration
         TranslationPreference.objects.filter(user=self.user).update(second_engine="argos")
         self.stub.status = 503
         segs = self.doc("一。")

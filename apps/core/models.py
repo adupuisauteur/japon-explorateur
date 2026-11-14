@@ -27,6 +27,12 @@ class AppSettings(models.Model):
         default="Document de travail — vérifier les notices auprès des catalogues d'origine",
     )
     setup_completed = models.BooleanField(default=False)
+    # 2.0.0 (décision D4) : la simulation d'Argos n'est plus un repli automatique. Elle n'existe que si
+    # l'administrateur l'active explicitement, pour une démonstration sans le service ni ses paquets.
+    argos_demo_mode = models.BooleanField(
+        "Argos : mode démonstration (traductions simulées)", default=False,
+        help_text="Sans le service Argos ou ses paquets, renvoie le texte original précédé de la mention "
+                  "« Simulation ». Désactivé : une traduction Argos impossible est arrêtée, jamais simulée.")
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -61,3 +67,31 @@ class AuditLog(models.Model):
 
     def __str__(self):
         return f"{self.created_at:%Y-%m-%d %H:%M} {self.action}"
+
+
+class ServiceCheck(models.Model):
+    """2.0.0 : dernier résultat d'un contrôle de fonctionnement (page « État de l'installation »).
+
+    Exemples : « planificateur » (signe de vie envoyé par Celery beat et exécuté par un worker),
+    « argos_essai » (traduction d'une phrase fictive après l'installation d'un paquet). Aucun texte réel.
+    """
+
+    name = models.CharField("Contrôle", max_length=40, unique=True)
+    ok = models.BooleanField(default=False)
+    message = models.CharField(max_length=500, blank=True)
+    data = models.JSONField(default=dict, blank=True)
+    checked_at = models.DateTimeField("Date du contrôle")
+
+    class Meta:
+        verbose_name = "contrôle de fonctionnement"
+
+    def __str__(self):
+        return f"{self.name} : {'réussi' if self.ok else 'en échec'}"
+
+    @classmethod
+    def record(cls, name, ok, message="", **data):
+        from django.utils import timezone
+
+        obj, _ = cls.objects.update_or_create(name=name, defaults={
+            "ok": ok, "message": message[:500], "data": data, "checked_at": timezone.now()})
+        return obj

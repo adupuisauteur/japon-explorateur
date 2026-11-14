@@ -9,6 +9,7 @@ from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
 from django.templatetags.static import static
 from django.views.decorators.cache import cache_control
+from django.views.decorators.http import require_POST
 
 from .audit import log_action
 from .forms import AppSettingsForm
@@ -86,6 +87,30 @@ def admin_hub(request):
         "trash_count": Record.objects.filter(record_status="deleted").count(),
         "recent_logs": AuditLog.objects.select_related("user")[:8],
     })
+
+
+@admin_required
+def installation_state(request):
+    """2.0.0 : état de l'installation (version, base, workers, planificateur, Redis, Argos, sauvegardes…)."""
+    from . import health
+
+    results = health.collect()
+    return render(request, "core/state.html", {
+        "results": results, "overall": health.overall(results), "level_labels": health.LEVEL_LABELS,
+        "diagnostic": health.diagnostic_text(results),
+    })
+
+
+@admin_required
+@require_POST
+def argos_selftest(request):
+    from apps.translation.tasks import run_argos_selftest
+
+    run_argos_selftest.delay()
+    log_action(request, "argos.selftest", None, "Traduction d'essai Argos demandée")
+    messages.info(request, "Traduction d'essai d'Argos lancée : le résultat s'affiche ici dans quelques secondes "
+                           "(rechargez la page).")
+    return redirect("core:state")
 
 
 @admin_required

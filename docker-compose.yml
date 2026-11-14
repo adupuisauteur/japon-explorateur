@@ -1,39 +1,41 @@
-# Japon — Explorateur documentaire : installation locale reproductible (§17.1)
-#   docker compose up -d --build      puis ouvrir http://localhost:8002 (port réglable par WEB_PORT)
+# J-ed : installation locale reproductible (§17.1)
+#   docker compose up -d --build      puis ouvrir http://localhost:8000 (port réglable par WEB_PORT)
 # Les mêmes images servent ensuite sur un serveur Linux (voir docs/deploiement.md).
 
-# Version 1.3.0 — installation d'essai INDÉPENDANTE de l'installation principale ET de l'essai 1.2.0.
-# Le nom du projet (donc des conteneurs et des volumes de données) vient de COMPOSE_PROJECT_NAME
-# (fichier .env) ; par défaut « japon-explorateur-essai-130 ». Noms réservés, jamais utilisés ici :
-#   « japon-explorateur »        installation principale (port 8000)
-#   « japon-explorateur-essai »  installation d'essai 1.2.0 (port 8001)
-# Les conteneurs refusent de démarrer sous l'un de ces deux noms (voir docker/entrypoint.sh), sauf
+# Version 2.0.0 — le nom du projet Docker (donc des conteneurs et des volumes de données) vient de
+# COMPOSE_PROJECT_NAME, OBLIGATOIRE dans .env (aucune valeur par défaut : décision D3 de l'audit 2.0.0).
+# Noms protégés : « japon-explorateur » (installation principale) et « japon-explorateur-essai » (essai
+# existant). Les conteneurs refusent de démarrer sous l'un de ces noms (docker/entrypoint.sh), sauf
 # autorisation explicite AUTORISER_NOM_PROJET=<même nom> dans .env, pour mettre à jour cette installation.
-name: ${COMPOSE_PROJECT_NAME:-japon-explorateur-essai-130}
+name: ${COMPOSE_PROJECT_NAME:?définir COMPOSE_PROJECT_NAME dans .env (voir .env.example)}
 
 x-app: &app
   build:
     context: .
     dockerfile: docker/Dockerfile
-  # Étiquette d'image propre à la 1.3.0 : les images de l'installation principale et de l'essai 1.2.0
-  # ne sont pas remplacées.
-  image: japon-explorateur:1.3.0
+  # Étiquette d'image propre à la 2.0.0 : les images des versions précédentes (1.0 de l'installation
+  # principale, 1.2.0, 1.3.0) ne sont pas remplacées.
+  image: japon-explorateur:2.0.0
   env_file: .env
   environment:
     DATABASE_URL: postgres://japon:${POSTGRES_PASSWORD:?définir POSTGRES_PASSWORD dans .env}@db:5432/japon
     REDIS_URL: redis://redis:6379/0
     DATA_DIR: /data
     # Nom du projet transmis aux conteneurs pour le contrôle d'isolation de l'entrypoint.
-    COMPOSE_PROJECT_CHECK: ${COMPOSE_PROJECT_NAME:-japon-explorateur-essai-130}
+    COMPOSE_PROJECT_CHECK: ${COMPOSE_PROJECT_NAME}
     # Service Argos (profil « hors-ligne ») : adresse interne ; s'il n'est pas démarré, Argos reste en mode simulé.
     TRANSLATION_ARGOS_URL: ${TRANSLATION_ARGOS_URL:-http://argos:5000}
     TRANSLATION_ARGOS_DEPOT_DIR: /argos-depot
+    # 2.0.0 : chaque sauvegarde est aussi copiée dans /backups-externes (voir le volume ci-dessous).
+    BACKUP_EXTERNAL_DIR: /backups-externes
   volumes:
     - app-data:/data
     # Dépôt des paquets Argos (.argosmodel) envoyés depuis l'application, lus par le service Argos.
     - argos-depot:/argos-depot
-    # Copie externe des sauvegardes : décommentez et adaptez (disque externe, NAS…)
-    # - /chemin/vers/disque-externe/japon:/backups-externes
+    # Copie des sauvegardes visible dans Windows (2.0.0) : DOSSIER_SAUVEGARDES dans .env, par exemple
+    #   DOSSIER_SAUVEGARDES=D:\JaponEssai\sauvegardes
+    # Sans cette ligne, la copie reste dans le volume Docker « sauvegardes-externes ».
+    - ${DOSSIER_SAUVEGARDES:-sauvegardes-externes}:/backups-externes
   depends_on:
     - db
     - redis
@@ -60,7 +62,7 @@ services:
     <<: *app
     ports:
       # Écoute sur la boucle locale uniquement. Pour un accès réseau, passer par un reverse proxy HTTPS.
-      - "127.0.0.1:${WEB_PORT:-8002}:8000"
+      - "127.0.0.1:${WEB_PORT:-8000}:8000"
     healthcheck:
       test: ["CMD", "curl", "-fs", "http://localhost:8000/hors-ligne/"]
       interval: 30s
@@ -74,9 +76,10 @@ services:
       REDIS_URL: redis://redis:6379/0
       DATA_DIR: /data
       RUN_MIGRATIONS: "0"
-      COMPOSE_PROJECT_CHECK: ${COMPOSE_PROJECT_NAME:-japon-explorateur-essai-130}
+      COMPOSE_PROJECT_CHECK: ${COMPOSE_PROJECT_NAME}
       TRANSLATION_ARGOS_URL: ${TRANSLATION_ARGOS_URL:-http://argos:5000}
       TRANSLATION_ARGOS_DEPOT_DIR: /argos-depot
+      BACKUP_EXTERNAL_DIR: /backups-externes
     # 1.3.0 : file « traduction » en plus de la file par défaut (traductions découpées en paquets courts).
     command: ["celery", "-A", "config", "worker", "-l", "info", "--concurrency", "2", "-Q", "celery,traduction"]
 
@@ -87,7 +90,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       DATA_DIR: /data
       RUN_MIGRATIONS: "0"
-      COMPOSE_PROJECT_CHECK: ${COMPOSE_PROJECT_NAME:-japon-explorateur-essai-130}
+      COMPOSE_PROJECT_CHECK: ${COMPOSE_PROJECT_NAME}
     command: ["celery", "-A", "config", "beat", "-l", "info", "--schedule", "/data/celerybeat-schedule"]
 
   # Argos Translate, moteur de traduction hors ligne (décision A1). FACULTATIF : démarré seulement avec
@@ -99,9 +102,9 @@ services:
     profiles: ["hors-ligne"]
     build:
       context: docker/argos
-    image: japon-explorateur-argos:1.3.0
+    image: japon-explorateur-argos:2.0.0
     environment:
-      COMPOSE_PROJECT_CHECK: ${COMPOSE_PROJECT_NAME:-japon-explorateur-essai-130}
+      COMPOSE_PROJECT_CHECK: ${COMPOSE_PROJECT_NAME}
       AUTORISER_NOM_PROJET: ${AUTORISER_NOM_PROJET:-}
     volumes:
       - argos-packages:/argos
@@ -113,3 +116,4 @@ volumes:
   app-data:
   argos-packages:
   argos-depot:
+  sauvegardes-externes:

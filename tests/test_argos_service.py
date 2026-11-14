@@ -29,7 +29,7 @@ from apps.translation.engines.argos import ArgosEngine
 from apps.translation.models import (EngineSetting, TranslationJob, TranslationPreference, TranslationProject,
                                      TranslationVersion)
 
-from .helpers import AppTestCase
+from .helpers import AppTestCase, set_argos_demo
 
 ROOT = Path(settings.BASE_DIR)
 SPEC = importlib.util.spec_from_file_location("argos_server", ROOT / "docker" / "argos" / "server.py")
@@ -236,30 +236,55 @@ class EngineTests(ClientMixin, AppTestCase):
     def engine(self):
         return ArgosEngine(self.owner, setting=EngineSetting.objects.get(user=self.owner, engine="argos"))
 
-    def test_service_absent_means_simulation(self):
+    # 2.0.0 (décision D4) : sans mode démonstration, Argos indisponible n'est jamais simulé.
+    def test_service_absent_means_unavailable_unless_demo_mode(self):
         with override_settings(TRANSLATION_ARGOS_URL=""):
             status = self.engine().status()
-        self.assertTrue(status.simulated)
-        self.assertIn("non activé", status.detail)
+        self.assertFalse(status.usable)
+        self.assertFalse(status.simulated)
+        self.assertIn("non configuré", status.detail)
         with override_settings(TRANSLATION_ARGOS_URL="http://127.0.0.1:9"):  # port fermé
             ArgosEngine.transport = httpx.HTTPTransport()
             self.addCleanup(setattr, ArgosEngine, "transport", None)
             status = self.engine().status()
+            self.assertFalse(status.usable)
+            self.assertIn("injoignable", status.detail)
+            set_argos_demo(True)
+            status = self.engine().status()
+        self.assertTrue(status.usable)
         self.assertTrue(status.simulated)
-        self.assertIn("hors-ligne", status.detail)
+        self.assertEqual(status.label, "Mode démonstration")
 
-    def test_package_missing_means_simulation(self):
+    def test_package_missing_means_unavailable_unless_demo_mode(self):
         self.connect(installed=(("en", "fr", "1.9"),))
         status = self.engine().status()
-        self.assertTrue(status.simulated)
+        self.assertFalse(status.usable)
         self.assertIn("paquets de langues nécessaires non installés", status.detail)
+        set_argos_demo(True)
+        self.assertTrue(self.engine().status().simulated)
 
-    def test_package_without_sentence_model_means_simulation(self):
+    def test_package_without_sentence_model_means_unavailable_unless_demo_mode(self):
         self.connect(installed=(("ja", "en", "1.1"), ("en", "fr", "1.9")))
         self.backend.no_sbd.add(("ja", "en"))
         status = self.engine().status()
-        self.assertTrue(status.simulated)
+        self.assertFalse(status.usable)
         self.assertIn("modèle de découpage en phrases manquant", status.detail)
+        set_argos_demo(True)
+        self.assertTrue(self.engine().status().simulated)
+
+    def test_translate_raises_instead_of_simulating(self):
+        from apps.translation.engines.base import Segment, TranslationEngineError
+
+        self.connect(installed=(("en", "fr", "1.9"),))
+        with self.assertRaises(TranslationEngineError) as ctx:
+            self.engine().translate([Segment("1", "テスト")], "ja", "fr")
+        self.assertEqual((ctx.exception.kind, ctx.exception.code), ("config", "paquet_absent"))
+        with override_settings(TRANSLATION_ARGOS_URL="http://127.0.0.1:9"):
+            ArgosEngine.transport = httpx.HTTPTransport()
+            self.addCleanup(setattr, ArgosEngine, "transport", None)
+            with self.assertRaises(TranslationEngineError) as ctx:
+                self.engine().translate([Segment("1", "テスト")], "ja", "fr")
+        self.assertEqual((ctx.exception.kind, ctx.exception.code), ("unavailable", "indisponibilite"))
 
     def test_internal_error_type_is_shown_not_hidden(self):
         # 1.3.0-rc3 : constaté au protocole TR8 — « momentanément indisponible (HTTP 500) » cachait la cause
@@ -590,20 +615,23 @@ class DeliveryTests(SimpleTestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads(result.stdout)
 
+    # 2.0.0 (décision D3) : COMPOSE_PROJECT_NAME est obligatoire ; les tests le fournissent.
+    NEW_INSTALL = "COMPOSE_PROJECT_NAME=jed-essai\n"
+
     def test_compose_without_profile_has_no_argos(self):
-        config = self.compose_config()
+        config = self.compose_config(env_text=self.NEW_INSTALL)
         self.assertNotIn("argos", config["services"])
         self.assertEqual(config["services"]["web"]["environment"]["TRANSLATION_ARGOS_URL"], "http://argos:5000")
 
     def test_compose_with_profile_argos_is_internal_only(self):
-        config = self.compose_config("hors-ligne")
+        config = self.compose_config("hors-ligne", env_text=self.NEW_INSTALL)
         argos = config["services"]["argos"]
         self.assertNotIn("ports", argos)  # aucun port publié
-        self.assertEqual(argos["image"], "japon-explorateur-argos:1.3.0")
+        self.assertEqual(argos["image"], "japon-explorateur-argos:2.0.0")
         mounts = {v["source"]: v for v in argos["volumes"]}
         self.assertEqual(mounts["argos-packages"]["target"], "/argos")
         self.assertTrue(mounts["argos-depot"]["read_only"])
-        self.assertEqual(argos["environment"]["COMPOSE_PROJECT_CHECK"], "japon-explorateur-essai-130")
+        self.assertEqual(argos["environment"]["COMPOSE_PROJECT_CHECK"], "jed-essai")
         self.assertEqual(argos["environment"]["AUTORISER_NOM_PROJET"], "")
         self.assertIn("argos-packages", config["volumes"])
 

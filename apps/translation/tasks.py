@@ -28,3 +28,11 @@ def run_package_job(job_id):
     from .argos_packages import run_safely
 
     run_safely(job_id)
+
+
+@shared_task
+def run_argos_selftest():
+    """Test de démarrage d'Argos demandé depuis la page « État de l'installation » (2.0.0)."""
+    from .argos_selftest import run_selftest
+
+    run_selftest()

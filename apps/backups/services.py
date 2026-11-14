@@ -103,20 +103,45 @@ def create_backup(kind="full", user=None, scheduled=False):
         job.size = archive.stat().st_size
         job.sha256 = _sha256(archive)
         job.method = method
-        if settings.BACKUP_EXTERNAL_DIR:
-            ext = Path(settings.BACKUP_EXTERNAL_DIR)
-            ext.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(archive, ext / archive.name)
-            job.external_copy = str(ext / archive.name)
         job.status = "done"
-        job.message = " ".join(["Sauvegarde terminée."] + notes)
+        warning = _external_copy(job, archive)
+        job.message = " ".join(["Sauvegarde terminée."] + notes + ([warning] if warning else []))
     except Exception as exc:
+        # 2.0.0 : le type d'erreur réel est conservé (jamais masqué) et l'incident est journalisé.
         job.status = "failed"
-        job.message = f"Échec : {exc}"
+        job.message = f"Échec : {exc.__class__.__name__} : {exc}"[:2000]
+        _record_failure(exc, "Sauvegarde")
     job.finished_at = timezone.now()
     job.save()
     _rotate(AppSettings.get().backup_retention)
     return job
+
+
+def _external_copy(job, archive):
+    """Copie dans BACKUP_EXTERNAL_DIR (dossier visible dans Windows en 2.0.0).
+
+    Un échec de la copie ne rend pas la sauvegarde invalide : l'archive principale est créée et vérifiable.
+    Il est signalé dans le message de la sauvegarde et journalisé. Retourne le texte d'avertissement ou "".
+    """
+    if not settings.BACKUP_EXTERNAL_DIR:
+        return ""
+    try:
+        ext = Path(settings.BACKUP_EXTERNAL_DIR)
+        ext.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(archive, ext / archive.name)
+        if _sha256(ext / archive.name) != job.sha256:
+            raise OSError("empreinte de la copie différente de celle de l'archive")
+        job.external_copy = str(ext / archive.name)
+        return ""
+    except Exception as exc:  # noqa: BLE001 — signalé, jamais masqué
+        _record_failure(exc, "Copie externe d'une sauvegarde", severity="warning")
+        return f"Attention : copie externe impossible ({exc.__class__.__name__} : {exc})."[:1000]
+
+
+def _record_failure(exc, operation, severity="error"):
+    from apps.incidents.services import record_exception
+
+    record_exception(exc, module="application", operation=operation, severity=severity)
 
 
 def _rotate(keep):
@@ -188,9 +213,10 @@ def _restore_pg(dump):
 
 
 def restore_backup(path, *, restore_db=True, restore_files=True, stdout=None):
-    """Restauration complète. Remplace la base et les fichiers actuels.
+    """Restauration complète. Remplace la base ; restaure les fichiers de la sauvegarde.
 
-    Vérifie l'intégrité de l'archive avant toute modification ; la base est restaurée
+    Les fichiers de la sauvegarde sont ajoutés ou remplacent ceux du même nom ; les fichiers créés depuis la
+    sauvegarde sont conservés (décision D10 de l'audit 2.0.0). Vérifie l'intégrité de l'archive avant toute modification ; la base est restaurée
     en une seule transaction ; les fichiers ne sont copiés qu'après réussite de la base.
     """
     log = []
@@ -215,6 +241,7 @@ def restore_backup(path, *, restore_db=True, restore_files=True, stdout=None):
             media = Path(settings.MEDIA_ROOT)
             media.mkdir(parents=True, exist_ok=True)
             shutil.copytree(tmp / "media" / "files", media, dirs_exist_ok=True)
-            log.append("Fichiers restaurés.")
+            log.append("Fichiers de la sauvegarde restaurés (ajoutés ou remplacés ; les fichiers créés depuis "
+                       "la sauvegarde sont conservés).")
     BackupJob.objects.filter(path=str(path)).update(restored_at=timezone.now())
     return log

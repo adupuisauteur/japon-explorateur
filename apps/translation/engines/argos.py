@@ -14,16 +14,23 @@ réseau interne Docker uniquement :
 Les quatre derniers ne sont appelés que sur action explicite (Traduction → Moteurs locaux) : le choix de
 télécharger des paquets appartient à l'utilisateur.
 
-Mode simulé (décision du 13 novembre 2026) : tant que le service n'est pas activé ou que les paquets
-nécessaires ne sont pas installés (leur téléchargement attend votre autorisation), Argos peut être
-activé en MODE SIMULÉ. Il ne traduit alors rien : il renvoie le texte original précédé de la mention
-« [Simulation Argos — aucune traduction réelle] ». Ces versions portent l'indicateur `simulated` et la
-mention « Simulation » partout ; elles restent validables.
+Mode démonstration (2.0.0, décision D4 ; « mode simulé » de la 1.3.0) : la simulation n'est plus un repli
+automatique. Elle n'a lieu que si l'administrateur active « Argos : mode démonstration » (Administration →
+Paramètres). Argos ne traduit alors rien : il renvoie le texte original précédé de la mention
+« [Simulation Argos — aucune traduction réelle] » ; ces versions portent l'indicateur `simulated` et la
+mention « Simulation » partout.
+
+Sans ce mode, une traduction impossible est une ERREUR, jamais une simulation :
+- service injoignable (arrêté, en redémarrage, mémoire insuffisante…) : erreur « indisponibilite » ; la
+  tâche est interrompue et reprenable, les éléments non traités restent en attente ;
+- paquets ou modèle de découpage absents : erreur de configuration « paquet_absent » ; la tâche s'arrête.
+En 1.3.0, un service devenu injoignable au milieu d'une tâche produisait des simulations pour la suite
+de la tâche, sans erreur (constat de l'audit 2.0.0).
 """
 from django.conf import settings
 
 from ..http import TranslationHTTP
-from .base import EngineResult, EngineStatus, TranslationEngine, engine_error
+from .base import EngineResult, EngineStatus, TranslationEngine, TranslationEngineError, engine_error
 
 SIMULATION_PREFIX = "[Simulation Argos — aucune traduction réelle] "
 PIVOT = "en"
@@ -92,55 +99,81 @@ class ArgosEngine(TranslationEngine):
             raise engine_error("Réponse inattendue du service Argos.", kind="unparsable", code="paquet_absent")
         return data
 
+    @staticmethod
+    def demo_mode():
+        from apps.core.models import AppSettings
+
+        return AppSettings.get().argos_demo_mode
+
     def _real_path(self, source, target):
-        """(chemin, versions) si une traduction réelle est possible ; sinon (None, raison)."""
+        """(chemin, détail, joignable) : chemin si une traduction réelle est possible, sinon None et la raison.
+
+        `joignable` vaut False si le service ne répond pas (ou n'est pas configuré) : situation passagère,
+        à distinguer des paquets manquants, qui demandent une action de l'administrateur.
+        """
         try:
             health = self.health()
         except Exception as exc:  # service arrêté, profil non démarré, réseau Docker…
-            return None, f"service Argos injoignable — démarré avec le profil Docker « hors-ligne » ? ({exc})"
+            return None, f"service Argos injoignable — est-il démarré ? ({str(exc).rstrip('.')})", False
         if health is None:
-            return None, "service Argos non activé (profil Docker « hors-ligne »)"
+            return None, "service Argos non configuré (TRANSLATION_ARGOS_URL)", False
         packages = health.get("packages") or []
         path = _path(source, target, packages)
         if path is None:
             if _path(source, target, [dict(p, sbd_ready=True) for p in packages]):
-                return None, "modèle de découpage en phrases manquant (Traduction → Moteurs locaux)"
-            return None, "paquets de langues nécessaires non installés"
+                return None, "modèle de découpage en phrases manquant (Traduction → Moteurs locaux)", True
+            return None, "paquets de langues nécessaires non installés (Traduction → Moteurs locaux)", True
         versions = {f"{p['from']}→{p['to']}": p.get("version", "?") for p in packages}
         used = " ; ".join(f"{a}→{b} {versions.get(f'{a}→{b}', '?')}" for a, b in zip(path, path[1:]))
-        return path, f"Argos {health.get('argos_version', '?')} — {used}"
+        return path, f"Argos {health.get('argos_version', '?')} — {used}", True
 
     def status(self):
         s = self.setting
         if s is None or not s.enabled:
-            return EngineStatus(False, "Non activé", "Activez Argos pour l'utiliser (en mode simulé tant que le "
-                                "service et ses paquets ne sont pas installés).")
-        path, info = self._real_path("ja", "fr")
+            return EngineStatus(False, "Non activé", "Activez Argos pour l'utiliser.")
+        path, info, _reachable = self._real_path("ja", "fr")
         if path:
             return EngineStatus(True, "Disponible hors ligne", info, level="success")
-        return EngineStatus(True, "Mode simulé", f"Aucune traduction réelle : {info}.", simulated=True,
-                            level="warning")
+        if self.demo_mode():
+            return EngineStatus(True, "Mode démonstration", f"Aucune traduction réelle : {info}.", simulated=True,
+                                level="warning")
+        return EngineStatus(False, "Indisponible", f"Argos ne peut pas traduire : {info}.", level="danger")
 
     def test(self):
-        path, info = self._real_path("ja", "fr")
+        path, info, _reachable = self._real_path("ja", "fr")
         if path:
             return f"Service Argos disponible : {info}."
-        return f"Mode simulé : {info}. Les traductions porteront la mention « Simulation »."
+        if self.demo_mode():
+            return f"Mode démonstration : {info}. Les traductions porteront la mention « Simulation »."
+        return f"Argos ne peut pas traduire : {info}."
 
     def translate(self, segments, source, target, *, glossary=None, variety="modern", context=None):
         self.check_pair(source, target)
         if self.setting is None or not self.setting.enabled:
             raise engine_error("Argos n'est pas activé dans Traduction → Moteurs.", kind="config")
-        path, info = self._real_path(source, target)
+        path, info, reachable = self._real_path(source, target)
         chars = sum(len(s.text) for s in segments)
         if path is None:
-            return EngineResult({s.id: SIMULATION_PREFIX + s.text for s in segments}, chars_sent=0,
-                                model="Argos (simulation)", engine_version=info, simulated=True)
+            if self.demo_mode():
+                return EngineResult({s.id: SIMULATION_PREFIX + s.text for s in segments}, chars_sent=0,
+                                    model="Argos (simulation)", engine_version=info, simulated=True)
+            if not reachable:
+                raise engine_error(f"Argos ne peut pas traduire : {info}.", kind="unavailable",
+                                   code="indisponibilite")
+            raise engine_error(f"Argos ne peut pas traduire : {info}.", kind="config", code="paquet_absent")
         translations = {}
         for batch in self.batches(segments):
-            data = self._http().request("POST", f"{self.service_url}/translate",
-                                        json={"texts": [s.text for s in batch], "source": source, "target": target},
-                                        n_texts=len(batch), n_chars=sum(len(s.text) for s in batch))
+            try:
+                data = self._http().request("POST", f"{self.service_url}/translate",
+                                            json={"texts": [s.text for s in batch], "source": source,
+                                                  "target": target},
+                                            n_texts=len(batch), n_chars=sum(len(s.text) for s in batch))
+            except TranslationEngineError as exc:
+                if exc.kind == "unavailable" and not exc.code:  # connexion perdue pendant l'envoi
+                    raise engine_error(f"{exc} La tâche pourra reprendre quand le service répondra.",
+                                       kind="unavailable", code="indisponibilite",
+                                       diagnostic=exc.diagnostic) from None
+                raise
             items = data.get("translations") if isinstance(data, dict) else None
             if not isinstance(items, list) or len(items) != len(batch) or not all(isinstance(t, str) for t in items):
                 raise engine_error("Réponse du service Argos incomplète ou mal formée.", kind="unparsable",

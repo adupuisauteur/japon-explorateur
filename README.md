@@ -2,9 +2,9 @@
 
 Application web progressive (PWA) de recherche, de gestion et d'exploitation de ressources documentaires japonaises, développée d'après le cahier des charges v1.2 du 12 novembre 2026.
 
-**Version 1.3.0 — candidate, en attente du protocole de vérification** (fichier `VERSION`), à partir de la 1.2.0 (étiquette `v1.2.0-reference`, commit `4982a3d`) : module de traduction. Voir `CHANGELOG.md` et `docs/evolution-1.3.0/`. La 1.2.0 (sources documentaires enrichies et journal des dysfonctionnements) est décrite dans le dossier `docs/evolution-1.2.0/` : guide d'installation Windows, guide d'utilisation, protocole de vérification, rapport technique, limitations.
+**Version 2.0.0 — en cours de développement** (fichier `VERSION`), renommée **J-ed**, à partir de la 1.3.0-rc3 (étiquette `v1.3.0-rc3`, commit `d7296d4`) : version de consolidation. Audit et plan : `docs/evolution-2.0.0/01-audit.md` ; avancement : `CHANGELOG.md`.
 
-> **Installation d'essai 1.3.0 :** elle tourne à côté de l'installation principale (port 8000) et de l'essai 1.2.0 (port 8001), sur **http://localhost:8002**, avec son propre projet Docker (`japon-explorateur-essai-130`) et ses propres volumes. Ne réutilisez pas le fichier `.env` de l'essai 1.2.0 sans corriger `COMPOSE_PROJECT_NAME` et `WEB_PORT`. Guide d'installation : `docs/evolution-1.3.0/03-guide-installation-windows.md` (dossier conseillé `C:\JaponExplorateur-essai-1.3.0`). Documents de livraison : `docs/evolution-1.3.0/00-LISEZMOI.md`.
+> **Nom et port de l'installation (2.0.0) :** `COMPOSE_PROJECT_NAME` est **obligatoire** dans `.env` (plus de nom par défaut) ; pour mettre à jour une installation, gardez exactement le nom de son `.env` actuel, et utilisez de préférence `mettre-a-jour.ps1` (sauvegarde, empreinte, reprise du `.env`, contrôle final). Les noms `japon-explorateur` et `japon-explorateur-essai` restent protégés (`AUTORISER_NOM_PROJET`). Port par défaut : 8000 (`WEB_PORT`).
 
 **Stack :** Django 5 · PostgreSQL · HTMX + Bootstrap 5 (sans framework front lourd) · Celery + Redis · Docker Compose · python-docx · ReportLab.
 
@@ -17,6 +17,7 @@ Prérequis : [Docker Desktop](https://www.docker.com/products/docker-desktop/) (
 ```bash
 # 1. Décompresser l'archive, puis dans le dossier du projet :
 cp .env.example .env            # sous Windows : copy .env.example .env
+#    puis renseigner COMPOSE_PROJECT_NAME (obligatoire, par exemple « jed ») dans .env
 
 # 2. Générer les secrets et les recopier dans .env
 docker compose run --rm --no-deps web python manage.py generate_secrets
@@ -26,7 +27,7 @@ docker compose run --rm --no-deps web python manage.py generate_secrets
 # 3. Démarrer
 docker compose up -d --build
 
-# 4. Ouvrir http://localhost:8002   (installation d'essai 1.3.0 ; port réglable par WEB_PORT dans .env)
+# 4. Ouvrir http://localhost:8000   (port réglable par WEB_PORT dans .env)
 ```
 
 Au premier accès, un **assistant de première configuration** crée le compte administrateur, enregistre le mode d'enregistrement par défaut (« Sélectif » recommandé), active la sauvegarde quotidienne et répertorie toutes les sources du §5.1. Il ouvre ensuite l'assistant d'import.

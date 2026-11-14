@@ -1,5 +1,5 @@
 """
-Service Argos Translate de « Japon — Explorateur documentaire » (version 1.3.0, décision A1).
+Service Argos Translate de « Japon — Explorateur documentaire » (version 2.0.0 ; service créé en 1.3.0, décision A1).
 
 Serveur HTTP interne (bibliothèque standard de Python), joignable seulement sur le réseau Docker du
 projet : AUCUN port n'est publié. Il n'est démarré qu'avec le profil Docker « hors-ligne ».
@@ -351,7 +351,7 @@ def _check_pair(source, target):
 
 def make_handler(service):
     class Handler(BaseHTTPRequestHandler):
-        server_version = "japon-argos/1.3.0"
+        server_version = "jed-argos/2.0.0"
 
         def log_message(self, fmt, *args):  # aucun texte : méthode, chemin, code
             return
@@ -395,8 +395,10 @@ def make_handler(service):
             except Exception as exc:  # noqa: BLE001 — type seulement, jamais le message (il pourrait contenir du texte)
                 status, data = 500, {"code": "erreur_interne", "message": f"Erreur interne ({exc.__class__.__name__})."}
                 error = f"erreur interne {exc.__class__.__name__}"
-            self._send(status, data)
+            # 2.0.0 : le journal est écrit AVANT la réponse (sinon une ligne pouvait manquer quand le client lit
+            # le journal juste après avoir reçu la réponse : test instable constaté en exécution parallèle).
             self._log(status, started, error)
+            self._send(status, data)
 
         def do_GET(self):  # noqa: N802
             self._dispatch({"/health": service.health})
@@ -422,8 +424,9 @@ def main():
     project = os.environ.get("COMPOSE_PROJECT_CHECK", "")
     # Même règle que docker/entrypoint.sh : un nom réservé n'est accepté que sur autorisation explicite.
     if project in RESERVED_PROJECTS and os.environ.get("AUTORISER_NOM_PROJET", "") != project:
-        sys.stderr.write(f"ARRÊT : le projet Docker « {project} » appartient à une autre installation "
-                         "(principale ou essai 1.2.0). Corrigez COMPOSE_PROJECT_NAME dans .env.\n")
+        sys.stderr.write(f"ARRÊT : le projet Docker « {project} » appartient à une installation existante "
+                         "(principale ou essai). Corrigez COMPOSE_PROJECT_NAME dans .env, ou ajoutez "
+                         f"AUTORISER_NOM_PROJET={project} pour mettre à jour cette installation.\n")
         sys.exit(1)
     port = int(os.environ.get("ARGOS_SERVICE_PORT", "5000"))
     server = make_server(ArgosBackend(os.environ.get("ARGOS_DEPOT_DIR", "/depot")), port=port)

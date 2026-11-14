@@ -48,6 +48,10 @@ SPENDING_STATUSES = ("confirmed", "running", "interrupted", "done", "failed", "c
 #: erreurs qui arrêtent toute la tâche (inutile d'insister) : configuration, clé, quota
 STOP_KINDS = ("config",)
 STOP_CODES = ("cle_refusee", "quota_depasse")
+#: 2.0.0 (décision D4) : moteur local momentanément injoignable → tâche INTERROMPUE (reprenable), éléments
+#: laissés en attente ; jamais de simulation de repli ni d'éléments marqués en échec.
+INTERRUPT_CODES = ("indisponibilite",)
+LOCAL_ENGINES = ("argos",)
 
 
 class TranslationUnavailable(Exception):
@@ -580,6 +584,11 @@ def _run_chunk(job, engine, chunk, variety, bundle=None):
         if job.engine == "ai":
             _record_ai_task(job, chunk, error=exc)
         record_translation_error(exc, engine=job.engine, operation=f"Tâche de traduction n° {job.pk}")
+        if job.engine in LOCAL_ENGINES and exc.code in INTERRUPT_CODES:
+            job.stop_status = "interrupted"
+            job.error_summary = (f"Interrompue : {exc} Les éléments non traités restent en attente ; reprenez la "
+                                 "tâche quand le service répond de nouveau.")[:2000]
+            return False
         if exc.kind in STOP_KINDS or exc.code in STOP_CODES:
             job.error_summary = f"Arrêt : {exc}"[:2000]
             return False
@@ -627,7 +636,9 @@ def process_next_chunk(job_id):
                chars_sent=job.chars_sent)
         return False
     if not keep_going:
-        _touch(job, status="failed", finished_at=timezone.now(), error_summary=job.error_summary,
+        stop_status = getattr(job, "stop_status", "failed")
+        _touch(job, status=stop_status, finished_at=None if stop_status == "interrupted" else timezone.now(),
+               error_summary=job.error_summary,
                done_items=job.done_items, failed_items=job.failed_items, skipped_items=job.skipped_items,
                chars_sent=job.chars_sent)
         return False

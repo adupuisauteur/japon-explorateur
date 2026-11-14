@@ -18,7 +18,8 @@ RUN pip install -r requirements.txt
 COPY . .
 RUN chmod +x docker/entrypoint.sh \
  && useradd --create-home --uid 1000 japon \
- && mkdir -p /data /argos-depot && chown -R japon:japon /data /app /argos-depot
+ && mkdir -p /data /argos-depot /backups-externes \
+ && chown -R japon:japon /data /app /argos-depot /backups-externes
 
 USER japon
 EXPOSE 8000

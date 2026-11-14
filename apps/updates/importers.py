@@ -6,6 +6,7 @@ import csv
 import hashlib
 import io
 import json
+import logging
 import re
 from collections import Counter
 
@@ -13,6 +14,8 @@ from lxml import etree
 
 from apps.core import japanese as jp
 from apps.core.encoding import decode_text  # noqa: F401  (déplacée en 1.3.0 ; nom conservé ici)
+
+logger = logging.getLogger(__name__)
 
 # --------------------------------------------------------------------------- synonymes de colonnes
 
@@ -130,8 +133,9 @@ def detect_format(filename, head):
             text = head.decode("utf-8-sig", errors="ignore")
             if '"schema_version"' in text and '"export_metadata"' in text:
                 return "json_export"
-        except Exception:
-            pass
+        except Exception as exc:  # 2.0.0 : journalisé ; le fichier est alors traité comme du JSON ordinaire
+            logger.warning("Détection d'un export J-ed impossible (%s : %s) : lecture comme JSON ordinaire.",
+                           exc.__class__.__name__, exc)
         return "json"
     if name.endswith((".xml", ".marcxml")):
         text = head.decode("utf-8", errors="ignore")

@@ -16,7 +16,7 @@ from . import services
 from .crypto import encrypt_secret, encryption_available
 from .models import FUNCTIONS, PROVIDERS, AIModelPrice, AIPreferenceProfile, AIProviderCredential, AITask
 from .preferences import activate_profile, active_profile
-from .providers import ProviderError, get_provider
+from .providers import MAX_STORED_MODELS, ProviderError, get_provider
 from .urlsafety import UnsafeProviderURL, allowed_local_urls, check_provider_url
 
 OVERRIDABLE = ["translation", "summary", "classification", "duplicates", "query_extension", "extraction", "rag",
@@ -126,7 +126,7 @@ def provider_save(request, provider):
         try:
             models = get_provider(cred).list_models()
             cred.status = "ok"
-            cred.available_models = models[:300]
+            cred.available_models = models[:MAX_STORED_MODELS]
             cred.last_error = ""
             messages.success(request, f"Connexion réussie : {len(models)} modèle(s) disponible(s).")
         except (ProviderError, ImproperlyConfigured) as exc:

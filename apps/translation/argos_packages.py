@@ -212,6 +212,11 @@ def run_package_job(job_id):
     if job.failed_items:
         job.error_summary = f"{job.failed_items} paquet(s) non installé(s) : voir le détail."
     job.save(update_fields=["status", "done_items", "failed_items", "finished_at", "heartbeat_at", "error_summary"])
+    if job.done_items:
+        # 2.0.0 : test de démarrage — traduction d'une phrase fictive, résultat sur la page « État ».
+        from .argos_selftest import run_selftest
+
+        run_selftest()
 
 
 def run_safely(job_id):

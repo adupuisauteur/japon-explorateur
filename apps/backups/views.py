@@ -19,6 +19,7 @@ def backup_list(request):
     return render(request, "backups/list.html", {
         "jobs": BackupJob.objects.all()[:50], "settings_obj": AppSettings.get(),
         "backup_dir": settings.BACKUP_DIR, "external": settings.BACKUP_EXTERNAL_DIR,
+        "external_host": settings.BACKUP_EXTERNAL_HOST_DIR,
     })
 
 
@@ -58,10 +59,16 @@ def backup_restore(request, pk):
         messages.error(request, "Tapez RESTAURER pour confirmer la restauration.")
         return redirect("backups:list")
     safety = create_backup("full", user=request.user)
+    if safety.status != "done":
+        # 2.0.0 : jamais de restauration sans sauvegarde de sécurité réussie.
+        messages.error(request, f"Sauvegarde de sécurité impossible ({safety.message}) : restauration annulée, "
+                                "rien n'a été modifié.")
+        return redirect("backups:list")
     try:
         log = restore_backup(job.path)
     except Exception as exc:
-        messages.error(request, f"Restauration impossible : {exc}. Sauvegarde de sécurité : {safety.path}")
+        messages.error(request, f"Restauration impossible ({exc.__class__.__name__} : {exc}). "
+                                f"Sauvegarde de sécurité : {safety.path}")
         return redirect("backups:list")
     messages.success(request, " ".join(log) + f" Une sauvegarde de sécurité a été créée avant restauration : {safety.path}. "
                                               "Reconnectez-vous si nécessaire.")

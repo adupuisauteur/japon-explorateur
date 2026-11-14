@@ -1,5 +1,48 @@
 # Historique des versions
 
+## 2.0.0 — en cours de développement
+
+Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquette `v1.3.0-rc3` (commit
+`d7296d4`). Audit et plan : `docs/evolution-2.0.0/01-audit.md`.
+
+- **Lot 0 — corrections et fiabilité** (14 novembre 2026, rapport : `docs/evolution-2.0.0/rapport-lot-0.md`) :
+  - numéro de version 2.0.0 ; images `japon-explorateur:2.0.0` et `japon-explorateur-argos:2.0.0` ;
+    `COMPOSE_PROJECT_NAME` **obligatoire** dans `.env` (plus de nom d'essai par défaut, décision D3) ; port
+    par défaut 8000 ; les noms `japon-explorateur` et `japon-explorateur-essai` restent protégés
+    (`AUTORISER_NOM_PROJET` pour une mise à jour en place) ;
+  - **sauvegardes** : `manage.py backup` et `restore_backup` se terminent avec le code 1 en cas d'échec (y
+    compris une vérification `--verify` en échec) ; le message d'échec donne le **type d'erreur réel** et
+    l'incident est journalisé ; une copie externe impossible ne fait plus échouer la sauvegarde (avertissement
+    et incident) ; la copie est contrôlée par son empreinte ; la restauration depuis l'interface est refusée si
+    la sauvegarde de sécurité échoue ; le message de restauration dit que les fichiers plus récents sont
+    conservés (décision D10) ;
+  - **sauvegardes visibles dans Windows** : `DOSSIER_SAUVEGARDES=…` dans `.env` (monté sur `/backups-externes`) ;
+    sans cette ligne, la copie reste dans le volume Docker `sauvegardes-externes` ;
+  - **Argos ne simule plus jamais en silence** (décision D4) : nouveau réglage « Argos : mode démonstration »
+    (Administration → Paramètres, désactivé par défaut) ; sans lui, un service injoignable **interrompt** la
+    tâche (reprenable, éléments non traités laissés en attente) et des paquets manquants l'arrêtent ; en 1.3.0,
+    un service devenu injoignable en cours de tâche produisait des simulations pour la suite ;
+  - **listes de modèles d'IA complètes** : toutes les pages sont lues chez Anthropic (20 par page) et Gemini
+    (50 par page) ; liste conservée jusqu'à 2 000 modèles ; un modèle n'est plus refusé si la liste est tronquée ;
+  - erreurs autrefois ignorées en silence, désormais journalisées : police PDF illisible, empreinte d'export
+    incalculable, détection d'un export J-ed à l'import ;
+  - **page « État de l'installation »** (Administration, administrateur seulement) : version, base et migrations,
+    Redis, workers, planificateur (signe de vie toutes les 5 minutes), Argos et traduction d'essai, sauvegardes
+    (alerte au-delà de 36 h, erreur au-delà de 7 jours), clés des services en ligne (comptées, jamais
+    affichées), espace disque, mémoire et cœurs accordés par Docker ; bouton **« Copier le diagnostic »**
+    (sans clé, nom de compte ni texte ; chemins personnels masqués) ; commande `manage.py etat_installation`
+    (`--json`, code 1 en cas de problème) ;
+  - **test de démarrage d'Argos** : traduction d'une phrase fictive après chaque installation de paquet réussie
+    et sur demande depuis la page « État » ;
+  - **`mettre-a-jour.ps1`** : mise à jour en une commande (contrôles, empreinte, sauvegarde vérifiée et copiée
+    hors de Docker, nouveau dossier, reprise du `.env`, arrêt sans effacement, démarrage, contrôle final),
+    arrêt avec un message clair et la marche à suivre pour revenir en arrière ;
+  - tests : isolation des tests en exécution parallèle (dossier temporaire partagé supprimé trop tôt ; journal
+    du service Argos écrit avant la réponse) ; tests de la 1.3.0 propres aux valeurs de l'essai 1.3.0 remplacés
+    par leurs équivalents 2.0.0 ; tests qui utilisaient la simulation d'Argos passés en mode démonstration.
+  - Base de données : migrations **additives** `core.0002` (champ `argos_demo_mode`) et `core.0003` (table
+    `core_servicecheck`), testées en aller-retour 1.3.0 → 2.0.0 → 1.3.0 sur une base temporaire.
+
 ## 1.3.0 — 14 novembre 2026 (candidate, en attente du protocole de vérification)
 
 Évolution : module de traduction. Base : version 1.2.0, étiquette `v1.2.0-reference` (commit `4982a3d`). Voir `docs/evolution-1.3.0/`.

@@ -2,7 +2,7 @@
 Traduction → Moteurs : lieu UNIQUE du choix des moteurs de traduction (décision « point unique »).
 
 - DeepL et Google : clé saisie ici, chiffrée, jamais réaffichée ; test sans texte réel quand c'est possible.
-- Argos : activation (mode simulé tant que le service et ses paquets ne sont pas installés).
+- Argos : activation (simulation seulement en mode démonstration, réglage de l'administrateur : décision D4).
 - IA : état lu dans le module IA ; les clés restent dans IA → Fournisseurs.
 Enregistrer un réglage ne lance jamais de traduction.
 """
