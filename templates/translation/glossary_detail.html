@@ -57,7 +57,9 @@
 {% if remote %}<p class="small mb-1">Copie envoyée le {{ remote.sent_at|slice:":10" }} ({{ remote.entries }} entrée(s), version {{ remote.version }}, offre {{ remote.plan }}).
   {% if remote_current %}<span class="text-success">À jour : DeepL l'applique aux traductions de vos projets.</span>{% else %}<span class="text-warning">Périmée : le glossaire a changé depuis l'envoi ; seul le contrôle local s'applique tant que vous ne la renvoyez pas.</span>{% endif %}</p>{% else %}<p class="small mb-1 text-muted">Aucune copie envoyée par votre compte : avec DeepL, seul le contrôle local s'applique.</p>{% endif %}
 {% if send_problem %}<p class="small text-muted mb-0">{{ send_problem }}</p>{% else %}
+{% if terms %}{% include "translation/_terms.html" with t=terms %}{% endif %}
 <form method="post" action="{% url 'translation:glossary_deepl' glossary.pk %}" class="mb-2">{% csrf_token %}
+  {% if terms %}<div class="form-check small"><input class="form-check-input" type="checkbox" name="terms_acknowledged" value="1" id="terms-ack"><label class="form-check-label" for="terms-ack">J'ai pris connaissance de ce résumé des conditions de DeepL.</label></div>{% endif %}
   <div class="form-check small"><input class="form-check-input" type="checkbox" name="confirm" id="deepl-confirm" value="1">
     <label class="form-check-label" for="deepl-confirm">J'accepte d'envoyer à DeepL, avec ma clé, le nom du glossaire et {{ n_deepl_entries }} paire(s) de termes (les termes à éviter et les remarques ne sont pas envoyés). L'envoi ne consomme pas de caractères de traduction.</label></div>
   <button class="btn btn-sm btn-outline-primary mt-1" name="action" value="send">{% if remote %}Renvoyer la version {{ glossary.version }} à DeepL{% else %}Envoyer à DeepL{% endif %}</button></form>{% endif %}

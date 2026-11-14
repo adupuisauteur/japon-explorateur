@@ -56,3 +56,12 @@ class AppTestCase(TestCase):
         self.client.post(job.get_absolute_url(), {"action": "apply"})
         job.refresh_from_db()
         return job
+
+
+def acknowledge_terms(user, *keys):
+    """Prise de connaissance des conditions des fournisseurs (1.3.0, § 13) pour les tests qui portent sur
+    autre chose : le contrôle lui-même est testé dans tests/test_translation_terms.py."""
+    from apps.translation import terms
+
+    for key in keys:
+        terms.acknowledge(user, key)

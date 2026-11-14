@@ -113,14 +113,15 @@ def rate(version, user, rating, comment):
     return version
 
 
-def confirm_all(jobs, user, *, second_confirmation=False):
+def confirm_all(jobs, user, *, second_confirmation=False, terms_acknowledged=False):
     """Confirme les tâches préparées ; retourne (lancées, [(tâche, erreur)])."""
     started, errors = [], []
     for job in jobs:
         if job.status != "draft":
             continue
         try:
-            services.confirm(job, user, second_confirmation=second_confirmation)
+            services.confirm(job, user, second_confirmation=second_confirmation,
+                             terms_acknowledged=terms_acknowledged)
             started.append(job)
         except services.TranslationUnavailable as exc:
             errors.append((job, str(exc)))

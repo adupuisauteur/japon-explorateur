@@ -21,6 +21,7 @@ from apps.core.permissions import researcher_required
 
 from ..engines.base import TranslationEngineError
 from ..engines.registry import ENGINE_CLASSES, get_engine
+from .. import terms
 from ..forms import EngineSettingForm, PreferenceForm
 from ..journal import record_translation_error
 from ..models import SETTING_ENGINES, EngineSetting
@@ -64,6 +65,7 @@ def engines(request):
         "rows": rows, "ai_rows": ai_rows, "profile": profile, "pref": pref,
         "pref_form": PreferenceForm(instance=pref), "encryption_ok": encryption_available(),
         "default_status": _choice_status(user, pref, "default"), "second_status": _choice_status(user, pref, "second"),
+        "provider_terms": [dict(t, read=terms.acknowledged(user, t["key"])) for t in terms.all_terms()],
     })
 
 

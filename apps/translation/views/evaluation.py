@@ -60,6 +60,16 @@ def comparison_prepare(request, pk):
     return redirect(_comparison_url(project, label))
 
 
+def _unique_terms(drafts):
+    seen, out = set(), []
+    for job in drafts:
+        entry = services._terms_needed(job)
+        if entry and entry["key"] not in seen:
+            seen.add(entry["key"])
+            out.append(entry)
+    return out
+
+
 def _comparison_url(project, label):
     return reverse("translation:comparison", args=[project.pk]) + "?c=" + quote(label)
 
@@ -76,6 +86,7 @@ def comparison(request, pk):
         "project": project, "label": label, "jobs": jobs, "rows": E.rows(jobs), "summary": E.rating_summary(jobs),
         "drafts": [(j, services.summary(j), services.engine_label(j)) for j in drafts],
         "needs_second": any(j.requires_second_confirmation for j in drafts),
+        "terms": _unique_terms(drafts),
         "ratings": RATINGS, "columns": [(j, services.engine_label(j)) for j in jobs],
         "running": any(j.status in ("confirmed", "running") and not services.is_stale(j) for j in jobs),
         "url": _comparison_url(project, label),
@@ -93,7 +104,8 @@ def comparison_action(request, pk):
     action = request.POST.get("action")
     if action == "confirm":
         started, errors = E.confirm_all(jobs, request.user,
-                                        second_confirmation=bool(request.POST.get("second_confirmation")))
+                                        second_confirmation=bool(request.POST.get("second_confirmation")),
+                                        terms_acknowledged=bool(request.POST.get("terms_acknowledged")))
         for job in started:
             log_action(request, "translation.job_confirmed", job,
                        f"Comparaison sur le corpus — {services.engine_label(job)} : {job.chars_estimated} caractère(s)")

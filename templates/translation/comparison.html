@@ -13,7 +13,9 @@
   <td class="small">{% if s.problems %}<span class="text-danger">{{ s.problems|join:" " }}</span>{% else %}<span class="text-success">possible</span>{% endif %}</td></tr>{% endfor %}
 </tbody></table>
 <p class="small text-muted">Montants estimés ; la facture du fournisseur fait foi.</p>
+{% for t in terms %}{% include "translation/_terms.html" with t=t %}{% endfor %}
 <form method="post" action="{% url 'translation:comparison_action' project.pk %}" class="d-flex flex-wrap gap-2 align-items-center">{% csrf_token %}<input type="hidden" name="c" value="{{ label }}">
+  {% if terms %}<div class="form-check w-100"><input class="form-check-input" type="checkbox" name="terms_acknowledged" value="1" id="terms-ack"><label class="form-check-label" for="terms-ack">J'ai pris connaissance des résumés ci-dessus.</label></div>{% endif %}
   {% if needs_second %}<div class="form-check"><input class="form-check-input" type="checkbox" name="second_confirmation" value="1" id="second"><label class="form-check-label" for="second">Volume important : je confirme une seconde fois l'envoi</label></div>{% endif %}
   <button class="btn btn-primary" name="action" value="confirm">Confirmer et lancer</button>
   <button class="btn btn-outline-secondary" name="action" value="cancel">Annuler</button></form>

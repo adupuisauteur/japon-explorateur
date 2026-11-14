@@ -20,7 +20,7 @@ from apps.translation import services
 from apps.translation.engines.deepl import DeepLEngine
 from apps.translation.models import EngineSetting, TranslationJob, TranslationPreference
 
-from .helpers import AppTestCase
+from .helpers import AppTestCase, acknowledge_terms
 
 
 class RecordTranslationTestCase(AppTestCase):
@@ -39,6 +39,7 @@ class RecordTranslationTestCase(AppTestCase):
             EngineSetting.objects.create(user=user, engine="deepl", plan="free", status="ok",
                                          encrypted_key=encrypt_secret("fake-deepl-key-0000000000"))
             TranslationPreference.objects.create(user=user, default_engine="deepl", migrated_from_ai=True)
+            acknowledge_terms(user, "deepl")
         cat = self.catalogue("codh-pmjt")
         self.record, _ = upsert_record(cat, {"source_id": "N1", "original_title": "架空の書",
                                              "description_original": "架空の解題。", "subjects_original": "架空の主題"})

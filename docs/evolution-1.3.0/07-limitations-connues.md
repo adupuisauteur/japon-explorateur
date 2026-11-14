@@ -93,3 +93,15 @@
 - Consommation : une tâche compte pour le mois où elle a été préparée (même règle que les plafonds). Le coût
   DeepL et Google reste « non disponible » tant que `reference/tarifs-traduction.json` n'est pas complété. Le
   budget IA affiché couvre toutes les fonctions IA (règle du module IA), pas seulement la traduction.
+
+## Conditions des fournisseurs (complément du lot 10)
+
+- Les résumés sont rédigés à partir des pages officielles consultées le 14 novembre 2026 ; les conditions
+  officielles font foi et peuvent changer : revérifiez-les et mettez à jour `verified_on` dans
+  `reference/conditions-fournisseurs.json` (chaque utilisateur devra alors reprendre connaissance du résumé).
+- **Gemini** : la page actuelle des conditions n'a pas pu être ouverte depuis l'environnement de
+  développement ; le résumé repose sur la version officielle archivée du 20 novembre 2025. À revérifier.
+- **DeepL API Free** : la politique de confidentialité (section consacrée à API Free) renvoie au régime de la
+  version gratuite ; le résumé en déduit que les textes peuvent servir à l'entraînement. À confirmer par une
+  lecture complète de la politique.
+- Le bouton « Tester » de Google envoie une phrase d'essai fictive : il ne demande pas la prise de connaissance.

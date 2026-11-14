@@ -222,7 +222,13 @@ def summary(job):
     setting = EngineSetting.objects.filter(user=job.user, engine=job.engine).first()
     return {"engine": engine, "status": engine.status(), "counts": counts, "cost": cost,
             "quota": (setting.quota_info if setting else {}) or {}, "problems": blocking_problems(job),
-            "glossary": _bundle(job)}
+            "glossary": _bundle(job), "terms": _terms_needed(job)}
+
+
+def _terms_needed(job):
+    from . import terms as T
+
+    return T.needed(job.user, job.engine, job.ai_provider)
 
 
 def blocking_problems(job, *, resuming=False):
@@ -264,9 +270,16 @@ def blocking_problems(job, *, resuming=False):
 # --------------------------------------------------------------------------- confirmation et suivi
 
 
-def confirm(job, user, *, second_confirmation=False):
+def confirm(job, user, *, second_confirmation=False, terms_acknowledged=False):
+    from . import terms as T
+
     if job.user_id != user.pk or job.status != "draft":
         raise TranslationUnavailable("Cette tâche ne peut plus être lancée.")
+    pending_terms = T.needed(user, job.engine, job.ai_provider)
+    if pending_terms is not None and not terms_acknowledged:
+        raise TranslationUnavailable(f"Premier envoi à {pending_terms['name']} : lisez le résumé de ses conditions "
+                                     "d'utilisation des textes et cochez la case de prise de connaissance.",
+                                     reason="terms")
     problems = blocking_problems(job)
     if problems:
         job.status, job.error_summary = "blocked", " ".join(problems)[:2000]
@@ -275,6 +288,8 @@ def confirm(job, user, *, second_confirmation=False):
     if job.requires_second_confirmation and not second_confirmation:
         raise TranslationUnavailable("Volume important : cochez la seconde confirmation pour lancer l'envoi.",
                                      reason="second_confirmation")
+    if pending_terms is not None and pending_terms.get("verified_on"):
+        T.acknowledge(user, pending_terms["key"])
     job.status, job.confirmed_at = "confirmed", timezone.now()
     job.save(update_fields=["status", "confirmed_at"])
     dispatch(job)

@@ -20,7 +20,7 @@ from apps.translation.engines.deepl import DeepLEngine
 from apps.translation.models import (EngineSetting, TranslationDocument, TranslationJob, TranslationPreference,
                                      TranslationProject, TranslationSegment, TranslationVersion)
 
-from .helpers import AppTestCase
+from .helpers import AppTestCase, acknowledge_terms
 
 TEXT = "武士道と云は死ぬ事と見付たり。彼は「行く。」と言った。\n\n次の段落。"
 
@@ -86,6 +86,7 @@ class ProjectTestCase(AppTestCase):
         EngineSetting.objects.create(user=self.owner, engine="argos", enabled=True)
         TranslationPreference.objects.create(user=self.owner, default_engine="deepl", migrated_from_ai=True)
         self.project = TranslationProject.objects.create(owner=self.owner, title="Projet fictif")
+        acknowledge_terms(self.owner, "deepl")
 
     def add(self, text=TEXT, title="Document fictif", project=None, **files):
         project = project or self.project

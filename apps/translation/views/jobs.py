@@ -44,7 +44,8 @@ def job_action(request, pk):
     action = request.POST.get("action", "")
     try:
         if action == "confirm":
-            services.confirm(job, request.user, second_confirmation=bool(request.POST.get("second_confirmation")))
+            services.confirm(job, request.user, second_confirmation=bool(request.POST.get("second_confirmation")),
+                             terms_acknowledged=bool(request.POST.get("terms_acknowledged")))
             log_action(request, "translation.job_confirmed", job,
                        f"{services.engine_label(job)} : {job.chars_estimated} caractère(s) prévus")
             messages.success(request, "Traduction lancée.")

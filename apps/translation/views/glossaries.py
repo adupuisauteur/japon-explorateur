@@ -11,6 +11,7 @@ from apps.core.audit import log_action
 from apps.core.permissions import researcher_required
 
 from .. import glossary as G
+from .. import terms as T
 from ..engines.base import TranslationEngineError
 from ..forms import GlossaryEntryForm, GlossaryForm, GlossaryImportForm
 from ..models import Glossary, GlossaryEntry, ProjectGlossary, TranslationSegment
@@ -92,7 +93,7 @@ def glossary_detail(request, pk):
         "projects": glossary.projects.filter(Q(owner=request.user) | Q(confidential=False)).select_related("owner"),
         "remote": copy, "remote_current": G.remote_copy_is_current(glossary, request.user),
         "send_problem": G.send_problem(glossary, request.user), "n_deepl_entries": len(G.deepl_entries(glossary)),
-        "contradictions": _internal_overlaps(glossary),
+        "contradictions": _internal_overlaps(glossary), "terms": T.needed(request.user, "deepl"),
     })
 
 
@@ -185,7 +186,13 @@ def glossary_deepl(request, pk):
         if action == "send":
             if not request.POST.get("confirm"):
                 raise G.GlossaryError("Cochez la case de confirmation : les termes du glossaire seront envoyés à DeepL.")
+            pending_terms = T.needed(request.user, "deepl")
+            if pending_terms is not None and not request.POST.get("terms_acknowledged"):
+                raise G.GlossaryError("Premier envoi à DeepL : lisez le résumé de ses conditions et cochez la case de "
+                                      "prise de connaissance.")
             message = G.send_to_deepl(glossary, request.user)
+            if pending_terms is not None:
+                T.acknowledge(request.user, "deepl", request)
             log_action(request, "translation.glossary_sent_deepl", glossary, message)
             messages.success(request, message)
         elif action == "delete":

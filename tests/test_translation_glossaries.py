@@ -18,7 +18,7 @@ from apps.translation.engines.deepl import DeepLEngine
 from apps.translation.models import (EngineSetting, Glossary, GlossaryEntry, ProjectGlossary, TranslationDocument,
                                      TranslationJob, TranslationPreference, TranslationProject, TranslationVersion)
 
-from .helpers import AppTestCase
+from .helpers import AppTestCase, acknowledge_terms
 
 TEXT = "徳川家康は江戸に幕府を開いた。\n\n武士は刀を持つ。"
 
@@ -85,6 +85,7 @@ class GlossaryTestCase(AppTestCase):
         G.save_entry(self.glossary, {"source_term": "幕府", "target_term": "bakufu", "category": "institution",
                                      "avoid": "shogunat"})
         ProjectGlossary.objects.create(project=self.project, glossary=self.glossary, priority=0)
+        acknowledge_terms(self.owner, "deepl")
 
     def add_document(self, text=TEXT):
         self.client.post(f"/traduction/projets/{self.project.pk}/documents/nouveau/",

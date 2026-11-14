@@ -28,7 +28,7 @@ from apps.translation.engines.registry import ENGINE_CLASSES
 from apps.translation.models import (EngineSetting, TranslationDocument, TranslationJob, TranslationPreference,
                                      TranslationProject, TranslationSegment, TranslationVersion)
 
-from .helpers import AppTestCase
+from .helpers import AppTestCase, acknowledge_terms
 
 SECRET = "秘密の架空文"
 
@@ -69,6 +69,7 @@ class PipelineTestCase(AppTestCase):
         self.stub = DeepLStub()
         DeepLEngine.transport = httpx.MockTransport(self.stub)
         self.project = TranslationProject.objects.create(owner=self.user, title="Projet fictif")
+        acknowledge_terms(self.user, "deepl", "google_basic", "ai:anthropic")
 
     def _reset(self):
         for cls in list(ENGINE_CLASSES.values()) + [AnthropicProvider]:
