@@ -2,9 +2,9 @@
 
 Application web progressive (PWA) de recherche, de gestion et d'exploitation de ressources documentaires japonaises, développée d'après le cahier des charges v1.2 du 12 novembre 2026.
 
-**Version 1.3.0 — en cours de développement** (fichier `VERSION`), à partir de la 1.2.0 (étiquette `v1.2.0-reference`, commit `4982a3d`) : module de traduction. Voir `CHANGELOG.md` et `docs/evolution-1.3.0/`. La 1.2.0 (sources documentaires enrichies et journal des dysfonctionnements) est décrite dans le dossier `docs/evolution-1.2.0/` : guide d'installation Windows, guide d'utilisation, protocole de vérification, rapport technique, limitations.
+**Version 1.3.0 — candidate, en attente du protocole de vérification** (fichier `VERSION`), à partir de la 1.2.0 (étiquette `v1.2.0-reference`, commit `4982a3d`) : module de traduction. Voir `CHANGELOG.md` et `docs/evolution-1.3.0/`. La 1.2.0 (sources documentaires enrichies et journal des dysfonctionnements) est décrite dans le dossier `docs/evolution-1.2.0/` : guide d'installation Windows, guide d'utilisation, protocole de vérification, rapport technique, limitations.
 
-> **Installation d'essai 1.3.0 :** elle tourne à côté de l'installation principale (port 8000) et de l'essai 1.2.0 (port 8001), sur **http://localhost:8002**, avec son propre projet Docker (`japon-explorateur-essai-130`) et ses propres volumes. Ne réutilisez pas le fichier `.env` de l'essai 1.2.0 sans corriger `COMPOSE_PROJECT_NAME` et `WEB_PORT`. La procédure d'installation reste celle de `docs/evolution-1.2.0/03-guide-installation-windows.md`, avec le dossier `C:\JaponExplorateur-essai-1.3.0` et ces deux valeurs.
+> **Installation d'essai 1.3.0 :** elle tourne à côté de l'installation principale (port 8000) et de l'essai 1.2.0 (port 8001), sur **http://localhost:8002**, avec son propre projet Docker (`japon-explorateur-essai-130`) et ses propres volumes. Ne réutilisez pas le fichier `.env` de l'essai 1.2.0 sans corriger `COMPOSE_PROJECT_NAME` et `WEB_PORT`. Guide d'installation : `docs/evolution-1.3.0/03-guide-installation-windows.md` (dossier conseillé `C:\JaponExplorateur-essai-1.3.0`). Documents de livraison : `docs/evolution-1.3.0/00-LISEZMOI.md`.
 
 **Stack :** Django 5 · PostgreSQL · HTMX + Bootstrap 5 (sans framework front lourd) · Celery + Redis · Docker Compose · python-docx · ReportLab.
 
