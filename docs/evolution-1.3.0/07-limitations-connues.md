@@ -80,3 +80,16 @@
   partielle d'un fichier) ; les paquets déjà installés ne sont pas retéléchargés.
 - La qualité japonais → français est limitée par le passage obligé par l'anglais (aucun paquet direct).
 - Annuler une installation n'interrompt pas un téléchargement déjà commencé par le service.
+
+## Évaluation et consommation (lot 10)
+
+- Les comparaisons réelles (DeepL, Google, IA, Argos avec paquets) ne peuvent être faites que sur votre poste,
+  avec vos clés et votre corpus (cahier des charges § 15). Ici, elles ont été testées avec DeepL simulé et
+  Argos en mode simulé.
+- Les résultats d'une comparaison sont des versions « proposées » des segments du corpus : elles apparaissent
+  aussi dans l'écran de travail du corpus. Une version validée auparavant reste validée.
+- Une comparaison est identifiée par son libellé daté (à la seconde) : deux comparaisons lancées dans la même
+  seconde sur le même corpus seraient regroupées.
+- Consommation : une tâche compte pour le mois où elle a été préparée (même règle que les plafonds). Le coût
+  DeepL et Google reste « non disponible » tant que `reference/tarifs-traduction.json` n'est pas complété. Le
+  budget IA affiché couvre toutes les fonctions IA (règle du module IA), pas seulement la traduction.

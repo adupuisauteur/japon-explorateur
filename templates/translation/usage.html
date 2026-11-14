@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Traduction — Consommation{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item active">Consommation</li></ol></nav>{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1><i class="bi bi-speedometer2"></i> Consommation</h1>
+  <p>Vos envois aux moteurs de traduction, par moteur et par mois. <strong>Les montants sont des estimations ; la facture du fournisseur fait foi.</strong></p></div>
+  <form method="get"><div class="d-flex gap-1"><select name="mois" class="form-select form-select-sm" aria-label="Mois">{% for m in months %}<option value="{{ m|date:'Y-m' }}" {% if m == month %}selected{% endif %}>{{ m|date:"F Y" }}</option>{% endfor %}</select><button class="btn btn-sm btn-outline-secondary">Afficher</button></div></form></div>
+
+{% if caps %}<section class="card-soft mb-3"><h2 class="h5">Plafonds du mois en cours</h2>
+{% for c in caps %}<div class="mb-2"><div class="small">{{ c.label }} : {{ c.used }} / {{ c.cap }} {{ c.unit }}</div>
+  <div class="progress" style="max-width:500px" role="progressbar" aria-label="{{ c.label }}" aria-valuenow="{{ c.share }}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar {% if c.share >= 100 %}bg-danger{% elif c.share >= 80 %}bg-warning{% endif %}" style="width:{{ c.share }}%"></div></div></div>{% endfor %}
+<p class="small text-muted mb-0">Au-delà d'un plafond, la traduction est bloquée. Plafonds de caractères : <a href="{% url 'translation:engines' %}">Traduction → Moteurs</a> ; plafond IA : préférences IA.</p></section>{% endif %}
+
+<h2 class="h5">{{ month|date:"F Y" }}</h2>
+<table class="table table-sm align-middle"><thead><tr><th>Moteur</th><th>Tâches</th><th>Caractères envoyés</th><th>Traductions reçues</th><th>Coût estimé</th></tr></thead><tbody>
+{% for r in data.rows %}<tr><td>{{ r.label }}{% if r.simulated %} <span class="chip chip-warn">dont {{ r.simulated }} simulée(s)</span>{% endif %}{% if r.code == "ai" %}<div class="small text-muted">{{ r.tokens_in }} jetons envoyés, {{ r.tokens_out }} reçus (tâches IA)</div>{% endif %}</td>
+  <td>{{ r.jobs }}</td><td>{{ r.chars }}</td><td>{{ r.translations }}</td>
+  <td>{% for cur, amount in r.costs.items %}≈ {{ amount|floatformat:4 }} {{ cur }}{% if not forloop.last %}<br>{% endif %}{% empty %}<span class="text-muted small">{% if r.code == "argos" %}gratuit (local){% else %}non disponible (tarif non renseigné){% endif %}</span>{% endfor %}</td></tr>
+{% empty %}<tr><td colspan="5" class="text-muted">Aucun envoi ce mois-ci.</td></tr>{% endfor %}
+{% if data.legacy.tasks %}<tr><td>Traductions de l'ancien module IA<div class="small text-muted">{{ data.legacy.tokens_in }} jetons envoyés, {{ data.legacy.tokens_out }} reçus</div></td><td>{{ data.legacy.tasks }}</td><td class="text-muted">—</td><td class="text-muted">—</td>
+  <td>{% for cur, amount in data.legacy.costs.items %}≈ {{ amount|floatformat:4 }} {{ cur }}{% empty %}—{% endfor %}</td></tr>{% endif %}
+</tbody>
+{% if data.rows %}<tfoot><tr class="fw-semibold"><td>Total</td><td></td><td>{{ data.chars }}</td><td>{{ data.translations }}</td><td>{% for cur, amount in data.totals.items %}≈ {{ amount|floatformat:4 }} {{ cur }}{% if not forloop.last %}<br>{% endif %}{% empty %}—{% endfor %}</td></tr></tfoot>{% endif %}
+</table>
+<p class="small text-muted">Chiffres calculés à partir de vos tâches du mois (une tâche compte pour le mois où elle a été préparée) ; une traduction simulée ou reprise de la mémoire n'envoie aucun caractère. Coût IA : tarifs saisis dans le module IA.</p>
+
+{% if data.detail %}<details><summary class="small">Détail des {{ data.detail|length }} tâche(s)</summary>
+<table class="table table-sm small mt-2"><thead><tr><th>N°</th><th>Date</th><th>Portée</th><th>Moteur</th><th>État</th><th>Caractères</th><th>Traductions</th><th>Coût estimé</th></tr></thead><tbody>
+{% for d in data.detail %}<tr><td>{% if d.job.kind == 'package' %}{{ d.job.pk }}{% else %}<a href="{% url 'translation:job_detail' d.job.pk %}">{{ d.job.pk }}</a>{% endif %}</td><td>{{ d.job.created_at|date:"d/m H:i" }}</td><td>{{ d.job.scope_label|truncatechars:60 }}</td><td>{{ d.label }}</td><td>{{ d.job.get_status_display }}</td><td>{{ d.job.chars_sent }}</td><td>{{ d.done }}</td>
+  <td>{% for cur, amount in d.costs.items %}≈ {{ amount|floatformat:4 }} {{ cur }}{% empty %}—{% endfor %}</td></tr>{% endfor %}</tbody></table></details>{% endif %}
+{% endblock %}

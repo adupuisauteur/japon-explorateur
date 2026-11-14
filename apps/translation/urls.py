@@ -1,7 +1,8 @@
 from django.urls import path
 
 from . import views
-from .views import documents, engines, exports, glossaries, jobs, local_engines, memory, projects, records
+from .views import (documents, engines, evaluation, exports, glossaries, jobs, local_engines, memory, projects,
+                    records, usage)
 
 app_name = "translation"
 
@@ -50,6 +51,12 @@ urlpatterns = [
     path("glossaires/<int:pk>/deepl/", glossaries.glossary_deepl, name="glossary_deepl"),
     path("exports/", exports.exports_home, name="exports"),
     path("projets/<int:pk>/exporter/", exports.project_export, name="project_export"),
+    path("evaluation/", evaluation.evaluation_home, name="evaluation"),
+    path("evaluation/<int:pk>/comparer/", evaluation.comparison_prepare, name="comparison_prepare"),
+    path("evaluation/<int:pk>/comparaison/", evaluation.comparison, name="comparison"),
+    path("evaluation/<int:pk>/comparaison/action/", evaluation.comparison_action, name="comparison_action"),
+    path("versions/<int:pk>/note/", evaluation.version_rate, name="version_rate"),
+    path("consommation/", usage.usage, name="usage"),
     path("memoire/", memory.memory_list, name="memory"),
     path("memoire/<int:pk>/", memory.memory_toggle, name="memory_toggle"),
 ]

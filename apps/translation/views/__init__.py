@@ -15,6 +15,10 @@ SECTIONS = [
     ("bi-archive", "Mémoire de traduction", "Paires validées, recherche, exclusion.", 7, "translation:memory"),
     ("bi-hourglass-split", "Tâches", "Traductions en cours, progression, reprise.", 4, "translation:job_list"),
     ("bi-file-earmark-arrow-down", "Exports", "Texte, CSV, DOCX bilingue.", 8, "translation:exports"),
+    ("bi-speedometer2", "Consommation", "Caractères, coûts estimés et plafonds, par moteur et par mois.", 10,
+     "translation:usage"),
+    ("bi-clipboard-check", "Évaluation", "Corpus de référence, comparaison des moteurs, notation.", 10,
+     "translation:evaluation"),
 ]
 
 

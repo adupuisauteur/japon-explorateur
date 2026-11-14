@@ -180,7 +180,9 @@ def _prepare(user, kind, specs, *, project, choice, scope_label):
                                       record=spec.get("record"), record_field=spec.get("field", ""),
                                       chars=len(spec["text"]))
             segment = spec.get("segment")
-            if segment is not None:
+            # Comparaison sur le corpus (lot 10) : chaque segment est envoyé à chaque moteur, même déjà validé
+            # ou présent dans la mémoire, pour que les moteurs soient comparés sur les mêmes textes.
+            if segment is not None and kind == "segments":
                 if segment.versions.filter(status="validated").exists():
                     item.status, item.skip_reason = "skipped", "validated"
                 elif tm.lookup(project.owner, segment.memory_key, exclude_segment=segment) is not None:
@@ -345,6 +347,9 @@ def propose_second_engine(job, user):
         raise TranslationUnavailable("Aucun deuxième moteur n'est choisi (Traduction → Moteurs).")
     if second == EngineChoice.of_job(job):
         raise TranslationUnavailable("Le deuxième moteur est celui de cette tâche.")
+    if job.kind == "evaluation":
+        raise TranslationUnavailable("Une comparaison sur le corpus choisit ses moteurs elle-même : "
+                                     "lancez une nouvelle comparaison (Traduction → Évaluation).")
     items = job.items.filter(status__in=("failed", "pending")).select_related("segment", "record")
     if job.kind == "segments":
         return prepare_segments_job(user, [i.segment for i in items if i.segment_id], project=job.project,
@@ -403,7 +408,7 @@ def _source_text(item):
 
 def _context(job, chunk):
     """Segments voisins (avant et après le paquet) pour les IA, si la préférence l'autorise."""
-    if job.engine != "ai" or job.kind != "segments":
+    if job.engine != "ai" or job.kind not in ("segments", "evaluation"):
         return None
     pref = TranslationPreference.objects.filter(user=job.user).first()
     if not (pref and pref.send_neighbour_context):
@@ -541,7 +546,7 @@ def _fail(chunk, exc):
 
 def _bundle(job):
     """Glossaires du projet pour cette tâche (lot 7) ; aucun pour les traductions de notices."""
-    if job.kind != "segments" or not job.project_id:
+    if job.kind not in ("segments", "evaluation") or not job.project_id:
         return None
     return glossary_bundle_for(job.project, job.user, job.engine)
 
