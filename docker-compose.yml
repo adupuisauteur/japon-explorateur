@@ -33,7 +33,7 @@ x-app: &app
     # Dépôt des paquets Argos (.argosmodel) envoyés depuis l'application, lus par le service Argos.
     - argos-depot:/argos-depot
     # Copie des sauvegardes visible dans Windows (2.0.0) : DOSSIER_SAUVEGARDES dans .env, par exemple
-    #   DOSSIER_SAUVEGARDES=D:\JaponEssai\sauvegardes
+    #   DOSSIER_SAUVEGARDES=C:\J-ed\sauvegardes
     # Sans cette ligne, la copie reste dans le volume Docker « sauvegardes-externes ».
     - ${DOSSIER_SAUVEGARDES:-sauvegardes-externes}:/backups-externes
   depends_on:
