@@ -12,12 +12,14 @@ from ..models import TranslationJob
 
 def _own_job(request, pk):
     # Une tâche n'est visible que par son auteur (elle peut citer un projet confidentiel).
-    return get_object_or_404(TranslationJob.objects.select_related("project"), pk=pk, user=request.user)
+    # Les installations de paquets Argos ont leur propre page (Traduction → Moteurs locaux).
+    return get_object_or_404(TranslationJob.objects.select_related("project").exclude(kind="package"), pk=pk,
+                             user=request.user)
 
 
 @researcher_required
 def job_list(request):
-    jobs = TranslationJob.objects.filter(user=request.user).select_related("project")[:200]
+    jobs = TranslationJob.objects.filter(user=request.user).exclude(kind="package").select_related("project")[:200]
     return render(request, "translation/job_list.html", {
         "jobs": [(job, services.is_stale(job), services.engine_label(job)) for job in jobs]})
 

@@ -1,7 +1,7 @@
 from django.urls import path
 
 from . import views
-from .views import documents, engines, exports, glossaries, jobs, memory, projects, records
+from .views import documents, engines, exports, glossaries, jobs, local_engines, memory, projects, records
 
 app_name = "translation"
 
@@ -9,6 +9,13 @@ urlpatterns = [
     path("", views.home, name="home"),
     path("moteurs/", engines.engines, name="engines"),
     path("moteurs/choix/", engines.preferences_save, name="preferences_save"),
+    path("moteurs/locaux/", local_engines.local_engines, name="local_engines"),
+    path("moteurs/locaux/index/", local_engines.argos_index, name="argos_index"),
+    path("moteurs/locaux/telecharger/", local_engines.argos_install, name="argos_install"),
+    path("moteurs/locaux/fichier/", local_engines.argos_install_file, name="argos_install_file"),
+    path("moteurs/locaux/decoupage/", local_engines.argos_install_sbd, name="argos_install_sbd"),
+    path("moteurs/locaux/desinstaller/", local_engines.argos_remove, name="argos_remove"),
+    path("moteurs/locaux/taches/<int:pk>/", local_engines.argos_job_action, name="argos_job_action"),
     path("moteurs/<slug:code>/", engines.engine_save, name="engine_save"),
     path("taches/", jobs.job_list, name="job_list"),
     path("taches/<int:pk>/", jobs.job_detail, name="job_detail"),

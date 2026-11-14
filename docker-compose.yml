@@ -24,8 +24,13 @@ x-app: &app
     DATA_DIR: /data
     # Nom du projet transmis aux conteneurs pour le contrôle d'isolation de l'entrypoint.
     COMPOSE_PROJECT_CHECK: ${COMPOSE_PROJECT_NAME:-japon-explorateur-essai-130}
+    # Service Argos (profil « hors-ligne ») : adresse interne ; s'il n'est pas démarré, Argos reste en mode simulé.
+    TRANSLATION_ARGOS_URL: ${TRANSLATION_ARGOS_URL:-http://argos:5000}
+    TRANSLATION_ARGOS_DEPOT_DIR: /argos-depot
   volumes:
     - app-data:/data
+    # Dépôt des paquets Argos (.argosmodel) envoyés depuis l'application, lus par le service Argos.
+    - argos-depot:/argos-depot
     # Copie externe des sauvegardes : décommentez et adaptez (disque externe, NAS…)
     # - /chemin/vers/disque-externe/japon:/backups-externes
   depends_on:
@@ -69,6 +74,8 @@ services:
       DATA_DIR: /data
       RUN_MIGRATIONS: "0"
       COMPOSE_PROJECT_CHECK: ${COMPOSE_PROJECT_NAME:-japon-explorateur-essai-130}
+      TRANSLATION_ARGOS_URL: ${TRANSLATION_ARGOS_URL:-http://argos:5000}
+      TRANSLATION_ARGOS_DEPOT_DIR: /argos-depot
     # 1.3.0 : file « traduction » en plus de la file par défaut (traductions découpées en paquets courts).
     command: ["celery", "-A", "config", "worker", "-l", "info", "--concurrency", "2", "-Q", "celery,traduction"]
 
@@ -82,6 +89,25 @@ services:
       COMPOSE_PROJECT_CHECK: ${COMPOSE_PROJECT_NAME:-japon-explorateur-essai-130}
     command: ["celery", "-A", "config", "beat", "-l", "info", "--schedule", "/data/celerybeat-schedule"]
 
+  # Argos Translate, moteur de traduction hors ligne (décision A1). FACULTATIF : démarré seulement avec
+  #   docker compose --profile hors-ligne up -d --build
+  # Image séparée (PyTorch « CPU », plusieurs centaines de Mo) ; aucun port publié : le service n'est joignable
+  # que par l'application, sur le réseau interne du projet. Les paquets de langues sont dans le volume
+  # « argos-packages », conservé lors d'une réinitialisation normale de l'essai (décision E6).
+  argos:
+    profiles: ["hors-ligne"]
+    build:
+      context: docker/argos
+    image: japon-explorateur-argos:1.3.0
+    environment:
+      COMPOSE_PROJECT_CHECK: ${COMPOSE_PROJECT_NAME:-japon-explorateur-essai-130}
+    volumes:
+      - argos-packages:/argos
+      - argos-depot:/depot:ro
+    restart: unless-stopped
+
 volumes:
   db-data:
   app-data:
+  argos-packages:
+  argos-depot:

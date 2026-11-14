@@ -20,3 +20,11 @@ def run_translation_job(job_id):
         return
     if run_job_safely(job_id):
         run_translation_job.delay(job_id)
+
+
+@shared_task
+def run_package_job(job_id):
+    """Installation de paquets Argos (téléchargement compris) : une seule exécution, suivie en base."""
+    from .argos_packages import run_safely
+
+    run_safely(job_id)

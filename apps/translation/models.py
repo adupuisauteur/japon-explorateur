@@ -91,6 +91,7 @@ JOB_KINDS = [
     ("segments", "Segments d'un projet"),
     ("records", "Champs de notices"),
     ("evaluation", "Comparaison sur le corpus de référence"),
+    ("package", "Installation de paquets Argos"),
 ]
 ITEM_STATUS = [("pending", "En attente"), ("done", "Traduit"), ("failed", "Échec"), ("skipped", "Non envoyé")]
 

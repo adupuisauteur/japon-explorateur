@@ -61,3 +61,22 @@
 - Export TMX reporté (décision B1).
 - Les exports sont réservés au propriétaire du projet (décision E4) : l'administrateur peut consulter un projet
   non confidentiel d'un autre compte mais pas l'exporter.
+
+## Service Argos (lot 9)
+
+- **Rien n'a pu être construit ni exécuté sous Docker ici** (accès à Docker Hub et à l'index de PyTorch
+  impossible depuis l'environnement de développement). Vérifié : le serveur réel avec un traducteur factice,
+  le client, la gestion des paquets, la configuration Compose résolue avec et sans le profil (`docker compose
+  config`), le contenu du script. À vérifier sur le poste : construction de l'image, taille réelle,
+  téléchargement des paquets, traduction réelle, puis traduction connexion coupée (TR8).
+- Les versions de `docker/argos/requirements.txt` ont été résolues pour Python 3.12 sur Linux x86_64 ;
+  PyTorch 2.5.1 « CPU » est pris sur l'index de PyTorch, qui n'était pas joignable ici : si une version n'y
+  est pas disponible, la construction échouera avec un message de pip (à signaler).
+- Le comportement hors ligne d'Argos repose sur la lecture du code source d'argostranslate 1.11.0,
+  stanza 1.10.1 et minisbd 0.9.5 : Stanza est forcé en mode sans téléchargement, et une traduction est
+  refusée si le modèle MiniSBD manque. Un changement de ces bibliothèques pourrait rendre ces protections
+  inopérantes : les versions sont figées pour cette raison.
+- Un téléchargement interrompu reprend du début du paquet concerné (Argos ne permet pas la reprise
+  partielle d'un fichier) ; les paquets déjà installés ne sont pas retéléchargés.
+- La qualité japonais → français est limitée par le passage obligé par l'anglais (aucun paquet direct).
+- Annuler une installation n'interrompt pas un téléchargement déjà commencé par le service.

@@ -43,9 +43,11 @@ class IsolationTests(SimpleTestCase):
         self.assertIn('"127.0.0.1:${WEB_PORT:-8002}:8000"', compose)
 
     def test_every_app_container_receives_the_project_check(self):
-        """web hérite de x-app ; worker et beat redéfinissent « environment » et doivent la porter aussi."""
+        """web hérite de x-app ; worker et beat redéfinissent « environment » et doivent la porter aussi.
+
+        1.3.0, lot 9 : le service Argos facultatif la porte aussi (quatrième occurrence)."""
         compose = read("docker-compose.yml")
-        self.assertEqual(compose.count("COMPOSE_PROJECT_CHECK: ${COMPOSE_PROJECT_NAME:-%s}" % EXPECTED_PROJECT), 3)
+        self.assertEqual(compose.count("COMPOSE_PROJECT_CHECK: ${COMPOSE_PROJECT_NAME:-%s}" % EXPECTED_PROJECT), 4)
 
     def test_env_example_values(self):
         env = read(".env.example")
