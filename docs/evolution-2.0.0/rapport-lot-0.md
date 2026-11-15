@@ -92,7 +92,14 @@ empreintes sont calculées colonne par colonne en SQL, sans le code de l'applica
     Corrigé (lecture en UTF-8, motifs tolérants), archive `lot0c` ;
   - Argos : « Erreur interne (KeyError) ». Le diagnostic montre `KeyError: 'feat_dropout'` au chargement des
     modèles de découpage Stanza des paquets. Corrigé par un découpage par la ponctuation (`ARGOS_DECOUPAGE`),
-    archive `lot0d`. **Test réel à refaire sur le poste.**
+    archive `lot0d`. Test réel refait sur le poste : **Argos traduit** (confirmé par l'utilisateur et par
+    `verifier-j-ed.ps1`) ;
+  - validation groupée des traductions (demande U1), archive `lot0e` ;
+  - `verifier-j-ed.ps1` sur le poste : **26 vérifications OK, 0 à surveiller, 0 problème, 2 non vérifiées**.
+    Une ligne contradictoire : « Argos : non activé » alors que le conteneur `argos` tournait. Le script de mise
+    à jour démarrait Argos par `--profile hors-ligne` sans écrire `COMPOSE_PROFILES=hors-ligne` dans le
+    nouveau `.env` : un simple `docker compose up -d` ne l'aurait plus démarré. Corrigé dans les deux scripts
+    (ajout de la ligne à la mise à jour ; avertissement « À surveiller » à la vérification), archive `lot0f`.
 
 ## 5. Livrables du lot
 

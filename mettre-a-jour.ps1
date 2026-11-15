@@ -270,6 +270,11 @@ Copy-Item -LiteralPath $EnvActuel -Destination $EnvNouveau
 if ($PSBoundParameters.ContainsKey('DossierSauvegardes') -and -not (Lire-Env $EnvNouveau 'DOSSIER_SAUVEGARDES')) {
     Add-Content -LiteralPath $EnvNouveau -Value "`r`n# Ajouté par mettre-a-jour.ps1 : copie des sauvegardes visible dans Windows`r`nDOSSIER_SAUVEGARDES=$DossierSauvegardes" -Encoding UTF8
 }
+if ($AvecArgos -and (Lire-Env $EnvNouveau 'COMPOSE_PROFILES') -notmatch 'hors-ligne') {
+    # Argos tournait : il doit redémarrer avec J-ed même avec un simple « docker compose up -d ».
+    Add-Content -LiteralPath $EnvNouveau -Value "`r`n# Ajouté par mettre-a-jour.ps1 : Argos (traduction hors ligne) démarre avec J-ed`r`nCOMPOSE_PROFILES=hors-ligne" -Encoding UTF8
+    Write-Host 'Argos était en service : ligne COMPOSE_PROFILES=hors-ligne ajoutée au nouveau .env.'
+}
 $Config = Docker-Dans $Destination @('compose', 'config', '--format', 'json')
 if ($Config.Code -ne 0) { Arreter "configuration de la nouvelle version invalide : $($Config.Texte)" }
 try { $Nom = [string](($Config.Texte | ConvertFrom-Json).name) } catch { $Nom = '' }

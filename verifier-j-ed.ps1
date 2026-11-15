@@ -199,7 +199,13 @@ if ($enService.Code -ne 0) {
     Noter 'ok' 'Conteneurs' ("en service : " + ($services -join ', '))
 }
 if (-not $ArgosAttendu) {
-    Noter 'skipped' 'Argos' 'non activé (ligne COMPOSE_PROFILES=hors-ligne absente de .env)'
+    if ($services -contains 'argos') {
+        # Constat du 15 novembre 2026 : Argos démarré par « --profile hors-ligne » mais absent de .env.
+        Noter 'warning' 'Argos' 'en service, mais COMPOSE_PROFILES=hors-ligne manque dans .env' @(
+            'Un simple « docker compose up -d » ne le démarrerait plus. Ajoutez cette ligne à la fin de .env.')
+    } else {
+        Noter 'skipped' 'Argos' 'non activé (ligne COMPOSE_PROFILES=hors-ligne absente de .env)'
+    }
 }
 
 $publie = Docker-Ici @('compose', 'port', 'web', '8000')

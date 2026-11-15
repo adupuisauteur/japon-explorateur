@@ -67,6 +67,10 @@ Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquet
   avec confirmation ; tout ou rien. Corrigé au passage : deux adoptions successives sur une même notice
   pouvaient donner deux versions de même numéro ; la page « Traductions » plantait pour une proposition sans
   moteur ni modèle indiqué (saisie manuelle).
+- **Argos reste démarré après une mise à jour** (constat du 15 novembre 2026, `verifier-j-ed.ps1` sur le poste
+  de l'utilisateur) : quand Argos était en service, `mettre-a-jour.ps1` le redémarrait mais n'écrivait pas
+  `COMPOSE_PROFILES=hors-ligne` dans le nouveau `.env` ; il ajoute désormais cette ligne, avec un commentaire.
+  `verifier-j-ed.ps1` signale « À surveiller » un Argos en service sans cette ligne, au lieu de « non activé ».
   - Base de données : migrations **additives** `core.0002` (champ `argos_demo_mode`) et `core.0003` (table
     `core_servicecheck`), testées en aller-retour 1.3.0 → 2.0.0 → 1.3.0 sur une base temporaire.
 

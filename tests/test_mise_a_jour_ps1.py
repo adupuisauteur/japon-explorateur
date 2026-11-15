@@ -110,6 +110,13 @@ class UpdateScriptRunTests(SimpleTestCase):
         result = self.run_script(argos=1)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertTrue(any("compose --profile hors-ligne up -d --build" in c for c in self.calls))
+        env = (self.destination() / ".env").read_text(encoding="utf-8-sig")
+        self.assertIn("COMPOSE_PROFILES=hors-ligne", env, "Argos redémarrera aussi avec un simple up -d")
+
+    def test_profiles_line_is_not_added_without_argos(self):
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("COMPOSE_PROFILES", (self.destination() / ".env").read_text(encoding="utf-8-sig"))
 
     def test_wrong_hash_stops_before_anything(self):
         self.archive = self.make_archive("2.0.0", corrupt_hash=True)

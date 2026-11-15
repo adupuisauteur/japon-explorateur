@@ -158,6 +158,12 @@ class VerifyScriptRunTests(SimpleTestCase):
         self.assertIn("AUTORISER_NOM_PROJET=japon-explorateur-essai manque", result.stdout)
         self.assertIn("[Problème] Conteneurs : arrêtés : beat", result.stdout)
 
+    def test_argos_running_without_the_profile_line_is_flagged(self):
+        """15 novembre 2026, poste de l'utilisateur : Argos en service mais « non activé » d'après .env."""
+        result = self.run_script(argos=1)
+        self.assertIn("[À surveiller] Argos : en service, mais COMPOSE_PROFILES=hors-ligne manque dans .env",
+                      result.stdout)
+
     def test_docker_not_running(self):
         result = self.run_script(docker_info=1)
         self.assertEqual(result.returncode, 1)

@@ -6,7 +6,8 @@ case "$*" in
     [ "${FAKE_DOCKER_INFO:-0}" = 0 ] || exit 1
     echo "${FAKE_MEM:-8346968064}|4|29.0.1"; exit 0 ;;
   "compose ps --services --status running")
-    printf 'db\nredis\nweb\nworker\n'; [ "${FAKE_BEAT_DOWN:-0}" = 1 ] || echo beat; exit 0 ;;
+    printf 'db\nredis\nweb\nworker\n'; [ "${FAKE_BEAT_DOWN:-0}" = 1 ] || echo beat
+    [ "${FAKE_ARGOS:-0}" = 1 ] && echo argos; exit 0 ;;
   "compose port web 8000") echo "127.0.0.1:${FAKE_PORT}"; exit 0 ;;
   "volume ls --format {{.Name}}") printf 'jed-essai_db-data\njed-essai_app-data\nautre_db-data\n'; exit 0 ;;
   "compose exec -T web python manage.py verifier_fonctionnalites --json"*)
