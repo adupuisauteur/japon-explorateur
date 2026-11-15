@@ -71,12 +71,21 @@ l'ancien cache est alors supprimé par le navigateur. Un test le vérifie.
 - **Historique** : les notifications ne sont pas encore purgées. Leur volume est faible ; une purge des
   notifications lues de plus de six mois peut venir avec les tâches planifiées du lot 3.
 
-## 5. Points ouverts
+## 5. Retour de l'utilisateur (15 novembre 2026)
+
+- `verifier-j-ed.ps1` sur l'essai (lot 5) : **29 OK, 0 à surveiller, 0 problème**, 1 non vérifié (sources en
+  ligne, facultatif) ; contrôle « Notifications » réussi ; 21 pages principales.
+- V5-1 (notification d'essai) et V5-2 (alerte d'essai) : conformes à l'écran.
+- **Correction** : l'alerte d'essai portait l'en-tête « Notification d'essai » et le bouton « Voir le compte
+  rendu ». Elle est désormais présentée exactement comme une vraie alerte (« Dysfonctionnement », icône,
+  « Voir le dysfonctionnement ») ; seul son titre dit « [Essai] ». Livrée avec la prochaine archive.
+
+## 6. Points ouverts
 
 - Vérifications V5-1 à V5-6 sur ton poste.
 - Pour le lot 2 : tes réponses sur la règle Japan Search, la règle NDL et les statuts dans les exports.
 
-## 6. Livrables du lot
+## 7. Livrables du lot
 
 - Archive `japon-explorateur-2.0.0-lot5.zip` et son empreinte `.sha256`.
 - Protocole : `docs/evolution-2.0.0/05-protocole-verification.md`, section « Lot 5 » (V5-1 à V5-6).

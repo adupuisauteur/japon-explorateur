@@ -190,7 +190,12 @@ class InterfaceTests(AppTestCase):
         self.client.force_login(self.admin)
         self.assertContains(self.client.get("/notifications/preferences/"), 'name="incident_threshold"')
         self.client.post("/notifications/essai/", {"kind": "incident"})
-        self.assertTrue(Notification.objects.filter(recipient=self.admin, title__contains="dysfonctionnement").exists())
+        alert = Notification.objects.get(recipient=self.admin, title__contains="dysfonctionnement")
+        self.assertEqual(alert.event_type, "incident")  # présentée comme une vraie alerte (constat du 15/11)
+        popup = self.client.get("/notifications/fenetres/").content.decode()
+        self.assertIn("Dysfonctionnement (administrateur)", popup)
+        self.assertIn("Voir le dysfonctionnement", popup)
+        self.assertIn("bi-exclamation-octagon", popup)
         self.client.post("/notifications/preferences/", {"types": ["incident"], "incident_threshold": "critical"})
         self.assertEqual(services.preference(self.admin, "incident").min_severity, "critical")
 

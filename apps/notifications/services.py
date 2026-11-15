@@ -167,8 +167,9 @@ def sync_ended(job):
 def test(user, *, kind="task"):
     """Notification d'essai, demandée par l'utilisateur (toujours remise)."""
     if kind == "incident" and user.is_admin_role:
+        # Présentée exactement comme une vraie alerte (en-tête, icône, bouton), seul le titre dit « [Essai] ».
         return Notification.objects.create(
-            recipient=user, event_type="test", severity="error",
+            recipient=user, event_type="incident", severity="error",
             title="[Essai] Nouveau dysfonctionnement : exemple d'alerte",
             body="Alerte fictive : aucun incident n'a été enregistré. Le bouton « Vu » la marque comme lue.",
             link=reverse("incidents:list"))
