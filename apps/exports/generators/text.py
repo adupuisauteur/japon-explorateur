@@ -37,7 +37,7 @@ def generate_txt(doc, out_dir, basename):
     lines += [f"- {citation(r)}" for r in doc.records]
     if doc.methodology:
         lines += ["", SEP, "MÉTHODOLOGIE", SEP, doc.methodology]
-    lines += ["", SEP, f"Fin de l'export {doc.metadata['export_id']} — {doc.metadata['generated_at_display']}"]
+    lines += ["", SEP, f"Fin de l'export {doc.metadata['export_id']} — {doc.metadata.get('production_line') or doc.metadata['generated_at_display']}"]
     if doc.metadata.get("footer"):
         lines.append(doc.metadata["footer"])
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -65,7 +65,7 @@ def json_payload(doc):
 JSON_SCHEMA = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "japon-explorateur/export/1.0",
-    "title": "Export Japon — Explorateur documentaire",
+    "title": "Export J-ed (anciennement Japon — Explorateur documentaire)",
     "type": "object",
     "required": ["schema_version", "export_metadata", "records"],
     "properties": {

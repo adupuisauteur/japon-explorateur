@@ -1,10 +1,13 @@
-"""Pages du journal des dysfonctionnements : liste filtrée, détail, signalement, analyse, export."""
+"""Pages du journal des dysfonctionnements : liste filtrée, détail, signalement, analyse, export.
+
+2.0.0 (lot 1) : le journal est réservé à l'administrateur. « Signaler un problème » reste ouvert à tous les
+comptes ; un chercheur continue de voir à l'écran le message d'une opération qui échoue.
+"""
 import datetime
 import mimetypes
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db.models import Count, Q, Sum
 from django.http import FileResponse, Http404, HttpResponse
@@ -13,6 +16,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from apps.core.audit import log_action
+from apps.core.permissions import admin_required
 from apps.core.logging import redact
 
 from . import report
@@ -50,7 +54,7 @@ def _filtered(request):
     return form, qs, applied
 
 
-@login_required
+@admin_required
 def incident_list(request):
     form, qs, applied = _filtered(request)
     page = Paginator(qs, 25).get_page(request.GET.get("page"))
@@ -64,7 +68,7 @@ def incident_list(request):
     })
 
 
-@login_required
+@admin_required
 def incident_detail(request, uid):
     incident = get_object_or_404(Incident, uid=uid)
     status_form = StatusForm(initial={"status": incident.status}) if request.user.is_admin_role else None
@@ -76,11 +80,9 @@ def incident_detail(request, uid):
     })
 
 
-@login_required
+@admin_required
 @require_POST
 def incident_status(request, uid):
-    if not request.user.is_admin_role:
-        raise PermissionDenied("Seul l'administrateur peut changer le statut d'un incident.")
     incident = get_object_or_404(Incident, uid=uid)
     form = StatusForm(request.POST)
     if form.is_valid():
@@ -88,6 +90,17 @@ def incident_status(request, uid):
         log_action(request, "incident.status", incident, f"{incident.uid} → {incident.get_status_display()}")
         messages.success(request, f"Statut de {incident.uid} : {incident.get_status_display()}.")
     return redirect(incident.get_absolute_url())
+
+
+def _back(request):
+    """Retour à la page d'où vient le signalement (adresse interne seulement), sinon l'accueil."""
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    target = request.POST.get("from_path", "")
+    if target and url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}) \
+            and target.startswith("/") and not target.startswith("/journal/"):
+        return target
+    return "/"
 
 
 @login_required
@@ -105,7 +118,7 @@ def incident_report(request):
         )
         if incident is None:
             messages.error(request, "Le signalement n'a pas pu être enregistré.")
-            return redirect("incidents:list")
+            return redirect(_back(request))
         incident.is_manual = True
         incident.steps = redact(d["steps"])
         incident.expected = redact(d["expected"])
@@ -114,12 +127,15 @@ def incident_report(request):
         if d["screenshot"]:
             incident.screenshot = d["screenshot"]
         incident.save()
-        messages.success(request, f"Signalement enregistré sous l'identifiant {incident.uid}.")
-        return redirect(incident.get_absolute_url())
+        messages.success(request, f"Signalement enregistré sous l'identifiant {incident.uid}."
+                         + ("" if request.user.is_admin_role else " L'administrateur en est informé."))
+        if request.user.is_admin_role:
+            return redirect(incident.get_absolute_url())
+        return redirect(_back(request))
     return render(request, "incidents/report_form.html", {"form": form, "from_path": request.GET.get("from", "")})
 
 
-@login_required
+@admin_required
 def incident_screenshot(request, uid):
     incident = get_object_or_404(Incident, uid=uid)
     if not incident.screenshot:
@@ -133,7 +149,7 @@ def incident_screenshot(request, uid):
     return response
 
 
-@login_required
+@admin_required
 def incident_analysis(request):
     """Regroupements simples (§3.9) : récurrences, sources instables, connecteurs en échec, versions, réapparitions."""
     since = timezone.now() - datetime.timedelta(days=int(request.GET.get("jours", 30) or 30))
@@ -171,7 +187,7 @@ def _network_bursts(since):
     return sorted(((k, sorted(v)) for k, v in buckets.items() if len(v) >= 2), reverse=True)[:10]
 
 
-@login_required
+@admin_required
 def incident_export(request, uid=None):
     """Aperçu contrôlé puis téléchargement du rapport de diagnostic (un incident ou la sélection filtrée)."""
     if uid:

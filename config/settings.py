@@ -1,5 +1,5 @@
 """
-Configuration de « Japon — Explorateur documentaire ».
+Configuration de J-ed (anciennement « Japon — Explorateur documentaire »).
 
 Toute la configuration sensible passe par des variables d'environnement
 (fichier .env en local, secrets du serveur en production). Aucun secret
@@ -19,6 +19,8 @@ environ.Env.read_env(BASE_DIR / ".env", overwrite=False)
 
 # Numéro de version unique : fichier VERSION à la racine (application, rapports, archive livrée).
 APP_VERSION = (BASE_DIR / "VERSION").read_text(encoding="utf-8").strip()
+# 2.0.0 : nom affiché de l'application. Les noms techniques (projet Docker, images, volumes, dépôt) ne changent pas.
+APP_NAME = "J-ed"
 DATA_SCHEMA_VERSION = "1.0"
 
 TESTING = len(sys.argv) > 1 and sys.argv[1] == "test"
@@ -198,7 +200,7 @@ PDF_FALLBACK_FONTS = env.list("PDF_FALLBACK_FONTS", default=[]) + [
 CINII_APPID = env("CINII_APPID", default="")
 CONNECTOR_USER_AGENT = env(
     "CONNECTOR_USER_AGENT",
-    default=f"JaponExplorateurDocumentaire/{APP_VERSION} (usage de recherche personnel)",
+    default=f"J-ed/{APP_VERSION} (usage de recherche personnel)",  # décision D9 (2.0.0)
 )
 CONNECTOR_DEFAULT_TIMEOUT = env.float("CONNECTOR_DEFAULT_TIMEOUT", default=20.0)
 CONNECTOR_CACHE_SECONDS = env.int("CONNECTOR_CACHE_SECONDS", default=3600)

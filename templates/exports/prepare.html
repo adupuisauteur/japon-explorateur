@@ -22,7 +22,8 @@
         {% for f in form %}{% if f.name in "title subtitle subject author header_text footer_text" %}
         <div class="mb-2"><label class="form-label" for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{% for e in f.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</div>
         {% endif %}{% endfor %}
-        <p class="small text-muted mb-0">La date d'export, les dates de mise à jour par source, le nombre de références et la liste des sources sont calculés automatiquement et ne sont pas modifiables.</p>
+        <div class="form-check mb-2">{{ form.hide_user }} <label class="form-check-label" for="{{ form.hide_user.id_for_label }}">{{ form.hide_user.label }}</label></div>
+        <p class="small text-muted mb-0">Chaque page des exports Word, PDF et HTML porte en bas la date et l'heure de production, {{ APP_NAME }} et sa version, votre identifiant de connexion (sauf case cochée), l'identifiant de l'export et le numéro de page. Le champ « Auteur / préparateur » reste celui que vous saisissez. La date d'export, les dates de mise à jour par source, le nombre de références et la liste des sources sont calculés automatiquement et ne sont pas modifiables.</p>
       </div>
     </div>
     <div class="col-lg-6">

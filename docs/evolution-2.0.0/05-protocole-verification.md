@@ -105,6 +105,63 @@ ton compte en a davantage.
 3. Relance une traduction du seul titre, puis utilise le bouton de la fiche (couche éditoriale). Attendu : seul
    le titre change, et l'ancienne traduction redevient « proposée ».
 
+## Lot 1 — interface
+
+À faire sur l'essai, après la mise à jour vers l'archive du lot 1. Pour V1-3, crée un compte fictif de rôle
+« Chercheur » (Administration → Utilisateurs → Nouveau), par exemple `chercheur-essai`, avec un mot de passe
+d'essai.
+
+**V1-1 — Nom J-ed.** Recharge la page avec Ctrl + F5. Attendu :
+
+- en haut à gauche, « J-ed » ;
+- l'onglet du navigateur se termine par « — J-ed » ;
+- la page de connexion affiche « J-ed » ;
+- le pied de page indique « J-ed · v2.0.0 ».
+
+Si J-ed est installé comme application (PWA), son nom reste parfois l'ancien jusqu'à la réinstallation : c'est
+le comportement du navigateur, pas une erreur.
+
+**V1-2 — Menus de l'administrateur.** Connecté en administrateur :
+
+1. Le menu du haut ne contient plus « Administration » ni « Dysfonctionnements ».
+2. Le menu à ton nom, en haut à droite, contient « Administration », « Dysfonctionnements » et « À propos de
+   J-ed ». S'il y a des incidents nouveaux de gravité Erreur ou Critique, une pastille rouge s'affiche sur ce
+   bouton.
+3. Le pied de page contient « Administration » et « Dysfonctionnements ».
+
+**V1-3 — Ce que voit un chercheur.** Connecté avec `chercheur-essai` :
+
+1. Ni le menu du haut, ni le menu à son nom, ni le pied de page ne montrent « Administration » ou
+   « Dysfonctionnements ».
+2. L'adresse `http://localhost:8001/journal/` affiche un refus d'accès.
+3. « Signaler un problème », en bas de page, fonctionne. Après l'envoi, on revient à la page de départ, avec le
+   message « Signalement enregistré sous l'identifiant … L'administrateur en est informé ».
+4. De retour en administrateur, ce signalement figure dans « Dysfonctionnements ».
+
+**V1-4 — À propos.** Menu à ton nom → « À propos de J-ed ». Attendu : version 2.0.0, origine du projet (ancien
+nom « Japon — Explorateur documentaire »), liste des logiciels libres.
+
+**V1-5 — Page « J-ed ne répond pas ».**
+
+1. Ouvre J-ed une fois, puis arrête-le : `docker compose stop web`, dans le dossier de l'installation.
+2. Recharge la page (F5, pas Ctrl + F5). Attendu : la page « J-ed ne répond pas », sans menu et sans numéro de
+   version, qui conseille de vérifier Docker Desktop.
+3. Redémarre : `docker compose start web`, attends une minute, puis clique sur « Réessayer ». Attendu : J-ed
+   revient.
+
+Après un `docker compose ps`, la colonne STATUS de `web` indique « (healthy) » : le contrôle de santé passe
+désormais par l'adresse `/sante/`.
+
+**V1-6 — Bas de page des exports (demande U2).**
+
+1. Exporte une sélection de notices en Word, puis en PDF. Attendu, en bas de chaque page après la couverture :
+   « Produit le JJ/MM/AAAA à HH:MM · J-ed 2.0.0 · par <ton identifiant> », l'identifiant de l'export
+   (`EXP-…`) et le numéro de page. Le texte de la case « Pied de page » figure au-dessus.
+2. Refais l'export Word en cochant « Ne pas indiquer mon identifiant en bas de page ». Attendu : la même ligne,
+   sans « par … ».
+3. Dans un projet de traduction, Exporter → « Word bilingue en tableau (.docx) ». Attendu : la même ligne en bas de chaque
+   page, et « Exporté par » dans l'en-tête ; la case « Ne pas indiquer mon identifiant » les retire.
+
 ## Grille de résultats
 
 | Vérification | Résultat | Remarque |
@@ -119,3 +176,9 @@ ton compte en a davantage.
 | V0-7 Traduction d'essai d'Argos | | |
 | V0-8 Liste des modèles d'IA | | |
 | V0-9 Tout valider en une fois | | |
+| V1-1 Nom J-ed | | |
+| V1-2 Menus de l'administrateur | | |
+| V1-3 Ce que voit un chercheur | | |
+| V1-4 À propos | | |
+| V1-5 Page « J-ed ne répond pas » | | |
+| V1-6 Bas de page des exports | | |

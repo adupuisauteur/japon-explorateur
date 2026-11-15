@@ -3,7 +3,7 @@ from django.urls import include, path
 
 from apps.core import views as core_views
 
-admin.site.site_header = "Japon — Explorateur documentaire (gestion interne)"
+admin.site.site_header = "J-ed (gestion interne)"
 admin.site.site_title = "Gestion interne"
 
 urlpatterns = [

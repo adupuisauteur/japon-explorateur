@@ -9,7 +9,7 @@
     <input id="q" name="q" value="{{ q }}" class="form-control" placeholder="国立公文書館, 早稲田, 京都大学, 日文研, 公文書館…" required></div>
   <button class="btn btn-primary"><i class="bi bi-search"></i> Chercher</button>
 </form>
-{% if error %}<div class="alert alert-warning">La liste des bases n'a pas pu être obtenue : {{ error }} L'incident a été ajouté au <a href="{% url 'incidents:list' %}?source=japansearch">journal des dysfonctionnements</a>.</div>{% endif %}
+{% if error %}<div class="alert alert-warning">La liste des bases n'a pas pu être obtenue : {{ error }} L'incident a été ajouté au {% if user.is_admin_role %}<a href="{% url 'incidents:list' %}?source=japansearch">journal des dysfonctionnements</a>{% else %}journal des dysfonctionnements{% endif %}.</div>{% endif %}
 {% if q and not error %}
   {% if found %}
   <div class="table-responsive"><table class="table table-sm align-middle">

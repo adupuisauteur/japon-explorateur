@@ -1,5 +1,5 @@
 """
-Service Argos Translate de « Japon — Explorateur documentaire » (version 2.0.0 ; service créé en 1.3.0, décision A1).
+Service Argos Translate de J-ed (version 2.0.0 ; service créé en 1.3.0, décision A1).
 
 Serveur HTTP interne (bibliothèque standard de Python), joignable seulement sur le réseau Docker du
 projet : AUCUN port n'est publié. Il n'est démarré qu'avec le profil Docker « hors-ligne ».

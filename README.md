@@ -1,4 +1,6 @@
-# Japon — Explorateur documentaire
+# J-ed
+
+Anciennement « Japon — Explorateur documentaire ». Les noms techniques (dépôt `japon-explorateur`, projet Docker, images, volumes) restent inchangés.
 
 Application web progressive (PWA) de recherche, de gestion et d'exploitation de ressources documentaires japonaises, développée d'après le cahier des charges v1.2 du 12 novembre 2026.
 

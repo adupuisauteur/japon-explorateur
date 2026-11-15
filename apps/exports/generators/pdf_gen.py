@@ -268,7 +268,10 @@ def generate_pdf(doc, out_dir, basename):
         gm.draw(canvas, A4[0] - 2 * cm, A4[1] - 1.2 * cm, (meta.get("header") or meta["title"])[:110], 7.5, "right")
         canvas.setStrokeColor(SOFT)
         canvas.line(2 * cm, A4[1] - 1.35 * cm, A4[0] - 2 * cm, A4[1] - 1.35 * cm)
-        footer = f"{meta.get('footer') or ''}   {meta['export_id']}"
+        if meta.get("footer"):
+            gm.draw(canvas, 2 * cm, 1.45 * cm, meta["footer"][:130], 7.5)
+        # 2.0.0 (U2) : date et heure, application et version, utilisateur, identifiant de l'export.
+        footer = f"{meta.get('production_line') or ''}   {meta['export_id']}".strip()
         gm.draw(canvas, 2 * cm, 1.1 * cm, footer[:130], 7.5)
         canvas.setFont(font, 7.5)
         if opts.get("pagination", True):
@@ -282,6 +285,7 @@ def generate_pdf(doc, out_dir, basename):
     # Le corps a déjà été balisé ; on ajoute l'en-tête et le pied de page, puis la note explicite.
     gm.runs(meta.get("header") or meta["title"])
     gm.runs(meta.get("footer") or "")
+    gm.runs(meta.get("production_line") or "")
     if gm.missing:
         listing = ", ".join(sorted(gm.missing.values()))
         missing_note.__init__(escape(f"Caractères absents des polices disponibles, remplacés par {REPLACEMENT} : {listing}."),

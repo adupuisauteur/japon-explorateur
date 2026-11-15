@@ -133,7 +133,8 @@ class FormatTests(ExportTestCase):
         for segment, text in zip(other.segments.order_by("position"), ("Cinq.", "Six.", "Sept.")):
             P.validate_version(P.add_human_version(segment, self.owner, text), self.owner)
         body = self.export("translation_txt", document=other.pk).content.decode("utf-8")
-        self.assertTrue(body.endswith("Cinq. Six.\n\nSept.\n"))
+        # 2.0.0 (U2) : la ligne de production suit le texte, séparée par un trait.
+        self.assertIn("Cinq. Six.\n\nSept.\n\n" + "-" * 40 + "\nProduit le ", body)
 
     def test_original_is_never_modified(self):
         before = self.document.original_text

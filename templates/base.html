@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#8a2b23">
-  <title>{% block title %}Accueil{% endblock %} — Japon · Explorateur documentaire</title>
+  <title>{% block title %}Accueil{% endblock %} — {{ APP_NAME }}</title>
   <link rel="manifest" href="{% url 'manifest' %}">
   <link rel="icon" href="{% static 'icons/icon-192.png' %}">
   <link rel="apple-touch-icon" href="{% static 'icons/icon-192.png' %}">
@@ -19,7 +19,7 @@
   <div class="container-xl">
     <a class="navbar-brand d-flex align-items-center gap-2" href="{% url 'core:home' %}">
       <img src="{% static 'icons/icon-192.png' %}" alt="" width="30" height="30" class="rounded">
-      <span><span class="brand-ja">日本</span> <span class="d-xl-none d-xxl-inline">Explorateur documentaire</span><span class="d-none d-xl-inline d-xxl-none">Explorateur</span></span>
+      <span class="brand-name">{{ APP_NAME }}</span>
     </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav-main"
             aria-controls="nav-main" aria-expanded="false" aria-label="Ouvrir le menu">
@@ -36,10 +36,6 @@
         <li class="nav-item"><a class="nav-link {% if '/traduction/' in path %}active{% endif %}" href="{% url 'translation:home' %}"><i class="bi bi-translate"></i> Traduction</a></li>
         {% endif %}
         <li class="nav-item"><a class="nav-link {% if '/sources/' in path or '/mises-a-jour/' in path %}active{% endif %}" href="{% url 'connectors:list' %}"><i class="bi bi-diagram-3"></i> Sources</a></li>
-        <li class="nav-item"><a class="nav-link {% if '/journal/' in path %}active{% endif %}" href="{% url 'incidents:list' %}" title="Journal des dysfonctionnements"><i class="bi bi-journal-medical"></i> Dysfonctionnements{% if incidents_new_count %} <span class="badge rounded-pill text-bg-danger nav-badge" title="{{ incidents_new_count }} nouvel(s) incident(s) de gravité Erreur ou Critique">{{ incidents_new_count }}</span>{% endif %}</a></li>
-        {% if user.is_admin_role %}
-        <li class="nav-item"><a class="nav-link {% if '/administration/' in path %}active{% endif %}" href="{% url 'core:admin_hub' %}"><i class="bi bi-gear"></i> Administration</a></li>
-        {% endif %}
       </ul>
       {% endwith %}
       <form class="d-flex nav-search me-xl-3 my-2 my-xl-0" role="search" action="{% url 'searching:quick' %}" method="get">
@@ -47,7 +43,7 @@
       </form>
       <div class="dropdown">
         <button class="btn btn-sm btn-light dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
-          <i class="bi bi-person-circle"></i> {{ user }}
+          <i class="bi bi-person-circle"></i> {{ user }}{% if incidents_new_count %} <span class="badge rounded-pill text-bg-danger nav-badge" title="{{ incidents_new_count }} nouvel(s) incident(s) de gravité Erreur ou Critique">{{ incidents_new_count }}<span class="visually-hidden"> nouvel(s) incident(s)</span></span>{% endif %}
         </button>
         <ul class="dropdown-menu dropdown-menu-end">
           <li><span class="dropdown-item-text small text-muted">{{ user.get_role_display }}</span></li>
@@ -55,6 +51,13 @@
           {% if user.can_edit %}<li><a class="dropdown-item" href="{% url 'ai:preferences' %}"><i class="bi bi-stars"></i> Préférences IA</a></li>{% endif %}
           <li><a class="dropdown-item" href="{% url 'exports:list' %}"><i class="bi bi-box-arrow-up"></i> Mes exports</a></li>
           <li><a class="dropdown-item" href="{% url 'searching:history' %}"><i class="bi bi-clock-history"></i> Historique des recherches</a></li>
+          {% if user.is_admin_role %}
+          <li><hr class="dropdown-divider"></li>
+          <li><a class="dropdown-item" href="{% url 'core:admin_hub' %}"><i class="bi bi-gear"></i> Administration</a></li>
+          <li><a class="dropdown-item" href="{% url 'incidents:list' %}"><i class="bi bi-journal-medical"></i> Dysfonctionnements{% if incidents_new_count %} <span class="badge rounded-pill text-bg-danger">{{ incidents_new_count }}</span>{% endif %}</a></li>
+          {% endif %}
+          <li><hr class="dropdown-divider"></li>
+          <li><a class="dropdown-item" href="{% url 'core:about' %}"><i class="bi bi-info-circle"></i> À propos de {{ APP_NAME }}</a></li>
           <li><hr class="dropdown-divider"></li>
           <li><form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<button class="dropdown-item"><i class="bi bi-box-arrow-right"></i> Déconnexion</button></form></li>
         </ul>
@@ -82,7 +85,7 @@
 </main>
 <footer class="app-footer">
   <div class="container-xl d-flex flex-wrap justify-content-between gap-2 small">
-    <span>Japon — Explorateur documentaire · v{{ APP_VERSION }}{% if user.is_authenticated %} · <a href="{% url 'incidents:report' %}?from={{ request.path|urlencode }}">Signaler un problème</a>{% endif %}</span>
+    <span>{% if user.is_authenticated %}<a href="{% url 'core:about' %}">{{ APP_NAME }} · v{{ APP_VERSION }}</a> · <a href="{% url 'incidents:report' %}?from={{ request.path|urlencode }}">Signaler un problème</a>{% if user.is_admin_role %} · <a href="{% url 'core:admin_hub' %}">Administration</a> · <a href="{% url 'incidents:list' %}">Dysfonctionnements</a>{% if incidents_new_count %} <span class="badge rounded-pill text-bg-danger" title="{{ incidents_new_count }} nouvel(s) incident(s) de gravité Erreur ou Critique">{{ incidents_new_count }}</span>{% endif %}{% endif %}{% else %}{{ APP_NAME }} · v{{ APP_VERSION }}{% endif %}</span>
     <span>Les données restent la propriété de leurs institutions ; vérifiez les notices auprès des catalogues d'origine.</span>
   </div>
 </footer>

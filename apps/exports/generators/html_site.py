@@ -96,7 +96,7 @@ class SiteBuilder:
 <body><header class="top"><button id="menu-toggle" aria-label="Menu">☰</button><a href="{up}index.html">{_e(self.meta['title'])}</a>
 <div class="meta">{_e(self.meta.get('header') or '')}<br>{header_meta}</div></header>
 <div class="layout"><nav class="side" aria-label="Navigation">{nav}</nav>
-<main>{body}<footer class="page">{_e(self.meta.get('footer') or '')}<br>Export {header_meta} — {_e(self.meta['application'])} {_e(self.meta['application_version'])}</footer></main></div>
+<main>{body}<footer class="page">{_e(self.meta.get('footer') or '')}<br>{_e(self.meta.get('production_line') or '')} — export {_e(self.meta['export_id'])}</footer></main></div>
 <script src="{up}assets/search-index.js"></script><script src="{up}assets/search.js"></script></body></html>"""
         path = self.root / rel
         path.parent.mkdir(parents=True, exist_ok=True)

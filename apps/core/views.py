@@ -43,7 +43,44 @@ def home(request):
 
 
 def offline(request):
+    """Page mise en cache par le navigateur, affichée quand le serveur J-ed ne répond pas.
+
+    2.0.0 : page autonome, sans menu ni numéro de version, pour ne pas laisser croire qu'une ancienne version
+    est en service (constat du 14 novembre 2026).
+    """
     return render(request, "core/offline.html")
+
+
+@cache_control(no_store=True)
+def health(request):
+    """Contrôle de santé de Docker : le serveur répond et la base est joignable. Aucune donnée affichée."""
+    from django.db import connection
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+    except Exception as exc:  # noqa: BLE001 — le type d'erreur suffit au diagnostic
+        return HttpResponse(f"base injoignable : {type(exc).__name__}\n", status=503,
+                            content_type="text/plain; charset=utf-8")
+    return HttpResponse("ok\n", content_type="text/plain; charset=utf-8")
+
+
+# Composants livrés avec l'interface (dossier static/vendor) et principaux composants du serveur.
+ABOUT_COMPONENTS = [
+    ("Django", "cadre de l'application"), ("PostgreSQL", "base de données"),
+    ("Celery et Redis", "tâches en arrière-plan"), ("HTMX", "interface, licence BSD zéro clause"),
+    ("Bootstrap et Bootstrap Icons", "présentation, licence MIT"),
+    ("ReportLab et python-docx", "exports PDF et Word"), ("Argos Translate", "traduction hors ligne (facultative)"),
+]
+
+
+@login_required
+def about(request):
+    return render(request, "core/about.html", {
+        "instance_name": AppSettings.get().instance_name,
+        "schema_version": settings.DATA_SCHEMA_VERSION,
+        "components": ABOUT_COMPONENTS,
+    })
 
 
 @cache_control(no_cache=True)
@@ -56,8 +93,8 @@ def service_worker(request):
 
 def manifest(request):
     data = {
-        "name": "Japon — Explorateur documentaire",
-        "short_name": "Explorateur Japon",
+        "name": settings.APP_NAME,
+        "short_name": settings.APP_NAME,
         "description": "Recherche, gestion et exploitation de ressources documentaires japonaises.",
         "lang": "fr",
         "start_url": "/",

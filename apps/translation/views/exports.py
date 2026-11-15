@@ -45,7 +45,8 @@ def project_export(request, pk):
             raise Http404
     if fmt:
         try:
-            content, mime, ext, data = X.render(project, fmt, document=document, mode=mode)
+            produced_by = "" if request.GET.get("sans_identifiant") else request.user.get_username()
+            content, mime, ext, data = X.render(project, fmt, document=document, mode=mode, produced_by=produced_by)
         except X.ExportError as exc:
             return render(request, "translation/project_export.html", {
                 "project": project, "documents": documents, "formats": X.FORMATS, "modes": X.MODES,

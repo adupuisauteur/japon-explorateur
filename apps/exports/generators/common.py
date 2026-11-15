@@ -101,6 +101,7 @@ def metadata_lines(doc):
     lines = [
         ("Titre", m["title"]), ("Sous-titre", m.get("subtitle")), ("Sujet", m.get("subject")),
         ("Préparateur", m.get("author")), ("Date d'export", m["generated_at_display"]),
+        ("Exporté par", m.get("produced_by")),
         ("Identifiant de l'export", m["export_id"]), ("Périmètre", m["scope_label"]),
         ("Nombre de références exportées", str(m["counts"].get("exported", 0))),
     ]

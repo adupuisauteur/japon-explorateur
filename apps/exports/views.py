@@ -28,6 +28,8 @@ class ExportForm(BootstrapMixin, forms.Form):
     author = forms.CharField(label="Auteur / préparateur", max_length=200, required=False)
     header_text = forms.CharField(label="En-tête", max_length=300, required=False)
     footer_text = forms.CharField(label="Pied de page", max_length=300, required=False)
+    hide_user = forms.BooleanField(
+        label="Ne pas indiquer mon identifiant en bas de page (export destiné à être diffusé)", required=False)
     column_profile = forms.ChoiceField(label="Profil de colonnes (CSV)", choices=[
         ("bibliography", "Bibliographie"), ("inventory", "Inventaire complet"), ("historical", "Recherche historique"),
         ("generic", "Import générique (réimportable)")], required=False)
@@ -50,7 +52,7 @@ class ExportForm(BootstrapMixin, forms.Form):
     save_profile_as = forms.CharField(label="Enregistrer ces réglages comme profil (nom)", required=False)
 
     OPTION_FIELDS = ["column_profile", "csv_separator", "csv_bom", "csv_neutralize", "include_ai", "include_notes", "include_images",
-                     "pagination", "toc"]
+                     "pagination", "toc", "hide_user"]
 
 
 def _scope_from_request(request):

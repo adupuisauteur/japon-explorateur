@@ -16,6 +16,9 @@
   <fieldset class="mb-3"><legend class="form-label fs-6">Traductions exportées</legend>
     {% for code, label in modes.items %}<div class="form-check"><input class="form-check-input" type="radio" name="mode" id="m-{{ code }}" value="{{ code }}" {% if forloop.first %}checked{% endif %}>
       <label class="form-check-label" for="m-{{ code }}">{{ label }}</label></div>{% endfor %}</fieldset>
+  <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="sans_identifiant" id="sans-identifiant" value="1" {% if request.GET.sans_identifiant %}checked{% endif %}>
+    <label class="form-check-label" for="sans-identifiant">Ne pas indiquer mon identifiant (export destiné à être diffusé)</label>
+    <div class="form-text">Chaque export indique la date et l'heure de production, {{ APP_NAME }} et sa version, et votre identifiant de connexion : en bas de chaque page pour Word, en fin de fichier pour le texte et le Markdown.</div></div>
   <button class="btn btn-primary"><i class="bi bi-download"></i> Télécharger</button>
 </form>
 <p class="small text-muted mt-3">Chaque fichier indique en en-tête les moteurs utilisés et la proportion de segments validés. Une traduction produite par un moteur simulé porte la mention « Simulation ». L'original exporté est le texte importé, jamais modifié.</p>

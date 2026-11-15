@@ -273,7 +273,8 @@ PAGES = [
     ("/traduction/moteurs/locaux/", "Moteurs locaux"), ("/sources/", "Sources"), ("/journal/", "Dysfonctionnements"),
     ("/ia/fournisseurs/", "IA — fournisseurs"), ("/administration/", "Administration"),
     ("/administration/etat/", "État de l'installation"), ("/administration/sauvegardes/", "Sauvegardes"),
-    ("/administration/parametres/", "Paramètres"), ("/hors-ligne/", "Page hors ligne"), ("/sw.js", "Service worker"),
+    ("/administration/parametres/", "Paramètres"), ("/hors-ligne/", "Page hors ligne"), ("/sante/", "Contrôle de santé"),
+    ("/a-propos/", "À propos"), ("/sw.js", "Service worker"),
     ("/manifest.webmanifest", "Manifeste de l'application"),
 ]
 
@@ -315,6 +316,10 @@ def _permission_probes(ctx, reader, researcher, problems):
         problems.append("Le lecteur accède à l'Administration")
     if researcher.get("/administration/sauvegardes/").status_code not in (302, 403):
         problems.append("Le chercheur accède aux sauvegardes")
+    if researcher.get("/journal/").status_code not in (302, 403):
+        problems.append("Le chercheur voit le journal des dysfonctionnements")
+    if researcher.get("/journal/signaler/").status_code != 200:
+        problems.append("Le chercheur ne peut plus signaler un problème")
     if reader.post("/bibliotheque/ajouter/", {"record_ids": ctx.record.record_id}).status_code not in (302, 403):
         problems.append("Le lecteur peut modifier la Bibliothèque")
     anonymous = Client()

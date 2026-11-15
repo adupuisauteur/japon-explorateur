@@ -183,6 +183,15 @@ def resolve_records(job):
     return [("Références", "", [(r, None) for r in records])], counts, None
 
 
+def production_line(meta):
+    """Ligne du bas de page (demande U2) : date et heure de production, application et version, utilisateur."""
+    date, _, time = meta["generated_at_display"].partition(" ")
+    parts = [f"Produit le {date} à {time}", f"{meta['application']} {meta['application_version']}"]
+    if meta.get("produced_by"):
+        parts.append(f"par {meta['produced_by']}")
+    return " · ".join(parts)
+
+
 def build_document(job):
     opts = job.options or {}
     include_ai = bool(opts.get("include_ai", True))
@@ -222,7 +231,7 @@ def build_document(job):
         "author": job.author,
         "generated_at": now.isoformat(),
         "generated_at_display": timezone.localtime(now).strftime("%d/%m/%Y %H:%M"),
-        "application": "Japon — Explorateur documentaire",
+        "application": settings.APP_NAME,
         "application_version": settings.APP_VERSION,
         "schema_version": settings.DATA_SCHEMA_VERSION,
         "format": job.format,
@@ -237,7 +246,10 @@ def build_document(job):
         "restrictions": restrictions,
         "header": job.header_text,
         "footer": job.footer_text,
+        # 2.0.0 (demande U2) : identifiant de connexion de l'auteur de l'export, sauf s'il a choisi de le masquer.
+        "produced_by": "" if opts.get("hide_user") else job.owner.get_username(),
     }
+    metadata["production_line"] = production_line(metadata)
     creators = sorted({r["creator_original"] for r in flat if r["creator_original"]})
     places = sorted({p for r in flat for p in (r["place_original"], r["holding_institution_text"]) if p})
     return ExportDocument(

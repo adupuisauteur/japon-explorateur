@@ -5,6 +5,30 @@
 Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquette `v1.3.0-rc3` (commit
 `d7296d4`). Audit et plan : `docs/evolution-2.0.0/01-audit.md`.
 
+- **Lot 1 — interface** (15 novembre 2026, rapport : `docs/evolution-2.0.0/rapport-lot-1.md`) :
+  - l'application s'affiche sous le seul nom **J-ed** : barre de menu, titres des pages, pied de page,
+    application installable, page de connexion, en-têtes des exports et des rapports de diagnostic, gestion
+    interne. Les noms techniques ne changent pas (projet Docker, images, volumes, dépôt) ; le manifeste des
+    sauvegardes garde sa valeur technique. Nom d'instance « J-ed » par défaut pour une nouvelle installation,
+    valeur existante conservée (D13, migration `core.0004`, sans effet sur la base) ; en-tête `User-Agent`
+    envoyé aux catalogues : `J-ed/2.0.0 (usage de recherche personnel)` (D9) ;
+  - page **« À propos »** (menu à son nom, et lien du pied de page) : version, origine du projet, logiciels
+    libres utilisés ;
+  - **menus** : « Administration » et « Dysfonctionnements » quittent le menu du haut ; ils sont dans le menu à
+    son nom et en pied de page, pour l'administrateur seulement. La pastille des incidents nouveaux est sur le
+    bouton du menu à son nom ;
+  - **journal des dysfonctionnements réservé à l'administrateur** (liste, détail, analyse, export, capture).
+    « Signaler un problème » reste ouvert à tous ; après l'envoi, un chercheur revient à sa page avec
+    l'identifiant du signalement. Les liens vers le journal (fiche d'une source, état d'une recherche) ne sont
+    montrés qu'à l'administrateur ; le chercheur voit toujours le message d'erreur ;
+  - **page « J-ed ne répond pas »** : la page mise en cache par le navigateur est autonome, sans menu ni numéro
+    de version, et conseille de vérifier Docker Desktop (constat du 14 novembre 2026). Le contrôle de santé de
+    Docker passe par une adresse dédiée, `/sante/` (le serveur répond et la base est joignable) ;
+  - **bas de page des exports** (demande U2) : date et heure de production, J-ed et sa version, identifiant de
+    connexion (case « Ne pas indiquer mon identifiant »), identifiant de l'export, numéro de page ; Word, PDF,
+    HTML, texte et exports des projets de traduction ;
+  - `verifier_fonctionnalites` contrôle aussi « À propos », `/sante/` et le refus du journal au chercheur ;
+    `verifier-j-ed.ps1` interroge `/sante/`.
 - **Lot 0 — corrections et fiabilité** (14 novembre 2026, rapport : `docs/evolution-2.0.0/rapport-lot-0.md`) :
   - numéro de version 2.0.0 ; images `japon-explorateur:2.0.0` et `japon-explorateur-argos:2.0.0` ;
     `COMPOSE_PROJECT_NAME` **obligatoire** dans `.env` (plus de nom d'essai par défaut, décision D3) ; port

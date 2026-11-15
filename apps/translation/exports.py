@@ -97,6 +97,7 @@ class ExportData:
     mode: str
     rows: list = field(default_factory=list)
     generated_at: object = None
+    produced_by: str = ""  # 2.0.0 (U2) : identifiant de connexion, vide si l'utilisateur l'a masqué
 
     @property
     def translatable(self):
@@ -144,6 +145,15 @@ def engine_label(version):
     return base
 
 
+def production_line(data):
+    """Bas de page (demande U2) : date et heure de production, application et version, utilisateur."""
+    when = timezone.localtime(data.generated_at)
+    parts = [f"Produit le {when:%d/%m/%Y} à {when:%H:%M}", f"{settings.APP_NAME} {settings.APP_VERSION}"]
+    if data.produced_by:
+        parts.append(f"par {data.produced_by}")
+    return " · ".join(parts)
+
+
 def collect(project, *, document=None, mode="validated"):
     """Rassemble les segments à exporter. `document` : un seul document du projet (sinon tous)."""
     if mode not in MODES:
@@ -181,7 +191,8 @@ def header_lines(data):
         ("Documents", ", ".join(d.title for d in data.documents) or "aucun"),
         ("Langues", f"{p.get_source_lang_display()} → {p.get_target_lang_display()}"),
         ("Exporté le", timezone.localtime(data.generated_at).strftime("%d/%m/%Y %H:%M")),
-        ("Application", f"Japon — Explorateur documentaire {settings.APP_VERSION}"),
+        ("Exporté par", data.produced_by),
+        ("Application", f"{settings.APP_NAME} {settings.APP_VERSION}"),
         ("Contenu", MODES[data.mode]),
         ("Segments validés", f"{data.count('validated')} sur {n} ({data.validated_share * 100:.0f} %)"),
     ]
@@ -195,7 +206,7 @@ def header_lines(data):
                                     "aucune traduction réelle"))
     if p.confidential:
         lines.append(("Confidentialité", "projet confidentiel — diffusion à maîtriser"))
-    return lines
+    return [(label, value) for label, value in lines if value]
 
 
 def _untranslated(row):
@@ -231,6 +242,7 @@ def bilingual_txt(data):
             out.append(f"    → {row.text.strip()}{marks}")
         else:
             out.append(f"    → {_untranslated(row)}")
+    out += ["", "-" * 40, production_line(data)]
     return "\n".join(out) + "\n"
 
 
@@ -261,6 +273,7 @@ def bilingual_md(data):
             out.append(_md_escape(row.text.strip()) + marks)
         else:
             out.append(f"*{_untranslated(row)}*")
+    out += ["", "---", "", f"*{_md_escape(production_line(data))}*"]
     return "\n".join(out) + "\n"
 
 
@@ -312,6 +325,7 @@ def translation_txt(data):
     out += [f"{label} : {value}" for label, value in header_lines(data)]
     out += [f"Légende : {item}" for item in _legend(data)]
     out += ["", "-" * 40, "", _translation_body(data, markdown=False)]
+    out += ["", "-" * 40, production_line(data)]
     return "\n".join(out) + "\n"
 
 
@@ -320,6 +334,7 @@ def translation_md(data):
     out += [f"- **{label}** : {_md_escape(value)}" for label, value in header_lines(data)]
     out += [f"- *Légende* : {item}" for item in _legend(data)]
     out += ["", "---", "", _translation_body(data, markdown=True)]
+    out += ["", "---", "", f"*{_md_escape(production_line(data))}*"]
     return "\n".join(out) + "\n"
 
 
@@ -352,7 +367,9 @@ def bilingual_docx(data):
     from docx.enum.table import WD_TABLE_ALIGNMENT
     from docx.shared import Cm, Pt, RGBColor
 
-    from apps.exports.generators.docx_gen import set_fonts
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    from apps.exports.generators.docx_gen import _field, set_fonts
 
     muted, warn = RGBColor(0x55, 0x5B, 0x66), RGBColor(0x9A, 0x5B, 0x00)
     latin, east = "Cambria", "Yu Mincho"
@@ -364,7 +381,14 @@ def bilingual_docx(data):
     for name in ("Title", "Heading 1", "Heading 2"):
         set_fonts(d.styles[name], latin, east)
     d.core_properties.title = data.title
-    d.core_properties.comments = f"Export du module de traduction — {settings.APP_VERSION}"
+    d.core_properties.comments = f"Export du module de traduction — {settings.APP_NAME} {settings.APP_VERSION}"
+    # 2.0.0 (U2) : bas de page sur chaque page (date et heure, application, utilisateur, numéro de page).
+    footer_p = section.footer.paragraphs[0]
+    footer_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    footer_run = footer_p.add_run(f"{production_line(data)}  —  page ")
+    footer_run.font.size = Pt(8)
+    footer_run.font.color.rgb = muted
+    _field(footer_p, "PAGE", "1")
     d.add_paragraph(data.title, style="Title")
     for label, value in header_lines(data):
         p = d.add_paragraph()
@@ -417,11 +441,12 @@ GENERATORS = {"bilingual_txt": bilingual_txt, "bilingual_md": bilingual_md, "tab
               "translation_txt": translation_txt, "translation_md": translation_md, "bilingual_docx": bilingual_docx}
 
 
-def render(project, fmt, *, document=None, mode="validated"):
+def render(project, fmt, *, document=None, mode="validated", produced_by=""):
     """Retourne (contenu, type MIME, extension, données collectées)."""
     if fmt not in FORMATS:
         raise ExportError("Format d'export inconnu.")
     data = collect(project, document=document, mode=mode)
+    data.produced_by = produced_by
     content = GENERATORS[fmt](data)
     if isinstance(content, str):
         content = content.encode("utf-8")

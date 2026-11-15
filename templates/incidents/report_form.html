@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Signaler un problème{% endblock %}
 {% block content %}
-<nav class="small mb-2"><a href="{% url 'incidents:list' %}">Journal des dysfonctionnements</a> › Signaler un problème</nav>
+{% if user.is_admin_role %}<nav class="small mb-2"><a href="{% url 'incidents:list' %}">Journal des dysfonctionnements</a> › Signaler un problème</nav>{% endif %}
 <div class="page-head"><div><h1>Signaler un problème</h1>
   <p>Décrivez ce qui ne fonctionne pas, même si aucune erreur ne s'est affichée. Le signalement est enregistré dans le journal de ce poste, marqué « signalement manuel ». Il n'est envoyé nulle part.</p></div></div>
 <form method="post" enctype="multipart/form-data" class="card-soft" style="max-width: 48rem">{% csrf_token %}

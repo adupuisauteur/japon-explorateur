@@ -114,7 +114,7 @@ def reproduction_steps(incident):
 
 
 def build_json(incidents, *, hide_terms=False, filters=None):
-    data = {"rapport": "Journal des dysfonctionnements — Japon · Explorateur documentaire",
+    data = {"rapport": "Journal des dysfonctionnements — J-ed",
             "environnement": environment(), "filtres": filters or {},
             "incidents": [incident_payload(i, hide_terms=hide_terms) for i in incidents]}
     return redact(json.dumps(data, ensure_ascii=False, indent=2, default=str))
@@ -122,7 +122,7 @@ def build_json(incidents, *, hide_terms=False, filters=None):
 
 def build_markdown(incidents, *, hide_terms=False, filters=None):
     env = environment()
-    lines = ["# Rapport de diagnostic — Japon · Explorateur documentaire", "",
+    lines = ["# Rapport de diagnostic — J-ed", "",
              f"- Version de l'application : **{env['application_version']}** (schéma de données {env['data_schema_version']})",
              f"- Généré le : {env['genere_le']}",
              f"- Environnement : Python {env['python']}, Django {env['django']}, {env['systeme_serveur']}, "

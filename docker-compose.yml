@@ -64,7 +64,8 @@ services:
       # Écoute sur la boucle locale uniquement. Pour un accès réseau, passer par un reverse proxy HTTPS.
       - "127.0.0.1:${WEB_PORT:-8000}:8000"
     healthcheck:
-      test: ["CMD", "curl", "-fs", "http://localhost:8000/hors-ligne/"]
+      # 2.0.0 : adresse dédiée (le serveur répond et la base est joignable), distincte de la page hors ligne.
+      test: ["CMD", "curl", "-fs", "http://localhost:8000/sante/"]
       interval: 30s
       timeout: 5s
       retries: 3

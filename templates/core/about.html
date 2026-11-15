@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}À propos{% endblock %}
+{% block content %}
+<div class="row justify-content-center"><div class="col-lg-9">
+<h1 class="brand-name">À propos de {{ APP_NAME }}</h1>
+<div class="card-soft mb-3">
+  <dl class="row mb-0">
+    <dt class="col-sm-4">Version</dt><dd class="col-sm-8">{{ APP_VERSION }}</dd>
+    <dt class="col-sm-4">Format des données exportées</dt><dd class="col-sm-8">schéma {{ schema_version }}</dd>
+    <dt class="col-sm-4">Installation</dt><dd class="col-sm-8">{{ instance_name }}</dd>
+  </dl>
+</div>
+<div class="card-soft mb-3">
+  <h2 class="h5">Origine du projet</h2>
+  <p>{{ APP_NAME }} est une application d'aide à la recherche documentaire sur le Japon : recherche dans les
+    catalogues des institutions, bibliothèque personnelle et dossiers, traduction, exports.</p>
+  <p>Elle s'appelait auparavant <em>Japon — Explorateur documentaire</em>. Elle a été conçue d'après un cahier des
+    charges du 12 novembre 2026, puis enrichie par les versions 1.2.0 et 1.3.0. La version 2.0.0 est une version
+    de consolidation : fiabilité, tâches automatisées, documentation intégrée, et le nom {{ APP_NAME }}.</p>
+  <p class="mb-0 small text-muted">Les noms techniques n'ont pas changé, pour préserver les données existantes :
+    projet Docker <code>japon-explorateur-…</code>, images, volumes et dépôt <code>japon-explorateur</code>.</p>
+</div>
+<div class="card-soft mb-3">
+  <h2 class="h5">Données</h2>
+  <p class="mb-0">Les notices restent la propriété de leurs institutions ; vérifiez-les auprès des catalogues
+    d'origine. Vos données restent sur votre ordinateur : aucun texte n'est envoyé à un service extérieur sans une
+    action de votre part.</p>
+</div>
+<div class="card-soft mb-3">
+  <h2 class="h5">Logiciels libres utilisés</h2>
+  <ul class="mb-0">{% for name, role in components %}<li><strong>{{ name }}</strong> — {{ role }}</li>{% endfor %}</ul>
+</div>
+</div></div>
+{% endblock %}

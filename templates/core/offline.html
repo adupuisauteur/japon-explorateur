@@ -1,10 +1,35 @@
-{% extends "base.html" %}
-{% block title %}Hors ligne{% endblock %}
-{% block content %}
-<div class="empty my-5">
-  <i class="bi bi-wifi-off fs-1 d-block mb-2"></i>
-  <h1 class="h3">Vous êtes hors ligne</h1>
-  <p>Cette page n'a pas été mise en cache. Les fiches que vous avez rendues « disponibles hors ligne » restent consultables.<br>
-  Les recherches dans les catalogues et les synchronisations nécessitent une connexion Internet.</p>
-</div>
-{% endblock %}
+{% load static %}<!DOCTYPE html>
+{# 2.0.0 : page autonome mise en cache par le navigateur. Volontairement sans menu ni numéro de version. #}
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#8a2b23">
+  <title>J-ed ne répond pas</title>
+  <link rel="icon" href="{% static 'icons/icon-192.png' %}">
+  <link rel="stylesheet" href="{% static 'vendor/bootstrap/bootstrap.min.css' %}">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body>
+<main id="contenu" class="container py-5">
+  <div class="row justify-content-center"><div class="col-lg-8">
+    <div class="card-soft">
+      <h1 class="h3 brand-name">J-ed ne répond pas</h1>
+      <p>Le serveur de J-ed, qui fonctionne sur votre ordinateur, n'a pas répondu. Ce n'est pas un problème de
+        connexion à Internet, et vos données ne sont pas touchées.</p>
+      <h2 class="h6 mt-4">Que faire ?</h2>
+      <ol>
+        <li>Vérifiez que <strong>Docker Desktop</strong> est démarré : son icône (une baleine) doit être présente près
+          de l'horloge de Windows. Sinon, lancez-le et attendez une minute.</li>
+        <li>Dans Docker Desktop, rubrique <em>Containers</em>, vérifiez que l'installation de J-ed est en service
+          (pastille verte). Sinon, cliquez sur le bouton de démarrage.</li>
+        <li>Rechargez ensuite cette page.</li>
+      </ol>
+      <p class="small text-muted mb-3">Les fiches que vous avez rendues « disponibles hors ligne » restent
+        consultables à leur adresse habituelle.</p>
+      <a class="btn btn-primary" href="/">Réessayer</a>
+    </div>
+  </div></div>
+</main>
+</body>
+</html>

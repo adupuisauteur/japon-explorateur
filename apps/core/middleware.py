@@ -1,7 +1,8 @@
 from django.shortcuts import redirect
 from django.urls import reverse
 
-_EXEMPT_PREFIXES = ("/static/", "/comptes/premier-demarrage", "/sw.js", "/manifest.webmanifest", "/hors-ligne")
+_EXEMPT_PREFIXES = ("/static/", "/comptes/premier-demarrage", "/sw.js", "/manifest.webmanifest", "/hors-ligne",
+                    "/sante/")
 
 
 class FirstRunMiddleware:

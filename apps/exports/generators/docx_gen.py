@@ -137,7 +137,15 @@ def generate_docx(doc, out_dir, basename):
     header_p.runs[0].font.color.rgb = MUTED
     footer_p = body.footer.paragraphs[0]
     footer_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    footer_run = footer_p.add_run(f"{meta.get('footer') or ''}  —  {meta['export_id']}  —  page ")
+    if meta.get("footer"):
+        free = footer_p.add_run(meta["footer"])
+        free.font.size = Pt(8.5)
+        footer_p = body.footer.add_paragraph()
+        footer_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    # 2.0.0 (U2) : date et heure, application et version, utilisateur, identifiant de l'export, page.
+    pieces = [meta.get("production_line") or "", meta["export_id"]]
+    footer_run = footer_p.add_run("  —  ".join(p for p in pieces if p)
+                                  + ("  —  page " if opts.get("pagination", True) else ""))
     footer_run.font.size = Pt(8.5)
     if opts.get("pagination", True):
         _field(footer_p, "PAGE", "1")

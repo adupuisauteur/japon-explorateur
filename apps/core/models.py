@@ -11,7 +11,7 @@ class AppSettings(models.Model):
         ("manual", "Manuel / temporaire"),
     ]
 
-    instance_name = models.CharField("Nom de l'instance", max_length=200, default="Japon — Explorateur documentaire")
+    instance_name = models.CharField("Nom de l'instance", max_length=200, default="J-ed")
     default_search_mode = models.CharField(
         "Mode d'enregistrement par défaut", max_length=20, choices=SEARCH_MODES, default="selective"
     )

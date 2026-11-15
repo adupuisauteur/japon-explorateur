@@ -11,7 +11,7 @@
       {% else %}{{ stats.count }} résultat(s){% if stats.total and stats.total != stats.count %} sur {{ stats.total }}{% endif %} · {{ stats.ms }} ms{% endif %}
     </div>
     {% for w in stats.warnings %}<div class="small text-warning-emphasis">{{ w }}</div>{% endfor %}
-    {% if stats.incident %}<div class="small"><a href="{% url 'incidents:detail' stats.incident %}">Voir l'incident {{ stats.incident }}</a></div>{% endif %}
+    {% if stats.incident %}<div class="small">{% if user.is_admin_role %}<a href="{% url 'incidents:detail' stats.incident %}">Voir l'incident {{ stats.incident }}</a>{% else %}Incident {{ stats.incident }} enregistré pour l'administrateur{% endif %}</div>{% endif %}
   </div>
   {% if stats.status == 'error' or stats.status == 'unavailable' or stats.status == 'unparsable' %}
   <button class="btn btn-sm btn-outline-secondary" hx-post="{% url 'searching:run_source' session.uid code %}" hx-vals='{"retry": "1"}'

@@ -84,6 +84,7 @@ def create_backup(kind="full", user=None, scheduled=False):
             if kind in ("full", "files"):
                 parts.append(_archive_files(tmp))
             manifest = {
+                # Champ technique du manifeste : valeur inchangée en 2.0.0 (lecture des anciennes sauvegardes).
                 "application": "Japon — Explorateur documentaire",
                 "application_version": settings.APP_VERSION,
                 "data_schema_version": settings.DATA_SCHEMA_VERSION,

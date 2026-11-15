@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "japon-explorateur/export/1.0",
-  "title": "Export Japon — Explorateur documentaire",
+  "title": "Export J-ed (anciennement Japon — Explorateur documentaire)",
   "type": "object",
   "required": [
     "schema_version",

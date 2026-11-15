@@ -409,7 +409,8 @@ class JournalTests(Evolution120Base):
     def test_status_change_is_reserved_to_admin(self):
         incident = record_incident(module="recherche", category="erreur_technique", severity="error", title="Essai")
         self.client.force_login(self.reader)
-        self.assertEqual(self.client.get(incident.get_absolute_url()).status_code, 200)
+        # 2.0.0 (lot 1) : tout le journal est réservé à l'administrateur, détail compris.
+        self.assertEqual(self.client.get(incident.get_absolute_url()).status_code, 403)
         self.assertEqual(self.client.post(f"/journal/{incident.uid}/statut/", {"status": "cloture"}).status_code, 403)
         self.client.force_login(self.admin)
         self.client.post(f"/journal/{incident.uid}/statut/", {"status": "en_cours", "comment": "Analyse"})

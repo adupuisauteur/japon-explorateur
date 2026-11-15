@@ -243,6 +243,22 @@ foreach ($p in $pages) {
     }
 }
 
+# 2.0.0 (lot 1) : contrôle de santé utilisé par Docker (le serveur répond et la base est joignable).
+try {
+    $r = Invoke-WebRequest -Uri "http://localhost:$Port/sante/" -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop
+    Noter 'ok' 'Contrôle de santé' "le serveur répond et la base est joignable (HTTP $($r.StatusCode))"
+} catch {
+    $code = 0
+    if ($_.Exception.Response) { try { $code = [int]$_.Exception.Response.StatusCode } catch { $code = 0 } }
+    if ($code -eq 404) {
+        Noter 'skipped' 'Contrôle de santé' 'adresse /sante/ absente : version antérieure au lot 1 de la 2.0.0'
+    } elseif ($code -eq 503) {
+        Noter 'error' 'Contrôle de santé' 'le serveur répond, mais la base de données est injoignable (HTTP 503)'
+    } else {
+        Noter 'error' 'Contrôle de santé' "ne répond pas : $($_.Exception.Message)"
+    }
+}
+
 # --- 4. Fonctions de l'application ---------------------------------------------------------------------------
 Titre '4. Fonctions de l''application (données fictives, base non modifiée)'
 

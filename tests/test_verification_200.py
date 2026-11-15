@@ -87,7 +87,13 @@ class FeatureCheckTests(TransactionTestCase):
 
 
 class _FakeJed(BaseHTTPRequestHandler):
+    health_status = 200
+
     def do_GET(self):  # noqa: N802
+        if self.path == "/sante/" and self.health_status != 200:
+            self.send_response(self.health_status)
+            self.end_headers()
+            return
         self.send_response(200)
         if self.path == "/comptes/connexion/":
             self.send_header("Content-Security-Policy", "default-src 'self'")
@@ -149,6 +155,19 @@ class VerifyScriptRunTests(SimpleTestCase):
             self.assertIn(expected, result.stdout)
         self.assertIsNotNone(self.report)
         self.assertNotIn("x" * 64, self.report.read_text(encoding="utf-8-sig"), "aucun secret dans le rapport")
+
+    def test_health_address(self):
+        result = self.run_script()
+        self.assertIn("[OK] Contrôle de santé : le serveur répond et la base est joignable", result.stdout)
+        for status, expected in ((404, "[Non vérifié] Contrôle de santé : adresse /sante/ absente"),
+                                 (503, "[Problème] Contrôle de santé : le serveur répond, mais la base de données "
+                                       "est injoignable")):
+            _FakeJed.health_status = status
+            try:
+                result = self.run_script()
+            finally:
+                _FakeJed.health_status = 200
+            self.assertIn(expected, result.stdout)
 
     def test_problems_are_reported_with_exit_code_1(self):
         self.write_env(DJANGO_SECRET_KEY="à-remplacer", COMPOSE_PROJECT_NAME="japon-explorateur-essai")
