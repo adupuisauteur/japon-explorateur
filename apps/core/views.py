@@ -8,6 +8,7 @@ from django.http import HttpResponse
 from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
 from django.templatetags.static import static
+from django.urls import reverse
 from django.views.decorators.cache import cache_control
 from django.views.decorators.http import require_POST
 
@@ -15,6 +16,7 @@ from .audit import log_action
 from .forms import AppSettingsForm
 from .models import AppSettings, AuditLog
 from .permissions import admin_required
+from .redirects import safe_next
 
 
 @login_required
@@ -177,7 +179,8 @@ def argos_selftest(request):
     log_action(request, "argos.selftest", None, "Traduction d'essai Argos demandée")
     messages.info(request, "Traduction d'essai d'Argos lancée : le résultat s'affiche ici dans quelques secondes "
                            "(rechargez la page).")
-    return redirect("core:state")
+    # 2.0.0 (lot 3) : le bouton existe aussi dans Traduction → Moteurs locaux, qui y revient.
+    return redirect(safe_next(request, reverse("core:state")))
 
 
 @admin_required

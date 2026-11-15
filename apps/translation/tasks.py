@@ -31,6 +31,19 @@ def run_package_job(job_id):
 
 
 @shared_task
+def auto_argos_selftest(attempt=1):
+    """2.0.0 (lot 3) : essai automatique d'Argos, programmé au démarrage du planificateur (config/celery.py)."""
+    from django.conf import settings
+
+    from .argos_selftest import auto_selftest
+
+    result = auto_selftest(attempt)
+    if result == "attente":
+        auto_argos_selftest.apply_async(args=[attempt + 1], countdown=settings.ARGOS_AUTO_SELFTEST_DELAY)
+    return result
+
+
+@shared_task
 def run_argos_selftest():
     """Test de démarrage d'Argos demandé depuis la page « État de l'installation » (2.0.0)."""
     from .argos_selftest import run_selftest

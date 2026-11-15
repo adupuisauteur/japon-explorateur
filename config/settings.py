@@ -221,6 +221,8 @@ TRANSLATION_ARGOS_INSTALL_TIMEOUT = env.float("TRANSLATION_ARGOS_INSTALL_TIMEOUT
 # 2.0.0 (lot 7) : une tâche Argos d'au plus ce nombre d'éléments est « prioritaire » dans le service : elle passe
 # avant les paquets d'un long document en attente (elle attend au plus la fin du paquet en cours).
 TRANSLATION_ARGOS_NOW_MAX_ITEMS = env.int("TRANSLATION_ARGOS_NOW_MAX_ITEMS", default=20)
+# 2.0.0 (lot 3) : délai de l'essai automatique d'Argos après le démarrage (secondes), et entre deux tentatives.
+ARGOS_AUTO_SELFTEST_DELAY = env.int("ARGOS_AUTO_SELFTEST_DELAY", default=120)
 TRANSLATION_ARGOS_MAX_UPLOAD = env.int("TRANSLATION_ARGOS_MAX_UPLOAD", default=1024 * 1024 * 1024)
 # Tâche sans signe d'activité au-delà de ce délai (minutes) : présentée comme interrompue, reprise possible.
 TRANSLATION_STALE_MINUTES = env.int("TRANSLATION_STALE_MINUTES", default=10)

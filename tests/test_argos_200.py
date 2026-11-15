@@ -310,3 +310,66 @@ class FirstRunTests(ClientMixin, AppTestCase):
             response = self.post(install_argos="on")
         self.assertContains(response, "Traduction hors ligne non installée pour l&#x27;instant")
         self.assertFalse(TranslationJob.objects.filter(kind="package").exists())
+
+
+class SelftestButtonAndAutoTests(ClientMixin, AppTestCase):
+    """Lot 3 (demande du 15 novembre 2026) : bouton dans Moteurs locaux ; essai automatique après démarrage."""
+
+    def test_button_in_local_engines_returns_there(self):
+        self.connect(installed=JA_FR)
+        self.client.force_login(self.admin)
+        page = self.client.get("/traduction/moteurs/locaux/").content.decode()
+        self.assertIn("Lancer un essai", page)
+        response = self.client.post("/administration/etat/test-argos/", {"next": "/traduction/moteurs/locaux/"})
+        self.assertRedirects(response, "/traduction/moteurs/locaux/", fetch_redirect_response=False)
+        check = ServiceCheck.objects.get(name="argos_essai")
+        self.assertTrue(check.ok)
+        self.assertFalse(check.data["auto"])
+        response = self.client.post("/administration/etat/test-argos/", {"next": "https://exemple.invalid/"})
+        self.assertRedirects(response, "/administration/etat/", fetch_redirect_response=False)
+        self.client.force_login(self.researcher)
+        self.assertNotIn("Lancer un essai", self.client.get("/traduction/moteurs/locaux/").content.decode())
+
+    def test_auto_selftest_once_per_version(self):
+        from apps.translation.argos_selftest import auto_selftest
+
+        self.connect(installed=JA_FR)
+        self.assertEqual(auto_selftest(), "fait")
+        check = ServiceCheck.objects.get(name="argos_essai")
+        self.assertTrue(check.data["auto"])
+        self.assertEqual(check.data["version"], "2.0.0")
+        self.assertEqual(auto_selftest(), "inutile")  # redémarrage ordinaire : pas de nouvel essai
+        check.data["version"] = "1.3.0"  # mise à jour : nouvel essai
+        check.save()
+        self.assertEqual(auto_selftest(), "fait")
+        old = ServiceCheck.objects.get(name="argos_essai")
+        old.data, old.ok = {}, True  # essai d'avant la 2.0.0 (sans version) : refait
+        old.save()
+        self.assertEqual(auto_selftest(), "fait")
+
+    def test_auto_selftest_waits_for_the_service_and_skips_without_packages(self):
+        from apps.translation.argos_selftest import AUTO_ATTEMPTS, auto_selftest
+        from apps.translation.tasks import auto_argos_selftest
+
+        self.connect()
+        self.assertEqual(auto_selftest(), "inutile")  # paquets absents : rien à essayer
+        self.assertFalse(ServiceCheck.objects.filter(name="argos_essai").exists())
+        with override_settings(TRANSLATION_ARGOS_URL="http://127.0.0.1:9"):
+            self.assertEqual(auto_selftest(1), "attente")
+            self.assertEqual(auto_selftest(AUTO_ATTEMPTS), "abandon")
+            # la tâche se reprogramme jusqu'à l'abandon (Celery en mode immédiat pendant les tests)
+            with override_settings(ARGOS_AUTO_SELFTEST_DELAY=0):
+                self.assertEqual(auto_argos_selftest.apply(args=[1]).get(), "attente")
+        with override_settings(TRANSLATION_ARGOS_URL=""):
+            self.assertEqual(auto_selftest(), "inutile")
+
+    def test_beat_start_schedules_the_selftest(self):
+        from unittest import mock
+
+        from config import celery as celery_config
+
+        with mock.patch.object(celery_config.app, "send_task") as send:
+            celery_config.schedule_argos_selftest()
+        send.assert_called_once_with("apps.translation.tasks.auto_argos_selftest", countdown=120)
+        with mock.patch.object(celery_config.app, "send_task", side_effect=OSError("broker absent")):
+            celery_config.schedule_argos_selftest()  # n'empêche jamais le planificateur de démarrer
