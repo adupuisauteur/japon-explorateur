@@ -445,3 +445,77 @@ class StatusPillsTagTests(AppTestCase):
         self.assertIn("déclaré par la source — 15/11/2026", html)
         self.assertIn("vérifié par J-ed — HTTP 403", html)
         self.assertNotIn("<script", json.dumps(html))
+
+
+class ExportTests(StatusTestCase):
+    """Décision du 15 novembre 2026 : les trois statuts figurent dans les exports."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.researcher)
+        self.record = self.with_manifest()
+
+    def export(self, fmt, profile="bibliography"):
+        from pathlib import Path
+
+        from django.conf import settings
+
+        from apps.exports.models import ExportJob
+
+        self.client.post("/exports/preparer/", {"scope": "selection", "records": self.record.record_id,
+                                                "preset": "bibliography", "format": fmt, "title": "Statuts",
+                                                "column_profile": profile, "csv_separator": "semicolon"})
+        job = ExportJob.objects.latest("pk")
+        self.assertEqual(job.status, "done", job.error)
+        return job, Path(settings.MEDIA_ROOT)
+
+    def test_readable_formats_show_availability(self):
+        from docx import Document
+
+        job, media = self.export("docx")
+        text = "\n".join(c.text for t in Document(media / job.files.get(role="main").path).tables
+                         for row in t.rows for c in row.cells)
+        text += "\n".join(p.text for p in Document(media / job.files.get(role="main").path).paragraphs)
+        self.assertIn("Notice : oui · Document : non vérifié · IIIF : identifié", text)
+        self.assertNotIn("Accès numérique", text)
+        job, media = self.export("txt")
+        self.assertIn("Disponibilité", (media / job.files.get(role="main").path).read_text(encoding="utf-8"))
+
+    def test_csv_columns_and_their_documentation(self):
+        import csv
+
+        job, media = self.export("csv")
+        with open(media / job.files.get(role="main").path, encoding="utf-8-sig") as fh:
+            rows = list(csv.reader(fh, delimiter=";"))
+        header, values = rows[0], dict(zip(rows[0], rows[1]))
+        for column in ("status_notice", "status_document", "status_iiif"):
+            self.assertIn(column, header)
+        self.assertEqual((values["status_notice"], values["status_iiif"]), ("oui", "identifie"))
+        doc = (media / job.files.get(role="schema").path).read_text(encoding="utf-8-sig")
+        self.assertIn("Manifeste IIIF : absent, identifie, verifie, echec, non_verifie", doc)
+        job, media = self.export("csv", profile="generic")  # profil de réimport : inchangé
+        with open(media / job.files.get(role="main").path, encoding="utf-8-sig") as fh:
+            self.assertNotIn("status_iiif", fh.readline())
+
+    def test_json_keeps_details_and_origin(self):
+        import json as json_module
+
+        RecordStatus.objects.filter(record=self.record, kind="iiif").update(value="verifie", origin="jed",
+                                                                              detail="IIIF 3.0 · 3 vue(s)")
+        job, media = self.export("json")
+        data = json_module.loads((media / job.files.get(role="main").path).read_text(encoding="utf-8"))
+        item = data["records"][0]
+        self.assertEqual(item["statuses"]["iiif"]["value"], "verifie")
+        self.assertEqual(item["statuses"]["iiif"]["origin_label"], "vérifié par J-ed")
+        self.assertEqual(item["statuses"]["iiif"]["url"], MANIFEST_V3)
+        self.assertNotIn("status_iiif", item)
+        self.assertEqual(item["digital_access"], self.record.digital_access)  # ancien champ conservé (format 1.0)
+
+    def test_html_site_badges(self):
+        import zipfile
+
+        job, media = self.export("html")
+        with zipfile.ZipFile(media / job.files.get(role="main").path) as zf:
+            section = next(n for n in zf.namelist() if n.endswith("/sections/section-1.html"))
+            page = zf.read(section).decode("utf-8")
+        self.assertIn('<span class="badge">IIIF : identifié</span>', page)

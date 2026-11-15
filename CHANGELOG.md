@@ -59,7 +59,14 @@ Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquet
     place du filtre « Document numérisé » ; section « Disponibilité » de la fiche avec le détail de chaque
     statut et le bouton « Vérifier le manifeste IIIF » ;
   - `verifier_fonctionnalites` contrôle les trois statuts d'une notice fictive et compte les notices sans
-    statut.
+    statut ;
+  - **statuts dans les exports** (décision du 15 novembre 2026, archive `lot5b`) : ligne « Disponibilité » des
+    fiches Word, PDF, texte et site HTML (pastilles), à la place de « Accès numérique » ; colonnes
+    `status_notice`, `status_document` et `status_iiif` des profils CSV bibliographie, historique et inventaire,
+    décrites dans le fichier des colonnes ; clé `statuses` de chaque notice dans le JSON, avec origine, date,
+    adresse et détail (ajout compatible avec le schéma 1.0, qui l'accepte et la décrit). Le profil de réimport et
+    l'ancien champ `digital_access` restent inchangés ; une réimport ne signale pas ces statuts comme colonnes
+    inconnues.
 - **Lot 1 — interface** (15 novembre 2026, rapport : `docs/evolution-2.0.0/rapport-lot-1.md`) :
   - l'application s'affiche sous le seul nom **J-ed** : barre de menu, titres des pages, pied de page,
     application installable, page de connexion, en-têtes des exports et des rapports de diagnostic, gestion

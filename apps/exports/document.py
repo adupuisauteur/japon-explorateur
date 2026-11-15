@@ -21,16 +21,17 @@ ACCESS_LABELS = dict(DIGITAL_ACCESS)
 COLUMN_PROFILES = {
     "bibliography": ["record_id", "catalogue_code", "source_id", "original_title", "reading", "translated_title",
                      "creator_original", "composition_date_text", "copy_date_text", "holding_institution_text",
-                     "shelfmark", "source_url", "collected_at"],
+                     "shelfmark", "source_url", "status_notice", "status_document", "status_iiif", "collected_at"],
     "historical": ["record_id", "original_title", "reading", "translated_title", "creator_original", "period",
                    "composition_date_text", "composition_year_start", "composition_year_end",
                    "composition_date_precision", "copy_date_text", "copy_year_start", "copy_year_end",
                    "copy_date_precision", "document_type", "material_type", "place_original",
-                   "holding_institution_text", "source_url"],
+                   "holding_institution_text", "source_url", "status_notice", "status_document", "status_iiif"],
     "generic": ["record_id", "catalogue_code", "record_version"] + RECORD_SOURCE_FIELDS + ["collected_at"],
     "inventory": ["record_id", "catalogue_code", "catalogue_name", "record_version", "record_status"]
                  + RECORD_SOURCE_FIELDS + ["period", "document_type", "material_type", "title_romaji",
-                                           "translated_title_origin", "collected_at", "dataset_label"],
+                                           "translated_title_origin", "status_notice", "status_document",
+                                           "status_iiif", "collected_at", "dataset_label"],
 }
 
 COLUMN_DOC = {
@@ -75,6 +76,11 @@ COLUMN_DOC = {
     "title_romaji": ("texte", "Rōmaji automatique (lecture non vérifiée)."),
     "collected_at": ("date ISO 8601", "Date et heure de collecte."),
     "dataset_label": ("texte", "Jeu de données d'origine (import)."),
+    # 2.0.0 (lot 2) : trois statuts indépendants (détail, origine et date dans l'export JSON, clé « statuses »).
+    "status_notice": ("valeur contrôlée", "Notice disponible en ligne chez la source : oui, non, non_verifie."),
+    "status_document": ("valeur contrôlée", "Document (images ou texte) consultable en ligne par tous : oui, non, "
+                                            "non_verifie."),
+    "status_iiif": ("valeur contrôlée", "Manifeste IIIF : absent, identifie, verifie, echec, non_verifie."),
 }
 
 
@@ -88,6 +94,25 @@ class ExportDocument:
     creators: list = field(default_factory=list)
     places: list = field(default_factory=list)
     options: dict = field(default_factory=dict)
+
+
+def _statuses(record):
+    """2.0.0 (lot 2) : les trois statuts indépendants de la notice, pour tous les formats d'export."""
+    from apps.catalog.statuses import KIND_LABELS, KINDS, LABELS, ORIGIN_LABELS
+
+    rows = record.status_map
+    detail, flat, parts = {}, {}, []
+    for kind in KINDS:
+        s = rows.get(kind)
+        value = getattr(s, "value", "") or "non_verifie"
+        checked = getattr(s, "checked_at", None)
+        detail[kind] = {"value": value, "label": LABELS.get(value, value), "origin": getattr(s, "origin", "") or "",
+                        "origin_label": ORIGIN_LABELS.get(getattr(s, "origin", "") or "", ""),
+                        "checked_at": checked.isoformat() if checked else "", "url": getattr(s, "url", "") or "",
+                        "detail": getattr(s, "detail", "") or ""}
+        flat[f"status_{kind}"] = value
+        parts.append(f"{KIND_LABELS[kind]} : {LABELS.get(value, value)}")
+    return {"statuses": detail, **flat, "availability_label": " · ".join(parts)}
 
 
 def _record_dict(record, *, include_ai, include_notes, user, collection_item=None):
@@ -105,6 +130,7 @@ def _record_dict(record, *, include_ai, include_notes, user, collection_item=Non
         "material_type": record.material_type,
         "material_type_label": MATERIAL_LABELS.get(record.material_type, "") if record.material_type else "",
         "digital_access_label": ACCESS_LABELS.get(record.digital_access, "") if record.digital_access else "",
+        **_statuses(record),
         "title_romaji": record.title_romaji,
         "translated_title_origin": record.translated_title_origin,
         "description_translation_origin": record.description_translation_origin,
@@ -149,7 +175,7 @@ def resolve_records(job):
     if job.scope == "collection":
         collection = Collection.objects.get(pk=p["collection_id"])
         sections = []
-        items = collection.items.select_related("record__catalogue", "section")
+        items = collection.items.select_related("record__catalogue", "section").prefetch_related("record__statuses")
         by_section = {}
         for item in items:
             by_section.setdefault(item.section_id, []).append((item.record, item))
@@ -168,7 +194,8 @@ def resolve_records(job):
         records = [r.integrated_record or r.local_record for r in which if (r.integrated_record or r.local_record)]
         counts["not_integrated"] = which.count() - len(records)
     elif job.scope == "library":
-        qs = LibraryEntry.objects.filter(user=job.owner).select_related("record__catalogue")
+        qs = LibraryEntry.objects.filter(user=job.owner).select_related("record__catalogue").prefetch_related(
+            "record__statuses")
         if p.get("tag"):
             qs = qs.filter(tags__name=p["tag"])
         if p.get("favorites"):
@@ -177,7 +204,8 @@ def resolve_records(job):
     else:
         ids = p.get("record_ids") or []
         order = {rid: i for i, rid in enumerate(ids)}
-        records = sorted(Record.objects.filter(record_id__in=ids).select_related("catalogue"),
+        records = sorted(Record.objects.filter(record_id__in=ids).select_related("catalogue")
+                         .prefetch_related("statuses"),
                          key=lambda r: order.get(r.record_id, 0))
     counts["exported"] = len(records)
     return [("Références", "", [(r, None) for r in records])], counts, None

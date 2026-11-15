@@ -131,9 +131,32 @@ Un test vérifie cette isolation (`TestIsolationTests`). Nouvelle simulation : *
 Les tests utilisent une base de données de test distincte (`test_japon`), créée puis supprimée par Django : la
 base de l'installation n'est jamais touchée.
 
-## 7. Livrables du lot
+## 7. Décisions du 15 novembre 2026 (après la livraison)
+
+| Question | Décision | Suite |
+| --- | --- | --- |
+| Japan Search : un contenu numérique publié vaut « document consultable : oui » | Pas de remarque : règle conservée | À confirmer en ouvrant quelques notices Japan Search marquées « oui » |
+| NDL : une notice numérisée reste « document : non vérifié » | Pas de remarque : règle conservée | Vérification du niveau d'accès possible avec les tâches du lot 3 |
+| Statuts dans les exports | **Ajouter** | Fait, archive `lot5b` |
+
+**Statuts dans les exports** :
+
+- Word, PDF, texte : la ligne « Accès numérique » des fiches devient « Disponibilité », par exemple
+  « Notice : oui · Document : non vérifié · IIIF : identifié ».
+- Site HTML : trois pastilles sur chaque notice.
+- CSV : colonnes `status_notice`, `status_document`, `status_iiif` dans les profils bibliographie, historique
+  et inventaire, décrites dans le fichier des colonnes. Le profil générique, qui sert à réimporter, est
+  inchangé.
+- JSON : clé `statuses` de chaque notice, avec valeur, libellé, origine, date, adresse et détail. Le schéma 1.0
+  l'accepte et la décrit désormais. L'ancien champ `digital_access` est conservé. À la réimport, ces statuts
+  sont recalculés et ne sont pas signalés comme colonnes inconnues.
+
+Tests : 4 nouveaux (`ExportTests`), suite complète à 560 tests réussis.
+
+## 8. Livrables du lot
 
 - Archives `japon-explorateur-2.0.0-lot2.zip`, puis `lot2b` (correctif du § 6), avec leur empreinte `.sha256`.
+  Les statuts dans les exports (§ 7) sont livrés avec le lot 5, archive `lot5b`.
 - Protocole : `docs/evolution-2.0.0/05-protocole-verification.md`, section « Lot 2 » (V2-1 à V2-5).
 - CHANGELOG : section 2.0.0, lot 2.
 - Guide de mise à jour : retour vers la 1.3.0, désormais en deux commandes (`migrate catalog 0005`, puis

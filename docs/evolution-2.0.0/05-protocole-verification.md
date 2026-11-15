@@ -199,6 +199,11 @@ IIIF « Identifié », origine « déduit par J-ed » (adresse construite à par
 3. Recherche avancée : les cases « Notice disponible », « Document consultable » et « IIIF » remplacent
    « Accès numérique ».
 
+**V2-6 — Statuts dans les exports** (archive `lot5b`). Exporte quelques notices en Word, puis en CSV (profil
+bibliographie). Attendu : dans le Word, une ligne « Disponibilité » (« Notice : … · Document : … · IIIF : … »)
+à la place de « Accès numérique » ; dans le CSV, trois colonnes `status_notice`, `status_document` et
+`status_iiif`.
+
 ## Lot 5 — notifications
 
 À faire sur l'essai, après la mise à jour vers l'archive du lot 5. Si l'apparence n'a pas changé, recharge une
@@ -254,6 +259,7 @@ anomalie ; une notification arrivée entre-temps s'affiche au retour sur l'ongle
 | V2-3 Vérifier un manifeste | | |
 | V2-4 Sélection et reprise | | |
 | V2-5 Filtres et tri | | |
+| V2-6 Statuts dans les exports | | |
 | V5-1 Notification d'essai | | |
 | V5-2 Alerte d'essai | | |
 | V5-3 Fin d'une vraie tâche | | |

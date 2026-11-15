@@ -116,7 +116,8 @@ def unknown_columns(columns, mapping):
     used = set()
     for v in mapping.values():
         used.update(v if isinstance(v, list) else [v])
-    return [c for c in columns if c not in used]
+    # 2.0.0 (lot 2) : les statuts d'un export J-ed sont recalculés à l'import, ce ne sont pas des colonnes perdues.
+    return [c for c in columns if c not in used and not c.startswith("statuses.")]
 
 
 # --------------------------------------------------------------------------- détection et lecture

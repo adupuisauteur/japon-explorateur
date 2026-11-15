@@ -47,7 +47,9 @@ def generate_txt(doc, out_dir, basename):
 def json_payload(doc):
     records = []
     for rec in doc.records:
-        item = {k: v for k, v in rec.items() if k not in ("catalogue_code", "catalogue_name", "source_id", "source_url")}
+        item = {k: v for k, v in rec.items() if k not in ("catalogue_code", "catalogue_name", "source_id", "source_url",
+                                                          "status_notice", "status_document", "status_iiif",
+                                                          "availability_label")}
         item["catalogue"] = {"code": rec["catalogue_code"], "name": rec["catalogue_name"]}
         item["source"] = {"name": rec["catalogue_name"], "source_id": rec["source_id"], "url": rec["source_url"]}
         records.append(item)
@@ -84,6 +86,9 @@ JSON_SCHEMA = {
                                                    "copy_year_start": {"type": ["integer", "null"]},
                                                    "editorial": {"type": "array"},
                                                    "notes": {"type": "array"},
+                                                   "statuses": {"type": "object", "description": (
+                                                       "2.0.0 : notice, document, iiif — value, label, origin, "
+                                                       "origin_label, checked_at, url, detail")},
                                                    "collected_at": {"type": "string"}}}},
     },
 }

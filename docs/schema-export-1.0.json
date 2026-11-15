@@ -84,6 +84,10 @@
           "notes": {
             "type": "array"
           },
+          "statuses": {
+            "type": "object",
+            "description": "2.0.0 : notice, document, iiif — value, label, origin, origin_label, checked_at, url, detail"
+          },
           "collected_at": {
             "type": "string"
           }

@@ -17,7 +17,7 @@ FICHE_FIELDS = [
     ("Support", "material_type_display"),
     ("Institution détentrice", "holding_institution_text"),
     ("Cote", "shelfmark"),
-    ("Accès numérique", "digital_access_label"),
+    ("Disponibilité", "availability_label"),  # 2.0.0 (lot 2) : trois statuts, à la place de « Accès numérique »
     ("Droits et conditions", "rights_and_access"),
     ("Sujets", "subjects_original"),
     ("Lieu", "place_original"),

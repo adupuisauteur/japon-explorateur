@@ -125,7 +125,10 @@ class SiteBuilder:
         if rec.get("translated_title"):
             ai = rec.get("translated_title_origin") == "ai"
             badges += f'<span class="badge{" ai" if ai else ""}">{"traduction IA" if ai else "traduit"}</span>'
-        if rec.get("digital_access_label"):
+        if rec.get("availability_label"):  # 2.0.0 (lot 2) : trois statuts distincts
+            for part in rec["availability_label"].split(" · "):
+                badges += f'<span class="badge">{_e(part)}</span>'
+        elif rec.get("digital_access_label"):  # export antérieur à la 2.0.0
             badges += f'<span class="badge">{_e(rec["digital_access_label"])}</span>'
         trans = f'<div>{_e(rec["translated_title"])}</div>' if rec.get("translated_title") else ""
         return (f'<div class="card"><h3><a href="{up}fiches/{_e(rec["record_id"])}.html">{_e(rec["original_title"])}</a></h3>'
