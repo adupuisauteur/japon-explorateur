@@ -270,10 +270,17 @@ Copy-Item -LiteralPath $EnvActuel -Destination $EnvNouveau
 if ($PSBoundParameters.ContainsKey('DossierSauvegardes') -and -not (Lire-Env $EnvNouveau 'DOSSIER_SAUVEGARDES')) {
     Add-Content -LiteralPath $EnvNouveau -Value "`r`n# Ajouté par mettre-a-jour.ps1 : copie des sauvegardes visible dans Windows`r`nDOSSIER_SAUVEGARDES=$DossierSauvegardes" -Encoding UTF8
 }
-if ($AvecArgos -and (Lire-Env $EnvNouveau 'COMPOSE_PROFILES') -notmatch 'hors-ligne') {
-    # Argos tournait : il doit redémarrer avec J-ed même avec un simple « docker compose up -d ».
-    Add-Content -LiteralPath $EnvNouveau -Value "`r`n# Ajouté par mettre-a-jour.ps1 : Argos (traduction hors ligne) démarre avec J-ed`r`nCOMPOSE_PROFILES=hors-ligne" -Encoding UTF8
-    Write-Host 'Argos était en service : ligne COMPOSE_PROFILES=hors-ligne ajoutée au nouveau .env.'
+# 2.0.0 (lot 7) : Argos fait partie de l'installation standard. La ligne COMPOSE_PROFILES le démarre avec J-ed ;
+# elle n'est ajoutée que si elle manque. Laissée vide (« COMPOSE_PROFILES= »), elle désactive Argos : respecté.
+$LigneProfils = @(Get-Content -LiteralPath $EnvNouveau -Encoding UTF8 | Where-Object { $_ -match '^\s*COMPOSE_PROFILES\s*=' })
+$Profils = Lire-Env $EnvNouveau 'COMPOSE_PROFILES'
+if ($LigneProfils.Count -eq 0) {
+    Add-Content -LiteralPath $EnvNouveau -Value "`r`n# Ajouté par mettre-a-jour.ps1 : Argos (traduction hors ligne) démarre avec J-ed. Pour ne pas le démarrer`r`n# (poste à mémoire limitée), laissez la ligne vide : COMPOSE_PROFILES=`r`nCOMPOSE_PROFILES=argos" -Encoding UTF8
+    Write-Host 'Argos fait désormais partie de l''installation standard : ligne COMPOSE_PROFILES=argos ajoutée au nouveau .env.'
+    $Profils = 'argos'
+} elseif ($Profils -notmatch '(^|,)\s*(argos|hors-ligne)\s*(,|$)') {
+    Write-Host "Argos reste désactivé (COMPOSE_PROFILES=$Profils dans .env) : il ne sera pas démarré." -ForegroundColor Yellow
+    if ($AvecArgos) { Write-Host 'Il était pourtant en service : ajoutez « argos » à cette ligne pour le garder.' -ForegroundColor Yellow }
 }
 $Config = Docker-Dans $Destination @('compose', 'config', '--format', 'json')
 if ($Config.Code -ne 0) { Arreter "configuration de la nouvelle version invalide : $($Config.Texte)" }
@@ -292,9 +299,8 @@ $arret = Docker-Dans $Actuel @('compose', 'down')
 if ($arret.Code -ne 0) { Arreter "arrêt de l'ancienne version impossible : $($arret.Texte)" }
 $script:AncienneArretee = $true
 
-$demarrage = @('compose')
-if ($AvecArgos) { $demarrage += @('--profile', 'hors-ligne') }
-$demarrage += @('up', '-d', '--build')
+# Les services démarrés (Argos compris) sont ceux que décide le fichier .env (COMPOSE_PROFILES).
+$demarrage = @('compose', 'up', '-d', '--build')
 Write-Host 'Construction et démarrage (plusieurs minutes la première fois)…'
 $lancement = Docker-Dans $Destination $demarrage
 if ($lancement.Code -ne 0) { Arreter "démarrage de la nouvelle version impossible :`n$($lancement.Texte)" }

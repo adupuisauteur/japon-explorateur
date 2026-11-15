@@ -213,11 +213,14 @@ TRANSLATION_TIMEOUTS = {
     "google_basic": env.float("TRANSLATION_TIMEOUT_GOOGLE", default=60.0),
     "argos": env.float("TRANSLATION_TIMEOUT_ARGOS", default=180.0),
 }
-# Adresse interne du service Argos facultatif (profil Docker « hors-ligne », lot 9). Vide = non activé.
+# Adresse interne du service Argos (démarré avec J-ed depuis la 2.0.0 : COMPOSE_PROFILES=argos). Vide = non activé.
 TRANSLATION_ARGOS_URL = env("TRANSLATION_ARGOS_URL", default="")
 # Dossier partagé avec le service Argos (volume « argos-depot ») pour installer un paquet depuis un fichier.
 TRANSLATION_ARGOS_DEPOT_DIR = Path(env("TRANSLATION_ARGOS_DEPOT_DIR", default=str(DATA_DIR / "argos-depot")))
 TRANSLATION_ARGOS_INSTALL_TIMEOUT = env.float("TRANSLATION_ARGOS_INSTALL_TIMEOUT", default=1800.0)
+# 2.0.0 (lot 7) : une tâche Argos d'au plus ce nombre d'éléments est « prioritaire » dans le service : elle passe
+# avant les paquets d'un long document en attente (elle attend au plus la fin du paquet en cours).
+TRANSLATION_ARGOS_NOW_MAX_ITEMS = env.int("TRANSLATION_ARGOS_NOW_MAX_ITEMS", default=20)
 TRANSLATION_ARGOS_MAX_UPLOAD = env.int("TRANSLATION_ARGOS_MAX_UPLOAD", default=1024 * 1024 * 1024)
 # Tâche sans signe d'activité au-delà de ce délai (minutes) : présentée comme interrompue, reprise possible.
 TRANSLATION_STALE_MINUTES = env.int("TRANSLATION_STALE_MINUTES", default=10)

@@ -141,7 +141,9 @@ if ($aRemplacer.Count) {
     Noter 'ok' 'Mots de passe techniques' 'renseignés (valeurs non affichées)'
 }
 $Profils = Lire-Env 'COMPOSE_PROFILES'
-$ArgosAttendu = $Profils -match 'hors-ligne'
+# 2.0.0 (lot 7) : profil « argos » (installation standard) ; l'ancien profil « hors-ligne » reste accepté.
+$ArgosAttendu = $Profils -match '(^|,)\s*(argos|hors-ligne)\s*(,|$)'
+$ArgosDesactive = @($script:EnvLignes | Where-Object { $_ -match '^\s*COMPOSE_PROFILES\s*=' }).Count -gt 0
 
 $DossierSauv = Lire-Env 'DOSSIER_SAUVEGARDES'
 if (-not $DossierSauv) {
@@ -200,11 +202,15 @@ if ($enService.Code -ne 0) {
 }
 if (-not $ArgosAttendu) {
     if ($services -contains 'argos') {
-        # Constat du 15 novembre 2026 : Argos démarré par « --profile hors-ligne » mais absent de .env.
-        Noter 'warning' 'Argos' 'en service, mais COMPOSE_PROFILES=hors-ligne manque dans .env' @(
+        # Constat du 15 novembre 2026 : Argos démarré par « --profile » mais absent de .env.
+        Noter 'warning' 'Argos' 'en service, mais COMPOSE_PROFILES=argos manque dans .env' @(
             'Un simple « docker compose up -d » ne le démarrerait plus. Ajoutez cette ligne à la fin de .env.')
+    } elseif ($ArgosDesactive) {
+        Noter 'skipped' 'Argos' 'désactivé volontairement (ligne COMPOSE_PROFILES vide dans .env)'
     } else {
-        Noter 'skipped' 'Argos' 'non activé (ligne COMPOSE_PROFILES=hors-ligne absente de .env)'
+        Noter 'warning' 'Argos' 'non démarré : la ligne COMPOSE_PROFILES=argos manque dans .env' @(
+            'Argos fait partie de l''installation standard depuis la 2.0.0. Ajoutez cette ligne à la fin de .env,',
+            'puis : docker compose up -d --build')
     }
 }
 

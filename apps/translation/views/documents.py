@@ -15,6 +15,7 @@ from apps.core.permissions import researcher_required
 from .. import glossary as G
 from .. import projects as P
 from .. import services
+from ..argos_packages import invite_for_choice
 from ..forms import DocumentForm
 from ..importers import ImportRefused, import_file
 from ..models import SEGMENT_STATES, TranslationDocument, TranslationSegment, TranslationVersion
@@ -118,6 +119,7 @@ def document_workbench(request, pk):
         "total": sum(counts.values()), "can_edit": can_edit_project(request.user, project),
         "can_validate": can_validate_project(request.user, project), "notice_field": P.notice_field(document),
         "integrity": P.integrity_ok(document),
+        "argos_invite": invite_for_choice(request.user, project) if can_edit_project(request.user, project) else None,
     })
 
 

@@ -4,7 +4,7 @@ Argos Translate : moteur local, hors ligne, sans clé (décision A1 : service Do
 Ce module est le CLIENT du service `argos` (docker/argos/server.py, lot 9). Contrat du service, sur le
 réseau interne Docker uniquement :
   GET  /health       → {"argos_version": "…", "packages": [{"from": "ja", "to": "en", "version": "1.1"}, …]}
-  POST /translate    → corps {"texts": […], "source": "ja", "target": "fr"}
+  POST /translate    → corps {"texts": […], "source": "ja", "target": "fr", "priority": "now"|"background"}
                        réponse {"translations": […], "path": ["ja", "en", "fr"]}
   POST /index        → paquets proposés par l'index Argos (le service consulte Internet)
   POST /install      → {"from", "to"} : téléchargement depuis l'index et installation (Internet)
@@ -81,6 +81,9 @@ class ArgosEngine(TranslationEngine):
     glossary_support = "none"
     max_items = 50
     max_chars = 20000
+    #: 2.0.0 (lot 7) : « now » pour une petite demande (elle passe avant les paquets d'un long document en
+    #: attente dans le service), « background » sinon. Réglée par services._translate selon la taille de la tâche.
+    priority = "background"
 
     def _http(self, timeout=None):
         return ArgosHTTP("Argos Translate", timeout=timeout or settings.TRANSLATION_TIMEOUTS.get("argos"),
@@ -113,7 +116,7 @@ class ArgosEngine(TranslationEngine):
         """
         try:
             health = self.health()
-        except Exception as exc:  # service arrêté, profil non démarré, réseau Docker…
+        except Exception as exc:  # service arrêté, désactivé dans .env, réseau Docker…
             return None, f"service Argos injoignable — est-il démarré ? ({str(exc).rstrip('.')})", False
         if health is None:
             return None, "service Argos non configuré (TRANSLATION_ARGOS_URL)", False
@@ -166,7 +169,7 @@ class ArgosEngine(TranslationEngine):
             try:
                 data = self._http().request("POST", f"{self.service_url}/translate",
                                             json={"texts": [s.text for s in batch], "source": source,
-                                                  "target": target},
+                                                  "target": target, "priority": self.priority},
                                             n_texts=len(batch), n_chars=sum(len(s.text) for s in batch))
             except TranslationEngineError as exc:
                 if exc.kind == "unavailable" and not exc.code:  # connexion perdue pendant l'envoi

@@ -18,7 +18,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.utils import timezone
 
-from .engines.argos import NEEDED, ArgosEngine
+from .engines.argos import NEEDED, ArgosEngine, _path
 from .engines.base import TranslationEngineError
 from .journal import record_translation_error
 from .models import TranslationJob, TranslationJobItem
@@ -27,6 +27,13 @@ INDEX_PREFIX = "index:"
 FILE_PREFIX = "fichier:"
 SBD_PREFIX = "decoupage:"
 PAIR = re.compile(r"^(ja|en|fr)→(ja|en|fr)$")
+#: 2.0.0 (lot 7) : paquets du bouton unique « Installer la traduction japonais → français »
+JA_FR_CODES = ["ja→en", "en→fr"]
+JA_FR_LABEL = "Installation de la traduction japonais → français"
+#: taille annoncée avant confirmation (cahier des charges § 9 bis) ; la taille exacte dépend de l'index Argos
+JA_FR_SIZE = "environ 200 Mo"
+#: en dessous, la mémoire vue par le service est signalée comme insuffisante (8 Go conseillés sur l'ordinateur)
+MEMORY_WARNING_MB = 4096
 
 
 class PackageError(Exception):
@@ -45,7 +52,8 @@ def service_state(user=None):
     try:
         return engine.health(), ""
     except Exception as exc:  # noqa: BLE001 — affiché tel quel, jamais masqué
-        return None, f"Service Argos injoignable : démarrez-le avec « docker compose --profile hors-ligne up -d --build » ({exc})."
+        return None, (f"Service Argos injoignable ({exc}). Il démarre avec J-ed si la ligne COMPOSE_PROFILES=argos "
+                      "figure dans le fichier .env ; juste après le démarrage, il lui faut quelques secondes.")
 
 
 def needed_status(health):
@@ -56,6 +64,75 @@ def needed_status(health):
         rows.append({"pair": f"{source}→{target}", "packages": [
             {"code": f"{a}→{b}", "installed": installed.get((a, b))} for a, b in packages]})
     return rows
+
+
+def running_job():
+    """Installation de paquets en cours (hors installations interrompues), ou None."""
+    for job in TranslationJob.objects.filter(kind="package", status__in=("confirmed", "running")).order_by("-created_at"):
+        if not is_stale(job):
+            return job
+    return None
+
+
+def ja_fr_ready(health):
+    return _path("ja", "fr", (health or {}).get("packages") or []) is not None
+
+
+def memory_warning(health):
+    """Message si la mémoire vue par le service Argos paraît insuffisante, sinon ''."""
+    memory = (health or {}).get("memory") or {}
+    values = [v for v in (memory.get("total_mb"), memory.get("limit_mb")) if v]
+    if not values or min(values) >= MEMORY_WARNING_MB:
+        return ""
+    return (f"Le service Argos ne dispose que de {min(values) / 1024:.1f} Go de mémoire : une traduction risque "
+            "d'échouer faute de mémoire. 8 Go sont conseillés sur l'ordinateur ; augmentez la mémoire accordée à "
+            "Docker, ou la limite ARGOS_MEMOIRE_MAX du fichier .env.")
+
+
+def invite(user, health=None, problem=None):
+    """Que proposer pour « Installer la traduction japonais → français » ? None si Argos est prêt.
+
+    Aucun appel à Internet : seul le service local est interrogé (sauf si son état est fourni).
+    """
+    if health is None and problem is None:
+        health, problem = service_state(user)
+    if health is not None and ja_fr_ready(health):
+        return None
+    installed = {f"{p.get('from')}→{p.get('to')}" for p in (health or {}).get("packages") or []}
+    running = running_job()
+    return {"health": health, "problem": problem, "running": running, "size": JA_FR_SIZE,
+            "missing": [c for c in JA_FR_CODES if c not in installed],
+            "can_install": bool(user.is_admin_role and health is not None and running is None),
+            "is_admin": user.is_admin_role}
+
+
+def invite_for_choice(user, project=None):
+    """Invitation si le moteur par défaut ou le deuxième moteur (du projet ou de l'utilisateur) est Argos."""
+    from .services import resolve_choice
+
+    codes = {getattr(resolve_choice(user, project=project, which=w), "code", "") for w in ("default", "second")}
+    return invite(user) if "argos" in codes else None
+
+
+def prepare_ja_fr(user):
+    """Bouton unique (lot 7) : paquets ja→en et en→fr manquants, dans une seule tâche reprenable.
+
+    Argos est aussi activé dans les moteurs de l'utilisateur qui a fait la demande (moteur local : rien ne quitte
+    l'ordinateur). Retourne None si la traduction japonais → français est déjà installée.
+    """
+    if running_job() is not None:
+        raise PackageError("Une installation est déjà en cours : suivez sa progression ci-dessous.")
+    health, problem = service_state(user)
+    if health is None:
+        raise PackageError(problem)
+    from .models import EngineSetting
+
+    EngineSetting.objects.update_or_create(user=user, engine="argos", defaults={"enabled": True})
+    installed = {f"{p.get('from')}→{p.get('to')}" for p in health.get("packages") or []}
+    missing = [c for c in JA_FR_CODES if c not in installed]
+    if not missing:
+        return None
+    return _new_job(user, f"{JA_FR_LABEL} : " + ", ".join(missing), [INDEX_PREFIX + c for c in missing])
 
 
 def _pair(code):
@@ -212,11 +289,34 @@ def run_package_job(job_id):
     if job.failed_items:
         job.error_summary = f"{job.failed_items} paquet(s) non installé(s) : voir le détail."
     job.save(update_fields=["status", "done_items", "failed_items", "finished_at", "heartbeat_at", "error_summary"])
+    check = None
     if job.done_items:
         # 2.0.0 : test de démarrage — traduction d'une phrase fictive, résultat sur la page « État ».
         from .argos_selftest import run_selftest
 
-        run_selftest()
+        check = run_selftest()
+    _notify_end(job, check)
+
+
+def _notify_end(job, check):
+    """2.0.0 (lot 7) : fenêtre de notification à la fin d'une installation (réussite, essai ou échec)."""
+    if job.user_id is None:
+        return
+    from django.urls import reverse
+
+    from apps.notifications.services import notify
+
+    link = reverse("translation:local_engines")
+    label = job.scope_label.split(" : ")[0]
+    if job.status == "failed":
+        notify(job.user, "task_errors", f"Échec : {label}"[:200], body=job.error_summary, link=link,
+               severity="error", group_key=f"argos:{job.pk}:end")
+    elif check is not None and not check.ok:
+        notify(job.user, "task_errors", f"Paquets installés, mais l'essai a échoué : {label}"[:200],
+               body=check.message, link=link, severity="error", group_key=f"argos:{job.pk}:end")
+    else:
+        notify(job.user, "task_done", f"Terminé : {label}"[:200], body=check.message if check else "",
+               link=link, severity="success", group_key=f"argos:{job.pk}:end")
 
 
 def run_safely(job_id):

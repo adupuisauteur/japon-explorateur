@@ -1,12 +1,16 @@
 """Traduction → Moteurs locaux : état du service Argos et gestion de ses paquets de langues (lot 9)."""
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from apps.core.audit import log_action
 from apps.core.permissions import admin_required, researcher_required
 
+from apps.core.models import ServiceCheck
+
 from .. import argos_packages as A
+from ..argos_selftest import CHECK_NAME
 from ..engines.base import TranslationEngineError
 from ..models import TranslationJob
 
@@ -19,7 +23,36 @@ def local_engines(request):
         "health": health, "problem": problem, "needed": A.needed_status(health),
         "jobs": [(j, A.is_stale(j)) for j in jobs], "can_manage": request.user.is_admin_role,
         "running": any(j.status in ("confirmed", "running") and not A.is_stale(j) for j in jobs),
+        "invite": A.invite(request.user, health, problem), "memory_warning": A.memory_warning(health),
+        "selftest": ServiceCheck.objects.filter(name=CHECK_NAME).first(),
     })
+
+
+@admin_required
+@require_POST
+def argos_install_ja_fr(request):
+    """Bouton unique (2.0.0, lot 7) : paquets ja→en et en→fr, après affichage de la taille et confirmation."""
+    if not request.POST.get("confirm"):
+        messages.error(request, f"Cochez la case de confirmation : les paquets ({A.JA_FR_SIZE}) seront "
+                                "téléchargés depuis Internet.")
+        return redirect("translation:local_engines")
+    try:
+        job = A.prepare_ja_fr(request.user)
+    except A.PackageError as exc:
+        messages.error(request, str(exc))
+        return redirect("translation:local_engines")
+    if job is None:
+        from ..argos_selftest import run_selftest
+
+        check = run_selftest()
+        (messages.success if check.ok else messages.error)(
+            request, f"La traduction japonais → français est déjà installée. Essai : {check.message}")
+        return redirect("translation:local_engines")
+    log_action(request, "translation.argos_download", job, job.scope_label)
+    A.dispatch(job)
+    messages.success(request, "Installation lancée : suivez la progression ci-dessous. Une traduction d'essai "
+                              "sera faite à la fin ; vous pouvez continuer à travailler en attendant.")
+    return redirect(reverse("translation:local_engines") + "#argos-jobs")
 
 
 @admin_required

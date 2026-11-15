@@ -17,6 +17,7 @@
   <button class="btn btn-sm btn-outline-secondary">Filtrer</button>
 </form>
 
+{% include "translation/_argos_invite.html" with invite=argos_invite place="atelier" %}
 <form method="post" action="{% url 'translation:document_bulk' document.pk %}">{% csrf_token %}
 {% if can_edit %}
 <div class="d-flex flex-wrap gap-2 align-items-center mb-2 card-soft py-2">

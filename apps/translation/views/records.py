@@ -23,6 +23,7 @@ from apps.core.permissions import admin_required, researcher_required
 from apps.core.redirects import safe_next
 
 from .. import services
+from ..argos_packages import invite_for_choice
 
 DEFAULT_FIELDS = ("original_title", "description_original")
 
@@ -68,7 +69,7 @@ def records_prepare(request):
         defaults = fields or defaults
     return render(request, "translation/records_prepare.html", {
         "records": records, "ids": ",".join(r.record_id for r in records), "fields": services.RECORD_FIELDS,
-        "selected": defaults, "engines": _engine_options(request.user),
+        "selected": defaults, "engines": _engine_options(request.user), "argos_invite": invite_for_choice(request.user),
         "kanbun": [r for r in records if r.language == "lzh"],
     })
 
@@ -93,7 +94,7 @@ def record_translations(request, record_id):
 
     bulk, bulk_skipped = plan_bulk_validation(list(proposals.select_related("record")))
     return render(request, "translation/record_translations.html", {
-        "record": record, "rows": rows, "engines": _engine_options(request.user),
+        "record": record, "rows": rows, "engines": _engine_options(request.user), "argos_invite": invite_for_choice(request.user),
         "bulk": bulk, "bulk_skipped": bulk_skipped,
         "kanbun": record.language == "lzh",
         "my_projects": TranslationProject.objects.filter(owner=request.user).order_by("title"),

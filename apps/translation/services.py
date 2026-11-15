@@ -224,9 +224,15 @@ def summary(job):
     cost = estimate(job.engine, job.chars_estimated, ai_provider=job.ai_provider, ai_model=job.ai_model,
                     batches=max(1, math.ceil(counts["pending"] / max(engine.max_items, 1))))
     setting = EngineSetting.objects.filter(user=job.user, engine=job.engine).first()
+    problems = blocking_problems(job)
+    argos_invite = None
+    if job.engine == "argos" and problems:  # 2.0.0 (lot 7) : première traduction avec Argos
+        from .argos_packages import invite
+
+        argos_invite = invite(job.user)
     return {"engine": engine, "status": engine.status(), "counts": counts, "cost": cost,
-            "quota": (setting.quota_info if setting else {}) or {}, "problems": blocking_problems(job),
-            "glossary": _bundle(job), "terms": _terms_needed(job)}
+            "quota": (setting.quota_info if setting else {}) or {}, "problems": problems,
+            "glossary": _bundle(job), "terms": _terms_needed(job), "argos_invite": argos_invite}
 
 
 def _terms_needed(job):
@@ -578,6 +584,8 @@ def _bundle(job):
 def _translate(job, engine, chunk, variety, bundle=None):
     segments = [Segment(str(i.pk), _source_text(i)) for i in chunk]
     source, target = (job.project.source_lang, job.project.target_lang) if job.project_id else ("ja", "fr")
+    if hasattr(engine, "priority"):  # Argos (2.0.0, lot 7) : une petite tâche passe avant un long document
+        engine.priority = "now" if job.total_items <= settings.TRANSLATION_ARGOS_NOW_MAX_ITEMS else "background"
     return engine.translate(segments, source, target, glossary=bundle, variety=variety, context=_context(job, chunk))
 
 

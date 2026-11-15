@@ -180,8 +180,22 @@ class VerifyScriptRunTests(SimpleTestCase):
     def test_argos_running_without_the_profile_line_is_flagged(self):
         """15 novembre 2026, poste de l'utilisateur : Argos en service mais « non activé » d'après .env."""
         result = self.run_script(argos=1)
-        self.assertIn("[À surveiller] Argos : en service, mais COMPOSE_PROFILES=hors-ligne manque dans .env",
+        self.assertIn("[À surveiller] Argos : en service, mais COMPOSE_PROFILES=argos manque dans .env",
                       result.stdout)
+
+    def test_argos_is_standard_since_200(self):
+        """Lot 7 : sans la ligne, Argos est signalé ; ligne vide = désactivé volontairement ; ligne présente =
+        conteneur attendu."""
+        result = self.run_script()
+        self.assertIn("[À surveiller] Argos : non démarré : la ligne COMPOSE_PROFILES=argos manque dans .env",
+                      result.stdout)
+        self.write_env(COMPOSE_PROFILES="")
+        self.assertIn("[Non vérifié] Argos : désactivé volontairement", self.run_script().stdout)
+        for value in ("argos", "hors-ligne"):
+            self.write_env(COMPOSE_PROFILES=value)
+            result = self.run_script()
+            self.assertIn("[Problème] Conteneurs : arrêtés : argos", result.stdout)
+            self.assertIn("[OK] Conteneurs : en service", self.run_script(argos=1).stdout)
 
     def test_docker_not_running(self):
         result = self.run_script(docker_info=1)

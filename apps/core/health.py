@@ -168,16 +168,22 @@ def check_argos():
     except Exception as exc:  # noqa: BLE001
         return Check("argos", "Argos (traduction hors ligne)", WARNING,
                      f"Service injoignable ({str(exc).rstrip('.')})",
-                     details + ["Service facultatif : démarré avec le profil Docker « hors-ligne » en 2.0.0."])
+                     details + ["Le service démarre avec J-ed si la ligne COMPOSE_PROFILES=argos figure dans .env "
+                                "(laissée vide, elle le désactive volontairement)."])
     packages = health.get("packages") or []
     listed = ", ".join(f"{p.get('from')}→{p.get('to')} {p.get('version', '?')}"
                        + ("" if p.get("sbd_ready", True) else " (modèle de découpage manquant)") for p in packages)
     details.insert(0, f"Argos {health.get('argos_version', '?')} ; paquets : {listed or 'aucun'}")
     if health.get("busy"):
         details.append("Installation de paquet en cours.")
+    from apps.translation.argos_packages import memory_warning
+
+    if memory_warning(health):
+        details.append(memory_warning(health))
     if _path("ja", "fr", packages) is None:
         return Check("argos", "Argos (traduction hors ligne)", WARNING,
-                     "En service, mais la traduction japonais → français n'est pas installée", details)
+                     "En service, mais la traduction japonais → français n'est pas installée", details
+                     + ["Bouton « Installer la traduction japonais → français » : Traduction → Moteurs locaux."])
     if selftest and not selftest.ok:
         return Check("argos", "Argos (traduction hors ligne)", ERROR, "Traduction d'essai en échec", details)
     return Check("argos", "Argos (traduction hors ligne)", OK if selftest else UNKNOWN,

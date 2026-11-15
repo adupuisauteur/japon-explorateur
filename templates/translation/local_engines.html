@@ -3,11 +3,16 @@
 {% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item"><a href="{% url 'translation:engines' %}">Moteurs</a></li><li class="breadcrumb-item active">Moteurs locaux</li></ol></nav>{% endblock %}
 {% block content %}
 <div class="page-head"><div><h1><i class="bi bi-box-seam"></i> Moteurs locaux — Argos Translate</h1>
-  <p>Argos Translate traduit sur votre ordinateur, sans Internet. Il fonctionne dans un service Docker facultatif, démarré par
-  <code>docker compose --profile hors-ligne up -d --build</code>. Ses paquets de langues sont téléchargés <strong>seulement si vous le décidez</strong>, ou installés depuis un fichier.</p></div></div>
+  <p>Argos Translate traduit sur votre ordinateur, sans Internet. Son service démarre avec J-ed (installation standard).
+  Ses paquets de langues ne sont pas livrés : ils sont téléchargés <strong>seulement si vous le décidez</strong>, en un clic, ou installés depuis un fichier.</p></div></div>
+
+{% include "translation/_argos_invite.html" with place="locaux" %}
 
 <section class="card-soft mb-3"><h2 class="h5">Service</h2>
 {% if health %}<p class="mb-1"><span class="badge text-bg-success">En service</span> Argos Translate {{ health.argos_version }}{% if health.busy %} · <span class="text-warning">installation en cours</span>{% endif %}</p>
+{% if health.memory.total_mb %}<p class="small text-muted mb-1">Mémoire vue par le service : {{ health.memory.total_mb|floatformat:0 }} Mo{% if health.memory.limit_mb %}, limite du service {{ health.memory.limit_mb|floatformat:0 }} Mo{% endif %}{% if health.memory.available_mb %}, dont {{ health.memory.available_mb|floatformat:0 }} Mo disponibles{% endif %}.</p>{% endif %}
+{% if memory_warning %}<div class="alert alert-warning small py-2 mb-1" role="status">{{ memory_warning }}</div>{% endif %}
+{% if selftest %}<p class="small mb-1">Dernier essai ({{ selftest.checked_at|date:"d/m/Y H:i" }}) : {% if selftest.ok %}<span class="text-success"><i class="bi bi-check-circle" aria-hidden="true"></i> {{ selftest.message }}</span>{% if selftest.data.translation %}<span class="text-muted"> — phrase fictive « {{ selftest.data.sentence }} » → « {{ selftest.data.translation }} »</span>{% endif %}{% else %}<span class="text-danger">{{ selftest.message }}</span>{% endif %}</p>{% endif %}
 {% else %}<p class="mb-1"><span class="badge text-bg-warning">Indisponible</span> {{ problem }}</p>
 <p class="small text-muted mb-0">Tant que le service et ses paquets ne sont pas installés, aucune traduction Argos n'est possible : elle est refusée ou interrompue, jamais simulée. Pour une démonstration sans traduction réelle, l'administrateur peut activer le <strong>mode démonstration</strong> (Administration → Paramètres) : chaque résultat porte alors la mention « Simulation ».</p>{% endif %}
 </section>
@@ -38,6 +43,12 @@
     <button class="btn btn-sm btn-outline-primary text-nowrap" {% if not health %}disabled{% endif %}>Installer</button></form>
 </section>
 {% else %}<p class="small text-muted">Les paquets sont communs à toute l'installation : seul un administrateur peut les télécharger, les installer ou les désinstaller.</p>{% endif %}
+
+<section class="card-soft mb-3"><h2 class="h5">Licences</h2>
+  <p class="small mb-1"><strong>Argos Translate</strong> (programme) : au choix, licence MIT ou Creative Commons CC0 (dépôt du projet, <a href="https://github.com/argosopentech/argos-translate" rel="noopener" target="_blank">github.com/argosopentech/argos-translate</a>).</p>
+  <p class="small mb-1"><strong>Paquets de langues</strong> : chaque paquet a sa propre licence. Les paquets de l'index Argos sont entraînés principalement sur les corpus du projet OPUS ; la liste et les liens de téléchargement sont publiés dans <a href="https://github.com/argosopentech/argospm-index" rel="noopener" target="_blank">github.com/argosopentech/argospm-index</a>.</p>
+  {% if health.packages %}<ul class="small mb-0">{% for p in health.packages %}<li>{{ p.from }}→{{ p.to }} v{{ p.version }} : {% if p.license %}licence déclarée par le paquet : {{ p.license }}{% else %}<span class="text-muted">le paquet ne déclare pas de licence dans ses métadonnées ; consultez l'index Argos</span>{% endif %}</li>{% endfor %}</ul>{% endif %}
+</section>
 
 <section id="argos-jobs" class="mb-3" {% if running %}hx-get="{% url 'translation:local_engines' %}" hx-trigger="every 5s" data-pause-hidden hx-select="#argos-jobs" hx-swap="outerHTML"{% endif %}>
 <h2 class="h5">Installations récentes</h2>

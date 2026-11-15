@@ -109,14 +109,31 @@ class UpdateScriptRunTests(SimpleTestCase):
     def test_argos_is_restarted_when_it_was_running(self):
         result = self.run_script(argos=1)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertTrue(any("compose --profile hors-ligne up -d --build" in c for c in self.calls))
+        # 2.0.0 (lot 7) : le fichier .env décide des services démarrés ; plus d'option --profile.
+        self.assertTrue(any(c.endswith("compose up -d --build") for c in self.calls))
+        self.assertFalse(any("--profile" in c for c in self.calls))
         env = (self.destination() / ".env").read_text(encoding="utf-8-sig")
-        self.assertIn("COMPOSE_PROFILES=hors-ligne", env, "Argos redémarrera aussi avec un simple up -d")
+        self.assertIn("COMPOSE_PROFILES=argos", env, "Argos redémarrera aussi avec un simple up -d")
 
-    def test_profiles_line_is_not_added_without_argos(self):
+    def test_argos_becomes_standard_when_the_line_is_missing(self):
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertNotIn("COMPOSE_PROFILES", (self.destination() / ".env").read_text(encoding="utf-8-sig"))
+        env = (self.destination() / ".env").read_text(encoding="utf-8-sig")
+        self.assertIn("\nCOMPOSE_PROFILES=argos\n", env)
+        self.assertIn("ligne COMPOSE_PROFILES=argos ajoutée", result.stdout)
+
+    def test_existing_profiles_line_is_respected(self):
+        for line, message in (("COMPOSE_PROFILES=hors-ligne", ""), ("COMPOSE_PROFILES=", "Argos reste désactivé")):
+            with self.subTest(line=line):
+                shutil.rmtree(self.destination(), ignore_errors=True)
+                self.write_env(f"COMPOSE_PROJECT_NAME=jed-essai\nWEB_PORT=8000\nPOSTGRES_PASSWORD=fictif\n{line}\n")
+                result = self.run_script()
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                env = (self.destination() / ".env").read_text(encoding="utf-8-sig")
+                self.assertEqual(env.count("COMPOSE_PROFILES"), 1, "ligne existante jamais modifiée ni doublée")
+                self.assertIn(line, env)
+                if message:
+                    self.assertIn(message, result.stdout)
 
     def test_wrong_hash_stops_before_anything(self):
         self.archive = self.make_archive("2.0.0", corrupt_hash=True)

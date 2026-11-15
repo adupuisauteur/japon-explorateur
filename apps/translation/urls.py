@@ -12,6 +12,7 @@ urlpatterns = [
     path("moteurs/choix/", engines.preferences_save, name="preferences_save"),
     path("moteurs/locaux/", local_engines.local_engines, name="local_engines"),
     path("moteurs/locaux/index/", local_engines.argos_index, name="argos_index"),
+    path("moteurs/locaux/japonais-francais/", local_engines.argos_install_ja_fr, name="argos_install_ja_fr"),
     path("moteurs/locaux/telecharger/", local_engines.argos_install, name="argos_install"),
     path("moteurs/locaux/fichier/", local_engines.argos_install_file, name="argos_install_file"),
     path("moteurs/locaux/decoupage/", local_engines.argos_install_sbd, name="argos_install_sbd"),

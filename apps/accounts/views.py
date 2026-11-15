@@ -99,8 +99,27 @@ def first_run(request):
         log_action(request, "setup.completed", user, "Première configuration effectuée")
         messages.success(request, "Bienvenue ! Les sources ont été répertoriées. Étape suivante conseillée : "
                                   "importer l'inventaire CODH et votre classeur documentaire.")
+        if form.cleaned_data.get("install_argos"):
+            _first_run_argos(request, user)
         return redirect("updates:import_new")
     return render(request, "accounts/first_run.html", {"form": form})
+
+
+def _first_run_argos(request, user):
+    """2.0.0 (lot 7) : installation de la traduction japonais → français choisie dans l'assistant."""
+    from apps.translation import argos_packages as A
+
+    try:
+        job = A.prepare_ja_fr(user)
+    except A.PackageError as exc:
+        messages.warning(request, f"Traduction hors ligne non installée pour l'instant : {exc} Vous pourrez "
+                                  "l'installer plus tard dans Traduction → Moteurs locaux.")
+        return
+    if job is not None:
+        log_action(request, "translation.argos_download", job, job.scope_label)
+        transaction.on_commit(lambda: A.dispatch(job))
+        messages.info(request, "Installation de la traduction japonais → français lancée en arrière-plan : une "
+                               "fenêtre vous préviendra à la fin (suivi dans Traduction → Moteurs locaux).")
 
 
 @login_required

@@ -5,6 +5,21 @@
 Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquette `v1.3.0-rc3` (commit
 `d7296d4`). Audit et plan : `docs/evolution-2.0.0/01-audit.md`.
 
+- **Lot 7 — Argos installé par défaut** (15 novembre 2026, rapport : `docs/evolution-2.0.0/rapport-lot-7.md`) :
+  - le service Argos démarre avec J-ed (ligne `COMPOSE_PROFILES=argos` de `.env.example`, ajoutée par
+    `mettre-a-jour.ps1` si elle manque) ; laissée vide, la ligne le désactive (poste à mémoire limitée) ; l'ancien
+    profil `hors-ligne` reste accepté ; `verifier-j-ed.ps1` signale une ligne manquante ;
+  - bouton unique « Installer la traduction japonais → français » : paquets ja→en et en→fr (environ 200 Mo)
+    après confirmation, dans une seule tâche suivie et reprenable ; Argos activé dans les moteurs ; traduction
+    d'essai à la fin (« Argos prêt » ou l'erreur précise) et fenêtre de notification ;
+  - invitations là où on en a besoin : Traduction → Moteurs, Moteurs locaux, préparation d'une traduction
+    (notices, atelier d'un document) et écran de confirmation quand Argos est choisi, assistant de première
+    configuration (case décochée : « plus tard » par défaut) ;
+  - priorité dans le service : une petite tâche (20 éléments au plus) passe avant les paquets d'un long document
+    en attente ; elle attend au plus la fin du paquet en cours ;
+  - limites facultatives de cœurs et de mémoire (`ARGOS_COEURS`, `ARGOS_MEMOIRE_MAX`) ; mémoire vue par le
+    service affichée, avec un avertissement en dessous de 4 Go ;
+  - licences citées (Argos Translate, paquets de langues ; licence déclarée par chaque paquet quand il en a une).
 - **Lot 8 — choix du modèle d'IA dans une liste** (15 novembre 2026, rapport :
   `docs/evolution-2.0.0/rapport-lot-8.md`) :
   - liste déroulante des modèles du fournisseur choisi, mise à jour sans recharger la page quand on change de

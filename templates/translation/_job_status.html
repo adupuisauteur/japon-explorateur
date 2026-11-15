@@ -17,6 +17,7 @@
     </dl>
     {% if summary.problems %}
       <div class="alert alert-danger"><strong>Envoi impossible :</strong><ul class="mb-0">{% for p in summary.problems %}<li>{{ p }}</li>{% endfor %}</ul></div>
+      {% include "translation/_argos_invite.html" with invite=summary.argos_invite place="tache" %}
     {% endif %}
     {% if summary.terms %}{% include "translation/_terms.html" with t=summary.terms %}{% endif %}
     <form method="post" action="{% url 'translation:job_action' job.pk %}" class="d-flex flex-wrap gap-2 align-items-center">{% csrf_token %}

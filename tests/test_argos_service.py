@@ -650,6 +650,25 @@ class DeliveryTests(SimpleTestCase):
         self.assertNotIn("argos", config["services"])
         self.assertEqual(config["services"]["web"]["environment"]["TRANSLATION_ARGOS_URL"], "http://argos:5000")
 
+    def test_argos_starts_by_default_with_the_example_env(self):
+        """Lot 7 : la ligne COMPOSE_PROFILES=argos de .env.example démarre Argos sans option ; vide, elle le
+        désactive ; l'ancien profil « hors-ligne » reste accepté. Limites de cœurs et de mémoire facultatives."""
+        example = "".join(l + "\n" for l in read(".env.example").splitlines()
+                          if l and not l.startswith("#") and not l.startswith("POSTGRES_PASSWORD"))
+        self.assertIn("COMPOSE_PROFILES=argos\n", example)
+        config = self.compose_config(env_text=example + self.NEW_INSTALL)
+        argos = config["services"]["argos"]
+        self.assertIsNone(argos.get("cpus"))  # 0 = sans limite
+        self.assertIsNone(argos.get("mem_limit"))
+        self.assertEqual(argos["environment"]["ARGOS_INTRA_THREADS"], "0")
+        self.assertNotIn("argos", self.compose_config(env_text=self.NEW_INSTALL + "COMPOSE_PROFILES=\n")["services"])
+        self.assertIn("argos", self.compose_config(env_text=self.NEW_INSTALL + "COMPOSE_PROFILES=hors-ligne\n")["services"])
+        limited = self.compose_config(env_text=self.NEW_INSTALL + "COMPOSE_PROFILES=argos\nARGOS_COEURS=4\n"
+                                                                  "ARGOS_MEMOIRE_MAX=4g\n")["services"]["argos"]
+        self.assertEqual(limited["cpus"], 4)
+        self.assertEqual(limited["mem_limit"], str(4 * 1024 ** 3))
+        self.assertEqual(limited["environment"]["ARGOS_INTRA_THREADS"], "4")
+
     def test_compose_with_profile_argos_is_internal_only(self):
         config = self.compose_config("hors-ligne", env_text=self.NEW_INSTALL)
         argos = config["services"]["argos"]

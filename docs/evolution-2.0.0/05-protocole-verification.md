@@ -234,6 +234,37 @@ recoche ensuite la case.
 **V5-6 — Onglet masqué.** Ouvre J-ed, passe à un autre onglet pendant une minute, puis reviens. Attendu : aucune
 anomalie ; une notification arrivée entre-temps s'affiche au retour sur l'onglet.
 
+## Lot 7 — Argos installé par défaut
+
+Sur l'essai mis à jour avec l'archive du lot 7. Recharge une fois avec Ctrl + F5.
+
+**V7-1 — Ligne de démarrage.** Ouvre le `.env` du nouveau dossier (`notepad .env`). Attendu : ta ligne
+`COMPOSE_PROFILES=hors-ligne` est conservée telle quelle, sans doublon (sur une installation qui n'avait pas la
+ligne, le script ajoute `COMPOSE_PROFILES=argos`). `verifier-j-ed.ps1` : Argos et ses conteneurs « OK ».
+
+**V7-2 — Bouton unique (paquets absents).** Sur un essai sans paquets (par exemple après une réinitialisation
+`-Complet`, ou une désinstallation des deux paquets dans Moteurs locaux), Traduction → Moteurs locaux : l'encadré
+« Traduction hors ligne japonais → français » annonce environ 200 Mo. Coche la case, clique sur « Installer la
+traduction japonais → français ». Attendu : progression dans « Installations récentes » ; à la fin, une fenêtre
+« Terminé » et, dans « Service », « Dernier essai : Argos prêt » avec la phrase fictive. Note la durée.
+
+**V7-3 — Paquets déjà installés.** Clique de nouveau sur le bouton (s'il est affiché) ou vérifie qu'il ne l'est
+plus. Attendu : aucun nouveau téléchargement.
+
+**V7-4 — Invitations.** Désinstalle un paquet, puis ouvre Traduction → Moteurs (carte Argos) et prépare la
+traduction d'une notice avec Argos. Attendu : l'invitation apparaît aux deux endroits. Réinstalle ensuite le
+paquet avec le bouton.
+
+**V7-5 — Priorité.** Lance la traduction d'un long document avec Argos (plus de 20 segments), puis, pendant
+qu'elle tourne, la traduction d'une notice. Attendu : la notice est traduite sans attendre la fin du document.
+
+**V7-6 — Mémoire et licences.** Moteurs locaux : la mémoire vue par le service s'affiche (environ 7,6 Go chez toi,
+sans avertissement) ; la section « Licences » est présente.
+
+**V7-7 — Taille et mémoire réelles (à noter).** `docker image ls japon-explorateur-argos` (taille) et
+`docker stats --no-stream` pendant une traduction (mémoire du conteneur argos). Ces chiffres serviront à la
+décision D8 (lot 3).
+
 ## Lot 8 — choix du modèle d'IA
 
 Avec tes vraies clés, sur l'essai mis à jour. Recharge une fois avec Ctrl + F5.
@@ -287,6 +318,13 @@ fiche d'un projet de traduction et Traduction → Évaluation.
 | V5-4 Absence | | |
 | V5-5 Préférences | | |
 | V5-6 Onglet masqué | | |
+| V7-1 Ligne de démarrage | | |
+| V7-2 Bouton unique | | |
+| V7-3 Paquets déjà installés | | |
+| V7-4 Invitations | | |
+| V7-5 Priorité | | |
+| V7-6 Mémoire et licences | | |
+| V7-7 Taille et mémoire réelles | | |
 | V8-1 Liste des modèles | | |
 | V8-2 Actualiser | | |
 | V8-3 Choisir et enregistrer | | |

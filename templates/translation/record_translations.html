@@ -6,6 +6,7 @@
 <div class="page-head"><div><h1>{{ record.original_title }}</h1>
   <p><a href="{{ record.get_absolute_url }}">Voir la fiche</a> · {{ record.catalogue.name }}{% if kanbun %} · <span class="badge text-bg-info">kanbun</span>{% endif %}</p></div></div>
 
+{% include "translation/_argos_invite.html" with invite=argos_invite place="choix" %}
 <form method="post" action="{% url 'translation:records_prepare' %}" class="card-soft mb-4">{% csrf_token %}
   <input type="hidden" name="records" value="{{ record.record_id }}">
   <h2 class="h6">Nouvelle traduction</h2>

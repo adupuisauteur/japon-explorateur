@@ -6,6 +6,7 @@
   <p>Étape 1 sur 2 : préparation. Rien n'est envoyé avant votre confirmation sur l'écran suivant. Les traductions sont
   <strong>proposées</strong> ; elles n'entrent dans la fiche qu'une fois validées par un administrateur.</p></div></div>
 {% if records %}
+{% include "translation/_argos_invite.html" with invite=argos_invite place="choix" %}
 <form method="post" class="card-soft mb-3">{% csrf_token %}<input type="hidden" name="records" value="{{ ids }}">
   <fieldset class="mb-3"><legend class="h6">Champs à traduire</legend>
   {% for code, label in fields.items %}<div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="fields" value="{{ code }}" id="f-{{ code }}" {% if code in selected %}checked{% endif %}>

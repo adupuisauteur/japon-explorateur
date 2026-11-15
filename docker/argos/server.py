@@ -2,11 +2,15 @@
 Service Argos Translate de J-ed (version 2.0.0 ; service créé en 1.3.0, décision A1).
 
 Serveur HTTP interne (bibliothèque standard de Python), joignable seulement sur le réseau Docker du
-projet : AUCUN port n'est publié. Il n'est démarré qu'avec le profil Docker « hors-ligne ».
+projet : AUCUN port n'est publié. Depuis la 2.0.0 (lot 7), il démarre avec J-ed (profil « argos », activé par
+COMPOSE_PROFILES=argos dans .env ; l'ancien profil « hors-ligne » reste accepté).
 
 Points d'accès (JSON) :
-  GET  /health        → {"argos_version", "packages": [{"from", "to", "version", "name"}], "busy"}
-  POST /translate     {"texts": […], "source": "ja", "target": "fr"} → {"translations": […], "path": [...]}
+  GET  /health        → {"argos_version", "packages": [{"from", "to", "version", "name", "license"}], "busy",
+                         "memory": {"total_mb", "available_mb", "limit_mb"}, "queue": {"running", "waiting_now",
+                         "waiting_background"}}
+  POST /translate     {"texts": […], "source": "ja", "target": "fr", "priority": "now" | "background"}
+                      → {"translations": […], "path": [...]}
   POST /index         consulte l'index des paquets Argos (INTERNET) → {"packages": [{"from", "to", "version",
                       "name", "size"}]} ; seulement sur action de l'utilisateur dans l'application
   POST /install       {"from": "ja", "to": "en"} : télécharge depuis l'index (INTERNET) et installe
@@ -21,7 +25,11 @@ Règles :
 - le journal du serveur ne contient jamais de texte (ni original, ni traduction) : méthode, chemin,
   code de réponse et durée seulement ;
 - une seule installation à la fois (réponse 409 sinon) ;
-- langues limitées à celles du module (japonais, anglais, français).
+- langues limitées à celles du module (japonais, anglais, français) ;
+- 2.0.0 (lot 7) : une traduction à la fois. Une demande « now » (petite demande faite pendant qu'on travaille)
+  passe avant les demandes « background » en attente (paquets d'un long document) : elle attend au plus la fin
+  du paquet en cours. Le calcul utilise de toute façon tous les cœurs accordés : deux traductions simultanées
+  n'iraient pas plus vite.
 
 Fonctionnement hors ligne (vérifié dans le code source d'argostranslate 1.11.0, stanza 1.10.1 et
 minisbd 0.9.5, le 14 novembre 2026) : le découpage en phrases d'Argos peut, à la première traduction,
@@ -45,6 +53,7 @@ import sys
 import threading
 import time
 import traceback
+from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -296,12 +305,28 @@ class ArgosBackend:
     def _installed_packages(self, package):
         return [p for p in package.get_installed_packages() if getattr(p, "type", "translate") == "translate"]
 
+    @staticmethod
+    def _license(pkg):
+        """Licence déclarée par le paquet lui-même (metadata.json), ou '' si le paquet n'en déclare pas."""
+        path = getattr(pkg, "package_path", None)
+        if not path:
+            return ""
+        try:
+            data = json.loads((Path(path) / "metadata.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return ""
+        if not isinstance(data, dict):
+            return ""
+        value = data.get("license") or data.get("licence") or ""
+        return value[:120] if isinstance(value, str) else ""
+
     def installed(self):
         package, _ = self._lib()
         out = []
         for p in self._installed_packages(package):
             item = self._describe(p)
             item["sbd_ready"] = not self._sbd_model(p)
+            item["license"] = self._license(p)
             out.append(item)
         return out
 
@@ -390,6 +415,79 @@ def _version_key(value):
         return (0, str(value))
 
 
+# --------------------------------------------------------------------------- priorité (2.0.0, lot 7)
+
+PRIORITIES = ("now", "background")
+
+
+class PriorityGate:
+    """Une traduction à la fois ; les demandes « now » passent avant les demandes « background » en attente."""
+
+    def __init__(self):
+        self._cond = threading.Condition()
+        self._running = False
+        self._waiting = {"now": 0, "background": 0}
+
+    @contextmanager
+    def slot(self, priority):
+        priority = priority if priority in PRIORITIES else "background"
+        with self._cond:
+            self._waiting[priority] += 1
+            try:
+                while self._running or (priority == "background" and self._waiting["now"]):
+                    self._cond.wait()
+            finally:
+                self._waiting[priority] -= 1
+            self._running = True
+        try:
+            yield
+        finally:
+            with self._cond:
+                self._running = False
+                self._cond.notify_all()
+
+    def state(self):
+        with self._cond:
+            return {"running": self._running, "waiting_now": self._waiting["now"],
+                    "waiting_background": self._waiting["background"]}
+
+
+# --------------------------------------------------------------------------- mémoire (2.0.0, lot 7)
+
+
+def _read_int(path):
+    try:
+        raw = Path(path).read_text(encoding="ascii").strip()
+    except (OSError, UnicodeDecodeError):
+        return None
+    return int(raw) if raw.isdigit() else None  # « max » (cgroup v2) = sans limite
+
+
+def memory_state(proc_meminfo="/proc/meminfo", cgroup_dirs=("/sys/fs/cgroup", "/sys/fs/cgroup/memory")):
+    """Mémoire vue par le service, en Mo : totale (machine virtuelle de Docker), disponible, limite du conteneur."""
+    info = {}
+    try:
+        for line in Path(proc_meminfo).read_text(encoding="ascii").splitlines():
+            key, _, rest = line.partition(":")
+            if key in ("MemTotal", "MemAvailable"):
+                info[key] = int(rest.split()[0]) // 1024
+    except (OSError, ValueError, IndexError):
+        pass
+    limit = None
+    for directory in cgroup_dirs:
+        for name in ("memory.max", "memory.limit_in_bytes"):
+            value = _read_int(Path(directory) / name)
+            if value:
+                limit = value // (1024 * 1024)
+                break
+        if limit:
+            break
+    total = info.get("MemTotal")
+    if limit and total and limit >= total:
+        limit = None  # « limite » cgroup v1 sans valeur réelle (très grand nombre)
+    return {"total_mb": total, "available_mb": info.get("MemAvailable"), "limit_mb": limit}
+
+
 # --------------------------------------------------------------------------- service
 
 
@@ -397,10 +495,12 @@ class Service:
     def __init__(self, backend):
         self.backend = backend
         self.install_lock = threading.Lock()
+        self.gate = PriorityGate()
 
     def health(self):
         return {"argos_version": self.backend.version(), "packages": self.backend.installed(),
-                "busy": self.install_lock.locked(), "sentence_split": SENTENCE_SPLIT_MODE}
+                "busy": self.install_lock.locked(), "sentence_split": SENTENCE_SPLIT_MODE,
+                "memory": memory_state(), "queue": self.gate.state()}
 
     def path(self, source, target):
         have = {(p["from"], p["to"]) for p in self.backend.installed()}
@@ -415,10 +515,14 @@ class Service:
         if not isinstance(texts, list) or not all(isinstance(t, str) for t in texts):
             raise ServiceError(400, "requete", "« texts » doit être une liste de textes.")
         _check_pair(source, target)
+        priority = body.get("priority", "background")
+        if priority not in PRIORITIES:
+            raise ServiceError(400, "requete", "« priority » doit valoir « now » ou « background ».")
         path = self.path(source, target)
-        out = texts
-        for a, b in zip(path, path[1:]):
-            out = self.backend.translate_step(out, a, b)
+        with self.gate.slot(priority):
+            out = texts
+            for a, b in zip(path, path[1:]):
+                out = self.backend.translate_step(out, a, b)
         return {"translations": out, "path": path}
 
     def _exclusive(self, func, *args):
