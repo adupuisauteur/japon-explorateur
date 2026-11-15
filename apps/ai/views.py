@@ -16,7 +16,7 @@ from . import services
 from .crypto import encrypt_secret, encryption_available
 from .models import FUNCTIONS, PROVIDERS, AIModelPrice, AIPreferenceProfile, AIProviderCredential, AITask
 from .preferences import activate_profile, active_profile
-from .providers import MAX_STORED_MODELS, ProviderError, get_provider
+from .providers import MAX_STORED_MODELS, ProviderError, get_provider, text_models
 from .urlsafety import UnsafeProviderURL, allowed_local_urls, check_provider_url
 
 OVERRIDABLE = ["translation", "summary", "classification", "duplicates", "query_extension", "extraction", "rag",
@@ -124,11 +124,11 @@ def provider_save(request, provider):
         return redirect("ai:providers")
     if action == "test":
         try:
-            models = get_provider(cred).list_models()
+            models = text_models(provider, get_provider(cred).list_models())
             cred.status = "ok"
             cred.available_models = models[:MAX_STORED_MODELS]
             cred.last_error = ""
-            messages.success(request, f"Connexion réussie : {len(models)} modèle(s) disponible(s).")
+            messages.success(request, f"Connexion réussie : {len(models)} modèle(s) de texte disponible(s).")
         except (ProviderError, ImproperlyConfigured) as exc:
             cred.status = "error"
             cred.last_error = str(exc)[:500]
@@ -281,3 +281,71 @@ def prices(request):
                 messages.error(request, f"Saisie invalide : {exc}")
         return redirect("ai:prices")
     return render(request, "ai/prices.html", {"prices": AIModelPrice.objects.all(), "providers": PROVIDERS})
+
+
+# --------------------------------------------------------------------------- 2.0.0, lot 8 : choix du modèle
+
+
+def _price_labels(provider):
+    prices = list(AIModelPrice.objects.filter(provider=provider))
+
+    def label(model_id):
+        candidates = [p for p in prices if model_id.startswith(p.model_prefix)]
+        if not candidates:
+            return ""
+        p = max(candidates, key=lambda c: len(c.model_prefix))
+        return (f"≈ {p.input_per_million.normalize():f} $ / {p.output_per_million.normalize():f} $ "
+                "par million de jetons")
+    return label
+
+
+def _picker_context(request, data, *, error=""):
+    provider_field = data.get("provider_field", "")
+    model_field = data.get("model_field", "")
+    provider = data.get(provider_field, "") if provider_field else ""
+    current = (data.get(model_field, "") if model_field else "").strip()
+    ctx = {"provider": provider, "current": current, "error": error, "model_id": data.get("model_id", ""),
+           "provider_id": data.get("provider_id", ""), "provider_field": provider_field, "model_field": model_field,
+           "provider_label": dict(PROVIDERS).get(provider, "")}
+    if provider not in dict(PROVIDERS):
+        ctx["provider"] = ""
+        return ctx
+    cred = AIProviderCredential.objects.filter(user=request.user, provider=provider).first()
+    ctx["credential"] = cred if cred and cred.is_configured else None
+    if ctx["credential"] is None:
+        return ctx
+    label = _price_labels(provider)
+    ids = text_models(provider, cred.available_models)
+    ctx["models"] = [{"id": m, "price": label(m)} for m in ids]
+    ctx["listed"] = current in ids
+    ctx["missing"] = bool(current) and bool(ids) and current not in ids
+    ctx["truncated"] = len(cred.available_models or []) >= MAX_STORED_MODELS
+    return ctx
+
+
+@researcher_required
+def model_picker(request):
+    """Liste déroulante des modèles du fournisseur choisi (fragment HTMX, sans appel au fournisseur)."""
+    return render(request, "ai/_model_picker.html", _picker_context(request, request.GET))
+
+
+@researcher_required
+@require_POST
+def model_refresh(request):
+    """« Actualiser la liste » : interroge le fournisseur avec la clé de l'utilisateur, sur son action seulement."""
+    provider = request.POST.get(request.POST.get("provider_field", ""), "")
+    error = ""
+    cred = AIProviderCredential.objects.filter(user=request.user, provider=provider).first()
+    if cred is not None and cred.is_configured:
+        try:
+            models = text_models(provider, get_provider(cred).list_models())
+            cred.status, cred.last_error = "ok", ""
+            cred.available_models = models[:MAX_STORED_MODELS]
+        except (ProviderError, ImproperlyConfigured) as exc:
+            # La liste précédente est conservée ; l'erreur est affichée, jamais masquée.
+            cred.status, cred.last_error = "error", str(exc)[:500]
+            error = f"Actualisation impossible : {exc}"
+        cred.last_tested_at = timezone.now()
+        cred.save()
+        log_action(request, "ai.models_refreshed", cred, cred.get_provider_display())
+    return render(request, "ai/_model_picker.html", _picker_context(request, request.POST, error=error))

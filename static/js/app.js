@@ -129,4 +129,33 @@
   document.addEventListener("visibilitychange", function () {
     if (!document.hidden) { document.body.dispatchEvent(new CustomEvent("jed:visible")); }
   });
+  // 2.0.0 (lot 8) : choix du modèle dans une liste. Le champ texte reste la valeur envoyée ; il ne s'affiche
+  // que pour « Autre modèle (saisie libre) » ou quand aucune liste n'est disponible.
+  function syncModelPicker(select) {
+    var input = document.querySelector(select.getAttribute("data-model-select"));
+    if (!input) { return; }
+    if (select.value === "__libre__") {
+      input.classList.remove("d-none");
+    } else {
+      if (select.value) { input.value = select.value; }
+      input.classList.add("d-none");
+    }
+  }
+  document.addEventListener("change", function (e) {
+    var select = e.target.closest && e.target.closest("[data-model-select]");
+    if (select) {
+      syncModelPicker(select);
+      if (select.value === "__libre__") {
+        var input = document.querySelector(select.getAttribute("data-model-select"));
+        if (input) { input.focus(); }
+      }
+    }
+  });
+  document.addEventListener("htmx:afterSettle", function (e) {
+    var root = e.detail && e.detail.target;
+    if (!root || !root.classList || !root.classList.contains("model-picker")) { return; }
+    var select = root.querySelector("[data-model-select]");
+    var input = document.getElementById(root.id.replace(/^mp-/, ""));
+    if (select) { syncModelPicker(select); } else if (input) { input.classList.remove("d-none"); }
+  });
 })();

@@ -1,0 +1,5 @@
+{# 2.0.0, lot 8 : liste des modèles du fournisseur choisi, sous le champ du modèle (qui reste la valeur envoyée). #}
+<div class="model-picker mt-1" id="mp-{{ model_id }}"
+     hx-get="{% url 'ai:model_picker' %}" hx-trigger="load, change from:#{{ provider_id }}"
+     hx-include="#{{ provider_id }}, #{{ model_id }}"
+     hx-vals='{"provider_field": "{{ provider_name }}", "model_field": "{{ model_name }}", "provider_id": "{{ provider_id }}", "model_id": "{{ model_id }}"}'></div>

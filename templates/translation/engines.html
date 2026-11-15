@@ -13,10 +13,10 @@
   <form method="post" action="{% url 'translation:preferences_save' %}" class="row g-2">{% csrf_token %}
     <div class="col-md-4">{{ pref_form.default_engine.label_tag }}{{ pref_form.default_engine }}</div>
     <div class="col-md-4">{{ pref_form.default_ai_provider.label_tag }}{{ pref_form.default_ai_provider }}</div>
-    <div class="col-md-4">{{ pref_form.default_ai_model.label_tag }}{{ pref_form.default_ai_model }}</div>
+    <div class="col-md-4">{{ pref_form.default_ai_model.label_tag }}{{ pref_form.default_ai_model }}{% include "partials/model_picker.html" with provider_id="id_default_ai_provider" provider_name="default_ai_provider" model_id="id_default_ai_model" model_name="default_ai_model" %}</div>
     <div class="col-md-4">{{ pref_form.second_engine.label_tag }}{{ pref_form.second_engine }}</div>
     <div class="col-md-4">{{ pref_form.second_ai_provider.label_tag }}{{ pref_form.second_ai_provider }}</div>
-    <div class="col-md-4">{{ pref_form.second_ai_model.label_tag }}{{ pref_form.second_ai_model }}</div>
+    <div class="col-md-4">{{ pref_form.second_ai_model.label_tag }}{{ pref_form.second_ai_model }}{% include "partials/model_picker.html" with provider_id="id_second_ai_provider" provider_name="second_ai_provider" model_id="id_second_ai_model" model_name="second_ai_model" %}</div>
     <div class="col-md-4">{{ pref_form.confirmation_threshold.label_tag }}{{ pref_form.confirmation_threshold }}</div>
     <div class="col-md-8 d-flex flex-column justify-content-end gap-1">
       <div class="form-check">{{ pref_form.send_neighbour_context }} <label class="form-check-label" for="{{ pref_form.send_neighbour_context.id_for_label }}">{{ pref_form.send_neighbour_context.label }}</label></div>

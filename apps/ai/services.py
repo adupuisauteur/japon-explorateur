@@ -159,7 +159,8 @@ def prepare_task(user, function, *, records=(), parameters=None, provider=None, 
     listed = credential.available_models or []
     # 2.0.0 : refus seulement si la liste est complète (une liste tronquée ne prouve pas l'absence du modèle).
     if listed and len(listed) < MAX_STORED_MODELS and chosen_model not in listed:
-        raise AIUnavailable(f"Le modèle « {chosen_model} » n'apparaît pas dans la liste du fournisseur.",
+        raise AIUnavailable(f"Le modèle « {chosen_model} » n'apparaît pas dans la liste du fournisseur. Si c'est un "
+                            "modèle récent, cliquez sur « Actualiser la liste » à côté du choix du modèle.",
                             reason="incompatible", alternatives=alternatives)
 
     spec = FUNCTION_SPECS[function]

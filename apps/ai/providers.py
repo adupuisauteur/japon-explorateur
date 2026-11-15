@@ -41,6 +41,31 @@ MAX_MODEL_PAGES = 20
 #: 2.0.0 : nombre maximal de modèles conservés avec la clé (300 en 1.3.0).
 MAX_STORED_MODELS = 2000
 
+# 2.0.0 (lot 8) : seuls les modèles utilisables pour du texte sont proposés (cahier § 9 ter). Les listes des
+# fournisseurs mêlent images, son, synthèse vocale, vectorisation et modération.
+NON_TEXT_MARKERS = {
+    "openai": ("dall-e", "gpt-image", "whisper", "tts", "embedding", "moderation", "transcribe", "audio",
+               "realtime", "sora", "babbage", "davinci"),
+    "openai_compatible": ("embed", "moderation", "whisper", "tts", "rerank", "transcribe", "dall-e", "stable-diffusion",
+                          "flux"),
+    "gemini": ("embedding", "imagen", "veo", "tts", "image-generation", "native-audio", "aqa"),
+    "anthropic": (),
+}
+
+
+def text_models(provider, ids):
+    """Modèles de texte d'une liste, dans l'ordre, sans doublon."""
+    markers = NON_TEXT_MARKERS.get(provider, ())
+    seen, kept = set(), []
+    for model_id in ids or []:
+        name = str(model_id).strip()
+        low = name.lower()
+        if not name or name in seen or any(m in low for m in markers):
+            continue
+        seen.add(name)
+        kept.append(name)
+    return kept
+
 
 class BaseProvider:
     key = ""

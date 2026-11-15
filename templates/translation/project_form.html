@@ -15,7 +15,8 @@
   <div class="form-check mb-3">{{ form.is_reference_corpus }} <label class="form-check-label" for="{{ form.is_reference_corpus.id_for_label }}">{{ form.is_reference_corpus.label }}</label></div>
   <h2 class="h6">Moteurs propres au projet (facultatif)</h2>
   <div class="row g-2">
-    {% for f in form %}{% if "engine" in f.name or "ai_" in f.name %}<div class="col-md-4">{{ f.label_tag }}{{ f }}{% if f.help_text %}<div class="form-text">{{ f.help_text }}</div>{% endif %}{{ f.errors }}</div>{% endif %}{% endfor %}
+    {% for f in form %}{% if "engine" in f.name or "ai_" in f.name %}<div class="col-md-4">{{ f.label_tag }}{{ f }}{% if f.help_text %}<div class="form-text">{{ f.help_text }}</div>{% endif %}{{ f.errors }}
+      {% if f.name == "default_ai_model" %}{% include "partials/model_picker.html" with provider_id="id_default_ai_provider" provider_name="default_ai_provider" model_id="id_default_ai_model" model_name="default_ai_model" %}{% elif f.name == "second_ai_model" %}{% include "partials/model_picker.html" with provider_id="id_second_ai_provider" provider_name="second_ai_provider" model_id="id_second_ai_model" model_name="second_ai_model" %}{% endif %}</div>{% endif %}{% endfor %}
   </div>
   <button class="btn btn-primary mt-3">Enregistrer</button>
 </form>

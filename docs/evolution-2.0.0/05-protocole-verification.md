@@ -234,6 +234,27 @@ recoche ensuite la case.
 **V5-6 — Onglet masqué.** Ouvre J-ed, passe à un autre onglet pendant une minute, puis reviens. Attendu : aucune
 anomalie ; une notification arrivée entre-temps s'affiche au retour sur l'onglet.
 
+## Lot 8 — choix du modèle d'IA
+
+Avec tes vraies clés, sur l'essai mis à jour. Recharge une fois avec Ctrl + F5.
+
+**V8-1 — Liste.** Traduction → Moteurs : choisis « Intelligence artificielle en ligne », puis un fournisseur dont
+la clé est enregistrée. Attendu : une liste déroulante de ses modèles de texte, sans modèle d'image, de son ni de
+vectorisation, avec la date de la liste et, s'il est saisi dans IA → Tarifs, le tarif estimé.
+
+**V8-2 — Actualiser.** Clique sur « Actualiser la liste ». Attendu : la date change ; la liste reflète les modèles
+actuels du fournisseur.
+
+**V8-3 — Choisir et enregistrer.** Choisis un modèle, enregistre, recharge la page. Attendu : le modèle reste
+sélectionné.
+
+**V8-4 — Saisie libre et avertissement.** Choisis « Autre modèle (saisie libre) » et tape un nom qui n'existe
+pas. Attendu : un avertissement « n'apparaît pas dans la liste de ce fournisseur » ; le nom est conservé tel
+quel à l'enregistrement.
+
+**V8-5 — Autres écrans.** La même liste apparaît dans les Préférences IA (modèle par défaut et par fonction), la
+fiche d'un projet de traduction et Traduction → Évaluation.
+
 ## Grille de résultats
 
 | Vérification | Résultat | Remarque |
@@ -266,3 +287,8 @@ anomalie ; une notification arrivée entre-temps s'affiche au retour sur l'ongle
 | V5-4 Absence | | |
 | V5-5 Préférences | | |
 | V5-6 Onglet masqué | | |
+| V8-1 Liste des modèles | | |
+| V8-2 Actualiser | | |
+| V8-3 Choisir et enregistrer | | |
+| V8-4 Saisie libre et avertissement | | |
+| V8-5 Autres écrans | | |

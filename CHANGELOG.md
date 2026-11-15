@@ -5,6 +5,21 @@
 Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquette `v1.3.0-rc3` (commit
 `d7296d4`). Audit et plan : `docs/evolution-2.0.0/01-audit.md`.
 
+- **Lot 8 — choix du modèle d'IA dans une liste** (15 novembre 2026, rapport :
+  `docs/evolution-2.0.0/rapport-lot-8.md`) :
+  - liste déroulante des modèles du fournisseur choisi, mise à jour sans recharger la page quand on change de
+    fournisseur, dans les six écrans où l'on choisit un modèle : préférences IA (modèle par défaut et par
+    fonction), page « IA indisponible », Traduction → Moteurs (moteur par défaut et deuxième moteur), fiche d'un
+    projet de traduction, Traduction → Évaluation ;
+  - seuls les modèles de texte sont proposés : images, son, synthèse vocale, transcription, vectorisation et
+    modération sont écartés (OpenAI, Gemini, services compatibles OpenAI) ; les listes déjà enregistrées sont
+    filtrées à l'affichage, le test de connexion enregistre la liste filtrée ;
+  - tarif estimé à côté du modèle quand l'administrateur l'a saisi ; date de la liste ; bouton « Actualiser la
+    liste » qui interroge le fournisseur avec la clé de l'utilisateur, sur son action seulement (l'échec est
+    affiché et la liste précédente conservée) ;
+  - option « Autre modèle (saisie libre) » ; avertissement, sans changement d'office, quand le modèle enregistré
+    n'apparaît pas dans la liste ;
+  - aucun changement de la base de données : le champ du modèle reste la valeur enregistrée.
 - **Lot 5 — notifications** (15 novembre 2026, rapport : `docs/evolution-2.0.0/rapport-lot-5.md`) :
   - mécanisme unique (application `notifications`, migration `notifications.0001`, deux tables) pour les
     fins de tâches et les alertes de dysfonctionnement ; canal « dans l'application » seulement ;
