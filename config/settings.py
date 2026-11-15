@@ -312,3 +312,26 @@ LOGGING = {
     "root": {"handlers": ["console"], "level": "CRITICAL" if TESTING else env("LOG_LEVEL", default="INFO")},
     "loggers": {"httpx": {"level": "WARNING"}, "httpcore": {"level": "WARNING"}},
 }
+
+# 2.0.0 : les tests ne touchent jamais aux dossiers, à la file de tâches ni aux services de l'installation où
+# ils sont lancés (« verifier-j-ed.ps1 -AvecTests » les exécute dans le conteneur web). Constat du 15 novembre
+# 2026 : sans cette isolation, des sauvegardes fictives étaient copiées dans le dossier Windows des sauvegardes
+# et des tâches d'essai envoyées à la file Redis de l'installation.
+if TESTING:
+    import atexit
+    import shutil
+    import tempfile
+
+    DATA_DIR = Path(tempfile.mkdtemp(prefix="jed-tests-donnees-"))
+    atexit.register(shutil.rmtree, DATA_DIR, ignore_errors=True)
+    MEDIA_ROOT = str(DATA_DIR / "files")
+    BACKUP_DIR = DATA_DIR / "backups"
+    BACKUP_EXTERNAL_DIR = ""
+    BACKUP_EXTERNAL_HOST_DIR = ""
+    TRANSLATION_ARGOS_DEPOT_DIR = DATA_DIR / "argos-depot"
+    TRANSLATION_ARGOS_URL = ""
+    AI_ALLOWED_LOCAL_URLS = []
+    CINII_APPID = ""
+    CELERY_BROKER_URL = ""
+    CELERY_TASK_ALWAYS_EAGER = True
+    CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}

@@ -5,6 +5,12 @@
 Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquette `v1.3.0-rc3` (commit
 `d7296d4`). Audit et plan : `docs/evolution-2.0.0/01-audit.md`.
 
+- **Correctif — tests lancés dans une installation** (15 novembre 2026, archive `lot2b`) : avec
+  `verifier-j-ed.ps1 -AvecTests`, la suite de tests s'exécute dans le conteneur de l'installation. Elle aurait
+  copié des sauvegardes fictives dans le dossier Windows des sauvegardes et envoyé des tâches d'essai à la file
+  Redis de l'installation (constaté en simulant le conteneur, avant toute exécution sur le poste). En mode test,
+  dossiers de données, copie externe, file de tâches, cache, Argos, adresses d'IA locales et clé CiNii sont
+  désormais isolés ; un test le vérifie.
 - **Lot 2 — trois statuts indépendants par notice** (15 novembre 2026, rapport :
   `docs/evolution-2.0.0/rapport-lot-2.md`) :
   - chaque notice porte trois statuts, sans qu'aucun ne se déduise d'un autre : **notice disponible** (oui, non,

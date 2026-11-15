@@ -110,9 +110,30 @@ Deux choix méritent ton avis :
 - Les deux choix du § 3 (Japan Search, NDL).
 - Statuts dans les exports (§ 4).
 
-## 6. Livrables du lot
+## 6. Correctif après livraison (archive `lot2b`)
 
-- Archive `japon-explorateur-2.0.0-lot2.zip` et son empreinte `.sha256`.
+Avant que tu lances `verifier-j-ed.ps1 -AvecTests`, j'ai simulé ici les conditions du conteneur : vrai Redis,
+dossiers de l'installation, variables de ton `.env`. Résultat : la suite de tests aurait déposé **5 sauvegardes
+fictives** dans ton dossier Windows des sauvegardes, nommées comme de vraies sauvegardes, et envoyé 4 tâches
+d'essai à la file Redis de l'installation. Deux tests échouaient aussi, pour des raisons d'environnement.
+
+**Correction** (`config/settings.py`) : en mode test, les éléments suivants sont isolés, quelles que soient les
+variables du conteneur :
+
+- dossier de données et fichiers dans un dossier temporaire, supprimé à la fin ;
+- copie externe des sauvegardes désactivée ;
+- file de tâches en exécution immédiate et cache en mémoire ;
+- Argos, adresses d'IA locales et clé CiNii vidés.
+
+Un test vérifie cette isolation (`TestIsolationTests`). Nouvelle simulation : **537 tests réussis, aucun fichier
+écrit dans les dossiers de l'installation, aucune entrée dans Redis**.
+
+Les tests utilisent une base de données de test distincte (`test_japon`), créée puis supprimée par Django : la
+base de l'installation n'est jamais touchée.
+
+## 7. Livrables du lot
+
+- Archives `japon-explorateur-2.0.0-lot2.zip`, puis `lot2b` (correctif du § 6), avec leur empreinte `.sha256`.
 - Protocole : `docs/evolution-2.0.0/05-protocole-verification.md`, section « Lot 2 » (V2-1 à V2-5).
 - CHANGELOG : section 2.0.0, lot 2.
 - Guide de mise à jour : retour vers la 1.3.0, désormais en deux commandes (`migrate catalog 0005`, puis

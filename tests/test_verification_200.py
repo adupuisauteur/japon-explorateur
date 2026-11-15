@@ -202,3 +202,24 @@ class VerifyScriptRunTests(SimpleTestCase):
                         text.index("Docker-Ici @('info'"))
         self.assertNotIn("down -v", text)
         self.assertNotIn("JaponEssai", text)
+
+
+class TestIsolationTests(SimpleTestCase):
+    """15 novembre 2026 : « verifier-j-ed.ps1 -AvecTests » lance les tests dans le conteneur de l'installation.
+    Ils ne doivent toucher ni à ses dossiers (sauvegardes copiées dans Windows), ni à sa file de tâches, ni à
+    ses services (Argos), quelles que soient les variables d'environnement du conteneur."""
+
+    def test_settings_isolate_the_installation(self):
+        import tempfile
+
+        from django.conf import settings
+
+        self.assertEqual(settings.BACKUP_EXTERNAL_DIR, "")
+        self.assertEqual(settings.BACKUP_EXTERNAL_HOST_DIR, "")
+        self.assertEqual(settings.CELERY_BROKER_URL, "")
+        self.assertTrue(settings.CELERY_TASK_ALWAYS_EAGER)
+        self.assertEqual(settings.TRANSLATION_ARGOS_URL, "")
+        self.assertEqual(settings.CINII_APPID, "")
+        self.assertIn("LocMemCache", settings.CACHES["default"]["BACKEND"])
+        self.assertTrue(str(settings.DATA_DIR).startswith(tempfile.gettempdir()))
+        self.assertTrue(str(settings.TRANSLATION_ARGOS_DEPOT_DIR).startswith(str(settings.DATA_DIR)))
