@@ -300,34 +300,34 @@ def check_disk():
     return Check("disque", "Espace disque", level, summary, details)
 
 
-def _cgroup_memory_limit():
-    for path in ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"):
-        try:
-            raw = Path(path).read_text().strip()
-        except OSError:
-            continue
-        if raw.isdigit() and int(raw) < 1 << 60:
-            return int(raw)
-    return None
-
-
 def machine_resources():
-    """Mémoire et cœurs accordés par Docker à ce conteneur (2.0.0 ; les profils viennent au lot 3)."""
-    total = None
-    try:
-        for line in Path("/proc/meminfo").read_text().splitlines():
-            if line.startswith("MemTotal:"):
-                total = int(line.split()[1]) * 1024
-                break
-    except OSError:
-        pass
-    limit = _cgroup_memory_limit()
-    memory = min(x for x in (total, limit) if x) if (total or limit) else None
-    try:
-        cpus = len(os.sched_getaffinity(0))
-    except (AttributeError, OSError):
-        cpus = os.cpu_count()
-    return {"memory_bytes": memory, "cpus": cpus}
+    """Mémoire et cœurs accordés par Docker à ce conteneur (2.0.0 ; calcul partagé avec les profils, lot 3)."""
+    from config.profil_machine import resources
+
+    return resources()
+
+
+def check_profile():
+    """2.0.0 (lot 3) : profil de machine retenu, raison, valeurs, comment en changer, conseil sur la mémoire."""
+    from .models import AppSettings
+
+    profile = settings.MACHINE_PROFILE
+    details = [f"Serveur web : {profile['web']} processus ; travaux courts : {profile['courts']} en parallèle ; "
+               f"Argos : paquets de {profile['argos_jour']} segments le jour, {profile['argos_nuit']} la nuit",
+               "Pour en changer : ajoutez JED_PROFIL=econome, normal ou puissant dans le fichier .env, puis lancez "
+               "« docker compose up -d »."]
+    computer = AppSettings.get().computer_memory_gb
+    seen = (profile.get("memory_bytes") or 0) / 1024 ** 3
+    if computer:
+        details.append(f"Mémoire de l'ordinateur (indiquée) : {computer} Go ; vue par Docker : {seen:.1f} Go.")
+        if seen and seen < computer * 0.6:
+            details.append("Docker ne voit qu'une partie de la mémoire de l'ordinateur (réglage par défaut de WSL 2 sous "
+                           "Windows). Vous pouvez lui en accorder plus avec le fichier .wslconfig de Windows "
+                           f"(par exemple memory={max(int(computer * 0.75), int(seen) + 1)}GB), puis en redémarrant "
+                           "Docker Desktop. Rien n'est modifié d'office.")
+    else:
+        details.append("Indiquez la mémoire totale de l'ordinateur ci-dessous pour recevoir un conseil.")
+    return Check("profil", "Profil de la machine", OK, f"{profile['label']} — {profile['reason']}", details)
 
 
 def check_resources():
@@ -344,14 +344,14 @@ def check_resources():
 
 
 CHECKS = (check_version, check_database, check_broker, check_workers, check_scheduler, check_argos, check_backups,
-          check_keys, check_disk, check_resources)
+          check_keys, check_disk, check_resources, check_profile)
 #: libellés affichés si un contrôle échoue lui-même (exception)
 CHECK_LABELS = {
     "check_version": "Version", "check_database": "Base de données et migrations",
     "check_broker": "Redis (file des tâches)", "check_workers": "Workers (tâches de fond)",
     "check_scheduler": "Planificateur (Celery beat)", "check_argos": "Argos (traduction hors ligne)",
     "check_backups": "Sauvegardes", "check_keys": "Clés des services en ligne", "check_disk": "Espace disque",
-    "check_resources": "Ressources accordées par Docker",
+    "check_resources": "Ressources accordées par Docker", "check_profile": "Profil de la machine",
 }
 
 

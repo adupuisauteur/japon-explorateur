@@ -3,6 +3,7 @@
 Moteur DeepL sur réponses simulées (aucun réseau) ; Celery en mode immédiat ; dates fixées dans les tests.
 """
 from datetime import datetime, time, timedelta
+from pathlib import Path
 from decimal import Decimal
 from unittest import mock
 
@@ -357,3 +358,128 @@ class MigrationTests(TransactionTestCase):
         executor = MigrationExecutor(connection)
         executor.loader.build_graph()
         executor.migrate(executor.loader.graph.leaf_nodes())
+
+
+class ProfileTests(PipelineTestCase):
+    def test_choice_from_resources_and_env(self):
+        from config import profil_machine as P
+
+        gib = 1024 ** 3
+        self.assertEqual(P.choose(int(7.6 * gib), 8)[0], "normal")  # le poste de l'utilisateur
+        self.assertEqual(P.choose(4 * gib, 8)[0], "econome")
+        self.assertEqual(P.choose(16 * gib, 2)[0], "econome")
+        self.assertEqual(P.choose(16 * gib, 8)[0], "puissant")
+        self.assertEqual(P.choose(None, None)[0], "normal")
+        res = {"memory_bytes": 16 * gib, "cpus": 8}
+        self.assertEqual(P.current({}, res)["name"], "puissant")
+        forced = P.current({"JED_PROFIL": "Économe"}, res)
+        self.assertEqual((forced["name"], forced["imposed"], forced["web"]), ("econome", True, 2))
+        wrong = P.current({"JED_PROFIL": "turbo"}, res)
+        self.assertEqual(wrong["name"], "puissant")
+        self.assertIn("non reconnue", wrong["reason"])
+
+    def test_gunicorn_and_celery_follow_the_profile(self):
+        import runpy
+
+        from django.conf import settings
+
+        from config import profil_machine as P
+
+        with mock.patch.object(P, "resources", return_value={"memory_bytes": 4 * 1024 ** 3, "cpus": 2}), \
+                mock.patch.dict("os.environ", {}, clear=False):
+            import os
+
+            os.environ.pop("WEB_CONCURRENCY", None)
+            os.environ.pop("JED_PROFIL", None)
+            conf = runpy.run_path(str(Path(settings.BASE_DIR) / "config" / "gunicorn.conf.py"))
+        self.assertEqual((conf["workers"], conf["timeout"], conf["bind"]), (2, 180, "0.0.0.0:8000"))
+        self.assertEqual(settings.CELERY_WORKER_CONCURRENCY, settings.MACHINE_PROFILE["courts"])
+        dockerfile = (Path(settings.BASE_DIR) / "docker" / "Dockerfile").read_text(encoding="utf-8")
+        self.assertIn('"-c", "config/gunicorn.conf.py"', dockerfile)
+
+    def test_argos_batches_small_by_day_larger_at_night(self):
+        from django.conf import settings
+
+        from apps.translation.engines.argos import ArgosEngine
+
+        profile = dict(settings.MACHINE_PROFILE, argos_jour=2, argos_nuit=4)
+        sizes = []
+
+        def fake_next_chunk(job, engine):
+            sizes.append(engine.max_items)
+            return [], "modern"
+
+        with self.settings(MACHINE_PROFILE=profile), \
+                mock.patch("apps.translation.services._next_chunk", side_effect=fake_next_chunk), \
+                mock.patch.object(ArgosEngine, "status"):
+            for launch in ("immediate", "night"):
+                job = TranslationJob.objects.create(user=self.user, engine="argos", status="running", launch=launch)
+                services.process_next_chunk(job.pk)
+        self.assertEqual(sizes, [2, 4])
+
+    def test_state_page_profile_and_memory_advice(self):
+        from apps.core.health import check_profile
+        from apps.core.models import AppSettings
+
+        self.client.force_login(self.admin)
+        self.client.post("/administration/etat/memoire/", {"computer_memory_gb": "16"})
+        self.assertEqual(AppSettings.get().computer_memory_gb, 16)
+        profile = dict(self.settings_profile(), memory_bytes=int(7.6 * 1024 ** 3))
+        with self.settings(MACHINE_PROFILE=profile):
+            check = check_profile()
+        text = " ".join(check.details)
+        self.assertIn("16 Go ; vue par Docker : 7.6 Go", text)
+        self.assertIn(".wslconfig", text)
+        self.assertIn("JED_PROFIL", text)
+        self.client.post("/administration/etat/memoire/", {"computer_memory_gb": "beaucoup"})
+        self.assertEqual(AppSettings.get().computer_memory_gb, 16)
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.post("/administration/etat/memoire/", {"computer_memory_gb": "8"}).status_code, 403)
+
+    def settings_profile(self):
+        from django.conf import settings
+
+        return settings.MACHINE_PROFILE
+
+
+class DoneAndPurgeTests(PipelineTestCase):
+    def test_translations_done_page_filters(self):
+        from apps.catalog.models import Catalogue, EditorialContent, Record
+
+        record = Record.objects.create(catalogue=Catalogue.objects.get(code="codh-pmjt"), source_id="lot3-u5",
+                                       original_title="架空の題")
+        EditorialContent.objects.create(record=record, kind="translation", target_field="original_title",
+                                        source_text="古い題", content="Titre fictif", origin="machine",
+                                        data={"engine": "deepl"})
+        EditorialContent.objects.create(record=record, kind="translation", target_field="original_title",
+                                        source_text="架空の題", content="Titre validé fictif", origin="machine",
+                                        status="validated", data={"engine": "argos"})
+        self.run_job(services.prepare_segments_job(self.user, self.doc("一つ目の文。"), project=self.project))
+        self.client.force_login(self.user)
+        page = self.client.get("/traduction/effectuees/").content.decode()
+        self.assertIn("Titre fictif", page)
+        self.assertIn("Titre validé fictif", page)
+        self.assertIn("À revoir : l'original a changé", page)
+        self.assertIn("Document fictif", page)  # documents de projets
+        page = self.client.get("/traduction/effectuees/?etat=review").content.decode()
+        self.assertIn("Titre fictif", page)
+        self.assertNotIn("Titre validé fictif", page)
+        page = self.client.get("/traduction/effectuees/?moteur=argos").content.decode()
+        self.assertNotIn("Titre fictif<", page)
+        self.assertIn("Titre validé fictif", page)
+        self.assertIn("translation:done", str(__import__("apps.translation.views", fromlist=["SECTIONS"]).SECTIONS))
+
+    def test_purge_keeps_unread_and_recent(self):
+        from apps.notifications import services as N
+
+        now = timezone.now()
+        old_read = Notification.objects.create(recipient=self.user, event_type="task_done", title="ancienne lue",
+                                               read_at=now)
+        old_unread = Notification.objects.create(recipient=self.user, event_type="task_done", title="ancienne non lue")
+        recent = Notification.objects.create(recipient=self.user, event_type="task_done", title="récente lue",
+                                             read_at=now)
+        Notification.objects.filter(pk__in=[old_read.pk, old_unread.pk]).update(created_at=now - timedelta(days=200))
+        self.assertEqual(N.purge_old(), 1)
+        self.assertEqual(set(Notification.objects.values_list("title", flat=True)), {"ancienne non lue", "récente lue"})
+        self.assertIn("notifications-anciennes", __import__("django.conf").conf.settings.CELERY_BEAT_SCHEDULE)
+        self.assertTrue(recent.pk)

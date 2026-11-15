@@ -8,6 +8,7 @@
     <a class="btn btn-sm btn-outline-secondary" href="{% url 'notifications:preferences' %}"><i class="bi bi-sliders"></i> Préférences et essai</a>
   </div>
 </div>
+<p class="small text-muted">Les notifications lues sont supprimées automatiquement après {{ retention_days }} jours ; les non lues sont toujours conservées.</p>
 <form method="get" class="d-flex flex-wrap gap-2 align-items-end mb-3">
   <div><label class="form-label" for="f-etat">État</label><select id="f-etat" name="etat" class="form-select form-select-sm"><option value="">Toutes</option><option value="non-lues"{% if state == 'non-lues' %} selected{% endif %}>Non lues</option><option value="lues"{% if state == 'lues' %} selected{% endif %}>Lues</option></select></div>
   <div><label class="form-label" for="f-type">Type</label><select id="f-type" name="type" class="form-select form-select-sm"><option value="">Tous</option>{% for code, label in types %}<option value="{{ code }}"{% if kind == code %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>

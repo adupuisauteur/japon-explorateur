@@ -15,6 +15,11 @@
   <td class="text-nowrap"><span class="badge {% if r.level == 'ok' %}text-bg-success{% elif r.level == 'warning' %}text-bg-warning{% elif r.level == 'error' %}text-bg-danger{% else %}text-bg-secondary{% endif %}">{{ r.level_label }}</span></td>
   <td><div>{{ r.summary }}</div>{% for d in r.details %}<div class="small text-muted">{{ d }}</div>{% endfor %}</td></tr>
 {% endfor %}</tbody></table></div>
+<form method="post" action="{% url 'core:machine_memory' %}" class="d-flex flex-wrap gap-2 align-items-center small mb-3">{% csrf_token %}
+  <label for="computer-memory">Mémoire totale de cet ordinateur (Go), pour le conseil du profil :</label>
+  <input type="number" min="1" max="1024" name="computer_memory_gb" id="computer-memory" value="{{ computer_memory_gb|default_if_none:'' }}" class="form-control form-control-sm" style="width:6rem">
+  <button class="btn btn-sm btn-outline-secondary">Enregistrer</button>
+  <span class="text-muted">Sous Windows : Paramètres → Système → Informations système → « Mémoire RAM installée ».</span></form>
 <h2 class="h5 mt-4">Diagnostic à transmettre</h2>
 <p class="small text-muted">Texte sans clé, sans nom de compte et sans texte de recherche ou de traduction ; les chemins personnels sont masqués. Collez-le dans un message pour signaler un problème.</p>
 <pre id="diagnostic" class="card-soft small mb-2">{{ diagnostic }}</pre>

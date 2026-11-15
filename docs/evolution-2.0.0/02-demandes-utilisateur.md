@@ -9,7 +9,7 @@ traitée et son état.
 | U2 | 15/11/2026 | Exports de fiches : en bas de page, indiquer la date, l'heure, le nom de l'application et l'utilisateur | 1 | Fait (archive `lot1`) : exports Word, PDF, HTML et texte, et exports des projets de traduction |
 | U3 | 15/11/2026 | Lien « À propos » dans le menu du bas de page ; l'entrée du menu utilisateur n'est pas utile | 1 | Fait (archive `lot1b`) : lien « À propos » en bas de page pour tout compte connecté, retiré du menu utilisateur |
 | U4 | 15/11/2026 | Historique des versions dans l'Administration : évolutions et améliorations, sans lister les bugs rencontrés | 6 | À faire, avec l'affichage du Markdown de l'aide intégrée |
-| U5 | 15/11/2026 | Module de traduction : retrouver les traductions déjà effectuées | 3 | À faire, avec la page « Tâches » |
+| U5 | 15/11/2026 | Module de traduction : retrouver les traductions déjà effectuées | 3 | Fait : Traduction → Traductions effectuées |
 | U6 | 15/11/2026 | Depuis les résultats, arriver directement sur les documents (pas seulement les notices) ; Aozora Bunko : texte compressé (zip) ou HTML | à placer (lot 10 proposé) | Étude faite, plan à valider |
 | U7 | 15/11/2026 | Nouvelles sources : bases du NIJL, 日本古典籍総合目録, Historiographical Institute (東京大学史料編纂所), 日本古典文学大系本文データベース, Waseda Kotenseki | à placer (lot 10 proposé) | Étude faite, plan à valider |
 

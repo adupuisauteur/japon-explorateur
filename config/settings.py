@@ -223,6 +223,8 @@ TRANSLATION_ARGOS_INSTALL_TIMEOUT = env.float("TRANSLATION_ARGOS_INSTALL_TIMEOUT
 TRANSLATION_ARGOS_NOW_MAX_ITEMS = env.int("TRANSLATION_ARGOS_NOW_MAX_ITEMS", default=20)
 # 2.0.0 (lot 3) : délai de l'essai automatique d'Argos après le démarrage (secondes), et entre deux tentatives.
 ARGOS_AUTO_SELFTEST_DELAY = env.int("ARGOS_AUTO_SELFTEST_DELAY", default=120)
+# 2.0.0 (lot 3) : durée de conservation des notifications LUES (les non lues sont toujours gardées).
+NOTIFICATIONS_RETENTION_DAYS = env.int("NOTIFICATIONS_RETENTION_DAYS", default=90)
 TRANSLATION_ARGOS_MAX_UPLOAD = env.int("TRANSLATION_ARGOS_MAX_UPLOAD", default=1024 * 1024 * 1024)
 # Tâche sans signe d'activité au-delà de ce délai (minutes) : présentée comme interrompue, reprise possible.
 TRANSLATION_STALE_MINUTES = env.int("TRANSLATION_STALE_MINUTES", default=10)
@@ -253,6 +255,11 @@ CELERY_RESULT_BACKEND = None
 CELERY_TASK_ALWAYS_EAGER = env.bool("CELERY_EAGER", default=not bool(CELERY_BROKER_URL))
 CELERY_TASK_EAGER_PROPAGATES = False
 CELERY_TIMEZONE = TIME_ZONE
+# 2.0.0 (lot 3) : profil de machine calculé au démarrage (config/profil_machine.py ; JED_PROFIL dans .env)
+from config.profil_machine import current as _machine_profile  # noqa: E402
+
+MACHINE_PROFILE = _machine_profile()
+CELERY_WORKER_CONCURRENCY = MACHINE_PROFILE["courts"]
 # 1.3.0 : file dédiée aux traductions (le worker écoute « celery » et « traduction », docker-compose.yml)
 # 2.0.0 (lot 3) : trois files, trois workers. « celery » : travaux courts (exports, synchronisations, sauvegardes,
 # horloge) ; « traduction » : travaux longs et file de nuit ; « maintenant » : demandes depuis une fiche et petites
@@ -280,6 +287,11 @@ CELERY_BEAT_SCHEDULE = {
     "sauvegarde-quotidienne": {
         "task": "apps.backups.tasks.scheduled_backup",
         "schedule": crontab(hour=2, minute=23),
+    },
+    # 2.0.0 (lot 3) : nettoyage des notifications lues de plus de NOTIFICATIONS_RETENTION_DAYS jours.
+    "notifications-anciennes": {
+        "task": "apps.notifications.tasks.purge_old_notifications",
+        "schedule": crontab(hour=3, minute=53),
     },
     # 2.0.0 (lot 3) : horloge des tâches de traduction (programmées, file de nuit, compte rendu du matin).
     "horloge-taches": {

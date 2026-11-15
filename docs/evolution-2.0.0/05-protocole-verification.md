@@ -234,6 +234,42 @@ recoche ensuite la case.
 **V5-6 — Onglet masqué.** Ouvre J-ed, passe à un autre onglet pendant une minute, puis reviens. Attendu : aucune
 anomalie ; une notification arrivée entre-temps s'affiche au retour sur l'onglet.
 
+## Lot 3 — tâches, file de nuit, « Traduire maintenant »
+
+Sur l'essai mis à jour avec l'archive du lot 3. Recharge une fois avec Ctrl + F5.
+
+**V3-1 — Conteneurs et profil.** `verifier-j-ed.ps1` : conteneurs `worker`, `worker-traduction` et
+`worker-maintenant` en service. État de l'installation : « Workers » indique les trois files servies ; « Profil de
+la machine » indique Normal (7,6 Go, 8 cœurs). Indique la mémoire de ton ordinateur dans le champ sous le tableau :
+un conseil `.wslconfig` s'affiche si Docker en voit nettement moins.
+
+**V3-2 — Essai automatique d'Argos.** Deux à trois minutes après la mise à jour : Moteurs locaux affiche « Dernier
+essai (…, automatique) : Argos prêt ». Le bouton « Lancer un essai » refait l'essai.
+
+**V3-3 — Traduire maintenant.** Sur une fiche, avec Argos comme moteur par défaut : « Traduire maintenant ».
+Attendu : aucun écran de confirmation ; « Traduction en cours » puis « Traduction prête : voir et valider » sur la
+fiche ; pendant ce temps, l'indicateur « 1 traduction en cours » apparaît dans la barre de menu.
+
+**V3-4 — Plage de nuit.** Traduction → Moteurs : choisis une plage commençant dans 5 minutes (par exemple 19:30 –
+19:45), enregistre. Ajoute deux traductions à la file de nuit (bouton lune d'une fiche, ou « Ajouter à la file de
+nuit » dans l'atelier d'un document). Page Tâches : elles sont dans « File de nuit » ; inverse leur ordre.
+Attendu : au début de la plage, la première part, puis la seconde ; après la fin de la plage, une notification
+« Compte rendu de la nuit ».
+
+**V3-5 — Retard.** Programme une traduction dans 5 minutes, puis arrête J-ed (`docker compose stop`) pendant
+10 minutes et redémarre-le (`docker compose up -d`). Attendu : la tâche est « En retard — à confirmer », une
+notification le dit, rien n'est parti ; « Lancer maintenant » la fait partir.
+
+**V3-6 — Pause et reprise.** Pendant une longue traduction Argos (plus de 20 segments) : « Mettre en pause ».
+Attendu : arrêt après le paquet en cours ; « Reprendre maintenant » termine sans retraduire ce qui est fait.
+
+**V3-7 — Travail en parallèle.** Pendant cette longue traduction, lance une recherche sur plusieurs sources et
+navigue dans la Bibliothèque. Attendu : pages fluides ; une « Traduire maintenant » sur une fiche aboutit sans
+attendre la fin du document.
+
+**V3-8 — Traductions effectuées.** Traduction → Traductions effectuées : tes notices traduites, filtres par état,
+moteur et date ; les documents de projets avec leur avancement.
+
 ## Lot 7 — Argos installé par défaut
 
 Sur l'essai mis à jour avec l'archive du lot 7. Recharge une fois avec Ctrl + F5.
@@ -318,6 +354,14 @@ fiche d'un projet de traduction et Traduction → Évaluation.
 | V5-4 Absence | | |
 | V5-5 Préférences | | |
 | V5-6 Onglet masqué | | |
+| V3-1 Conteneurs et profil | | |
+| V3-2 Essai automatique d'Argos | | |
+| V3-3 Traduire maintenant | | |
+| V3-4 Plage de nuit | | |
+| V3-5 Retard | | |
+| V3-6 Pause et reprise | | |
+| V3-7 Travail en parallèle | | |
+| V3-8 Traductions effectuées | | |
 | V7-1 Ligne de démarrage | | |
 | V7-2 Bouton unique | | |
 | V7-3 Paquets déjà installés | | |

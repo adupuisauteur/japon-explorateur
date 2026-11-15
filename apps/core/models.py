@@ -33,6 +33,10 @@ class AppSettings(models.Model):
         "Argos : mode démonstration (traductions simulées)", default=False,
         help_text="Sans le service Argos ou ses paquets, renvoie le texte original précédé de la mention "
                   "« Simulation ». Désactivé : une traduction Argos impossible est arrêtée, jamais simulée.")
+    # 2.0.0 (lot 3, décision D7) : mémoire totale de l'ordinateur, indiquée par l'administrateur ; sert seulement
+    # à conseiller (Docker ne voit souvent qu'une partie de la mémoire sous Windows), rien n'est modifié d'office.
+    computer_memory_gb = models.PositiveSmallIntegerField("Mémoire totale de l'ordinateur (Go)", null=True,
+                                                          blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

@@ -13,7 +13,10 @@ SECTIONS = [
      "translation:project_list"),
     ("bi-journal-text", "Glossaires", "Terminologie, import et export CSV.", 7, "translation:glossary_list"),
     ("bi-archive", "Mémoire de traduction", "Paires validées, recherche, exclusion.", 7, "translation:memory"),
-    ("bi-hourglass-split", "Tâches", "Traductions en cours, progression, reprise.", 4, "translation:job_list"),
+    ("bi-hourglass-split", "Tâches", "En cours, file de nuit, programmées, pause, reprise, comptes rendus.", 4,
+     "translation:job_list"),
+    ("bi-check2-square", "Traductions effectuées", "Notices traduites (filtre par état, moteur, date) et "
+     "avancement des documents.", 3, "translation:done"),
     ("bi-file-earmark-arrow-down", "Exports", "Texte, CSV, DOCX bilingue.", 8, "translation:exports"),
     ("bi-speedometer2", "Consommation", "Caractères, coûts estimés et plafonds, par moteur et par mois.", 10,
      "translation:usage"),

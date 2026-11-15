@@ -166,8 +166,26 @@ def installation_state(request):
     results = health.collect()
     return render(request, "core/state.html", {
         "results": results, "overall": health.overall(results), "level_labels": health.LEVEL_LABELS,
-        "diagnostic": health.diagnostic_text(results),
+        "diagnostic": health.diagnostic_text(results), "computer_memory_gb": AppSettings.get().computer_memory_gb,
     })
+
+
+@admin_required
+@require_POST
+def machine_memory(request):
+    """2.0.0 (lot 3) : mémoire totale de l'ordinateur, pour le conseil du profil (rien n'est modifié d'office)."""
+    raw = (request.POST.get("computer_memory_gb") or "").strip()
+    obj = AppSettings.get()
+    if raw == "":
+        obj.computer_memory_gb = None
+    elif raw.isdigit() and 1 <= int(raw) <= 1024:
+        obj.computer_memory_gb = int(raw)
+    else:
+        messages.error(request, "Indiquez un nombre entier de gigaoctets (par exemple 16).")
+        return redirect("core:state")
+    obj.save(update_fields=["computer_memory_gb", "updated_at"])
+    messages.success(request, "Mémoire de l'ordinateur enregistrée : voir le conseil de la ligne « Profil de la machine ».")
+    return redirect(reverse("core:state") + "#etat-profil")
 
 
 @admin_required

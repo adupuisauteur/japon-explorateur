@@ -13,6 +13,11 @@ class FirstRunForm(BootstrapMixin, UserCreationForm):
                                             initial="selective",
                                             help_text="Le mode « Sélectif » est recommandé pour limiter l'encombrement.")
     backup_enabled = forms.BooleanField(label="Activer la sauvegarde quotidienne automatique", required=False, initial=True)
+    # 2.0.0 (lot 3, D7) : sert seulement au conseil du profil de machine (page « État »)
+    computer_memory_gb = forms.IntegerField(
+        label="Mémoire totale de cet ordinateur (Go), facultatif", required=False, min_value=1, max_value=1024,
+        help_text="Sous Windows : Paramètres → Système → Informations système. J-ed s'en sert pour vous conseiller ; "
+                  "il ne modifie rien d'office.")
     # 2.0.0 (lot 7) : décoché par défaut — rien n'est téléchargé sans choix explicite (« plus tard » possible).
     install_argos = forms.BooleanField(
         label="Installer maintenant la traduction hors ligne japonais → français (Argos)", required=False,

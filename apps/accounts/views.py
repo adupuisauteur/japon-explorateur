@@ -87,6 +87,7 @@ def first_run(request):
         settings_obj = AppSettings.get()
         settings_obj.default_search_mode = form.cleaned_data["default_search_mode"]
         settings_obj.backup_enabled = form.cleaned_data["backup_enabled"]
+        settings_obj.computer_memory_gb = form.cleaned_data.get("computer_memory_gb")
         settings_obj.setup_completed = True
         settings_obj.save()
         from django.core.management import call_command

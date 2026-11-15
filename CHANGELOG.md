@@ -5,6 +5,31 @@
 Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquette `v1.3.0-rc3` (commit
 `d7296d4`). Audit et plan : `docs/evolution-2.0.0/01-audit.md`.
 
+- **Lot 3 — tâches, file de nuit, « Traduire maintenant », travail en parallèle** (15 novembre 2026, rapport :
+  `docs/evolution-2.0.0/rapport-lot-3.md`) :
+  - lancement au choix à la confirmation : immédiat, programmé (date et heure) ou file de nuit ; le coût est
+    confirmé une seule fois ;
+  - file de nuit : plage horaire choisie par l'utilisateur (Traduction → Moteurs), ordre modifiable, une tâche à la
+    fois, pause entre deux paquets à la fin de la plage et reprise la nuit suivante, compte rendu du matin ;
+  - retard : une tâche programmée dont l'heure est passée pendant un arrêt de J-ed, ou une file de nuit qui n'a pas
+    pu commencer à l'heure, ne part jamais d'elle-même ; une notification demande une confirmation ;
+  - plafonds mensuels vérifiés avant chaque envoi : plafond atteint = pause avec alerte, jamais d'autre moteur ;
+  - pause et reprise par l'utilisateur ; états « Planifiée », « En pause », « En retard », « Terminée avec erreurs » ;
+  - « Traduire maintenant » et « File de nuit » sur la fiche, dans la Bibliothèque et dans l'atelier d'un document ;
+    départ sans confirmation avec Argos, ou sous un seuil de coût choisi par l'utilisateur ; résultat sur la fiche ;
+  - page « Tâches » (en cours, file de nuit, programmées, à décider, terminées ; vue de toutes les tâches pour
+    l'administrateur, sans titre de projet confidentiel d'autrui), indicateur « 1 traduction en cours » dans la
+    barre de menu, compte rendu de fin de tâche ;
+  - trois workers séparés : travaux courts, longues traductions et file de nuit, demandes « maintenant » ; la page
+    « État » signale une file sans worker ;
+  - profils de machine (économe, normal, puissant) calculés au démarrage, `JED_PROFIL` dans `.env` pour l'imposer ;
+    processus du serveur web, travaux courts en parallèle, taille des paquets Argos le jour et la nuit ; mémoire de
+    l'ordinateur indiquée pour un conseil (`.wslconfig`), rien n'est modifié d'office ;
+  - « Traductions effectuées » : notices traduites (filtres par état, moteur, date ; « à revoir » si l'original a
+    changé) et avancement des documents de projets (demande U5) ;
+  - essai d'Argos : bouton dans Moteurs locaux et essai automatique 2 minutes après une installation ou une mise à
+    jour ;
+  - notifications lues supprimées après 90 jours (les non lues sont gardées).
 - **Lot 7 — Argos installé par défaut** (15 novembre 2026, rapport : `docs/evolution-2.0.0/rapport-lot-7.md`) :
   - le service Argos démarre avec J-ed (ligne `COMPOSE_PROFILES=argos` de `.env.example`, ajoutée par
     `mettre-a-jour.ps1` si elle manque) ; laissée vide, la ligne le désactive (poste à mémoire limitée) ; l'ancien

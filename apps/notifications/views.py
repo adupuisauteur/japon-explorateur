@@ -1,4 +1,5 @@
 """Pages des notifications (2.0.0, lot 5) : fenêtres, historique, préférences, essai."""
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
@@ -32,7 +33,8 @@ def notification_list(request):
     page = Paginator(qs, 30).get_page(request.GET.get("page"))
     types = [t for t in EVENT_TYPES if t[0] not in ADMIN_ONLY or request.user.is_admin_role]
     return render(request, "notifications/list.html", {"page": page, "state": state, "kind": kind, "types": types,
-                                                       "unread": services.unread_count(request.user)})
+                                                       "unread": services.unread_count(request.user),
+                                                       "retention_days": settings.NOTIFICATIONS_RETENTION_DAYS})
 
 
 @never_cache

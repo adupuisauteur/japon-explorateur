@@ -695,6 +695,10 @@ def process_next_chunk(job_id):
     if job.kind == "segments":
         _apply_memory(job)
     engine = EngineChoice.of_job(job).engine(job.user)
+    if job.engine == "argos":  # 2.0.0 (lot 3, D8) : petits paquets le jour, plus grands la nuit (profil de machine)
+        profile = settings.MACHINE_PROFILE
+        engine.max_items = min(type(engine).max_items,
+                               profile["argos_nuit"] if job.launch == "night" else profile["argos_jour"])
     chunk, variety = _next_chunk(job, engine)
     if not chunk:
         _refresh_counters(job)

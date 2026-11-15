@@ -86,8 +86,8 @@ services:
       TRANSLATION_ARGOS_URL: ${TRANSLATION_ARGOS_URL:-http://argos:5000}
       TRANSLATION_ARGOS_DEPOT_DIR: /argos-depot
       BACKUP_EXTERNAL_DIR: /backups-externes
-    command: ["celery", "-A", "config", "worker", "-l", "info", "-n", "courts@%h",
-              "--concurrency", "${JED_WORKERS_COURTS:-2}", "-Q", "celery"]
+    # Nombre de travaux courts en parallèle : selon le profil de machine (CELERY_WORKER_CONCURRENCY).
+    command: ["celery", "-A", "config", "worker", "-l", "info", "-n", "courts@%h", "-Q", "celery"]
 
   worker-traduction:
     <<: *worker

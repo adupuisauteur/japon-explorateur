@@ -210,3 +210,18 @@ def mark_read(user, ids=None):
     if ids is not None:
         qs = qs.filter(pk__in=ids)
     return qs.update(read_at=timezone.now(), popup_shown_at=timezone.now())
+
+
+def purge_old(now=None):
+    """2.0.0 (lot 3) : supprime les notifications LUES de plus de NOTIFICATIONS_RETENTION_DAYS jours.
+
+    Une notification non lue n'est jamais supprimée. Retourne le nombre de notifications supprimées.
+    """
+    from datetime import timedelta
+
+    from django.conf import settings
+    from django.utils import timezone
+
+    limit = (now or timezone.now()) - timedelta(days=settings.NOTIFICATIONS_RETENTION_DAYS)
+    deleted, _ = Notification.objects.filter(read_at__isnull=False, created_at__lt=limit).delete()
+    return deleted
