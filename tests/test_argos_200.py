@@ -134,10 +134,12 @@ class EnginePriorityTests(AppTestCase):
             def translate(self, segments, source, target, **kwargs):
                 return self.priority
 
-        job = SimpleNamespace(total_items=5, project_id=None, engine="argos", kind="records")
+        job = SimpleNamespace(total_items=5, project_id=None, engine="argos", kind="records", launch="immediate")
         self.assertEqual(services._translate(job, Stub(), [], "modern"), "now")
         job.total_items = 500
         self.assertEqual(services._translate(job, Stub(), [], "modern"), "background")
+        job.launch = "now"  # lot 3 : demande depuis une fiche, quelle que soit sa taille
+        self.assertEqual(services._translate(job, Stub(), [], "modern"), "now")
 
 
 class OneClickTests(ClientMixin, AppTestCase):

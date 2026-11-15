@@ -1,0 +1,14 @@
+{% if rows %}
+<table class="table table-sm align-middle"><thead><tr>{% if order %}<th>Ordre</th>{% endif %}<th>N°</th>{% if show_all %}<th>Compte</th>{% endif %}<th>Créée</th><th>Portée</th><th>Moteur</th><th>État</th><th>Avancement</th></tr></thead><tbody>
+{% for r in rows %}<tr>
+  {% if order %}<td class="text-nowrap">{% if r.mine %}<form method="post" action="{% url 'translation:job_action' r.job.pk %}" class="d-inline">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <button class="btn btn-sm btn-light py-0" name="action" value="up" aria-label="Monter" {% if forloop.first %}disabled{% endif %}><i class="bi bi-arrow-up"></i></button><button class="btn btn-sm btn-light py-0" name="action" value="down" aria-label="Descendre" {% if forloop.last %}disabled{% endif %}><i class="bi bi-arrow-down"></i></button></form>{% endif %}</td>{% endif %}
+  <td>{% if r.mine %}<a href="{% url 'translation:job_detail' r.job.pk %}">{{ r.job.pk }}</a>{% else %}{{ r.job.pk }}{% endif %}</td>
+  {% if show_all %}<td class="small">{{ r.job.user|default:"—" }}</td>{% endif %}
+  <td class="small text-muted">{{ r.job.created_at|date:"d/m/Y H:i" }}</td>
+  <td>{{ r.label }}</td><td class="small">{{ r.engine }}</td>
+  <td class="small">{% if r.stale %}<span class="badge text-bg-warning">Interrompue ?</span>{% else %}{{ r.job.status_label }}{% endif %}{% if r.job.launch == 'scheduled' and r.job.scheduled_for %}<div class="text-muted">{{ r.job.scheduled_for|date:"d/m/Y H:i" }}</div>{% endif %}</td>
+  <td class="small">{{ r.job.done_items }} / {{ r.job.total_items }}{% if r.job.failed_items %} · <span class="text-danger">{{ r.job.failed_items }} échec(s)</span>{% endif %}{% if r.job.skipped_items %} · {{ r.job.skipped_items }} non envoyé(s){% endif %}</td>
+</tr>{% endfor %}
+</tbody></table>
+{% else %}<p class="small text-muted">{{ empty }}</p>{% endif %}

@@ -25,18 +25,35 @@
         <label class="form-check-label" for="terms-ack">J'ai pris connaissance de ce résumé des conditions de {{ summary.terms.name }}.</label></div>{% endif %}
       {% if job.requires_second_confirmation %}<div class="form-check w-100"><input class="form-check-input" type="checkbox" name="second_confirmation" value="1" id="second-confirmation">
         <label class="form-check-label" for="second-confirmation">Je confirme l'envoi de ce volume ({{ job.chars_estimated }} caractères).</label></div>{% endif %}
-      <button class="btn btn-primary" name="action" value="confirm" {% if summary.problems %}disabled{% endif %}>Confirmer et lancer</button>
+      <fieldset class="w-100 mb-1"><legend class="h6 mb-1">Lancement</legend>
+        {% if job.launch == 'now' %}<div class="form-check"><input class="form-check-input" type="radio" name="launch" value="now" id="launch-now" {% if default_launch == 'now' %}checked{% endif %}>
+          <label class="form-check-label" for="launch-now">Maintenant <span class="small text-muted">— passe avant les longues traductions</span></label></div>{% endif %}
+        <div class="form-check"><input class="form-check-input" type="radio" name="launch" value="immediate" id="launch-immediate" {% if default_launch == 'immediate' %}checked{% endif %}>
+          <label class="form-check-label" for="launch-immediate">Immédiat</label></div>
+        <div class="form-check d-flex flex-wrap align-items-center gap-2"><input class="form-check-input" type="radio" name="launch" value="scheduled" id="launch-scheduled" {% if default_launch == 'scheduled' %}checked{% endif %}>
+          <label class="form-check-label" for="launch-scheduled">Programmé le</label>
+          <input type="datetime-local" name="scheduled_for" class="form-control form-control-sm" style="width:auto" aria-label="Date et heure du départ">
+          <span class="small text-muted w-100 ms-4">Si J-ed est arrêté à cette heure-là, la tâche ne part pas d'elle-même : elle vous attendra.</span></div>
+        <div class="form-check"><input class="form-check-input" type="radio" name="launch" value="night" id="launch-night" {% if default_launch == 'night' %}checked{% endif %} {% if not night_window %}disabled{% endif %}>
+          <label class="form-check-label" for="launch-night">File de nuit{% if night_window %} ({{ night_window }}{% if next_night %}, prochaine plage le {{ next_night|date:"d/m à H:i" }}{% endif %}){% endif %}</label>
+          {% if night_window %}<div class="small text-muted">Moteur conseillé : Argos (gratuit, rien ne quitte l'ordinateur). L'ordinateur doit rester allumé, sans mise en veille, avec Docker Desktop démarré. Si J-ed n'est pas en marche au début de la plage, la file attendra votre confirmation.</div>
+          {% else %}<div class="small text-muted">Choisissez d'abord votre plage horaire : <a href="{% url 'translation:engines' %}#file-de-nuit">Traduction → Moteurs</a>.</div>{% endif %}</div>
+      </fieldset>
+      <button class="btn btn-primary" name="action" value="confirm" {% if summary.problems %}disabled{% endif %}>Confirmer</button>
       <button class="btn btn-outline-secondary" name="action" value="cancel">Annuler</button>
     </form>
   </section>
 {% else %}
   <section class="card-soft mb-3">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
-      <div><strong>{% if stale %}Interrompue (aucun signe d'activité){% else %}{{ job.get_status_display }}{% endif %}</strong>
+      <div><strong>{% if stale %}Interrompue (aucun signe d'activité){% else %}{{ job.status_label }}{% endif %}</strong>
+        <span class="small text-muted">· {{ job.get_launch_display }}{% if job.launch == 'scheduled' and job.scheduled_for %} le {{ job.scheduled_for|date:"d/m/Y à H:i" }}{% elif job.launch == 'night' and night_window %} ({{ night_window }}){% endif %}</span>
         <span class="text-muted small">· {{ job.done_items }} traduit(s) / {{ job.total_items }}{% if job.skipped_items %} · {{ job.skipped_items }} non envoyé(s){% endif %}{% if job.failed_items %} · <span class="text-danger">{{ job.failed_items }} échec(s)</span>{% endif %} · {{ job.chars_sent }} caractère(s) envoyé(s)</span></div>
       <form method="post" action="{% url 'translation:job_action' job.pk %}" class="d-flex flex-wrap gap-1">{% csrf_token %}
-        {% if job.status == 'confirmed' or job.status == 'running' %}<button class="btn btn-sm btn-outline-secondary" name="action" value="cancel">Interrompre</button>{% endif %}
-        {% if stale or job.status == 'failed' or job.status == 'interrupted' %}<button class="btn btn-sm btn-primary" name="action" value="resume">Reprendre</button>{% endif %}
+        {% if job.status == 'confirmed' or job.status == 'running' or job.status == 'scheduled' %}{% if not stale %}<button class="btn btn-sm btn-outline-secondary" name="action" value="pause" title="Après le paquet en cours ; rien n'est renvoyé à la reprise">Mettre en pause</button>{% endif %}{% endif %}
+        {% if stale or job.status == 'failed' or job.status == 'interrupted' or job.status == 'paused' or job.status == 'late' %}<button class="btn btn-sm btn-primary" name="action" value="resume">{% if job.status == 'late' %}Lancer maintenant{% else %}Reprendre maintenant{% endif %}</button>{% endif %}
+        {% if night_window %}{% if job.status == 'paused' or job.status == 'late' or job.status == 'interrupted' %}<button class="btn btn-sm btn-outline-primary" name="action" value="night">Remettre dans la file de nuit</button>{% endif %}{% endif %}
+        {% if job.status == 'confirmed' or job.status == 'running' or job.status == 'scheduled' or job.status == 'paused' or job.status == 'late' or job.status == 'interrupted' %}<button class="btn btn-sm btn-outline-danger" name="action" value="cancel" data-confirm="Annuler cette tâche ? Ce qui est déjà traduit est conservé.">Annuler</button>{% endif %}
         {% if job.failed_items and job.status != 'running' and job.status != 'confirmed' %}<button class="btn btn-sm btn-outline-primary" name="action" value="retry">Relancer les échecs</button>
           <button class="btn btn-sm btn-outline-secondary" name="action" value="second" title="Prépare une nouvelle tâche, à confirmer : aucune bascule automatique">Essayer le deuxième moteur…</button>{% endif %}
       </form>
@@ -44,7 +61,19 @@
     <div class="progress mt-2" role="progressbar" aria-label="Avancement" aria-valuemin="0" aria-valuemax="{{ job.total_items }}" aria-valuenow="{{ job.done_items }}">
       <div class="progress-bar" style="width:{% widthratio job.done_items|add:job.skipped_items job.total_items 100 %}%"></div></div>
     {% if job.error_summary %}<div class="alert alert-warning mt-2 mb-0">{{ job.error_summary }}</div>{% endif %}
+    {% if job.status == 'scheduled' or job.status == 'late' or job.status == 'paused' %}
+    <form method="post" action="{% url 'translation:job_action' job.pk %}" class="d-flex flex-wrap gap-2 align-items-center mt-2">{% csrf_token %}
+      <label class="small" for="resched-{{ job.pk }}">{% if job.status == 'late' %}Ou reprogrammer le{% else %}Programmer le{% endif %}</label>
+      <input type="datetime-local" name="scheduled_for" id="resched-{{ job.pk }}" class="form-control form-control-sm" style="width:auto" required>
+      <button class="btn btn-sm btn-outline-secondary" name="action" value="reschedule">Programmer</button></form>{% endif %}
   </section>
+  {% if report %}
+  <section class="card-soft mb-3"><h2 class="h6">Compte rendu</h2>
+    <p class="small mb-1">{{ report.done }} traduit(s) · {{ report.failed }} en échec · {{ report.pending }} restant(s){% if report.skipped %} · {{ report.skipped }} non envoyé(s) (déjà validés ou repris de la mémoire){% endif %}.
+      Coût : {% if report.cost.amount is not None %}{% if report.cost.amount %}{{ report.cost.amount|floatformat:4 }} {{ report.cost.currency }} <span class="text-muted">(estimation sur {{ job.chars_sent }} caractère(s) envoyé(s) ; la facture du fournisseur fait foi)</span>{% else %}aucun{% endif %}{% else %}<span class="text-muted">non disponible — {{ report.cost.basis }}</span>{% endif %}.</p>
+    {% if report.errors %}<p class="small mb-1"><strong>Erreurs :</strong></p><ul class="small mb-1">{% for message, n in report.errors %}<li>{{ message }}{% if n > 1 %} ({{ n }} éléments){% endif %}</li>{% endfor %}</ul>{% endif %}
+    {% if report.links %}<p class="small mb-0"><strong>Résultats :</strong> {% for label, url in report.links %}<a href="{{ url }}">{{ label|truncatechars:40 }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}</p>{% endif %}
+  </section>{% endif %}
 {% endif %}
 {% if user.is_admin_role and bulk %}
 <form method="post" action="{% url 'translation:job_validate_all' job.pk %}" class="card-soft mb-4 d-flex flex-wrap gap-2 align-items-center">{% csrf_token %}

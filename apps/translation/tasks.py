@@ -19,7 +19,21 @@ def run_translation_job(job_id):
             pass
         return
     if run_job_safely(job_id):
-        run_translation_job.delay(job_id)
+        # 2.0.0 (lot 3) : le paquet suivant reste dans la file de la tâche (« maintenant » ou « traduction »)
+        from .models import TranslationJob
+        from .queue import queue_for
+
+        job = TranslationJob.objects.filter(pk=job_id).first()
+        if job is not None:
+            run_translation_job.apply_async(args=[job_id], queue=queue_for(job))
+
+
+@shared_task
+def clock():
+    """2.0.0 (lot 3) : horloge des tâches, chaque minute (tâches programmées, file de nuit, compte rendu)."""
+    from .queue import clock as run_clock
+
+    return run_clock()
 
 
 @shared_task

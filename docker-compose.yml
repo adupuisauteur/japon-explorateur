@@ -71,7 +71,11 @@ services:
       timeout: 5s
       retries: 3
 
-  worker:
+  # 2.0.0 (lot 3) : trois workers séparés, pour qu'une longue traduction ne bloque jamais le reste.
+  #   worker              file « celery »     : travaux courts (exports, synchronisations, sauvegardes, horloge)
+  #   worker-traduction   file « traduction » : longues traductions, file de nuit, installation de paquets Argos
+  #   worker-maintenant   file « maintenant » : « Traduire maintenant » d'une fiche et petites tâches
+  worker: &worker
     <<: *app
     environment:
       DATABASE_URL: postgres://japon:${POSTGRES_PASSWORD}@db:5432/japon
@@ -82,8 +86,18 @@ services:
       TRANSLATION_ARGOS_URL: ${TRANSLATION_ARGOS_URL:-http://argos:5000}
       TRANSLATION_ARGOS_DEPOT_DIR: /argos-depot
       BACKUP_EXTERNAL_DIR: /backups-externes
-    # 1.3.0 : file « traduction » en plus de la file par défaut (traductions découpées en paquets courts).
-    command: ["celery", "-A", "config", "worker", "-l", "info", "--concurrency", "2", "-Q", "celery,traduction"]
+    command: ["celery", "-A", "config", "worker", "-l", "info", "-n", "courts@%h",
+              "--concurrency", "${JED_WORKERS_COURTS:-2}", "-Q", "celery"]
+
+  worker-traduction:
+    <<: *worker
+    command: ["celery", "-A", "config", "worker", "-l", "info", "-n", "traduction@%h", "--concurrency", "1",
+              "-Q", "traduction"]
+
+  worker-maintenant:
+    <<: *worker
+    command: ["celery", "-A", "config", "worker", "-l", "info", "-n", "maintenant@%h", "--concurrency", "1",
+              "-Q", "maintenant"]
 
   beat:
     <<: *app

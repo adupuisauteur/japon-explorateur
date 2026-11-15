@@ -86,6 +86,22 @@ JOB_STATUS = [
     ("failed", "Échec"),
     ("cancelled", "Annulée"),
     ("blocked", "Bloquée"),
+    # 2.0.0 (lot 3)
+    ("scheduled", "Planifiée"),
+    ("paused", "En pause"),
+    ("late", "En retard — à confirmer"),
+]
+#: 2.0.0 (lot 3) : façon dont la tâche a été lancée
+JOB_LAUNCHES = [
+    ("immediate", "Immédiat"),
+    ("now", "Maintenant (depuis une fiche)"),
+    ("scheduled", "Programmé"),
+    ("night", "File de nuit"),
+]
+PAUSE_REASONS = [
+    ("user", "Demande de l'utilisateur"),
+    ("cap", "Plafond atteint"),
+    ("night_end", "Fin de la plage de nuit"),
 ]
 JOB_KINDS = [
     ("segments", "Segments d'un projet"),
@@ -175,6 +191,15 @@ class TranslationPreference(EngineChoiceMixin):
     translate_subjects = models.BooleanField("Notices : traduire aussi les sujets", default=False)
     translate_place = models.BooleanField("Notices : traduire aussi le lieu", default=False)
     migrated_from_ai = models.BooleanField("Ancien réglage IA de traduction déjà repris", default=False)
+    # 2.0.0 (lot 3) : plage de la file de nuit, choisie par l'utilisateur (aucune valeur par défaut)
+    night_start = models.TimeField("File de nuit : début", null=True, blank=True)
+    night_end = models.TimeField("File de nuit : fin", null=True, blank=True)
+    night_window_seen = models.DateTimeField("Début de la dernière plage observée", null=True, blank=True)
+    night_window_open = models.BooleanField("Plage de nuit commencée à l'heure", default=False)
+    confirm_below = models.DecimalField("« Traduire maintenant » sans confirmation en dessous de (USD)", max_digits=8,
+                                        decimal_places=4, null=True, blank=True,
+                                        help_text="Vide : toujours confirmer. Les plafonds et le consentement IA "
+                                                  "restent vérifiés dans tous les cas.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -413,6 +438,11 @@ class TranslationJob(models.Model):
     started_at = models.DateTimeField(null=True, blank=True)
     heartbeat_at = models.DateTimeField("Dernier signe d'activité", null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
+    # 2.0.0 (lot 3) : lancement, heure prévue, ordre dans la file, raison d'une pause
+    launch = models.CharField("Lancement", max_length=10, choices=JOB_LAUNCHES, default="immediate")
+    scheduled_for = models.DateTimeField("Heure prévue", null=True, blank=True)
+    queue_position = models.PositiveIntegerField("Ordre dans la file", null=True, blank=True)
+    pause_reason = models.CharField("Raison de la pause", max_length=10, choices=PAUSE_REASONS, blank=True)
 
     class Meta:
         ordering = ["-created_at"]
@@ -420,6 +450,15 @@ class TranslationJob(models.Model):
 
     def __str__(self):
         return f"{self.get_kind_display()} — {self.get_engine_display()} ({self.get_status_display()})"
+
+    @property
+    def status_label(self):
+        """État affiché : « Terminée avec erreurs » quand des éléments ont échoué (2.0.0, lot 3)."""
+        if self.status == "done" and self.failed_items:
+            return "Terminée avec erreurs"
+        if self.status == "paused" and self.pause_reason:
+            return f"En pause — {self.get_pause_reason_display().lower()}"
+        return self.get_status_display()
 
 
 class TranslationJobItem(models.Model):

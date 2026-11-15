@@ -109,11 +109,17 @@ def incident_group(incident, *, reappeared=False):
 
 def translation_job_ended(job):
     """Tâche de traduction terminée, terminée avec des erreurs, en échec ou interrompue."""
-    if job.user_id is None or job.status not in ("done", "failed", "interrupted"):
+    if job.user_id is None or job.status not in ("done", "failed", "interrupted", "paused"):
         return None
     link = reverse("translation:job_detail", args=[job.pk])
     label = job.scope_label or f"tâche n° {job.pk}"
     counts = f"{job.done_items} traduit(s), {job.failed_items} en échec, {job.skipped_items} ignoré(s)"
+    if job.status == "paused":  # 2.0.0 (lot 3) : plafond atteint (alerte) ; fin de plage de nuit (sans fenêtre)
+        if job.pause_reason == "cap":
+            return notify(job.user, "task_paused", f"Traduction en pause (plafond atteint) : {label}"[:200],
+                          body=(job.error_summary or counts)[:600], link=link, severity="warning",
+                          group_key=f"translation:{job.pk}:cap")
+        return None  # fin de plage : le compte rendu du matin en parle ; pause demandée : l'utilisateur le sait
     if job.status == "interrupted":
         return notify(job.user, "task_paused", f"Traduction interrompue : {label}",
                       body=(job.error_summary or "La tâche peut être reprise.")[:600], link=link,

@@ -42,7 +42,13 @@
       <button class="btn btn-sm btn-outline-secondary" data-cache-offline="{{ request.path }}" title="Conserver cette fiche pour une consultation hors ligne"><i class="bi bi-cloud-download"></i> Hors ligne</button>
     </div>
     <a class="btn btn-sm btn-outline-secondary" href="{% url 'exports:prepare' %}?scope=selection&records={{ record.record_id }}"><i class="bi bi-box-arrow-up"></i> Exporter cette fiche</a>
-    {% if user.can_edit %}<a class="btn btn-sm btn-outline-primary" href="{% url 'translation:record_translations' record.record_id %}"><i class="bi bi-translate"></i> Traduire…</a>{% endif %}
+    {% if user.can_edit %}
+    {% if quick_job %}{% include "translation/_job_mini.html" with job=quick_job %}{% endif %}
+    <form method="post" action="{% url 'translation:translate_now' %}" class="d-flex gap-2">{% csrf_token %}
+      <input type="hidden" name="records" value="{{ record.record_id }}"><input type="hidden" name="next" value="{{ request.path }}">
+      <button class="btn btn-sm btn-primary flex-grow-1" name="mode" value="now" title="Titre et description, avec votre moteur par défaut"><i class="bi bi-translate"></i> Traduire maintenant</button>
+      <button class="btn btn-sm btn-outline-secondary" name="mode" value="night" title="Ajouter à la file de nuit"><i class="bi bi-moon-stars"></i><span class="visually-hidden">Ajouter à la file de nuit</span></button></form>
+    <a class="btn btn-sm btn-outline-primary" href="{% url 'translation:record_translations' record.record_id %}"><i class="bi bi-translate"></i> Traduire… (choix des champs)</a>{% endif %}
     {% if ai_ui_enabled %}
     <div class="dropdown">
       <button class="btn btn-sm btn-outline-primary dropdown-toggle w-100" data-bs-toggle="dropdown"><i class="bi bi-stars"></i> Fonctions IA (à la demande)</button>

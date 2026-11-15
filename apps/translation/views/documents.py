@@ -154,7 +154,8 @@ def document_bulk(request, pk):
     except services.TranslationUnavailable as exc:
         messages.error(request, str(exc))
         return redirect("translation:document_workbench", pk=document.pk)
-    return redirect("translation:job_detail", pk=job.pk)
+    # 2.0.0 (lot 3) : « Ajouter à la file de nuit » = même préparation, lancement « nuit » présélectionné
+    return redirect(reverse("translation:job_detail", args=[job.pk]) + ("?lancement=nuit" if action == "night" else ""))
 
 
 @researcher_required

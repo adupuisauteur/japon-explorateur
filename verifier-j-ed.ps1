@@ -188,7 +188,8 @@ if ($memoire -lt 4) {
     Noter 'ok' 'Docker Desktop' 'en service' $detailsDocker
 }
 
-$attendus = @('db', 'redis', 'web', 'worker', 'beat')
+# 2.0.0 (lot 3) : trois workers (travaux courts, longues traductions, demandes « maintenant »)
+$attendus = @('db', 'redis', 'web', 'worker', 'worker-traduction', 'worker-maintenant', 'beat')
 if ($ArgosAttendu) { $attendus += 'argos' }
 $enService = Docker-Ici @('compose', 'ps', '--services', '--status', 'running')
 $services = @($enService.Texte -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -and $_ -notmatch '\s' })

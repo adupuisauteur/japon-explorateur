@@ -415,4 +415,6 @@ class InfrastructureTests(PipelineTestCase):
     def test_dedicated_celery_queue(self):
         self.assertEqual(settings.CELERY_TASK_ROUTES["apps.translation.tasks.*"]["queue"], "traduction")
         compose = (Path(settings.BASE_DIR) / "docker-compose.yml").read_text(encoding="utf-8")
-        self.assertIn('"-Q", "celery,traduction"', compose)
+        # 2.0.0 (lot 3) : un worker par file
+        for queue in ("celery", "traduction", "maintenant"):
+            self.assertIn(f'"-Q", "{queue}"]', compose)

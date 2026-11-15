@@ -254,7 +254,16 @@ CELERY_TASK_ALWAYS_EAGER = env.bool("CELERY_EAGER", default=not bool(CELERY_BROK
 CELERY_TASK_EAGER_PROPAGATES = False
 CELERY_TIMEZONE = TIME_ZONE
 # 1.3.0 : file dédiée aux traductions (le worker écoute « celery » et « traduction », docker-compose.yml)
-CELERY_TASK_ROUTES = {"apps.translation.tasks.*": {"queue": "traduction"}}
+# 2.0.0 (lot 3) : trois files, trois workers. « celery » : travaux courts (exports, synchronisations, sauvegardes,
+# horloge) ; « traduction » : travaux longs et file de nuit ; « maintenant » : demandes depuis une fiche et petites
+# tâches (la file est choisie par la tâche elle-même, voir apps/translation/queue.py). Les noms exacts passent
+# avant le motif.
+CELERY_TASK_ROUTES = {
+    "apps.translation.tasks.clock": {"queue": "celery"},
+    "apps.translation.tasks.auto_argos_selftest": {"queue": "celery"},
+    "apps.translation.tasks.run_argos_selftest": {"queue": "celery"},
+    "apps.translation.tasks.*": {"queue": "traduction"},
+}
 CELERY_BEAT_SCHEDULE = {
     "synchronisations-planifiees": {
         "task": "apps.updates.tasks.run_due_syncs",
@@ -271,6 +280,11 @@ CELERY_BEAT_SCHEDULE = {
     "sauvegarde-quotidienne": {
         "task": "apps.backups.tasks.scheduled_backup",
         "schedule": crontab(hour=2, minute=23),
+    },
+    # 2.0.0 (lot 3) : horloge des tâches de traduction (programmées, file de nuit, compte rendu du matin).
+    "horloge-taches": {
+        "task": "apps.translation.tasks.clock",
+        "schedule": crontab(minute="*"),
     },
     # 2.0.0 : signe de vie du planificateur et d'un worker (page « État de l'installation »).
     "signe-de-vie": {

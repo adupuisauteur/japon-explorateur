@@ -141,3 +141,36 @@ def record_validate_all(request, record_id):
         log_action(request, "editorial.validate", ed, "Traduction validée et adoptée (validation groupée)")
     (messages.success if chosen else messages.info)(request, bulk_validation_message(chosen, skipped))
     return redirect(safe_next(request, reverse("translation:record_translations", args=[record.record_id])))
+
+
+@researcher_required
+@require_POST
+def translate_now(request):
+    """2.0.0 (lot 3) : « Traduire maintenant » ou « Ajouter à la file de nuit » depuis une fiche ou la Bibliothèque.
+
+    Moteur par défaut. Argos (local, gratuit) ou un coût sous le seuil choisi : départ immédiat, résultat sur la
+    fiche. Sinon : écran de confirmation habituel (coût estimé), avec le lancement présélectionné.
+    """
+    from django.urls import reverse
+
+    from apps.core.redirects import safe_next
+
+    mode = "night" if request.POST.get("mode") == "night" else "now"
+    records = list(Record.objects.filter(record_id__in=_ids(request)))
+    back = safe_next(request, reverse("library:index"))
+    if not records:
+        messages.error(request, "Aucune notice sélectionnée.")
+        return redirect(back)
+    try:
+        job, started = services.prepare_quick(request.user, records, mode=mode)
+    except services.TranslationUnavailable as exc:
+        messages.error(request, str(exc))
+        return redirect(back)
+    log_action(request, "translation.records_prepared", job, f"{len(records)} notice(s), {mode}")
+    if started:
+        log_action(request, "translation.job_confirmed", job, f"{services.engine_label(job)} : maintenant")
+        messages.success(request, "Traduction lancée : le résultat s'affiche ici dès qu'il est prêt ; une fenêtre vous "
+                                  "prévient si vous avez changé de page.")
+        return redirect(back)
+    suffix = "?lancement=nuit" if mode == "night" else ""
+    return redirect(reverse("translation:job_detail", args=[job.pk]) + suffix)

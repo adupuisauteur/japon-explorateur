@@ -54,7 +54,9 @@
       <div class="input-group input-group-sm" style="width:auto"><input name="tag" class="form-control" placeholder="tag" style="max-width:110px"><button class="btn btn-outline-secondary" name="action" value="tag" data-needs-selection disabled>Taguer</button></div>
       <div class="input-group input-group-sm" style="width:auto"><select name="verification" class="form-select" aria-label="Vérification">{% for v, l in verifications %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select><button class="btn btn-outline-secondary" name="action" value="verification" data-needs-selection disabled>Appliquer</button></div>
       <button class="btn btn-sm btn-outline-secondary" name="action" value="export" data-needs-selection disabled><i class="bi bi-box-arrow-up"></i> Exporter</button>
-      {% if user.can_edit %}<button class="btn btn-sm btn-outline-primary" name="action" value="translate" data-needs-selection disabled><i class="bi bi-translate"></i> Traduire…</button>
+      {% if user.can_edit %}<button class="btn btn-sm btn-outline-primary" name="action" value="translate_now" data-needs-selection disabled title="Titre et description, moteur par défaut"><i class="bi bi-translate"></i> Traduire maintenant</button>
+      <button class="btn btn-sm btn-outline-secondary" name="action" value="translate_night" data-needs-selection disabled><i class="bi bi-moon-stars"></i> File de nuit</button>
+      <button class="btn btn-sm btn-outline-primary" name="action" value="translate" data-needs-selection disabled><i class="bi bi-translate"></i> Traduire…</button>
       <button class="btn btn-sm btn-outline-secondary" name="action" value="iiif" data-needs-selection disabled title="Télécharge et contrôle le manifeste IIIF de chaque notice cochée qui en a un"><i class="bi bi-images"></i> Vérifier IIIF</button>{% endif %}
       {% if ai_ui_enabled %}<div class="dropdown"><button type="button" class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown" data-needs-selection disabled><i class="bi bi-stars"></i> IA…</button>
         <ul class="dropdown-menu">

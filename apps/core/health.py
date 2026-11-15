@@ -113,6 +113,10 @@ def check_broker():
     return Check("redis", "Redis (file des tâches)", OK, "Répond", [f"Redis {info.get('redis_version', '?')}"])
 
 
+WORKER_QUEUES = [("celery", "travaux courts"), ("traduction", "longues traductions et file de nuit"),
+                 ("maintenant", "demandes « maintenant »")]
+
+
 def check_workers():
     if settings.CELERY_TASK_ALWAYS_EAGER:
         return Check("workers", "Workers (tâches de fond)", WARNING, "Non utilisés (mode sans Redis)")
@@ -128,8 +132,21 @@ def check_workers():
                      ["Les traductions, synchronisations, exports et sauvegardes planifiées ne partent pas.",
                       "Vérifiez le conteneur « worker » dans Docker Desktop."])
     names = sorted(name.split("@", 1)[0] for reply in replies for name in reply)
-    return Check("workers", "Workers (tâches de fond)", OK, f"{len(replies)} worker(s) répond(ent)",
-                 [", ".join(names)])
+    # 2.0.0 (lot 3) : chaque file doit avoir son worker (travaux courts, longues traductions, « maintenant »)
+    try:
+        active = app.control.inspect(timeout=1.5).active_queues() or {}
+    except Exception:  # noqa: BLE001 — la réponse au « ping » suffit à dire que des workers tournent
+        active = None
+    details = [", ".join(names)]
+    if active is not None:
+        served = {q.get("name") for queues in active.values() for q in queues or []}
+        missing = [f"« {q} » ({label})" for q, label in WORKER_QUEUES if q not in served]
+        if missing:
+            return Check("workers", "Workers (tâches de fond)", ERROR,
+                         "File(s) sans worker : " + ", ".join(missing),
+                         details + ["Démarrez tous les conteneurs : docker compose up -d"])
+        details.append("Files servies : " + ", ".join(q for q, _ in WORKER_QUEUES))
+    return Check("workers", "Workers (tâches de fond)", OK, f"{len(replies)} worker(s) répond(ent)", details)
 
 
 def check_scheduler():

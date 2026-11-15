@@ -23,6 +23,11 @@
       <div class="form-check">{{ pref_form.translate_subjects }} <label class="form-check-label" for="{{ pref_form.translate_subjects.id_for_label }}">{{ pref_form.translate_subjects.label }}</label></div>
       <div class="form-check">{{ pref_form.translate_place }} <label class="form-check-label" for="{{ pref_form.translate_place.id_for_label }}">{{ pref_form.translate_place.label }}</label></div>
     </div>
+    <div class="col-12" id="file-de-nuit"><h3 class="h6 mt-2 mb-1">File de nuit et « Traduire maintenant »</h3>
+      <p class="small text-muted mb-2">Les traductions ajoutées à la file de nuit s'exécutent pendant la plage que vous choisissez (elle peut passer minuit). Sans plage, la file de nuit n'est pas proposée. L'ordinateur doit rester allumé, sans mise en veille, avec Docker Desktop démarré.</p></div>
+    <div class="col-md-3">{{ pref_form.night_start.label_tag }}{{ pref_form.night_start }}{{ pref_form.night_start.errors }}</div>
+    <div class="col-md-3">{{ pref_form.night_end.label_tag }}{{ pref_form.night_end }}{{ pref_form.night_end.errors }}</div>
+    <div class="col-md-6">{{ pref_form.confirm_below.label_tag }}{{ pref_form.confirm_below }}<div class="form-text">{{ pref_form.confirm_below.help_text }} Argos, gratuit et local, ne demande jamais de confirmation.</div>{{ pref_form.confirm_below.errors }}</div>
     <div class="col-12"><button class="btn btn-primary btn-sm">Enregistrer le choix des moteurs</button>
       <span class="small text-muted ms-2">Le deuxième moteur est seulement <strong>proposé</strong> en cas d'échec ; il n'est jamais utilisé d'office.</span></div>
   </form>

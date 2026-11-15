@@ -55,7 +55,23 @@ def _record_context(request, record):
         "corrections": CorrectionProposal.objects.filter(record=record).select_related("author")[:10],
         "ai_profile": profile,
         "correction_fields": CorrectionProposal.FIELDS,
+        "quick_job": _quick_job(request.user, record),
     }
+
+
+def _quick_job(user, record):
+    """2.0.0 (lot 3) : dernière traduction « maintenant » de cette fiche par l'utilisateur (dernière heure)."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from apps.translation.models import TranslationJob
+
+    if not user.can_edit:
+        return None
+    return (TranslationJob.objects.filter(user=user, launch="now", items__record=record,
+                                          created_at__gte=timezone.now() - timedelta(hours=1))
+            .exclude(status__in=("draft", "cancelled")).order_by("-created_at").distinct().first())
 
 
 @login_required

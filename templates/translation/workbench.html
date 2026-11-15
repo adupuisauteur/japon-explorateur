@@ -24,6 +24,7 @@
   <select name="scope" class="form-select form-select-sm" style="width:auto" aria-label="Portée"><option value="selected">Segments cochés</option><option value="untranslated">Tous les non traduits</option>{% for c in chapters %}<option value="chapter:{{ c.pk }}">Chapitre : {{ c.title }}</option>{% endfor %}</select>
   <select name="engine" class="form-select form-select-sm" style="width:auto" aria-label="Moteur"><option value="default">Moteur par défaut</option><option value="second">Deuxième moteur</option></select>
   <button class="btn btn-sm btn-primary" name="action" value="translate">Traduire…</button>
+  <button class="btn btn-sm btn-outline-secondary" name="action" value="night" title="Prépare la tâche ; vous confirmez le coût une fois"><i class="bi bi-moon-stars"></i> Ajouter à la file de nuit</button>
   {% if can_validate %}<button class="btn btn-sm btn-outline-success" name="action" value="validate" title="Valide la dernière proposition de chaque segment, sauf s'il a déjà une version validée">Valider les dernières propositions</button>{% endif %}
   <span class="small text-muted">Une confirmation est demandée avant tout envoi.</span>
 </div>

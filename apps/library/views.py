@@ -165,6 +165,8 @@ def bulk(request):
     elif action == "translate":  # 1.3.0 : module de traduction
         ids = ",".join(e.record.record_id for e in entries)
         return redirect(f"{reverse('translation:records_prepare')}?records={ids}")
+    elif action in ("translate_now", "translate_night"):  # 2.0.0 (lot 3)
+        return _translate_quick(request, [e.record for e in entries], "night" if action == "translate_night" else "now")
     elif action == "iiif":  # 2.0.0 (lot 2) : vérification des manifestes IIIF de la sélection
         return _request_iiif_checks(request, [e.record for e in entries])
     elif action and action.startswith("ai_"):
@@ -458,3 +460,22 @@ def correction_decide(request, pk):
     log_action(request, f"correction.{proposal.status}", proposal.record, proposal.get_field_display())
     messages.success(request, f"Proposition {proposal.get_status_display().lower()}.")
     return redirect("library:corrections")
+
+
+def _translate_quick(request, records, mode):
+    """2.0.0 (lot 3) : « Traduire maintenant » ou « File de nuit » pour la sélection de la Bibliothèque."""
+    from apps.translation import services as T
+
+    if not request.user.can_edit:
+        raise PermissionDenied
+    try:
+        job, started = T.prepare_quick(request.user, records, mode=mode)
+    except T.TranslationUnavailable as exc:
+        messages.error(request, str(exc))
+        return redirect("library:index")
+    log_action(request, "translation.records_prepared", job, f"{len(records)} notice(s), {mode}")
+    if started:
+        messages.success(request, f"Traduction de {len(records)} notice(s) lancée : une fenêtre vous préviendra à la "
+                                  "fin (suivi dans Traduction → Tâches).")
+        return redirect("library:index")
+    return redirect(reverse("translation:job_detail", args=[job.pk]) + ("?lancement=nuit" if mode == "night" else ""))

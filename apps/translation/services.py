@@ -44,7 +44,7 @@ from .pricing import estimate
 RECORD_FIELDS = {"original_title": "Titre", "description_original": "Description",
                  "subjects_original": "Sujets", "place_original": "Lieu"}
 #: états d'une tâche pendant lesquels des caractères ont pu être envoyés (consommation du mois)
-SPENDING_STATUSES = ("confirmed", "running", "interrupted", "done", "failed", "cancelled")
+SPENDING_STATUSES = ("confirmed", "running", "interrupted", "done", "failed", "cancelled", "paused")
 #: erreurs qui arrêtent toute la tâche (inutile d'insister) : configuration, clé, quota
 STOP_KINDS = ("config",)
 STOP_CODES = ("cle_refusee", "quota_depasse")
@@ -280,7 +280,11 @@ def blocking_problems(job, *, resuming=False):
 # --------------------------------------------------------------------------- confirmation et suivi
 
 
-def confirm(job, user, *, second_confirmation=False, terms_acknowledged=False):
+def confirm(job, user, *, second_confirmation=False, terms_acknowledged=False, launch="immediate",
+            scheduled_for=None):
+    """Confirme une tâche préparée. 2.0.0 (lot 3) : lancement immédiat, « maintenant », programmé ou de nuit ;
+    le coût est confirmé ici, une seule fois, quel que soit le lancement."""
+    from . import queue as Q
     from . import terms as T
 
     if job.user_id != user.pk or job.status != "draft":
@@ -298,22 +302,74 @@ def confirm(job, user, *, second_confirmation=False, terms_acknowledged=False):
     if job.requires_second_confirmation and not second_confirmation:
         raise TranslationUnavailable("Volume important : cochez la seconde confirmation pour lancer l'envoi.",
                                      reason="second_confirmation")
+    job.confirmed_at = timezone.now()
+    try:
+        start_now = Q.place(job, launch, scheduled_for=scheduled_for)
+    except Q.QueueError as exc:
+        raise TranslationUnavailable(str(exc), reason="launch") from None
     if pending_terms is not None and pending_terms.get("verified_on"):
         T.acknowledge(user, pending_terms["key"])
-    job.status, job.confirmed_at = "confirmed", timezone.now()
-    job.save(update_fields=["status", "confirmed_at"])
-    dispatch(job)
+    if start_now:
+        dispatch(job)
     return job
 
 
+# --------------------------------------------------------------------------- 2.0.0 (lot 3) : « Traduire maintenant »
+
+QUICK_FIELDS = ("original_title", "description_original")
+
+
+def quick_fields(user):
+    pref = ensure_preference(user)
+    return list(QUICK_FIELDS) + (["subjects_original"] if pref.translate_subjects else []) + (
+        ["place_original"] if pref.translate_place else [])
+
+
+def can_skip_confirmation(job):
+    """« Traduire maintenant » sans écran de confirmation : moteur local (Argos), ou coût estimé connu et inférieur
+    au seuil choisi par l'utilisateur. Jamais si quelque chose bloque, si une seconde confirmation est requise, si
+    les conditions d'un fournisseur restent à lire ou si le profil IA impose la confirmation systématique."""
+    from . import terms as T
+
+    if job.status != "draft" or job.requires_second_confirmation or blocking_problems(job):
+        return False
+    if T.needed(job.user, job.engine, job.ai_provider) is not None:
+        return False
+    if job.engine in LOCAL_ENGINES:
+        return True
+    if job.engine == "ai":
+        from apps.ai.preferences import active_profile
+
+        if active_profile(job.user).mode == "confirm":
+            return False
+    threshold = ensure_preference(job.user).confirm_below
+    return threshold is not None and job.cost_estimate is not None and job.cost_estimate <= threshold
+
+
+def prepare_quick(user, records, *, mode="now"):
+    """Fiche ou Bibliothèque : « Traduire maintenant » (lancée tout de suite si possible) ou « Ajouter à la file de
+    nuit » (écran de confirmation, lancement « nuit » présélectionné). Retourne (tâche, lancée)."""
+    job = prepare_records_job(user, records, quick_fields(user))
+    if mode == "now":
+        job.launch = "now"
+        job.save(update_fields=["launch"])
+        if can_skip_confirmation(job):
+            confirm(job, user, launch="now")
+            return job, True
+    return job, False
+
+
 def dispatch(job):
+    """Envoie la tâche au worker de sa file : « maintenant » (fiche, petite tâche) ou « traduction » (2.0.0, lot 3)."""
+    from .queue import queue_for
     from .tasks import run_translation_job
 
-    run_translation_job.delay(job.pk)
+    run_translation_job.apply_async(args=[job.pk], queue=queue_for(job))
 
 
 def cancel(job, user):
-    if job.user_id != user.pk or job.status not in ("draft", "confirmed", "running", "interrupted", "blocked"):
+    if job.user_id != user.pk or job.status not in ("draft", "confirmed", "running", "interrupted", "blocked",
+                                                     "scheduled", "paused", "late"):
         raise TranslationUnavailable("Cette tâche ne peut pas être annulée.")
     job.status, job.finished_at = "cancelled", timezone.now()
     job.save(update_fields=["status", "finished_at"])
@@ -330,11 +386,12 @@ def is_stale(job):
 
 
 def resume(job, user):
-    """Reprend une tâche interrompue ou en échec : seuls les éléments en attente sont envoyés."""
+    """Reprend MAINTENANT une tâche interrompue, en échec, en pause ou en retard : seuls les éléments en attente
+    sont envoyés. Une tâche de nuit ou programmée reprise ainsi devient une tâche immédiate (choix explicite)."""
     if job.user_id != user.pk:
         raise TranslationUnavailable("Cette tâche ne vous appartient pas.")
     stale = is_stale(job)
-    if not (stale or job.status in ("interrupted", "failed")):
+    if not (stale or job.status in ("interrupted", "failed", "paused", "late")):
         raise TranslationUnavailable("Cette tâche n'est pas interrompue.")
     if stale:
         record_incident(module="traduction", category="lot_interrompu", severity="warning", origin="application",
@@ -345,14 +402,16 @@ def resume(job, user):
     problems = blocking_problems(job, resuming=True)
     if problems:
         raise TranslationUnavailable(" ".join(problems), reason="blocked")
-    job.status, job.error_summary = "confirmed", ""
-    job.save(update_fields=["status", "error_summary"])
+    if job.launch in ("night", "scheduled"):
+        job.launch = "immediate"
+    job.status, job.error_summary, job.pause_reason = "confirmed", "", ""
+    job.save(update_fields=["status", "error_summary", "pause_reason", "launch"])
     dispatch(job)
     return job
 
 
 def retry_failed(job, user):
-    if job.user_id != user.pk or job.status not in ("done", "failed", "interrupted"):
+    if job.user_id != user.pk or job.status not in ("done", "failed", "interrupted", "paused"):
         raise TranslationUnavailable("Impossible de relancer les échecs de cette tâche.")
     n = job.items.filter(status="failed").update(status="pending", error_kind="", error_message="")
     if not n:
@@ -395,7 +454,7 @@ def _touch(job, **fields):
     for k, v in fields.items():
         setattr(job, k, v)
     job.save(update_fields=list(fields))
-    if fields.get("status") in ("done", "failed", "interrupted"):
+    if fields.get("status") in ("done", "failed", "interrupted", "paused"):
         # 2.0.0 (lot 5) : fenêtre de fin de tâche pour son auteur.
         from apps.notifications.services import translation_job_ended
 
@@ -584,8 +643,9 @@ def _bundle(job):
 def _translate(job, engine, chunk, variety, bundle=None):
     segments = [Segment(str(i.pk), _source_text(i)) for i in chunk]
     source, target = (job.project.source_lang, job.project.target_lang) if job.project_id else ("ja", "fr")
-    if hasattr(engine, "priority"):  # Argos (2.0.0, lot 7) : une petite tâche passe avant un long document
-        engine.priority = "now" if job.total_items <= settings.TRANSLATION_ARGOS_NOW_MAX_ITEMS else "background"
+    if hasattr(engine, "priority"):  # Argos (2.0.0, lots 7 et 3) : fiche ou petite tâche avant un long document
+        engine.priority = ("now" if job.launch == "now" or job.total_items <= settings.TRANSLATION_ARGOS_NOW_MAX_ITEMS
+                           else "background")
     return engine.translate(segments, source, target, glossary=bundle, variety=variety, context=_context(job, chunk))
 
 
@@ -641,10 +701,21 @@ def process_next_chunk(job_id):
         _touch(job, status="done", finished_at=timezone.now(), done_items=job.done_items,
                failed_items=job.failed_items, skipped_items=job.skipped_items, chars_sent=job.chars_sent)
         return False
+    # 2.0.0 (lot 3) : avant CHAQUE envoi, fin de plage de nuit et plafonds mensuels (pause, jamais d'autre moteur)
+    from .queue import pause_reason_before_chunk
+
+    chunk_chars = sum(i.chars for i in chunk)
+    chunk_cost = estimate(job.engine, chunk_chars, ai_provider=job.ai_provider, ai_model=job.ai_model)["amount"]
+    reason, message = pause_reason_before_chunk(job, chunk_chars, chunk_cost)
+    if reason:
+        _refresh_counters(job)
+        _touch(job, status="paused", pause_reason=reason, error_summary=message[:2000], done_items=job.done_items,
+               failed_items=job.failed_items, skipped_items=job.skipped_items)
+        return False
     keep_going = _run_chunk(job, engine, chunk, variety, _bundle(job))
     _refresh_counters(job)
-    job.refresh_from_db(fields=["status"])  # annulation demandée pendant le paquet ?
-    if job.status == "cancelled":
+    job.refresh_from_db(fields=["status"])  # annulation ou pause demandée pendant le paquet ?
+    if job.status in ("cancelled", "paused"):
         _touch(job, done_items=job.done_items, failed_items=job.failed_items, skipped_items=job.skipped_items,
                chars_sent=job.chars_sent)
         return False
@@ -685,3 +756,28 @@ def engine_label(job):
     if job.engine == "ai":
         return f"{dict(AI_PROVIDERS).get(job.ai_provider, job.ai_provider)} — {job.ai_model}"
     return job.get_engine_display()
+
+
+def job_report(job):
+    """2.0.0 (lot 3) : compte rendu d'une tâche — fait, échoué et pourquoi, reste, coût, liens vers les résultats."""
+    if job.status in ("draft", "scheduled", "late"):
+        return None
+    from collections import Counter
+
+    from django.urls import reverse
+
+    items = job.items.all()
+    errors = Counter((i.error_message or i.error_kind or "Erreur non précisée") for i in items if i.status == "failed")
+    cost = estimate(job.engine, job.chars_sent, ai_provider=job.ai_provider, ai_model=job.ai_model)
+    links = []
+    if job.kind == "records":
+        records = {i.record for i in items.select_related("record") if i.record_id and i.status == "done"}
+        links = [(r.original_title or r.record_id,
+                  reverse("translation:record_translations", args=[r.record_id])) for r in list(records)[:20]]
+    elif job.kind == "segments":
+        documents = {i.segment.document for i in items.select_related("segment__document") if i.segment_id}
+        links = [(d.title, reverse("translation:document_workbench", args=[d.pk])) for d in documents]
+    return {"done": sum(1 for i in items if i.status == "done"), "failed": sum(1 for i in items if i.status == "failed"),
+            "pending": sum(1 for i in items if i.status == "pending"),
+            "skipped": sum(1 for i in items if i.status == "skipped"), "errors": errors.most_common(10),
+            "cost": cost, "links": links}
