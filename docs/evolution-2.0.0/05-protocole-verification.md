@@ -95,6 +95,16 @@ recharge la page. Attendu : « Traduction d'essai : Argos prêt — … », avec
 le nombre de modèles affiché correspond à la liste complète du fournisseur, soit plus de 20 chez Anthropic si
 ton compte en a davantage.
 
+**V0-9 — Tout valider en une fois.**
+
+1. Sur une fiche, lance « Traduire… » avec Argos sur le titre, la description et les sujets.
+2. Sur la page de la tâche, clique sur « Tout valider et adopter » et confirme. Attendu :
+   - le message « 3 traduction(s) validée(s) et adoptée(s) » ;
+   - le titre et la description traduits apparaissent sur la fiche ;
+   - le bouton disparaît.
+3. Relance une traduction du seul titre, puis utilise le bouton de la fiche (couche éditoriale). Attendu : seul
+   le titre change, et l'ancienne traduction redevient « proposée ».
+
 ## Grille de résultats
 
 | Vérification | Résultat | Remarque |
@@ -108,3 +118,4 @@ ton compte en a davantage.
 | V0-6 Argos jamais simulé | | |
 | V0-7 Traduction d'essai d'Argos | | |
 | V0-8 Liste des modèles d'IA | | |
+| V0-9 Tout valider en une fois | | |

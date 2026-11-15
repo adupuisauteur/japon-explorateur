@@ -45,6 +45,12 @@
     {% if job.error_summary %}<div class="alert alert-warning mt-2 mb-0">{{ job.error_summary }}</div>{% endif %}
   </section>
 {% endif %}
+{% if user.is_admin_role and bulk %}
+<form method="post" action="{% url 'translation:job_validate_all' job.pk %}" class="card-soft mb-4 d-flex flex-wrap gap-2 align-items-center">{% csrf_token %}
+  <div class="me-auto"><strong>{{ bulk|length }} traduction{{ bulk|length|pluralize }} proposée{{ bulk|length|pluralize }}</strong> à valider dans cette tâche.
+    <div class="small text-muted">Pour chaque champ, la proposition la plus récente est adoptée dans la fiche ; la traduction adoptée précédente redevient proposée.{% if bulk_skipped %} {{ bulk_skipped|length }} écartée{{ bulk_skipped|length|pluralize }} (simulation, original modifié ou proposition plus ancienne).{% endif %}</div></div>
+  <button class="btn btn-sm btn-success" data-confirm="Valider et adopter {{ bulk|length }} traduction{{ bulk|length|pluralize }} dans les fiches ?">Tout valider et adopter</button>
+</form>{% endif %}
 <table class="table table-sm align-middle"><thead><tr><th>#</th><th>Élément</th><th>État</th><th>Résultat</th></tr></thead><tbody>
 {% for item in items %}<tr>
   <td class="text-muted small">{{ item.position }}</td>

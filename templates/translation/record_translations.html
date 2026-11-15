@@ -15,6 +15,13 @@
   <button class="btn btn-sm btn-primary" {% if not engines %}disabled{% endif %}>Préparer (confirmation à l'étape suivante)</button>
 </form>
 
+{% if user.is_admin_role and bulk %}
+<form method="post" action="{% url 'translation:record_validate_all' record.record_id %}" class="card-soft mb-4 d-flex flex-wrap gap-2 align-items-center">{% csrf_token %}
+  <div class="me-auto"><strong>{{ bulk|length }} traduction{{ bulk|length|pluralize }} proposée{{ bulk|length|pluralize }}</strong> à valider pour cette notice.
+    <div class="small text-muted">Pour chaque champ, la proposition la plus récente est adoptée dans la fiche ; la traduction adoptée précédente redevient proposée.{% if bulk_skipped %} {{ bulk_skipped|length }} écartée{{ bulk_skipped|length|pluralize }} (simulation, original modifié ou proposition plus ancienne).{% endif %}</div></div>
+  <button class="btn btn-sm btn-success" data-confirm="Valider et adopter {{ bulk|length }} traduction{{ bulk|length|pluralize }} dans les fiches ?">Tout valider et adopter</button>
+</form>{% endif %}
+
 <details class="card-soft mb-4"><summary class="h6 mb-0">Copier cette notice dans un projet de traduction</summary>
   <p class="small mt-2">Pour un texte long ou un projet <strong>confidentiel</strong> : le texte est copié comme document du projet
     (un document par champ), sans rien publier dans la notice. Vous pourrez ensuite publier la traduction validée, par une action explicite.</p>
@@ -41,7 +48,7 @@
   <div class="editorial-box {% if ed.origin == 'ai' or ed.origin == 'mt' %}ai{% endif %}">
     <div class="d-flex flex-wrap gap-2 align-items-center mb-1">{% origin_chip ed.origin %} <span class="chip">{{ ed.get_status_display }}</span>
       {% if ed.data.simulated %}<span class="chip chip-warn">Simulation</span>{% endif %}
-      <span class="small text-muted">{% if ed.ai_task %}{{ ed.ai_task.get_provider_display }} · {{ ed.ai_task.model }}{% else %}{{ ed.data.model|default:ed.data.engine|default:"saisie" }}{% endif %} · {{ ed.created_at|date:"d/m/Y H:i" }}{% if ed.author %} · {{ ed.author }}{% endif %}</span></div>
+      <span class="small text-muted">{% if ed.ai_task %}{{ ed.ai_task.get_provider_display }} · {{ ed.ai_task.model }}{% else %}{% firstof ed.data.model ed.data.engine "saisie" %}{% endif %} · {{ ed.created_at|date:"d/m/Y H:i" }}{% if ed.author %} · {{ ed.author }}{% endif %}</span></div>
     <div style="white-space:pre-line">{{ ed.content }}</div>
     {% for a in ed.data.alerts %}<div class="small text-warning">⚠ {{ a }}</div>{% endfor %}
     {% if ed.source_text and ed.source_text != row.original %}<div class="small text-danger">L'original a changé depuis cette traduction.</div>{% endif %}

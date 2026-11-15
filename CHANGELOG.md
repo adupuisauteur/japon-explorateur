@@ -59,6 +59,14 @@ Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquet
   n'est chargé ni téléchargé ; `ARGOS_DECOUPAGE=paquet` rétablit l'ancien comportement. Les erreurs internes
   donnent la clé manquante (`KeyError : 'packages'`) et le journal du service dit où elles se produisent, sans
   aucun texte. Nouveau `docker/argos/diagnostic.py` (versions, paquets, traduction d'essai fictive pas à pas).
+- **Valider en une fois les traductions de notices** (demande du 15 novembre 2026) : bouton « Tout valider et
+  adopter » sur la fiche (couche éditoriale), sur la page « Traductions » d'une notice et sur la page d'une
+  tâche de traduction de notices. Pour chaque notice et chaque champ, la proposition la plus récente est
+  adoptée (la précédente redevient proposée) ; sont écartées, avec leur raison, les simulations, les
+  traductions dont l'original a changé et les propositions plus anciennes. Réservé à l'administrateur (C2),
+  avec confirmation ; tout ou rien. Corrigé au passage : deux adoptions successives sur une même notice
+  pouvaient donner deux versions de même numéro ; la page « Traductions » plantait pour une proposition sans
+  moteur ni modèle indiqué (saisie manuelle).
   - Base de données : migrations **additives** `core.0002` (champ `argos_demo_mode`) et `core.0003` (table
     `core_servicecheck`), testées en aller-retour 1.3.0 → 2.0.0 → 1.3.0 sur une base temporaire.
 

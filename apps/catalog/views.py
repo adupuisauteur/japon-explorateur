@@ -19,9 +19,13 @@ def _record_context(request, record):
     from apps.ai.preferences import active_profile
     from apps.library.models import Annotation, Collection, CorrectionProposal, LibraryEntry
 
+    from .services import plan_bulk_validation
+
     profile = active_profile(request.user)
+    bulk, bulk_skipped = (plan_bulk_validation(list(record.editorial.filter(kind="translation", status="proposed")))
+                          if request.user.is_admin_role else ([], []))
     return {
-        "record": record,
+        "record": record, "bulk": bulk, "bulk_skipped": bulk_skipped,
         "versions": record.versions.select_related("created_by")[:20],
         "editorial": record.editorial.select_related("ai_task", "author"),
         "links": RecordLink.objects.filter(Q(record_a=record) | Q(record_b=record))

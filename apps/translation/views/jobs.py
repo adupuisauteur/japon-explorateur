@@ -4,7 +4,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from apps.core.audit import log_action
-from apps.core.permissions import researcher_required
+from apps.core.permissions import admin_required, researcher_required
 
 from .. import services
 from ..models import TranslationJob
@@ -32,6 +32,13 @@ def job_detail(request, pk):
                "polling": job.status in ("confirmed", "running") and not services.is_stale(job)}
     if job.status == "draft":
         context["summary"] = services.summary(job)
+    if job.kind == "records" and request.user.is_admin_role:
+        from apps.catalog.models import EditorialContent
+        from apps.catalog.services import plan_bulk_validation
+
+        editorials = EditorialContent.objects.filter(translation_job_items__job=job, kind="translation",
+                                                     status="proposed").select_related("record").distinct()
+        context["bulk"], context["bulk_skipped"] = plan_bulk_validation(list(editorials))
     if request.headers.get("HX-Request"):
         return render(request, "translation/_job_status.html", context)
     return render(request, "translation/job_detail.html", context)
@@ -64,4 +71,21 @@ def job_action(request, pk):
             return redirect("translation:job_detail", pk=new.pk)
     except services.TranslationUnavailable as exc:
         messages.error(request, str(exc))
+    return redirect("translation:job_detail", pk=job.pk)
+
+
+@admin_required
+@require_POST
+def job_validate_all(request, pk):
+    """2.0.0 : valider et adopter en une fois les traductions de notices produites par une tâche."""
+    from apps.catalog.models import EditorialContent
+    from apps.catalog.services import bulk_validation_message, validate_translations
+
+    job = _own_job(request, pk)
+    editorials = EditorialContent.objects.filter(translation_job_items__job=job, kind="translation",
+                                                 status="proposed").select_related("record").distinct()
+    chosen, skipped = validate_translations(list(editorials), request.user)
+    for ed in chosen:
+        log_action(request, "editorial.validate", ed, f"Traduction validée et adoptée (tâche n° {job.pk})")
+    (messages.success if chosen else messages.info)(request, bulk_validation_message(chosen, skipped))
     return redirect("translation:job_detail", pk=job.pk)

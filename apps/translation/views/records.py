@@ -16,9 +16,11 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from apps.catalog.models import EditorialContent, Record
-from apps.catalog.services import ADOPTABLE_TRANSLATION_FIELDS, validate_translation
+from apps.catalog.services import (ADOPTABLE_TRANSLATION_FIELDS, bulk_validation_message, plan_bulk_validation,
+                                   validate_translation, validate_translations)
 from apps.core.audit import log_action
-from apps.core.permissions import researcher_required
+from apps.core.permissions import admin_required, researcher_required
+from apps.core.redirects import safe_next
 
 from .. import services
 
@@ -89,8 +91,10 @@ def record_translations(request, record_id):
         })
     from ..models import TranslationProject
 
+    bulk, bulk_skipped = plan_bulk_validation(list(proposals.select_related("record")))
     return render(request, "translation/record_translations.html", {
         "record": record, "rows": rows, "engines": _engine_options(request.user),
+        "bulk": bulk, "bulk_skipped": bulk_skipped,
         "kanbun": record.language == "lzh",
         "my_projects": TranslationProject.objects.filter(owner=request.user).order_by("title"),
     })
@@ -122,3 +126,17 @@ def record_decide(request, pk):
         ed.delete()
         messages.info(request, "Proposition supprimée.")
     return redirect(back)
+
+
+@admin_required
+@require_POST
+def record_validate_all(request, record_id):
+    """2.0.0 (demande du 15 novembre 2026) : valider et adopter en une fois les traductions proposées d'une notice."""
+    record = get_object_or_404(Record, record_id=record_id)
+    proposals = EditorialContent.objects.filter(record=record, kind="translation", status="proposed").select_related(
+        "record")
+    chosen, skipped = validate_translations(list(proposals), request.user)
+    for ed in chosen:
+        log_action(request, "editorial.validate", ed, "Traduction validée et adoptée (validation groupée)")
+    (messages.success if chosen else messages.info)(request, bulk_validation_message(chosen, skipped))
+    return redirect(safe_next(request, reverse("translation:record_translations", args=[record.record_id])))

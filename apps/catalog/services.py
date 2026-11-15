@@ -212,6 +212,59 @@ def validate_translation(ed, user):
     return field
 
 
+def plan_bulk_validation(editorials):
+    """2.0.0 (demande du 15 novembre 2026) : traductions à valider en une fois, et celles écartées avec la raison.
+
+    Pour chaque notice et chaque champ, la proposition la plus récente est retenue. Sont écartées : les
+    traductions simulées (mode démonstration), celles dont l'original a changé depuis, et les propositions plus
+    anciennes du même champ. Les traductions déjà validées ou rejetées ne sont pas concernées.
+    Retourne (retenues, écartées) ; écartées = [(traduction, raison)].
+    """
+    chosen, skipped, seen = [], [], set()
+    for ed in sorted(editorials, key=lambda e: e.created_at, reverse=True):
+        if ed.kind != "translation" or ed.status != "proposed" or not ed.record_id:
+            continue
+        key = (ed.record_id, ed.target_field)
+        current = (getattr(ed.record, ed.target_field, "") or "").strip() if ed.target_field else ""
+        if (ed.data or {}).get("simulated"):
+            skipped.append((ed, "simulation (aucune traduction réelle)"))
+        elif ed.source_text and current and ed.source_text.strip() != current:
+            skipped.append((ed, "l'original a changé depuis cette traduction"))
+        elif key in seen:
+            skipped.append((ed, "une proposition plus récente du même champ est retenue"))
+        else:
+            seen.add(key)
+            chosen.append(ed)
+    return chosen, skipped
+
+
+def validate_translations(editorials, user):
+    """Valide et adopte en une fois les traductions retenues par plan_bulk_validation (tout ou rien)."""
+    chosen, skipped = plan_bulk_validation(editorials)
+    with transaction.atomic():
+        # Une seule instance (verrouillée) par notice : chaque adoption incrémente le numéro de version de la
+        # notice ; avec des copies séparées, deux versions recevaient le même numéro (erreur d'intégrité).
+        records = {r.pk: r for r in Record.objects.select_for_update().filter(pk__in={ed.record_id for ed in chosen})}
+        for ed in chosen:
+            ed.record = records[ed.record_id]
+            validate_translation(ed, user)
+    return chosen, skipped
+
+
+def bulk_validation_message(chosen, skipped):
+    parts = []
+    if chosen:
+        parts.append(f"{len(chosen)} traduction(s) validée(s) et adoptée(s) dans les fiches.")
+    else:
+        parts.append("Aucune traduction à valider.")
+    reasons = {}
+    for _ed, reason in skipped:
+        reasons[reason] = reasons.get(reason, 0) + 1
+    if reasons:
+        parts.append("Écartée(s) : " + " ; ".join(f"{n} — {r}" for r, n in reasons.items()) + ".")
+    return " ".join(parts)
+
+
 def record_editorial_change(record, field, old, new, user, note=""):
     from .normalization import RULE_FIELDS
 

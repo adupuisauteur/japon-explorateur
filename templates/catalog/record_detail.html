@@ -132,6 +132,12 @@
         <span class="small text-muted ms-2">Le texte source n'est jamais modifié.{% if not user.is_admin_role %} Votre proposition sera validée par un administrateur.{% endif %}</span>
       </form>
       {% endif %}
+      {% if user.is_admin_role and bulk %}
+      <form method="post" action="{% url 'translation:record_validate_all' record.record_id %}" class="card-soft mb-3 d-flex flex-wrap gap-2 align-items-center">{% csrf_token %}
+        <input type="hidden" name="next" value="{{ record.get_absolute_url }}#editoriale">
+        <div class="me-auto small"><strong>{{ bulk|length }} traduction{{ bulk|length|pluralize }} proposée{{ bulk|length|pluralize }}</strong> à valider (la plus récente de chaque champ){% if bulk_skipped %} · {{ bulk_skipped|length }} écartée{{ bulk_skipped|length|pluralize }}{% endif %}.</div>
+        <button class="btn btn-sm btn-success" data-confirm="Valider et adopter {{ bulk|length }} traduction{{ bulk|length|pluralize }} dans la fiche ?">Tout valider et adopter</button>
+      </form>{% endif %}
       {% for ed in editorial %}
       <div class="editorial-box {% if ed.origin == 'ai' or ed.origin == 'mt' %}ai{% endif %}">
         <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
