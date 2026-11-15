@@ -86,6 +86,14 @@ empreintes sont calculées colonne par colonne en SQL, sans le code de l'applica
   de l'utilisateur, **à chaque lot qui ajoute des migrations, mettre à jour la commande de retour** de la section
   « Revenir à la version précédente » du guide de mise à jour (actuellement `migrate core 0001`).
 
+- **Constats sur le poste de l'utilisateur (15 novembre 2026)**, après la mise à jour de l'essai par
+  `mettre-a-jour.ps1` (réussie) :
+  - le script croyait la sauvegarde en échec : Windows PowerShell 5.1 lisait les accents de Docker abîmés.
+    Corrigé (lecture en UTF-8, motifs tolérants), archive `lot0c` ;
+  - Argos : « Erreur interne (KeyError) ». Le diagnostic montre `KeyError: 'feat_dropout'` au chargement des
+    modèles de découpage Stanza des paquets. Corrigé par un découpage par la ponctuation (`ARGOS_DECOUPAGE`),
+    archive `lot0d`. **Test réel à refaire sur le poste.**
+
 ## 5. Livrables du lot
 
 - Archive intermédiaire `japon-explorateur-2.0.0-lot0.zip`, son empreinte `.sha256`, et `mettre-a-jour.ps1` à

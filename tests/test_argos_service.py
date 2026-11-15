@@ -532,7 +532,16 @@ class FakeArgosLibrary:
 
 
 class RealBackendTests(SimpleTestCase):
+    """Découpage par le modèle du paquet (ARGOS_DECOUPAGE=paquet), le comportement de la 1.3.0."""
+
+    MODE = "paquet"
+
     def setUp(self):
+        from unittest import mock
+
+        patcher = mock.patch.object(server_mod, "SENTENCE_SPLIT_MODE", self.MODE)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.tmp = Path(tempfile.mkdtemp(prefix="argos-lib-"))
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
         self.lib = FakeArgosLibrary(self.tmp)
@@ -688,3 +697,56 @@ class DeliveryTests(SimpleTestCase):
         self.assertIn('$aEffacer = @($volumes | Where-Object { $_ -ne "${Projet}${SuffixePaquets}" })', script)
         self.assertIn("japon-explorateur-argos:$Version", script)
         self.assertIn("& docker compose --profile hors-ligne up -d --build", script)
+
+
+class JedSentenceSplitTests(SimpleTestCase):
+    """2.0.0, par défaut : découpage par la ponctuation (constat du 15 novembre 2026 : les modèles Stanza des
+    paquets ja→en 1.1 et en→fr 1.9 ne se chargent plus avec Stanza 1.10.1, KeyError: 'feat_dropout')."""
+
+    def test_default_mode_is_jed(self):
+        self.assertEqual(server_mod.SENTENCE_SPLIT_MODE, "jed")
+
+    def test_japanese_sentences(self):
+        split = server_mod.split_sentences
+        self.assertEqual(split("これは文です。次の文です！最後？"), ["これは文です。", "次の文です！", "最後？"])
+        self.assertEqual(split("「はい。」と言った。それから帰った。"), ["「はい。」と言った。", "それから帰った。"])
+        self.assertEqual(split("本当に！？そうですか。"), ["本当に！？", "そうですか。"])
+        self.assertEqual(split("続く…終わり。"), ["続く…終わり。"])
+
+    def test_english_sentences_and_abbreviations(self):
+        split = server_mod.split_sentences
+        self.assertEqual(split("Mr. Smith went to Tokyo. He came back."), ["Mr. Smith went to Tokyo.", "He came back."])
+        self.assertEqual(split("A. B. Smith wrote it. Then he left."), ["A. B. Smith wrote it.", "Then he left."])
+        self.assertEqual(split('He said "Yes." Then he left.'), ['He said "Yes."', "Then he left."])
+        self.assertEqual(split("Version 1.9 is here. See p. 12. Done."), ["Version 1.9 is here.", "See p. 12.", "Done."])
+
+    def test_nothing_is_lost(self):
+        for text in ("Pas de ponctuation", "これは文です。次の文です！", "One. Two? Three!", "「引用。」"):
+            with self.subTest(text=text):
+                pieces = server_mod.split_sentences(text)
+                self.assertEqual("".join(pieces).replace(" ", ""), text.replace(" ", ""))
+
+
+class JedModeBackendTests(SimpleTestCase):
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="argos-lib-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.lib = FakeArgosLibrary(self.tmp)
+        self.addCleanup(self.lib.restore)
+        self.backend = server_mod.ArgosBackend(self.tmp)
+
+    def test_no_sentence_model_is_ever_needed_or_downloaded(self):
+        result = self.backend.install_from_index("ja", "en")
+        self.assertEqual(result["sbd_model"], "")
+        self.assertEqual(self.lib.network, ["index", "paquet ja→en"])  # pas de « minisbd en »
+        self.assertTrue(self.backend.installed()[0]["sbd_ready"])
+        self.assertEqual(self.backend.translate_step(["文"], "ja", "en"), ["<jaen>文"])
+
+    def test_package_sentencizers_are_replaced(self):
+        self.lib.installed.append(self.lib.Pkg("ja", "en", "1.1"))
+        self.backend.translate_step(["文"], "ja", "en")  # charge la bibliothèque et remplace le découpage
+        sentencizer = self.lib.modules["argostranslate.sbd"].MiniSBDSentencizer()
+        self.assertEqual(sentencizer.split_sentences("一つ。二つ。"), ["一つ。", "二つ。"])
+
+    def test_health_reports_the_mode(self):
+        self.assertEqual(server_mod.Service(self.backend).health()["sentence_split"], "jed")

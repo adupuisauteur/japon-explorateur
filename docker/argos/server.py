@@ -84,6 +84,81 @@ def error_location(exc, depth=4):
     return " < ".join(f"{Path(f.filename).name}:{f.lineno} {f.name}" for f in reversed(frames))
 
 
+# --------------------------------------------------------------------------- découpage en phrases (2.0.0)
+
+#: « jed » (par défaut) : découpage par la ponctuation, fait par ce service ; « paquet » : modèle du paquet
+#: (Stanza ou MiniSBD), comme en 1.3.0.
+#: Constat du 15 novembre 2026 sur le poste de l'utilisateur : les modèles Stanza livrés dans les paquets
+#: ja→en 1.1 et en→fr 1.9 (ja/tokenize/gsd.pt, en/tokenize/ewt.pt) datent d'une ancienne version de Stanza ;
+#: Stanza 1.10.1 ne sait plus les charger (KeyError: 'feat_dropout'), toute traduction échouait. Or J-ed envoie
+#: déjà des segments d'une phrase : un découpage par la ponctuation suffit, sans modèle ni téléchargement.
+SENTENCE_SPLIT_MODE = os.environ.get("ARGOS_DECOUPAGE", "jed").strip().lower() or "jed"
+_JA_END = "。！？!?"
+_CLOSERS = "」』）)]】〉》\"'”’"
+_OPENERS = "「『（(【〈《“"
+#: abréviations anglaises courantes (texte intermédiaire ja→en→fr) : pas de fin de phrase après elles
+_ABBREVIATIONS = {"mr", "mrs", "ms", "dr", "prof", "st", "jr", "sr", "no", "nos", "vol", "vols", "p", "pp", "ed",
+                  "eds", "ch", "fig", "cf", "etc", "vs", "ca", "e.g", "i.e", "approx", "dept", "univ"}
+
+
+def _ends_with_abbreviation(piece):
+    word = re.split(r"[\s(]", piece.rstrip().rstrip("."))[-1].lower()
+    return word in _ABBREVIATIONS or (len(word) == 1 and word.isalpha())
+
+
+def split_sentences(text):
+    """Découpe un texte en phrases par la ponctuation ; ne perd aucun caractère utile.
+
+    - japonais : fin après 。！？ hors citation (「…。」と言った。 reste une seule phrase) ;
+    - langues à espaces : fin après . ! ? suivis d'un espace, sauf après une abréviation ou une initiale.
+    """
+    pieces, start, depth, i, n = [], 0, 0, 0, len(text)
+    while i < n:
+        ch = text[i]
+        if ch in _OPENERS:
+            depth += 1
+        elif ch in "」』）)】〉》" and depth:
+            depth -= 1
+        elif ch in _JA_END or ch == ".":
+            j = i + 1
+            while j < n and text[j] in _JA_END + ".":
+                j += 1  # « ！？ », « ... »
+            closing = j
+            while closing < n and text[closing] in _CLOSERS:
+                closing += 1
+            followed_by_space = closing >= n or text[closing].isspace()
+            if ch == "." or (ch in "!?" and text[i - 1:i].isascii()):
+                boundary = followed_by_space and not (ch == "." and _ends_with_abbreviation(text[start:i + 1]))
+            else:  # ponctuation japonaise : fin de phrase hors citation, ou si la citation se ferme en fin de texte
+                boundary = depth == 0 or followed_by_space
+            if boundary:
+                depth = 0
+                pieces.append(text[start:closing])
+                start = i = closing
+                continue
+            i = j
+            continue
+        i += 1
+    pieces.append(text[start:])
+    sentences = [piece.strip() for piece in pieces if piece.strip()]
+    return sentences or [text]
+
+
+def install_sentence_splitter(sbd_module, mode=None):
+    """Remplace le découpage des paquets par split_sentences (mode « jed »). Retourne True si remplacé."""
+    if (mode or SENTENCE_SPLIT_MODE) != "jed":
+        return False
+
+    def jed_split(self, text):
+        return split_sentences(text)
+
+    for name in ("StanzaSentencizer", "MiniSBDSentencizer", "SpacySentencizerSmall"):
+        cls = getattr(sbd_module, name, None)
+        if cls is not None:
+            cls.split_sentences = jed_split
+    return True
+
+
 # --------------------------------------------------------------------------- Stanza hors ligne
 
 
@@ -143,6 +218,9 @@ class ArgosBackend:
             raise ServiceError(500, "argos_absent", f"Bibliothèque Argos Translate non installée ({exc}).") from None
         if not self._patched:
             self._offline_stanza()
+            import argostranslate.sbd as sbd
+
+            install_sentence_splitter(sbd)  # 2.0.0 : découpage par J-ed (voir SENTENCE_SPLIT_MODE)
             self._patched = True
         return package, translate
 
@@ -170,6 +248,8 @@ class ArgosBackend:
     @staticmethod
     def _sbd_model(pkg):
         """Nom du modèle MiniSBD qu'il faudrait télécharger pour ce paquet, ou '' s'il n'en faut pas."""
+        if SENTENCE_SPLIT_MODE == "jed":
+            return ""  # 2.0.0 : découpage fait par J-ed, aucun modèle de découpage n'est nécessaire
         if getattr(pkg, "packaged_sbd_path", None) is not None:
             return ""  # modèle de découpage inclus dans le paquet (Stanza ou MiniSBD)
         try:
@@ -320,7 +400,7 @@ class Service:
 
     def health(self):
         return {"argos_version": self.backend.version(), "packages": self.backend.installed(),
-                "busy": self.install_lock.locked()}
+                "busy": self.install_lock.locked(), "sentence_split": SENTENCE_SPLIT_MODE}
 
     def path(self, source, target):
         have = {(p["from"], p["to"]) for p in self.backend.installed()}

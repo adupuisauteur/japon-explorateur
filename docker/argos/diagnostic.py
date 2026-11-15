@@ -55,6 +55,10 @@ def main():
         if stanza_dir.is_dir():
             print(f"    contenu de stanza/ : {sorted(p.relative_to(stanza_dir).as_posix() for p in stanza_dir.rglob('*') if p.is_file())[:30]}")
 
+    section("Découpage en phrases")
+    print(f"Mode : {server.SENTENCE_SPLIT_MODE} (jed = ponctuation, par le service ; paquet = modèle du paquet)")
+    print("Essai :", server.split_sentences(SENTENCE + SENTENCE))
+
     backend = server.ArgosBackend("/depot")
     for source, target in (("ja", "en"), ("en", "fr")):
         section(f"Traduction d'essai {source}->{target}")

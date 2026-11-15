@@ -51,6 +51,14 @@ Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquet
     des sauvegardes, Docker (mémoire, conteneurs, port publié seulement sur l'ordinateur, volumes), les pages qui
     répondent, puis lance la vérification ci-dessus (`-AvecSources`, `-AvecTests`) ; rapport texte sans clé ni
     nom de compte.
+- **Argos traduit de nouveau avec les paquets réels** (constat du 15 novembre 2026 sur le poste de
+  l'utilisateur, après mise à jour) : la correction de la rc3 (`resources.json`) fonctionnait, mais les modèles
+  de découpage en phrases Stanza livrés dans les paquets ja→en 1.1 et en→fr 1.9 ne se chargent pas avec
+  Stanza 1.10.1 (`KeyError: 'feat_dropout'`). Le service découpe désormais lui-même par la ponctuation
+  (`ARGOS_DECOUPAGE=jed`, par défaut ; les segments de J-ed sont déjà des phrases) : aucun modèle de découpage
+  n'est chargé ni téléchargé ; `ARGOS_DECOUPAGE=paquet` rétablit l'ancien comportement. Les erreurs internes
+  donnent la clé manquante (`KeyError : 'packages'`) et le journal du service dit où elles se produisent, sans
+  aucun texte. Nouveau `docker/argos/diagnostic.py` (versions, paquets, traduction d'essai fictive pas à pas).
   - Base de données : migrations **additives** `core.0002` (champ `argos_demo_mode`) et `core.0003` (table
     `core_servicecheck`), testées en aller-retour 1.3.0 → 2.0.0 → 1.3.0 sur une base temporaire.
 

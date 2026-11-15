@@ -105,6 +105,8 @@ services:
     image: japon-explorateur-argos:2.0.0
     environment:
       COMPOSE_PROJECT_CHECK: ${COMPOSE_PROJECT_NAME}
+      # 2.0.0 : découpage en phrases par J-ed (« jed », par défaut) ou par le modèle du paquet (« paquet »).
+      ARGOS_DECOUPAGE: ${ARGOS_DECOUPAGE:-jed}
       AUTORISER_NOM_PROJET: ${AUTORISER_NOM_PROJET:-}
     volumes:
       - argos-packages:/argos
