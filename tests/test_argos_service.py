@@ -98,6 +98,10 @@ class FakeBackend:
     def translate_step(self, texts, source, target):
         if any("ERREUR" in t for t in texts):
             raise RuntimeError("message interne contenant un texte secret")
+        if any("CLE" in t for t in texts):
+            {"lang": {}}["packages"]  # KeyError réaliste (constat du 15 novembre 2026)
+        if any("TEXTE" in t for t in texts):
+            raise KeyError("un texte secret avec des espaces")
         return [f"[{source}>{target}] {t}" for t in texts]
 
 
@@ -176,6 +180,20 @@ class ServerTests(ServerMixin, SimpleTestCase):
         self.assertIn("POST /translate 500", log)
         self.assertIn("erreur interne RuntimeError", log)
         self.assertNotIn("secret", log)
+
+    def test_key_error_names_the_key_and_the_log_says_where(self):
+        """2.0.0 : « KeyError » seul ne disait pas quelle donnée manquait ni où (constat du 15 novembre 2026)."""
+        status, data = self.call("POST", "/translate", {"texts": ["CLE 秘密"], "source": "en", "target": "fr"})
+        self.assertEqual((status, data["message"]), (500, "Erreur interne (KeyError : 'packages')."))
+        log = self.log.getvalue()
+        self.assertRegex(log, r"erreur interne KeyError : 'packages' — test_argos_service\.py:\d+ translate_step < "
+                              r"server\.py:\d+ translate ")
+        self.assertNotIn("秘密", log)
+
+    def test_a_key_that_looks_like_text_is_never_shown(self):
+        status, data = self.call("POST", "/translate", {"texts": ["TEXTE"], "source": "en", "target": "fr"})
+        self.assertEqual(data["message"], "Erreur interne (KeyError).")
+        self.assertNotIn("secret", self.log.getvalue())
 
     def test_one_installation_at_a_time(self):
         svc = server_mod.Service(self.backend)

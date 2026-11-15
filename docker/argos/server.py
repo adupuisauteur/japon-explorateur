@@ -44,6 +44,7 @@ import re
 import sys
 import threading
 import time
+import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -58,6 +59,29 @@ class ServiceError(Exception):
     def __init__(self, status, code, message):
         super().__init__(message)
         self.status, self.code, self.message = status, code, message
+
+
+# --------------------------------------------------------------------------- erreurs internes
+
+_SAFE_KEY = re.compile(r"^[A-Za-z_][\w.\-]{0,40}$")
+
+
+def error_label(exc):
+    """Type de l'erreur, plus la clé d'une KeyError si c'est un identifiant court (jamais un texte).
+
+    2.0.0 : « KeyError » seul ne permettait pas de savoir quelle donnée manquait (constat du 15 novembre 2026).
+    """
+    label = exc.__class__.__name__
+    if isinstance(exc, KeyError) and len(exc.args) == 1 and isinstance(exc.args[0], str) \
+            and _SAFE_KEY.match(exc.args[0]):
+        label += f" : '{exc.args[0]}'"
+    return label
+
+
+def error_location(exc, depth=4):
+    """Les derniers appels (fichier:ligne fonction), sans aucune valeur : de quoi trouver la cause."""
+    frames = traceback.extract_tb(exc.__traceback__)[-depth:]
+    return " < ".join(f"{Path(f.filename).name}:{f.lineno} {f.name}" for f in reversed(frames))
 
 
 # --------------------------------------------------------------------------- Stanza hors ligne
@@ -392,9 +416,10 @@ def make_handler(service):
                 data = route()
             except ServiceError as exc:
                 status, data = exc.status, {"code": exc.code, "message": exc.message}
-            except Exception as exc:  # noqa: BLE001 — type seulement, jamais le message (il pourrait contenir du texte)
-                status, data = 500, {"code": "erreur_interne", "message": f"Erreur interne ({exc.__class__.__name__})."}
-                error = f"erreur interne {exc.__class__.__name__}"
+            except Exception as exc:  # noqa: BLE001 — type (et clé courte), jamais le message : il pourrait contenir du texte
+                status, data = 500, {"code": "erreur_interne", "message": f"Erreur interne ({error_label(exc)})."}
+                # 2.0.0 : le journal dit aussi OÙ (fichiers, lignes, fonctions), sans aucune valeur.
+                error = f"erreur interne {error_label(exc)} — {error_location(exc)}"
             # 2.0.0 : le journal est écrit AVANT la réponse (sinon une ligne pouvait manquer quand le client lit
             # le journal juste après avoir reçu la réponse : test instable constaté en exécution parallèle).
             self._log(status, started, error)
