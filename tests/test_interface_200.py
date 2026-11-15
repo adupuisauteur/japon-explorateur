@@ -85,7 +85,11 @@ class AboutTests(AppTestCase):
             self.assertContains(page, f"<dd class=\"col-sm-8\">{settings.APP_VERSION}</dd>", html=False)
             self.assertContains(page, "Origine du projet")
             self.assertContains(page, "Japon — Explorateur documentaire")
-        self.assertContains(self.client.get("/"), 'href="/a-propos/"')
+        # Demande U3 : lien « À propos » en bas de page, plus dans le menu utilisateur.
+        page = self.client.get("/").content.decode()
+        self.assertIn('<a href="/a-propos/">À propos</a>', footer(page))
+        dropdown = page.split('<ul class="dropdown-menu dropdown-menu-end">')[1].split("</ul>")[0]
+        self.assertNotIn("/a-propos/", dropdown)
 
     def test_anonymous_is_sent_to_login(self):
         self.client.logout()

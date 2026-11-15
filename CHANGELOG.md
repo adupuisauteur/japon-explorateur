@@ -12,7 +12,7 @@ Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquet
     sauvegardes garde sa valeur technique. Nom d'instance « J-ed » par défaut pour une nouvelle installation,
     valeur existante conservée (D13, migration `core.0004`, sans effet sur la base) ; en-tête `User-Agent`
     envoyé aux catalogues : `J-ed/2.0.0 (usage de recherche personnel)` (D9) ;
-  - page **« À propos »** (menu à son nom, et lien du pied de page) : version, origine du projet, logiciels
+  - page **« À propos »** (lien du pied de page, demande U3) : version, origine du projet, logiciels
     libres utilisés ;
   - **menus** : « Administration » et « Dysfonctionnements » quittent le menu du haut ; ils sont dans le menu à
     son nom et en pied de page, pour l'administrateur seulement. La pastille des incidents nouveaux est sur le

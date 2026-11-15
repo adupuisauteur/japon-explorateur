@@ -10,7 +10,7 @@
 | Noms techniques (cahier § 4) | Inchangés : projet Docker, images, volumes, dépôt. Le champ `application` du manifeste des sauvegardes garde sa valeur, avec un commentaire | `apps/backups/services.py` |
 | Nom d'instance (D13) | « J-ed » par défaut pour une nouvelle installation ; la valeur enregistrée d'une installation existante n'est pas modifiée | `apps/core/models.py`, migration `core.0004` |
 | `User-Agent` (D9) | `J-ed/2.0.0 (usage de recherche personnel)` ; toujours remplaçable par `CONNECTOR_USER_AGENT` | `config/settings.py` |
-| Page « À propos » | Version, format des données exportées, nom de l'installation, origine du projet, logiciels libres utilisés. Ouverte à tout compte connecté | `templates/core/about.html`, `apps/core/views.py` |
+| Page « À propos » | Version, format des données exportées, nom de l'installation, origine du projet, logiciels libres utilisés. Ouverte à tout compte connecté. Lien « À propos » en bas de page (demande U3, après la vérification sur le poste) | `templates/core/about.html`, `apps/core/views.py` |
 | Menus | « Administration » et « Dysfonctionnements » retirés du menu du haut ; ajoutés au menu à son nom et au pied de page, pour l'administrateur seulement. Pastille des incidents nouveaux sur le bouton du menu à son nom ; elle n'est plus calculée pour les autres rôles | `templates/base.html`, `apps/core/context_processors.py` |
 | Droits sur le journal | Liste, détail, analyse, export et capture réservés à l'administrateur. « Signaler un problème » reste ouvert ; après l'envoi, un chercheur revient à sa page (adresse interne seulement) avec l'identifiant du signalement. Les liens vers le journal sont cachés aux autres rôles, le message d'erreur reste affiché | `apps/incidents/views.py`, `templates/searching/_source_status.html`, `templates/connectors/detail.html`, `templates/connectors/jps_databases.html`, `templates/incidents/report_form.html` |
 | Page hors ligne | Page autonome mise en cache : « J-ed ne répond pas », sans menu ni version, conseils sur Docker Desktop, bouton « Réessayer ». Aucun script | `templates/core/offline.html` |
@@ -91,12 +91,21 @@ pour les projets de traduction.
 - **Grille TR1–TR12** : toujours pas reçue.
 - **Copies de sauvegarde dans Windows** : jamais supprimées par J-ed ; à traiter au lot 3, comme prévu.
 
-## 6. Livrables du lot
+## 6. Retour de l'utilisateur (15 novembre 2026)
 
-- Archive `japon-explorateur-2.0.0-lot1.zip` et son empreinte `.sha256` ; `mettre-a-jour.ps1` et
+- `verifier-j-ed.ps1` sur l'essai mis à jour : **27 OK, 0 à surveiller, 0 problème**, 1 non vérifié (sources en
+  ligne, facultatif). Vérifications V1-1 à V1-6 : **conformes**.
+- **U3, faite** (archive `lot1b`) : lien « À propos » dans le bas de page, retiré du menu utilisateur.
+- **U4**, prévue au lot 6 : historique des versions dans l'Administration, limité aux évolutions et
+  améliorations, sans les bugs rencontrés.
+- **U5**, prévue au lot 3 : vue d'ensemble des traductions déjà effectuées.
+
+## 7. Livrables du lot
+
+- Archives `japon-explorateur-2.0.0-lot1.zip`, puis `lot1b` (demande U3), avec leur empreinte `.sha256` ; `mettre-a-jour.ps1` et
   `verifier-j-ed.ps1` à part.
 - Protocole : `docs/evolution-2.0.0/05-protocole-verification.md`, section « Lot 1 » (V1-1 à V1-6).
-- Registre des demandes : U2 marquée faite, avec les décisions.
+- Registre des demandes : U2 et U3 faites ; U4 (lot 6) et U5 (lot 3) inscrites.
 - CHANGELOG : section 2.0.0, lot 1.
 - Guides en ligne :
   - mise à jour : le chemin vers « État de l'installation », la page « J-ed ne répond pas », le stade (lot 1)

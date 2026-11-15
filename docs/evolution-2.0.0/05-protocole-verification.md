@@ -124,8 +124,7 @@ le comportement du navigateur, pas une erreur.
 **V1-2 — Menus de l'administrateur.** Connecté en administrateur :
 
 1. Le menu du haut ne contient plus « Administration » ni « Dysfonctionnements ».
-2. Le menu à ton nom, en haut à droite, contient « Administration », « Dysfonctionnements » et « À propos de
-   J-ed ». S'il y a des incidents nouveaux de gravité Erreur ou Critique, une pastille rouge s'affiche sur ce
+2. Le menu à ton nom, en haut à droite, contient « Administration » et « Dysfonctionnements ». S'il y a des incidents nouveaux de gravité Erreur ou Critique, une pastille rouge s'affiche sur ce
    bouton.
 3. Le pied de page contient « Administration » et « Dysfonctionnements ».
 
@@ -138,7 +137,8 @@ le comportement du navigateur, pas une erreur.
    message « Signalement enregistré sous l'identifiant … L'administrateur en est informé ».
 4. De retour en administrateur, ce signalement figure dans « Dysfonctionnements ».
 
-**V1-4 — À propos.** Menu à ton nom → « À propos de J-ed ». Attendu : version 2.0.0, origine du projet (ancien
+**V1-4 — À propos** (modifié après ton retour, demande U3). Lien « À propos » en bas de page ; il n'est plus
+dans le menu à ton nom. Attendu : version 2.0.0, origine du projet (ancien
 nom « Japon — Explorateur documentaire »), liste des logiciels libres.
 
 **V1-5 — Page « J-ed ne répond pas ».**

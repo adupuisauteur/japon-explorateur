@@ -57,8 +57,6 @@
           <li><a class="dropdown-item" href="{% url 'incidents:list' %}"><i class="bi bi-journal-medical"></i> Dysfonctionnements{% if incidents_new_count %} <span class="badge rounded-pill text-bg-danger">{{ incidents_new_count }}</span>{% endif %}</a></li>
           {% endif %}
           <li><hr class="dropdown-divider"></li>
-          <li><a class="dropdown-item" href="{% url 'core:about' %}"><i class="bi bi-info-circle"></i> À propos de {{ APP_NAME }}</a></li>
-          <li><hr class="dropdown-divider"></li>
           <li><form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<button class="dropdown-item"><i class="bi bi-box-arrow-right"></i> Déconnexion</button></form></li>
         </ul>
       </div>
@@ -85,7 +83,7 @@
 </main>
 <footer class="app-footer">
   <div class="container-xl d-flex flex-wrap justify-content-between gap-2 small">
-    <span>{% if user.is_authenticated %}<a href="{% url 'core:about' %}">{{ APP_NAME }} · v{{ APP_VERSION }}</a> · <a href="{% url 'incidents:report' %}?from={{ request.path|urlencode }}">Signaler un problème</a>{% if user.is_admin_role %} · <a href="{% url 'core:admin_hub' %}">Administration</a> · <a href="{% url 'incidents:list' %}">Dysfonctionnements</a>{% if incidents_new_count %} <span class="badge rounded-pill text-bg-danger" title="{{ incidents_new_count }} nouvel(s) incident(s) de gravité Erreur ou Critique">{{ incidents_new_count }}</span>{% endif %}{% endif %}{% else %}{{ APP_NAME }} · v{{ APP_VERSION }}{% endif %}</span>
+    <span>{% if user.is_authenticated %}{{ APP_NAME }} · v{{ APP_VERSION }} · <a href="{% url 'core:about' %}">À propos</a> · <a href="{% url 'incidents:report' %}?from={{ request.path|urlencode }}">Signaler un problème</a>{% if user.is_admin_role %} · <a href="{% url 'core:admin_hub' %}">Administration</a> · <a href="{% url 'incidents:list' %}">Dysfonctionnements</a>{% if incidents_new_count %} <span class="badge rounded-pill text-bg-danger" title="{{ incidents_new_count }} nouvel(s) incident(s) de gravité Erreur ou Critique">{{ incidents_new_count }}</span>{% endif %}{% endif %}{% else %}{{ APP_NAME }} · v{{ APP_VERSION }}{% endif %}</span>
     <span>Les données restent la propriété de leurs institutions ; vérifiez les notices auprès des catalogues d'origine.</span>
   </div>
 </footer>
