@@ -12,6 +12,9 @@ traitée et son état.
 | U5 | 15/11/2026 | Module de traduction : retrouver les traductions déjà effectuées | 3 | Fait : Traduction → Traductions effectuées |
 | U6 | 15/11/2026 | Depuis les résultats, arriver directement sur les documents (pas seulement les notices) ; Aozora Bunko : texte compressé (zip) ou HTML | à placer (lot 10 proposé) | Étude faite, plan à valider |
 | U7 | 15/11/2026 | Nouvelles sources : bases du NIJL, 日本古典籍総合目録, Historiographical Institute (東京大学史料編纂所), 日本古典文学大系本文データベース, Waseda Kotenseki | à placer (lot 10 proposé) | Étude faite, plan à valider |
+| U8 | 15/11/2026 | IA locale gratuite (comme Argos) pour les résumés | 4 | Décidé : service Ollama facultatif, modèle installé en un clic après confirmation |
+| U9 | 15/11/2026 | Résumer directement après la traduction (file d'attente ou de nuit), ou après l'ensemble des traductions | 4 | Décidé |
+| U10 | 15/11/2026 | Repérer les textes anciens et utiliser une autre IA pour les traduire et les résumer | 4 | Décidé |
 
 ## U2 — Pied de page des exports
 
@@ -101,3 +104,38 @@ parce que les téléchargements de textes et les mises à jour de listes passent
    confirmer » tant que le test réel n'est pas fait.
 5. Visionneuse intégrée des images IIIF (décision de sécurité à prendre : autoriser le chargement d'images de
    sites extérieurs nommés).
+
+## U8, U9, U10 — Lot 4 « Résumés IA, IA locale et textes anciens » (décisions du 15 novembre 2026)
+
+**Résumés (cahier § 7, décision D12).**
+
+- Trois types : résumé court, résumé détaillé, fiche d'analyse (thèmes, personnes, lieux et dates cités).
+- Le résumé est toujours rédigé dans la langue de l'utilisateur : français par défaut, autre langue au choix à chaque
+  demande.
+- Texte lu : l'original japonais par défaut (l'IA rédige directement en français, sans cumuler les erreurs d'une
+  traduction automatique). Un résumé fait sur une traduction non validée porte cette mention.
+- Exports de notices : case à cocher, décochée par défaut ; mention « généré par IA » toujours présente.
+
+**U9 — Enchaînement avec les traductions.** Au moment de mettre en file : « résumer juste après chaque
+traduction » ou « résumer après l'ensemble des traductions ». Le second est imposé la nuit quand Argos et l'IA de
+résumé sont tous deux locaux (la mémoire accordée à Docker ne permet pas de les charger ensemble). Le résumé est
+une tâche de la file comme les autres : plage de nuit, plafonds, pauses, compte rendu ; son coût est compris dans
+l'estimation confirmée.
+
+**U8 — IA locale (Ollama).** Service Docker facultatif et désactivable, comme Argos au lot 7. Aucun modèle n'est
+livré ni téléchargé sans confirmation : le bouton d'installation propose deux ou trois modèles qui lisent le
+japonais et tiennent dans la mémoire du poste, avec leur taille, puis fait un résumé d'essai. Le choix du modèle
+se fait après un essai réel sur le poste de l'utilisateur, y compris sur des textes anciens.
+
+**U10 — Textes anciens.**
+
+1. Repérage automatique proposé (terminaisons classiques, sōrōbun en 候, signes de lecture du kanbun) :
+   annotation « japonais ancien probable », que l'utilisateur confirme ou corrige ; jamais présentée comme sûre.
+2. Dans Traduction → Moteurs : « Pour le japonais ancien, utiliser… » (traductions et résumés).
+3. Une tâche qui mélange textes modernes et anciens est présentée en deux parties à la confirmation, chacune avec
+   son moteur et son coût, confirmées en une fois.
+4. Jamais de changement de moteur en silence : choix fait d'avance par l'utilisateur et affiché avant l'envoi ;
+   plafond atteint = pause, pas d'autre moteur.
+5. Statut « testé en simulation » tant que le repérage n'a pas été réglé sur de vraies notices anciennes
+   signalées par l'utilisateur.
+
