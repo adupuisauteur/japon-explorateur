@@ -7,6 +7,14 @@ case "$*" in
   "compose ps --services --status running")
     printf 'db\nredis\nweb\nworker\nbeat\n'; [ "${FAKE_ARGOS:-0}" = 1 ] && echo argos; exit 0 ;;
   "compose exec -T web python manage.py backup --verify")
+    # Réponses telles que les lit Windows PowerShell 5.1 avec la page de code 850 (constat du 15 novembre 2026)
+    if [ "${FAKE_BACKUP:-ok}" = "accents-abimes" ]; then
+      echo "Termin├®e : /data/backups/sauvegarde-20261114-220000-full.tar (3829760 octets) ÔÇö Sauvegarde termin├®e."
+      echo "Int├®grit├® v├®rifi├®e."; exit 0
+    fi
+    if [ "${FAKE_BACKUP:-ok}" = "echec-accents-abimes" ]; then
+      echo "├ëchec :  (0 octets) ÔÇö ├ëchec : OSError : disque plein"; exit 0
+    fi
     if [ "${FAKE_BACKUP:-ok}" = "echec-130" ]; then
       echo "Échec :  (0 octets) — Échec : OSError : disque plein"; exit 0
     fi

@@ -173,5 +173,7 @@ class VerifyScriptRunTests(SimpleTestCase):
         self.assertTrue(raw.startswith(b"\xef\xbb\xbf"))
         self.assertNotIn(b"\n", raw.replace(b"\r\n", b""))
         text = raw.decode("utf-8-sig")
+        self.assertLess(text.index("[Console]::OutputEncoding = [System.Text.Encoding]::UTF8"),
+                        text.index("Docker-Ici @('info'"))
         self.assertNotIn("down -v", text)
         self.assertNotIn("JaponEssai", text)

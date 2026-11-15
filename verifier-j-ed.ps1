@@ -36,6 +36,10 @@ param(
 )
 
 $ErrorActionPreference = 'Continue'
+# Windows PowerShell 5.1 lit la sortie de docker avec la page de code de la console (850, 437…) : les accents
+# arrivaient abîmés (« Terminée » lu « Termin├®e », constaté le 15 novembre 2026). La sortie est lue en UTF-8.
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
+$OutputEncoding = [System.Text.Encoding]::UTF8
 $NomsProteges = @('japon-explorateur', 'japon-explorateur-essai')
 $script:Lignes = New-Object System.Collections.Generic.List[string]
 $script:Bilan = @{ ok = 0; warning = 0; error = 0; skipped = 0 }

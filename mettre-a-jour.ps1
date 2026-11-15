@@ -46,6 +46,10 @@ param(
 
 # Les codes de retour de Docker sont contrôlés un par un (compatible Windows PowerShell 5.1).
 $ErrorActionPreference = 'Continue'
+# Windows PowerShell 5.1 lit la sortie de docker avec la page de code de la console (850, 437…) : les accents
+# arrivaient abîmés (« Terminée » lu « Termin├®e », constaté le 15 novembre 2026). La sortie est lue en UTF-8.
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
+$OutputEncoding = [System.Text.Encoding]::UTF8
 $NomsProteges = @('japon-explorateur', 'japon-explorateur-essai')
 $VersionMinimale = [version]'1.3.0'   # première version qui accepte AUTORISER_NOM_PROJET
 $DelaiControleSecondes = 300
@@ -205,10 +209,11 @@ Etape '2/6 Sauvegarde de l''installation actuelle'
 $Sauvegarde = Docker-Dans $Actuel @('compose', 'exec', '-T', 'web', 'python', 'manage.py', 'backup', '--verify')
 Write-Host $Sauvegarde.Texte
 # Les versions 1.2.0 et 1.3.0 affichent « Échec » sans code d'erreur : le texte est aussi contrôlé.
-if ($Sauvegarde.Code -ne 0 -or $Sauvegarde.Texte -notmatch 'Terminée' -or $Sauvegarde.Texte -notmatch 'Intégrité vérifiée' -or $Sauvegarde.Texte -cmatch '(?m)^Échec') {
+# Les motifs tolèrent un accent abîmé (1 à 3 caractères à la place de « é » ou « É ») : ceinture et bretelles.
+if ($Sauvegarde.Code -ne 0 -or $Sauvegarde.Texte -notmatch 'Termin.{1,3}e : ' -or $Sauvegarde.Texte -notmatch 'Int.{1,3}grit.{1,3} v.{1,3}rifi' -or $Sauvegarde.Texte -cmatch '(?m)^.{1,3}chec :') {
     Arreter 'la sauvegarde a échoué (message ci-dessus) : rien n''a été mis à jour.'
 }
-if ($Sauvegarde.Texte -notmatch 'Terminée : (\S+\.tar)') { Arreter 'chemin de la sauvegarde introuvable dans la réponse.' }
+if ($Sauvegarde.Texte -notmatch 'Termin.{1,3}e : (\S+\.tar)') { Arreter 'chemin de la sauvegarde introuvable dans la réponse.' }
 $CheminDocker = $Matches[1]
 $NomSauvegarde = Split-Path -Leaf $CheminDocker
 

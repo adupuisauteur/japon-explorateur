@@ -132,6 +132,20 @@ class UpdateScriptRunTests(SimpleTestCase):
         self.assertStopped(result, "la sauvegarde a échoué")
         self.assertFalse(self.destination().exists())
 
+    def test_damaged_accents_from_windows_powershell_are_understood(self):
+        """15 novembre 2026, poste de l'utilisateur : « Terminée » lu « Termin├®e » ; la sauvegarde avait réussi."""
+        result = self.run_script(backup="accents-abimes")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue((self.tmp / "sauvegardes" / "sauvegarde-20261114-220000-full.tar").exists())
+
+    def test_a_failure_with_damaged_accents_still_stops(self):
+        self.assertStopped(self.run_script(backup="echec-accents-abimes"), "la sauvegarde a échoué")
+
+    def test_docker_output_is_read_as_utf8_before_any_call(self):
+        text = SCRIPT.read_text(encoding="utf-8-sig")
+        self.assertLess(text.index("[Console]::OutputEncoding = [System.Text.Encoding]::UTF8"),
+                        text.index("Docker-Dans $Actuel @('info')"))
+
     def test_protected_project_needs_the_existing_authorisation(self):
         self.write_env("COMPOSE_PROJECT_NAME=japon-explorateur-essai\nWEB_PORT=8000\n")
         self.assertStopped(self.run_script(), "AUTORISER_NOM_PROJET=japon-explorateur-essai")
