@@ -78,6 +78,9 @@ def generate(job):
         job.status = "failed"
         job.error = f"{exc.__class__.__name__} : {exc}"
     job.save()
+    from apps.notifications.services import export_ended  # 2.0.0 (lot 5)
+
+    export_ended(job)
     return job
 
 

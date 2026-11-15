@@ -69,6 +69,7 @@ INSTALLED_APPS = [
     "apps.backups",
     "apps.incidents",
     "apps.translation",
+    "apps.notifications",
 ]
 
 MIDDLEWARE = [

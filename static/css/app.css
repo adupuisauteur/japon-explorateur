@@ -153,3 +153,11 @@ pre.json { background: #fff; border: 1px solid var(--line); border-radius: .5rem
 .diag-pre { white-space: pre-wrap; word-break: break-word; max-height: 32rem; overflow: auto; font-size: .82rem;
   background: #fbfaf8; border: 1px solid var(--line); border-radius: .5rem; padding: .8rem; }
 .nav-badge { font-size: .65rem; vertical-align: top; }
+
+/* 2.0.0, lot 5 : fenêtres de notification */
+.jed-toast { border-left: 4px solid var(--muted); }
+.jed-toast-success { border-left-color: #2e7d4f; }
+.jed-toast-warning { border-left-color: #b26a00; }
+.jed-toast-error, .jed-toast-critical { border-left-color: #b3261e; }
+#notif-popups { z-index: 1090; }
+.notif-unread { border-left: 4px solid var(--bs-primary); }

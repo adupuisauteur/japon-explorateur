@@ -5,6 +5,30 @@
 Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquette `v1.3.0-rc3` (commit
 `d7296d4`). Audit et plan : `docs/evolution-2.0.0/01-audit.md`.
 
+- **Lot 5 — notifications** (15 novembre 2026, rapport : `docs/evolution-2.0.0/rapport-lot-5.md`) :
+  - mécanisme unique (application `notifications`, migration `notifications.0001`, deux tables) pour les
+    fins de tâches et les alertes de dysfonctionnement ; canal « dans l'application » seulement ;
+  - **fenêtres** en bas à droite : fin d'une traduction (terminée, avec des erreurs, en échec, interrompue),
+    export prêt ou en échec, synchronisation à valider ou en échec ; lien « Voir le compte rendu » et bouton
+    « Vu ». Une fenêtre n'est montrée qu'une fois ; celles d'un utilisateur absent attendent sa prochaine visite ;
+  - **administrateur** : une fenêtre par nouveau groupe d'incidents (pas une par occurrence) ou par problème
+    corrigé qui revient, à partir d'un seuil de gravité réglable (« Erreur et plus » par défaut), avec un lien
+    vers le dysfonctionnement ; rien n'est envoyé pour une opération annulée ;
+  - **compteur** des notifications non lues sur le bouton du menu à son nom (il remplace la pastille provisoire
+    des incidents du lot 1), entrée « Notifications » dans ce menu ;
+  - page **« Notifications »** : historique, filtres (état, type), « Marquer comme lue », « Tout marquer comme
+    lu » ; page **« Préférences »** : activation par type d'événement, seuil des alertes ;
+  - **essai** : « Envoyer une notification d'essai » et, pour l'administrateur, « Envoyer une alerte de
+    dysfonctionnement d'essai », sans lancer de tâche ni écrire au journal ;
+  - interrogation légère toutes les 30 secondes (HTMX), **suspendue quand l'onglet est masqué** et reprise dès
+    son retour ; même suspension pour les 5 pages qui s'actualisent toutes les 2 à 5 secondes ; aucun script en
+    ligne (politique de sécurité inchangée) ;
+  - **correctif** : le cache du navigateur (service worker) portait seulement le numéro de version, si bien
+    qu'entre deux livraisons de la 2.0.0 le navigateur pouvait garder l'ancien `app.js` et l'ancien `app.css`.
+    Son nom suit désormais le contenu de ces fichiers ;
+  - `verifier_fonctionnalites` contrôle les notifications (fenêtre, compteur, « Vu », préférences, alertes
+    réservées à l'administrateur, seuil) ; pages « Notifications » et « Préférences » ajoutées au contrôle des
+    pages.
 - **Correctif — tests lancés dans une installation** (15 novembre 2026, archive `lot2b`) : avec
   `verifier-j-ed.ps1 -AvecTests`, la suite de tests s'exécute dans le conteneur de l'installation. Elle aurait
   copié des sauvegardes fictives dans le dossier Windows des sauvegardes et envoyé des tâches d'essai à la file

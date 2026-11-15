@@ -353,7 +353,7 @@ def retry_failed(job, user):
         raise TranslationUnavailable("Aucun élément en échec.")
     job.failed_items = 0
     job.status = "interrupted"
-    job.save(update_fields=["failed_items", "status"])
+    job.save(update_fields=["failed_items", "status"])  # étape interne de la relance : pas de notification
     return resume(job, user)
 
 
@@ -389,6 +389,11 @@ def _touch(job, **fields):
     for k, v in fields.items():
         setattr(job, k, v)
     job.save(update_fields=list(fields))
+    if fields.get("status") in ("done", "failed", "interrupted"):
+        # 2.0.0 (lot 5) : fenêtre de fin de tâche pour son auteur.
+        from apps.notifications.services import translation_job_ended
+
+        translation_job_ended(job)
 
 
 def _next_chunk(job, engine):
@@ -660,6 +665,11 @@ def run_job_safely(job_id):
                         context={"exception": exc.__class__.__name__, "traceback": short_traceback(exc)})
         TranslationJob.objects.filter(pk=job_id).update(status="failed", finished_at=timezone.now(),
                                                         error_summary=f"Erreur inattendue : {exc.__class__.__name__}")
+        from apps.notifications.services import translation_job_ended
+
+        failed = TranslationJob.objects.filter(pk=job_id).first()
+        if failed is not None:
+            translation_job_ended(failed)
         return False
 
 

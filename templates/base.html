@@ -43,13 +43,14 @@
       </form>
       <div class="dropdown">
         <button class="btn btn-sm btn-light dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
-          <i class="bi bi-person-circle"></i> {{ user }}{% if incidents_new_count %} <span class="badge rounded-pill text-bg-danger nav-badge" title="{{ incidents_new_count }} nouvel(s) incident(s) de gravité Erreur ou Critique">{{ incidents_new_count }}<span class="visually-hidden"> nouvel(s) incident(s)</span></span>{% endif %}
+          <i class="bi bi-person-circle"></i> {{ user }} {% include "notifications/_counter.html" with unread=notifications_unread %}
         </button>
         <ul class="dropdown-menu dropdown-menu-end">
           <li><span class="dropdown-item-text small text-muted">{{ user.get_role_display }}</span></li>
           <li><a class="dropdown-item" href="{% url 'accounts:profile' %}"><i class="bi bi-sliders"></i> Mon compte</a></li>
           {% if user.can_edit %}<li><a class="dropdown-item" href="{% url 'ai:preferences' %}"><i class="bi bi-stars"></i> Préférences IA</a></li>{% endif %}
           <li><a class="dropdown-item" href="{% url 'exports:list' %}"><i class="bi bi-box-arrow-up"></i> Mes exports</a></li>
+          <li><a class="dropdown-item" href="{% url 'notifications:list' %}"><i class="bi bi-bell"></i> Notifications{% if notifications_unread %} <span class="badge rounded-pill text-bg-danger">{{ notifications_unread }}</span>{% endif %}</a></li>
           <li><a class="dropdown-item" href="{% url 'searching:history' %}"><i class="bi bi-clock-history"></i> Historique des recherches</a></li>
           {% if user.is_admin_role %}
           <li><hr class="dropdown-divider"></li>
@@ -81,6 +82,11 @@
   {% block breadcrumb %}{% endblock %}
   {% block content %}{% endblock %}
 </main>
+{% if user.is_authenticated %}
+{# 2.0.0, lot 5 : fenêtres de notification ; actualisation suspendue quand l'onglet est masqué (app.js). #}
+<div id="notif-popups" class="toast-container position-fixed bottom-0 end-0 p-3" aria-live="polite"
+     hx-get="{% url 'notifications:popups' %}" hx-trigger="load, every 30s, jed:visible from:body" hx-swap="beforeend" data-pause-hidden></div>
+{% endif %}
 <footer class="app-footer">
   <div class="container-xl d-flex flex-wrap justify-content-between gap-2 small">
     <span>{% if user.is_authenticated %}{{ APP_NAME }} · v{{ APP_VERSION }} · <a href="{% url 'core:about' %}">À propos</a> · <a href="{% url 'incidents:report' %}?from={{ request.path|urlencode }}">Signaler un problème</a>{% if user.is_admin_role %} · <a href="{% url 'core:admin_hub' %}">Administration</a> · <a href="{% url 'incidents:list' %}">Dysfonctionnements</a>{% if incidents_new_count %} <span class="badge rounded-pill text-bg-danger" title="{{ incidents_new_count }} nouvel(s) incident(s) de gravité Erreur ou Critique">{{ incidents_new_count }}</span>{% endif %}{% endif %}{% else %}{{ APP_NAME }} · v{{ APP_VERSION }}{% endif %}</span>

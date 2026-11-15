@@ -1,4 +1,4 @@
-<div id="job-status" {% if polling %}hx-get="{% url 'translation:job_detail' job.pk %}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+<div id="job-status" {% if polling %}hx-get="{% url 'translation:job_detail' job.pk %}" hx-trigger="every 2s" hx-swap="outerHTML" data-pause-hidden{% endif %}>
 {% if job.status == 'draft' %}
   <section class="card-soft mb-3">
     <h2 class="h5">À confirmer — rien n'a encore été envoyé</h2>

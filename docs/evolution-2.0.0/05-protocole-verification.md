@@ -199,6 +199,36 @@ IIIF « Identifié », origine « déduit par J-ed » (adresse construite à par
 3. Recherche avancée : les cases « Notice disponible », « Document consultable » et « IIIF » remplacent
    « Accès numérique ».
 
+## Lot 5 — notifications
+
+À faire sur l'essai, après la mise à jour vers l'archive du lot 5. Si l'apparence n'a pas changé, recharge une
+fois la page avec Ctrl + F5.
+
+**V5-1 — Essai.** Menu à ton nom → « Notifications » → « Préférences et essai » → « Envoyer une notification
+d'essai ». Attendu :
+
+- une fenêtre en bas à droite, « [Essai] Tâche terminée… », avec « Voir le compte rendu » et « Vu » ;
+- le compteur rouge sur le bouton du menu à ton nom passe à 1 ;
+- « Vu » ferme la fenêtre et remet le compteur à zéro ;
+- la notification figure dans l'historique, marquée « lue ».
+
+**V5-2 — Alerte de dysfonctionnement d'essai** (administrateur). Même page, « Envoyer une alerte de
+dysfonctionnement d'essai ». Attendu : une fenêtre rouge « [Essai] Nouveau dysfonctionnement… » ; le lien mène
+à la page « Dysfonctionnements ». Rien n'est ajouté au journal.
+
+**V5-3 — Fin d'une vraie tâche.** Lance une petite traduction (un champ d'une notice, avec Argos), puis va sur
+une autre page. Attendu, à la fin : une fenêtre « Traduction terminée : … » ; « Voir le compte rendu » ouvre la
+tâche. Même chose avec un export : « Export prêt : … ».
+
+**V5-4 — Absence.** Lance une traduction un peu longue, déconnecte-toi avant la fin, attends, puis reconnecte-toi.
+Attendu : la fenêtre s'affiche à la reconnexion.
+
+**V5-5 — Préférences.** Décoche « Tâche terminée », enregistre, puis lance un export. Attendu : aucune fenêtre ;
+recoche ensuite la case.
+
+**V5-6 — Onglet masqué.** Ouvre J-ed, passe à un autre onglet pendant une minute, puis reviens. Attendu : aucune
+anomalie ; une notification arrivée entre-temps s'affiche au retour sur l'onglet.
+
 ## Grille de résultats
 
 | Vérification | Résultat | Remarque |
@@ -224,3 +254,9 @@ IIIF « Identifié », origine « déduit par J-ed » (adresse construite à par
 | V2-3 Vérifier un manifeste | | |
 | V2-4 Sélection et reprise | | |
 | V2-5 Filtres et tri | | |
+| V5-1 Notification d'essai | | |
+| V5-2 Alerte d'essai | | |
+| V5-3 Fin d'une vraie tâche | | |
+| V5-4 Absence | | |
+| V5-5 Préférences | | |
+| V5-6 Onglet masqué | | |

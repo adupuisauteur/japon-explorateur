@@ -423,7 +423,9 @@ class JournalTests(Evolution120Base):
         self.assertEqual(incident.status, "en_cours")
 
     def test_menu_entry_and_badge(self):
-        record_incident(module="recherche", category="erreur_technique", severity="error", title="Essai")
+        # 2.0.0 (lot 5) : la pastille du bouton compte les notifications ; l'incident en crée une pour l'administrateur.
+        with self.captureOnCommitCallbacks(execute=True):
+            record_incident(module="recherche", category="erreur_technique", severity="error", title="Essai")
         page = self.client.get("/")
         self.assertContains(page, "Dysfonctionnements")
         self.assertContains(page, 'nav-badge')

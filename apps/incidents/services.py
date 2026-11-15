@@ -77,6 +77,7 @@ def _record(*, module, category, severity, title, message, source_code, origin, 
     operation = redact(operation or "")[:300]
     context = redact_mapping(context or {})
     fp = fingerprint(module, source_code, category, technical_code, message or title)
+    new_group = reappeared = False
     with transaction.atomic():
         incident = None
         if group:
@@ -92,6 +93,7 @@ def _record(*, module, category, severity, title, message, source_code, origin, 
             )
             IncidentEvent.objects.create(incident=incident, kind="created", to_status="nouveau", app_version=version,
                                          comment="Enregistrement automatique.")
+            new_group = True
         else:
             incident.occurrence_count += 1
             incident.last_seen_at = now
@@ -105,6 +107,7 @@ def _record(*, module, category, severity, title, message, source_code, origin, 
                 previous = incident.status
                 incident.status = "a_analyser"
                 incident.reappeared_count += 1
+                reappeared = True
                 IncidentEvent.objects.create(
                     incident=incident, kind="reappeared", from_status=previous, to_status="a_analyser",
                     app_version=version,
@@ -115,6 +118,11 @@ def _record(*, module, category, severity, title, message, source_code, origin, 
                                           request_id=request_id or "", operation=operation, message=message,
                                           http_status=http_status, context=context)
         _trim(incident)
+    if new_group or reappeared:
+        # 2.0.0 (lot 5) : une fenêtre par nouveau groupe d'incidents, après validation de l'enregistrement.
+        from apps.notifications.services import incident_group, notify_after_commit
+
+        notify_after_commit(incident_group, incident, reappeared=reappeared)
     return incident
 
 

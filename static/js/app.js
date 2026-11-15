@@ -107,4 +107,26 @@
       btn.classList.replace("btn-outline-secondary", "btn-outline-success");
     }).catch(function () { btn.textContent = "Mise en cache impossible"; });
   });
+  // 2.0.0 (lot 5) : fenêtres de notification (toasts Bootstrap), sans script en ligne.
+  function showToasts(root) {
+    (root || document).querySelectorAll("[data-jed-toast]:not([data-shown])").forEach(function (el) {
+      el.setAttribute("data-shown", "1");
+      var toast = bootstrap.Toast.getOrCreateInstance(el, {
+        autohide: el.getAttribute("data-autohide") === "true", delay: 12000
+      });
+      el.addEventListener("hidden.bs.toast", function () { el.remove(); });
+      toast.show();
+    });
+  }
+  document.addEventListener("htmx:afterSettle", function (e) { showToasts(e.detail.target); });
+
+  // 2.0.0 (lot 5) : les actualisations périodiques sont suspendues quand l'onglet est masqué, puis reprennent
+  // dès qu'il redevient visible (aucun filtre HTMX en ligne : politique de sécurité du contenu).
+  document.addEventListener("htmx:beforeRequest", function (e) {
+    var elt = e.detail && e.detail.elt;
+    if (document.hidden && elt && elt.closest && elt.closest("[data-pause-hidden]")) { e.preventDefault(); }
+  });
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) { document.body.dispatchEvent(new CustomEvent("jed:visible")); }
+  });
 })();

@@ -2,7 +2,7 @@
 {% block title %}{{ label }} — Évaluation{% endblock %}
 {% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item"><a href="{% url 'translation:evaluation' %}">Évaluation</a></li><li class="breadcrumb-item active">{{ label }}</li></ol></nav>{% endblock %}
 {% block content %}
-<div id="comparaison" {% if running %}hx-get="{{ url }}" hx-trigger="every 3s" hx-select="#comparaison" hx-swap="outerHTML"{% endif %}>
+<div id="comparaison" {% if running %}hx-get="{{ url }}" hx-trigger="every 3s" data-pause-hidden hx-select="#comparaison" hx-swap="outerHTML"{% endif %}>
 <h1 class="h3">{{ label }}</h1>
 {% if drafts %}
 <section class="card-soft mb-3"><h2 class="h5">Confirmation du coût — rien n'a encore été envoyé</h2>

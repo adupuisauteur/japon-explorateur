@@ -150,6 +150,38 @@ def check_statuses(ctx):
     return OK, "Trois statuts par notice (notice, document, IIIF), calculés sans appel réseau", details
 
 
+def check_notifications(ctx):
+    """2.0.0 (lot 5) : fenêtre, compteur, lecture, préférence et règle « administrateur seulement »."""
+    from apps.notifications import services as notif
+
+    sent = notif.test(ctx.researcher)
+    client = _client(ctx.researcher)
+    page = client.get("/notifications/fenetres/").content.decode("utf-8")
+    problems = []
+    if sent.title not in page:
+        problems.append("La fenêtre de la notification d'essai ne s'affiche pas")
+    if notif.take_popups(ctx.researcher):
+        problems.append("Une fenêtre déjà affichée est proposée une seconde fois")
+    if notif.unread_count(ctx.researcher) != 1:
+        problems.append("Le compteur des notifications non lues est faux")
+    client.post(f"/notifications/{sent.pk}/lue/")
+    if notif.unread_count(ctx.researcher) != 0:
+        problems.append("« Vu » ne marque pas la notification comme lue")
+    notif.save_preferences(ctx.researcher, enabled_types=set())
+    if notif.notify(ctx.researcher, "task_done", "Essai désactivé") is not None:
+        problems.append("Une préférence désactivée n'est pas respectée")
+    if notif.notify(ctx.researcher, "incident", "Essai", incident_severity="critical") is not None:
+        problems.append("Une alerte de dysfonctionnement atteint un compte qui n'est pas administrateur")
+    if notif.notify(ctx.admin, "incident", "Essai", incident_severity="critical") is None:
+        problems.append("L'administrateur ne reçoit pas les alertes de dysfonctionnement")
+    if notif.notify(ctx.admin, "incident", "Essai faible", incident_severity="info") is not None:
+        problems.append("Le seuil de gravité des alertes n'est pas respecté")
+    if problems:
+        return ERROR, "Notifications : anomalie", problems
+    return OK, "Fenêtre, compteur, « Vu », préférences et alertes réservées à l'administrateur", [
+        "Notification d'essai affichée une seule fois, puis lue"]
+
+
 def check_duplicates(ctx):
     from apps.catalog.services import duplicate_candidates, upsert_record
 
@@ -302,6 +334,7 @@ PAGES = [
     ("/ia/fournisseurs/", "IA — fournisseurs"), ("/administration/", "Administration"),
     ("/administration/etat/", "État de l'installation"), ("/administration/sauvegardes/", "Sauvegardes"),
     ("/administration/parametres/", "Paramètres"), ("/hors-ligne/", "Page hors ligne"), ("/sante/", "Contrôle de santé"),
+    ("/notifications/", "Notifications"), ("/notifications/preferences/", "Préférences de notification"),
     ("/a-propos/", "À propos"), ("/sw.js", "Service worker"),
     ("/manifest.webmanifest", "Manifeste de l'application"),
 ]
@@ -383,6 +416,7 @@ CHECKS = [
     ("notices", "Notices et recherche locale", check_records_and_search, ()),
     ("statuts", "Statuts des notices (notice, document, IIIF)", check_statuses, ("notice",)),
     ("doublons", "Détection des doublons", check_duplicates, ("notice",)),
+    ("notifications", "Notifications", check_notifications, ("comptes",)),
     ("import", "Lecture des fichiers d'import", check_import, ()),
     ("bibliotheque", "Bibliothèque et dossiers", check_library, ("comptes", "notice")),
     ("exports", "Exports", check_exports, ("comptes", "notice")),

@@ -99,7 +99,8 @@ class AboutTests(AppTestCase):
 class MenuTests(AppTestCase):
     def setUp(self):
         super().setUp()
-        record_incident(module="recherche", category="erreur_technique", severity="error", title="Essai")
+        with self.captureOnCommitCallbacks(execute=True):  # alerte de l'administrateur (lot 5)
+            record_incident(module="recherche", category="erreur_technique", severity="error", title="Essai")
 
     def test_admin_entries_left_the_main_menu(self):
         page = self.client.get("/").content.decode()

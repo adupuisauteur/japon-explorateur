@@ -83,9 +83,39 @@ def about(request):
     })
 
 
+_SHELL_FILES = ("css/app.css", "js/app.js", "vendor/bootstrap/bootstrap.min.css",
+                "vendor/bootstrap/bootstrap.bundle.min.js", "vendor/htmx/htmx.min.js",
+                "vendor/bootstrap-icons/bootstrap-icons.min.css")
+_shell_fingerprint = None
+
+
+def shell_fingerprint():
+    """Empreinte des fichiers de l'interface mis en cache par le navigateur.
+
+    2.0.0 (lot 5) : le cache du service worker portait seulement le numéro de version ; entre deux livraisons
+    de la même version (lots de la 2.0.0), le navigateur gardait l'ancien app.js et l'ancien app.css. Le nom du
+    cache change désormais dès que l'un de ces fichiers change.
+    """
+    global _shell_fingerprint
+    if _shell_fingerprint is None or settings.DEBUG:
+        import hashlib
+
+        from django.contrib.staticfiles import finders
+
+        digest = hashlib.sha256(settings.APP_VERSION.encode())
+        for name in _SHELL_FILES:
+            path = finders.find(name)
+            if path:
+                with open(path, "rb") as fh:
+                    digest.update(fh.read())
+        _shell_fingerprint = digest.hexdigest()[:12]
+    return _shell_fingerprint
+
+
 @cache_control(no_cache=True)
 def service_worker(request):
-    content = render_to_string("core/sw.js", {"version": settings.APP_VERSION, "static_prefix": settings.STATIC_URL})
+    content = render_to_string("core/sw.js", {"version": f"{settings.APP_VERSION}-{shell_fingerprint()}",
+                                              "static_prefix": settings.STATIC_URL})
     response = HttpResponse(content, content_type="application/javascript")
     response["Service-Worker-Allowed"] = "/"
     return response

@@ -39,7 +39,7 @@
 </section>
 {% else %}<p class="small text-muted">Les paquets sont communs à toute l'installation : seul un administrateur peut les télécharger, les installer ou les désinstaller.</p>{% endif %}
 
-<section id="argos-jobs" class="mb-3" {% if running %}hx-get="{% url 'translation:local_engines' %}" hx-trigger="every 5s" hx-select="#argos-jobs" hx-swap="outerHTML"{% endif %}>
+<section id="argos-jobs" class="mb-3" {% if running %}hx-get="{% url 'translation:local_engines' %}" hx-trigger="every 5s" data-pause-hidden hx-select="#argos-jobs" hx-swap="outerHTML"{% endif %}>
 <h2 class="h5">Installations récentes</h2>
 {% if jobs %}<table class="table table-sm align-middle"><thead><tr><th>N°</th><th>Opération</th><th>Par</th><th>État</th><th>Détail</th>{% if can_manage %}<th></th>{% endif %}</tr></thead><tbody>
 {% for job, stale in jobs %}<tr><td>{{ job.pk }}</td><td class="small">{{ job.scope_label }}<div class="text-muted">{{ job.created_at|date:"d/m/Y H:i" }}</div></td><td class="small">{{ job.user|default:"—" }}</td>

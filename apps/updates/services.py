@@ -295,6 +295,9 @@ def run_sync(job):
     job.counts = counts
     job.finished_at = timezone.now()
     job.save()
+    from apps.notifications.services import sync_ended  # 2.0.0 (lot 5)
+
+    sync_ended(job)
     return job
 
 
