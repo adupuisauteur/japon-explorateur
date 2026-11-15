@@ -271,7 +271,14 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.core.tasks.heartbeat",
         "schedule": crontab(minute="*/5"),
     },
+    # 2.0.0 (lot 2) : reprise des vérifications IIIF demandées et interrompues (arrêt de Docker, du worker).
+    "verification-iiif-reprise": {
+        "task": "apps.catalog.tasks.verify_iiif_pending",
+        "schedule": crontab(minute="3-59/10"),
+    },
 }
+#: 2.0.0 (lot 2) : délai entre deux vérifications de manifeste IIIF (respect des sites interrogés).
+IIIF_CHECK_DELAY_SECONDS = env.float("IIIF_CHECK_DELAY_SECONDS", default=2.0)
 #: 2.0.0 : au-delà de ce délai sans signe de vie, le planificateur ou les workers sont signalés arrêtés.
 HEARTBEAT_STALE_MINUTES = env.int("HEARTBEAT_STALE_MINUTES", default=15)
 

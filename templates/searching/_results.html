@@ -47,7 +47,7 @@
       </div>
       {% if r.data.description_original %}<div class="small mt-1 ja text-body-secondary">{{ r.data.description_original|truncatechars:220 }}</div>{% endif %}
       <div class="d-flex flex-wrap gap-2 align-items-center mt-2 small">
-        {% if n.digital_access == 'image' %}<span class="chip chip-ok"><i class="bi bi-image"></i> image</span>{% elif n.digital_access == 'fulltext' %}<span class="chip chip-ok">texte intégral</span>{% elif n.digital_access == 'restricted' %}<span class="chip chip-warn">accès restreint</span>{% elif n.digital_access == 'record_only' %}<span class="chip">notice seule</span>{% endif %}
+        {% status_pills n.statuses %}
         <span class="text-muted">Collecté le {{ r.collected_at|date:"d/m/Y H:i" }}</span>
         {% if r.data.source_url %}<a href="{{ r.data.source_url }}" target="_blank" rel="noopener">Notice officielle <i class="bi bi-box-arrow-up-right"></i></a>{% endif %}
         {% if r.data.digital_access_url %}<a href="{{ r.data.digital_access_url }}" target="_blank" rel="noopener">Document numérisé <i class="bi bi-box-arrow-up-right"></i></a>{% elif r.data.image_url %}<a href="{{ r.data.image_url }}" target="_blank" rel="noopener" title="Manifeste IIIF ou image fournie par la source">Images <i class="bi bi-box-arrow-up-right"></i></a>{% endif %}

@@ -53,8 +53,10 @@
           <div class="col-md-6"><div class="form-label">Période</div>{% for cb in form.period %}<div class="form-check form-check-inline">{{ cb.tag }} <label class="form-check-label small" for="{{ cb.id_for_label }}">{{ cb.choice_label }}</label></div>{% endfor %}</div>
           <div class="col-md-6"><div class="form-label">Type documentaire</div>{% for cb in form.document_type %}<div class="form-check form-check-inline">{{ cb.tag }} <label class="form-check-label small" for="{{ cb.id_for_label }}">{{ cb.choice_label }}</label></div>{% endfor %}</div>
           <div class="col-md-4"><div class="form-label">Support</div>{% for cb in form.material_type %}<div class="form-check">{{ cb.tag }} <label class="form-check-label small" for="{{ cb.id_for_label }}">{{ cb.choice_label }}</label></div>{% endfor %}</div>
-          <div class="col-md-4"><div class="form-label">Accès numérique</div>{% for cb in form.digital_access %}<div class="form-check">{{ cb.tag }} <label class="form-check-label small" for="{{ cb.id_for_label }}">{{ cb.choice_label }}</label></div>{% endfor %}</div>
           <div class="col-md-4"><div class="form-label">Langue</div>{% for cb in form.language %}<div class="form-check">{{ cb.tag }} <label class="form-check-label small" for="{{ cb.id_for_label }}">{{ cb.choice_label }}</label></div>{% endfor %}</div>
+          {% for field in form %}{% if field.name == "status_notice" or field.name == "status_document" or field.name == "status_iiif" %}
+          <div class="col-md-4"><div class="form-label">{{ field.label }}</div>{% for cb in field %}<div class="form-check">{{ cb.tag }} <label class="form-check-label small" for="{{ cb.id_for_label }}">{{ cb.choice_label }}</label></div>{% endfor %}</div>
+          {% endif %}{% endfor %}
         </div>
         <p class="small text-muted mt-3 mb-0">Les filtres avancés s'appliquent à la base locale ; les catalogues externes reçoivent les critères qu'ils savent traiter (voir leurs capacités dans Sources).</p>
       </details>

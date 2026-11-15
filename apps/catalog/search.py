@@ -3,7 +3,7 @@ from django.db.models import Case, IntegerField, Q, Value, When
 
 from apps.core import japanese as jp
 
-from .models import Record
+from .models import Record, RecordStatus
 
 SORTS = {
     "relevance": "Pertinence",
@@ -50,10 +50,16 @@ def local_search(query, base_qs=None, sort="relevance"):
     if query.place:
         qs = qs.filter(Q(place_original__icontains=query.place) | Q(holding_institution_text__icontains=query.place))
 
+    # « digital_access » : recherches enregistrées avant la 2.0.0 (le formulaire ne le propose plus).
     for key in ("period", "document_type", "material_type", "digital_access", "language"):
         values = [v for v in (filters.get(key) or []) if v]
         if values:
             qs = qs.filter(**{f"{key}__in": values})
+    # 2.0.0 (lot 2) : trois statuts indépendants ; un filtre par statut (jointure distincte).
+    for kind in ("notice", "document", "iiif"):
+        values = [v for v in (filters.get(f"status_{kind}") or []) if v]
+        if values:
+            qs = qs.filter(pk__in=RecordStatus.objects.filter(kind=kind, value__in=values).values("record_id"))
     catalogues = [c for c in (filters.get("catalogues") or []) if c]
     if catalogues:
         qs = qs.filter(catalogue__code__in=catalogues)

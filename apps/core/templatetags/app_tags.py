@@ -132,3 +132,60 @@ def severity_chip(incident_or_code, label=None):
 @register.simple_tag
 def incident_status_chip(incident):
     return format_html('<span class="chip chip-st-{}">{}</span>', incident.status, incident.get_status_display())
+
+
+# --------------------------------------------------------------------------- 2.0.0, lot 2 : trois statuts
+
+STATUS_CHIP_CLASS = {"oui": "chip-ok", "verifie": "chip-ok", "identifie": "chip-new", "non": "chip-warn",
+                     "echec": "chip-warn", "absent": "chip-muted", "non_verifie": "chip-muted"}
+STATUS_ICONS = {"notice": "bi-card-text", "document": "bi-book", "iiif": "bi-images"}
+
+
+def _status_part(status, key):
+    if status is None:
+        return ""
+    if isinstance(status, dict):
+        return status.get(key) or ""
+    return getattr(status, key, "") or ""
+
+
+def status_title(kind, status):
+    from django.utils import timezone
+
+    from apps.catalog.statuses import LABELS, ORIGIN_LABELS
+    from apps.catalog.models import STATUS_KINDS
+
+    value = _status_part(status, "value") or "non_verifie"
+    parts = [f"{dict(STATUS_KINDS)[kind]} : {LABELS.get(value, value)}"]
+    origin = _status_part(status, "origin")
+    if origin:
+        parts.append(ORIGIN_LABELS.get(origin, origin))
+    when = _status_part(status, "checked_at")
+    if when:
+        if isinstance(when, str):
+            from django.utils.dateparse import parse_datetime
+
+            when = parse_datetime(when)
+        if when:
+            parts.append(timezone.localtime(when).strftime("%d/%m/%Y"))
+    detail = _status_part(status, "detail")
+    if detail:
+        parts.append(detail)
+    return " — ".join(parts)
+
+
+@register.simple_tag
+def status_pills(statuses):
+    """Trois pastilles distinctes : notice disponible, document consultable, IIIF (cahier 2.0.0, § 5)."""
+    from apps.catalog.statuses import KIND_LABELS, KINDS, LABELS
+
+    statuses = statuses or {}
+    chips = []
+    for kind in KINDS:
+        status = statuses.get(kind) if hasattr(statuses, "get") else None
+        value = _status_part(status, "value") or "non_verifie"
+        chips.append(format_html(
+            '<span class="chip chip-status {}" title="{}"><i class="bi {}" aria-hidden="true"></i> {} : {}</span>',
+            STATUS_CHIP_CLASS.get(value, "chip-muted"), status_title(kind, status), STATUS_ICONS[kind],
+            KIND_LABELS[kind], LABELS.get(value, value)))
+    return format_html('<span class="status-pills">{}</span>', mark_safe("".join(chips)))

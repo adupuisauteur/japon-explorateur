@@ -4,14 +4,15 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Case, IntegerField, OuterRef, Q, Subquery, Value, When
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from apps.catalog.models import DOCUMENT_TYPES, PERIODS, Catalogue, Record
+from apps.catalog.models import DOCUMENT_TYPES, PERIODS, Catalogue, Record, RecordStatus
 from apps.catalog.services import record_editorial_change
+from apps.catalog.statuses import KINDS as STATUS_KINDS, SORT_ORDER as STATUS_SORT_ORDER
 from apps.core import japanese as jp
 from apps.core.audit import log_action
 from apps.core.redirects import safe_next
@@ -43,9 +44,19 @@ def _next(request, default):
 # --------------------------------------------------------------------------- bibliothèque
 
 
+def _status_rank(kind):
+    """Rang de tri d'un statut (du plus favorable au moins favorable) ; notice sans statut en dernier."""
+    order = STATUS_SORT_ORDER[kind]
+    rank = Case(*[When(value=v, then=Value(i)) for i, v in enumerate(order)], default=Value(len(order)),
+                output_field=IntegerField())
+    sub = RecordStatus.objects.filter(record_id=OuterRef("record_id"), kind=kind).annotate(r=rank).values("r")[:1]
+    return Subquery(sub, output_field=IntegerField())
+
+
 @login_required
 def index(request):
-    qs = LibraryEntry.objects.filter(user=request.user).select_related("record__catalogue").prefetch_related("tags")
+    qs = (LibraryEntry.objects.filter(user=request.user).select_related("record__catalogue")
+          .prefetch_related("tags", "record__statuses"))
     p = request.GET
     if p.get("q"):
         norm = jp.search_normalize(p["q"])
@@ -64,9 +75,18 @@ def index(request):
         qs = qs.filter(record__catalogue__code=p["source"])
     if p.get("duplicates"):
         qs = qs.filter(Q(record__links_out__status="proposed") | Q(record__links_in__status="proposed")).distinct()
-    sort = {"title": "record__original_title", "date": "record__composition_year_start",
-            "source": "record__catalogue__name", "collected": "-record__collected_at"}.get(p.get("sort"), "-added_at")
-    qs = qs.order_by(sort)
+    # 2.0.0 (lot 2) : trois statuts indépendants, filtre et tri.
+    for kind in STATUS_KINDS:
+        if p.get(f"status_{kind}"):
+            qs = qs.filter(record_id__in=RecordStatus.objects.filter(kind=kind, value=p[f"status_{kind}"])
+                           .values("record_id"))
+    sort_key = p.get("sort") or ""
+    if sort_key.startswith("status_") and sort_key[7:] in STATUS_KINDS:
+        qs = qs.annotate(status_rank=_status_rank(sort_key[7:])).order_by("status_rank", "-added_at")
+    else:
+        sort = {"title": "record__original_title", "date": "record__composition_year_start",
+                "source": "record__catalogue__name", "collected": "-record__collected_at"}.get(sort_key, "-added_at")
+        qs = qs.order_by(sort)
     page = Paginator(qs, 30).get_page(p.get("page"))
     return render(request, "library/index.html", {
         "page": page, "tags": Tag.objects.filter(owner=request.user), "periods": [x for x in PERIODS if x[0]],
@@ -145,10 +165,27 @@ def bulk(request):
     elif action == "translate":  # 1.3.0 : module de traduction
         ids = ",".join(e.record.record_id for e in entries)
         return redirect(f"{reverse('translation:records_prepare')}?records={ids}")
+    elif action == "iiif":  # 2.0.0 (lot 2) : vérification des manifestes IIIF de la sélection
+        return _request_iiif_checks(request, [e.record for e in entries])
     elif action and action.startswith("ai_"):
         request.session["ai_records"] = [e.record.record_id for e in entries]
         request.session["ai_function"] = action[3:]
         return redirect("ai:launch_from_session")
+    return redirect(_next(request, "library:index"))
+
+
+def _request_iiif_checks(request, records):
+    from apps.catalog.iiif import request_checks
+    from apps.catalog.tasks import verify_iiif_pending
+
+    queued, skipped = request_checks(records, request.user)
+    if queued:
+        verify_iiif_pending.delay()
+        log_action(request, "iiif.check", None, f"Vérification IIIF demandée pour {queued} notice(s)")
+        messages.info(request, f"Vérification du manifeste IIIF lancée pour {queued} notice(s), une à une avec un "
+                               "délai entre les sites interrogés. Le résultat s'affiche sur chaque fiche.")
+    if skipped:
+        messages.warning(request, f"{skipped} notice(s) sans manifeste IIIF connu : rien à vérifier.")
     return redirect(_next(request, "library:index"))
 
 

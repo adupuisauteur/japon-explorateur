@@ -195,8 +195,13 @@ class ConnectorScenarioTests(Evolution120Base):
         self.assertEqual(jps.data["place_original"], "信濃国")
         self.assertEqual(jps.data["holding_institution_text"], "国立公文書館")
         self.assertTrue(jps.data["image_url"].endswith("manifest.json"))
+        # 2.0.0 (lot 2) : un lien vers une numérisation NDL ne rend plus le document « consultable » : la NDL ne
+        # dit pas s'il est en accès libre. L'ancien filtre « digital=1 » vaut « document consultable : oui ».
+        self.assertEqual(ndl.data["norm"]["statuses"]["document"]["value"], "non_verifie")
+        self.assertEqual(ndl.data["norm"]["statuses"]["document"]["url"], "https://dl.ndl.go.jp/pid/9900001")
         page = self.client.get(f"/recherche/session/{session.uid}/resultats/?digital=1&sort=author")
-        self.assertContains(page, "Document numérisé")
+        self.assertContains(page, "架空文書")
+        self.assertNotContains(page, "https://dl.ndl.go.jp/pid/9900001")
 
     def test_japan_search_variants_are_combined_with_or(self):
         router = self.route()

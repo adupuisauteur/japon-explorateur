@@ -122,6 +122,34 @@ def check_records_and_search(ctx):
     return OK, "Création, recherche libre et par auteur, historique des versions", details
 
 
+def check_statuses(ctx):
+    """2.0.0 (lot 2) : trois statuts par notice, calculés sans appel réseau ; IIIF lu sur un manifeste fictif."""
+    from django.db.models import Count
+
+    from apps.catalog import iiif
+    from apps.catalog.models import Record, RecordStatus
+    from apps.catalog.services import upsert_record
+
+    record, _ = upsert_record(ctx.catalogue, {
+        "source_id": "VERIF-IIIF", "original_title": FICTIVE_TITLE,
+        "image_url": "https://iiif.example.invalid/verification/manifest"}, origin="import")
+    rows = {s.kind: s.value for s in record.statuses.all()}
+    if set(rows) != {"notice", "document", "iiif"} or rows["iiif"] != "identifie":
+        return ERROR, "Les trois statuts d'une notice fictive ne sont pas calculés", [str(rows)]
+    info = iiif.inspect({"@context": "http://iiif.io/api/presentation/3/context.json", "type": "Manifest",
+                         "items": [{"type": "Canvas", "items": []}]})
+    incomplete = (Record.objects.exclude(catalogue=ctx.catalogue).annotate(n=Count("statuses")).exclude(n=3)
+                  .count())
+    counts = dict(RecordStatus.objects.exclude(record__catalogue=ctx.catalogue).filter(kind="iiif")
+                  .values_list("value").annotate(n=Count("pk")))
+    details = [f"Manifeste fictif lu : IIIF {info['version']}, {info['views']} vue(s) (aucun appel réseau)",
+               "IIIF dans la base : " + (", ".join(f"{k} {v}" for k, v in sorted(counts.items())) or "aucune notice"),
+               f"Vérifications IIIF en attente : {iiif.pending().count()}"]
+    if incomplete:
+        return WARNING, f"{incomplete} notice(s) sans leurs trois statuts", details
+    return OK, "Trois statuts par notice (notice, document, IIIF), calculés sans appel réseau", details
+
+
 def check_duplicates(ctx):
     from apps.catalog.services import duplicate_candidates, upsert_record
 
@@ -353,6 +381,7 @@ CHECKS = [
     ("comptes", "Comptes fictifs de vérification", check_accounts, ()),
     ("japonais", "Traitement du japonais", check_japanese, ()),
     ("notices", "Notices et recherche locale", check_records_and_search, ()),
+    ("statuts", "Statuts des notices (notice, document, IIIF)", check_statuses, ("notice",)),
     ("doublons", "Détection des doublons", check_duplicates, ("notice",)),
     ("import", "Lecture des fichiers d'import", check_import, ()),
     ("bibliotheque", "Bibliothèque et dossiers", check_library, ("comptes", "notice")),

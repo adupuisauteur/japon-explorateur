@@ -16,7 +16,8 @@
       <div class="mb-2"><label class="form-label" for="src">Source</label><select id="src" name="source" class="form-select form-select-sm"><option value="">Toutes</option>{% for c in catalogues %}<option value="{{ c.code }}" {% if request.GET.source == c.code %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></div>
       <div class="form-check"><input class="form-check-input" type="checkbox" name="favorite" value="1" id="fav" {% if request.GET.favorite %}checked{% endif %}><label class="form-check-label small" for="fav">Favoris seulement</label></div>
       <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="duplicates" value="1" id="dup" {% if request.GET.duplicates %}checked{% endif %}><label class="form-check-label small" for="dup">Doublons potentiels à examiner</label></div>
-      <div class="mb-2"><label class="form-label" for="sort">Tri</label><select id="sort" name="sort" class="form-select form-select-sm"><option value="">Ajout récent</option><option value="title" {% if request.GET.sort == 'title' %}selected{% endif %}>Titre</option><option value="date" {% if request.GET.sort == 'date' %}selected{% endif %}>Date</option><option value="source" {% if request.GET.sort == 'source' %}selected{% endif %}>Source</option><option value="collected" {% if request.GET.sort == 'collected' %}selected{% endif %}>Collecte</option></select></div>
+      {% include "partials/status_filters.html" with current=request.GET %}
+      <div class="mb-2"><label class="form-label" for="sort">Tri</label><select id="sort" name="sort" class="form-select form-select-sm"><option value="">Ajout récent</option><option value="title" {% if request.GET.sort == 'title' %}selected{% endif %}>Titre</option><option value="date" {% if request.GET.sort == 'date' %}selected{% endif %}>Date</option><option value="source" {% if request.GET.sort == 'source' %}selected{% endif %}>Source</option><option value="collected" {% if request.GET.sort == 'collected' %}selected{% endif %}>Collecte</option><option value="status_notice" {% if request.GET.sort == 'status_notice' %}selected{% endif %}>Notice disponible</option><option value="status_document" {% if request.GET.sort == 'status_document' %}selected{% endif %}>Document consultable</option><option value="status_iiif" {% if request.GET.sort == 'status_iiif' %}selected{% endif %}>IIIF</option></select></div>
       <button class="btn btn-sm btn-primary w-100">Appliquer</button>
       </div>
     </form>
@@ -36,6 +37,7 @@
             {% if r.reading %}<div class="reading ja">{{ r.reading }}</div>{% endif %}
             {% if r.translated_title %}<div class="translation">« {{ r.translated_title }} » {% origin_chip r.translated_title_origin %}</div>{% endif %}
             <div class="meta">{% if r.creator_original %}<span class="ja">{{ r.creator_original }}</span> · {% endif %}{% if r.composition_display %}Composition : {{ r.composition_display }} · {% endif %}{% if r.copy_display %}Exemplaire : {{ r.copy_display }} · {% endif %}{{ r.get_period_display }}{% if r.institution_display %} · {{ r.institution_display }}{% endif %}</div>
+            <div class="mt-1">{% status_pills r.status_map %}</div>
             <div class="small text-muted mt-1">Ajoutée le {{ e.added_at|date:"d/m/Y" }} · collectée le {{ r.collected_at|date:"d/m/Y" }}{% if r.record_status != 'active' %} · <span class="text-warning-emphasis">{{ r.get_record_status_display }}</span>{% endif %}</div>
           </div>
         </div>
@@ -52,7 +54,8 @@
       <div class="input-group input-group-sm" style="width:auto"><input name="tag" class="form-control" placeholder="tag" style="max-width:110px"><button class="btn btn-outline-secondary" name="action" value="tag" data-needs-selection disabled>Taguer</button></div>
       <div class="input-group input-group-sm" style="width:auto"><select name="verification" class="form-select" aria-label="Vérification">{% for v, l in verifications %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select><button class="btn btn-outline-secondary" name="action" value="verification" data-needs-selection disabled>Appliquer</button></div>
       <button class="btn btn-sm btn-outline-secondary" name="action" value="export" data-needs-selection disabled><i class="bi bi-box-arrow-up"></i> Exporter</button>
-      {% if user.can_edit %}<button class="btn btn-sm btn-outline-primary" name="action" value="translate" data-needs-selection disabled><i class="bi bi-translate"></i> Traduire…</button>{% endif %}
+      {% if user.can_edit %}<button class="btn btn-sm btn-outline-primary" name="action" value="translate" data-needs-selection disabled><i class="bi bi-translate"></i> Traduire…</button>
+      <button class="btn btn-sm btn-outline-secondary" name="action" value="iiif" data-needs-selection disabled title="Télécharge et contrôle le manifeste IIIF de chaque notice cochée qui en a un"><i class="bi bi-images"></i> Vérifier IIIF</button>{% endif %}
       {% if ai_ui_enabled %}<div class="dropdown"><button type="button" class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown" data-needs-selection disabled><i class="bi bi-stars"></i> IA…</button>
         <ul class="dropdown-menu">
           {% if ai_profile.summary_enabled %}<li><button class="dropdown-item" name="action" value="ai_summary">Résumer</button></li>{% endif %}

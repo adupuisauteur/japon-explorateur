@@ -162,6 +162,43 @@ désormais par l'adresse `/sante/`.
 3. Dans un projet de traduction, Exporter → « Word bilingue en tableau (.docx) ». Attendu : la même ligne en bas de chaque
    page, et « Exporté par » dans l'en-tête ; la case « Ne pas indiquer mon identifiant » les retire.
 
+## Lot 2 — trois statuts
+
+À faire sur l'essai, après la mise à jour vers l'archive du lot 2. La mise à jour calcule les statuts de toutes
+tes notices, sans appel réseau ; elle prend quelques secondes de plus.
+
+**V2-1 — Pastilles.** Ouvre la Bibliothèque. Attendu : sous chaque notice, trois pastilles distinctes
+« Notice », « Document » et « IIIF ». Le survol d'une pastille affiche l'origine, la date et le détail.
+
+**V2-2 — Fiche.** Ouvre une notice venue de Japan Search ou de Kokusho. Attendu : la section « Disponibilité »
+présente les trois statuts, avec origine, date et adresse. Pour une notice Kokusho trouvée par la recherche,
+IIIF « Identifié », origine « déduit par J-ed » (adresse construite à partir de l'identifiant, décision D5).
+
+**V2-3 — Vérifier un manifeste.**
+
+1. Sur une fiche dont le statut IIIF est « Identifié », clique sur « Vérifier le manifeste IIIF ».
+2. Recharge la page après quelques secondes. Attendu : « Vérifié », origine « vérifié par J-ed », avec la
+   version IIIF et le nombre de vues ; ou « Vérification en échec » avec la raison, et un incident dans
+   « Dysfonctionnements ».
+
+**V2-4 — Sélection et reprise.**
+
+1. Dans la Bibliothèque, coche cinq notices, dont une sans manifeste, puis « Vérifier IIIF ». Attendu :
+   « Vérification … lancée pour 4 notice(s) » et « 1 notice(s) sans manifeste IIIF connu ».
+2. Pendant la vérification, arrête le worker : `docker compose stop worker`, puis relance-le :
+   `docker compose start worker`. Attendu : au plus tard un quart d'heure après, les notices restantes sont
+   vérifiées, sans refaire les premières (reprise toutes les 10 minutes, après expiration du verrou de 5 minutes).
+
+**V2-5 — Filtres et tri.**
+
+1. Bibliothèque : filtre « IIIF : Identifié », puis tri « IIIF ». Attendu : seules les notices concernées ;
+   les vérifiées d'abord.
+2. Lance une recherche sur Japan Search et la NDL ; dans les résultats, filtre « Document consultable : Oui ».
+   Attendu : une notice NDL avec un lien de numérisation n'apparaît pas (la NDL ne dit pas si l'accès est
+   libre : « non vérifié »).
+3. Recherche avancée : les cases « Notice disponible », « Document consultable » et « IIIF » remplacent
+   « Accès numérique ».
+
 ## Grille de résultats
 
 | Vérification | Résultat | Remarque |
@@ -182,3 +219,8 @@ désormais par l'adresse `/sante/`.
 | V1-4 À propos | | |
 | V1-5 Page « J-ed ne répond pas » | | |
 | V1-6 Bas de page des exports | | |
+| V2-1 Pastilles | | |
+| V2-2 Fiche | | |
+| V2-3 Vérifier un manifeste | | |
+| V2-4 Sélection et reprise | | |
+| V2-5 Filtres et tri | | |

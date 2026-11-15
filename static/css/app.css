@@ -68,6 +68,10 @@ h3, .h3 { font-size: 1.08rem; font-weight: 600; }
 .chip-warn { background: #fff4dc; border-color: #ecd39b; color: var(--warn); }
 .chip-new { background: #e7f0fb; border-color: #b5cde9; color: #1f4e79; }
 .chip-source { background: #fff; }
+/* 2.0.0, lot 2 : trois statuts */
+.chip-muted { background: #f4f2ee; border-color: #ddd6cc; color: var(--muted); }
+.status-pills { display: inline-flex; flex-wrap: wrap; gap: .25rem; }
+.status-pills .chip-status { white-space: nowrap; }
 
 /* Filtres */
 .filters { background: #fff; border: 1px solid var(--line); border-radius: .8rem; padding: 1rem; }

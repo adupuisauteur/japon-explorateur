@@ -15,6 +15,19 @@ from .services import (adopt_translation, propose_duplicate_links, record_editor
                        validate_translation)
 
 
+def _status_rows(statuses):
+    from .models import STATUS_KINDS
+    from .statuses import LABELS, ORIGIN_LABELS
+
+    rows = []
+    for kind, label in STATUS_KINDS:
+        s = statuses.get(kind)
+        rows.append({"label": label, "value_label": LABELS.get(s.value, s.value).capitalize(),
+                     "origin_label": ORIGIN_LABELS.get(s.origin, ""), "checked_at": s.checked_at, "url": s.url,
+                     "detail": s.detail, "pending": getattr(s, "check_requested_at", None)})
+    return rows
+
+
 def _record_context(request, record):
     from apps.ai.preferences import active_profile
     from apps.library.models import Annotation, Collection, CorrectionProposal, LibraryEntry
@@ -24,8 +37,12 @@ def _record_context(request, record):
     profile = active_profile(request.user)
     bulk, bulk_skipped = (plan_bulk_validation(list(record.editorial.filter(kind="translation", status="proposed")))
                           if request.user.is_admin_role else ([], []))
+    statuses = record.status_map
     return {
         "record": record, "bulk": bulk, "bulk_skipped": bulk_skipped,
+        "statuses": statuses, "status_rows": _status_rows(statuses),
+        "can_check_iiif": request.user.can_edit and getattr(statuses.get("iiif"), "url", "")
+        and getattr(statuses.get("iiif"), "value", "") in ("identifie", "verifie", "echec"),
         "versions": record.versions.select_related("created_by")[:20],
         "editorial": record.editorial.select_related("ai_task", "author"),
         "links": RecordLink.objects.filter(Q(record_a=record) | Q(record_b=record))
@@ -49,6 +66,25 @@ def record_detail(request, record_id):
         messages.warning(request, "Cette notice est dans la corbeille.")
         return redirect("library:index")
     return render(request, "catalog/record_detail.html", _record_context(request, record))
+
+
+@researcher_required
+@require_POST
+def verify_iiif(request, record_id):
+    """2.0.0 (lot 2) : vérification du manifeste IIIF d'une notice, sur demande explicite."""
+    from .iiif import request_checks
+    from .tasks import verify_iiif_pending
+
+    record = get_object_or_404(Record, record_id=record_id)
+    queued, _ = request_checks([record], request.user)
+    if queued:
+        verify_iiif_pending.delay()
+        log_action(request, "iiif.check", record, "Vérification du manifeste IIIF demandée")
+        messages.info(request, "Vérification du manifeste IIIF lancée : rechargez la page dans quelques secondes "
+                               "pour voir le résultat.")
+    else:
+        messages.warning(request, "Aucun manifeste IIIF connu pour cette notice : rien à vérifier.")
+    return redirect(f"{record.get_absolute_url()}#disponibilite")
 
 
 @login_required

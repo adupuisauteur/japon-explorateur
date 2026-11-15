@@ -14,10 +14,10 @@
       {% if record.period %}<span class="chip">{{ record.get_period_display }}</span>{% endif %}
       {% if record.document_type %}<span class="chip">{{ record.get_document_type_display }}</span>{% endif %}
       {% if record.material_type %}<span class="chip">{{ record.get_material_type_display }}</span>{% endif %}
-      {% if record.digital_access %}<span class="chip {% if record.digital_access == 'image' or record.digital_access == 'fulltext' %}chip-ok{% endif %}">{{ record.get_digital_access_display }}</span>{% endif %}
       {% if record.record_status != 'active' %}<span class="chip chip-warn">{{ record.get_record_status_display }}</span>{% endif %}
       {% if record.catalogue.is_snapshot %}<span class="chip chip-warn" title="Jeu de données historique">instantané {{ record.catalogue.snapshot_date|date:"Y" }}</span>{% endif %}
     </div>
+    <div class="mt-2">{% status_pills statuses %} <a class="small ms-1" href="#disponibilite">Détail</a></div>
   </div>
   <div class="d-flex flex-column gap-2" style="min-width:240px">
     {% if user.can_edit %}
@@ -60,6 +60,8 @@
     {% endif %}
   </div>
 </div>
+
+{% include "catalog/_statuses.html" %}
 
 <div class="row g-4">
   <div class="col-lg-8">

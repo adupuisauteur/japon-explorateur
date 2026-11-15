@@ -187,7 +187,7 @@ def _store_one(session, catalogue, res, library_ids, existing_keys, rank):
         local = Record.objects.filter(catalogue=catalogue, source_id=res.source_id).first()
     data = dict(res.data)
     h = data_hash(data)
-    data["norm"] = _normalized_view(catalogue, data, local)
+    data["norm"] = _normalized_view(catalogue, data, local, res.raw, res.raw_format)
     comparison = ""
     changed = []
     if local and catalogue.code != "local":
@@ -206,21 +206,28 @@ def _store_one(session, catalogue, res, library_ids, existing_keys, rank):
     return 1
 
 
-def _normalized_view(catalogue, data, local):
+def _normalized_view(catalogue, data, local, raw=None, raw_format=""):
     """Vue normalisée d'un résultat (filtres, tri, affichage) ; la donnée source reste intacte."""
+    from apps.catalog.statuses import for_search_result
+
     if catalogue.code == "local" and local is not None:
         rec = local
+        statuses = {k: {"value": s.value, "origin": s.origin, "url": s.url, "detail": s.detail,
+                        "checked_at": s.checked_at.isoformat() if s.checked_at else ""}
+                    for k, s in rec.status_map.items()}
     else:
         from apps.catalog.normalization import normalize_record
         from apps.catalog.services import build_unsaved_record
 
-        rec = normalize_record(build_unsaved_record(catalogue, data))
+        rec = normalize_record(build_unsaved_record(catalogue, data, raw, raw_format))
+        statuses = for_search_result(rec, local)
     return {"period": rec.period, "document_type": rec.document_type, "material_type": rec.material_type,
             "digital_access": rec.digital_access, "title_romaji": rec.title_romaji,
             "composition_year_start": rec.composition_year_start, "composition_year_end": rec.composition_year_end,
             "copy_year_start": rec.copy_year_start, "copy_year_end": rec.copy_year_end,
             "period_label": rec.get_period_display() if rec.period else "",
-            "document_type_label": rec.get_document_type_display() if rec.document_type else ""}
+            "document_type_label": rec.get_document_type_display() if rec.document_type else "",
+            "statuses": statuses}
 
 
 def run_all_sources(session):

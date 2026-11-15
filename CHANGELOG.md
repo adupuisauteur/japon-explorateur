@@ -5,6 +5,31 @@
 Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquette `v1.3.0-rc3` (commit
 `d7296d4`). Audit et plan : `docs/evolution-2.0.0/01-audit.md`.
 
+- **Lot 2 — trois statuts indépendants par notice** (15 novembre 2026, rapport :
+  `docs/evolution-2.0.0/rapport-lot-2.md`) :
+  - chaque notice porte trois statuts, sans qu'aucun ne se déduise d'un autre : **notice disponible** (oui, non,
+    non vérifié), **document consultable** (oui, non, non vérifié) et **IIIF** (absent, identifié, vérifié,
+    vérification en échec, non vérifié), chacun avec son origine (déclaré par la source, vérifié par J-ed,
+    déduit par J-ed), sa date, l'adresse concernée et un détail ;
+  - calcul à partir des métadonnées enregistrées, **sans appel réseau**, règles propres à chaque source (Japan
+    Search, Kokusho, NDL, CiNii, fichiers importés, base locale). Un « oui » ou un « absent » n'est retenu que
+    si la source le dit ; un lien vers une numérisation sans précision d'accès reste « non vérifié » ; une
+    consultation réservée (sur place, réseau de bibliothèques) donne « non consultable », avec la mention de
+    la source ;
+  - nouvelle table `catalog_recordstatus` (migration `catalog.0006`) et statuts des notices existantes
+    (migration `catalog.0007`, sans appel réseau ni modification des notices ; son retour vide la table).
+    L'ancien champ « accès numérique » reste inchangé pour les exports au format 1.0 ;
+  - **vérification du manifeste IIIF** sur demande (fiche, ou sélection de la Bibliothèque) : téléchargement,
+    conformité à l'API de présentation IIIF 2.x ou 3.0, nombre de vues, accès à une image de la première vue.
+    Demande enregistrée en base, reprise automatique après un arrêt (toutes les 10 minutes), délai entre deux
+    notices (`IIIF_CHECK_DELAY_SECONDS`, 2 s par défaut), échecs inscrits au journal des dysfonctionnements
+    avec leur raison ;
+  - **interface** : trois pastilles dans les résultats de recherche, la Bibliothèque et la fiche ; filtres et
+    tri par statut (résultats d'une recherche, Bibliothèque, recherche avancée dans la base locale), à la
+    place du filtre « Document numérisé » ; section « Disponibilité » de la fiche avec le détail de chaque
+    statut et le bouton « Vérifier le manifeste IIIF » ;
+  - `verifier_fonctionnalites` contrôle les trois statuts d'une notice fictive et compte les notices sans
+    statut.
 - **Lot 1 — interface** (15 novembre 2026, rapport : `docs/evolution-2.0.0/rapport-lot-1.md`) :
   - l'application s'affiche sous le seul nom **J-ed** : barre de menu, titres des pages, pied de page,
     application installable, page de connexion, en-têtes des exports et des rapports de diagnostic, gestion

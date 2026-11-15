@@ -147,6 +147,35 @@ class ConnectorHTTP:
                 time.sleep(2 ** attempt)
         raise last_exc or ConnectorError("Erreur inconnue lors de l'appel à la source.", kind="technical")
 
+    def probe(self, url, *, max_bytes=65536):
+        """2.0.0 (lot 2) : teste l'accès à une ressource (une image IIIF) sans la conserver.
+
+        Lit au plus `max_bytes` octets. Retourne {"status", "content_type", "bytes"} ; lève ConnectorError si la
+        ressource est injoignable. Aucune mise en cache, une seule tentative (la vérification est relançable).
+        """
+        request_id = new_request_id()
+        started = time.monotonic()
+        self._throttle()
+        try:
+            with self._client() as client, client.stream("GET", url, headers={"Accept": "image/*"}) as response:
+                received = 0
+                for chunk in response.iter_bytes():
+                    received += len(chunk)
+                    if received >= max_bytes:
+                        break
+                self._diag(request_id, url, None, started, 1, http_status=response.status_code,
+                           content_type=response.headers.get("content-type", ""))
+                return {"status": response.status_code, "content_type": response.headers.get("content-type", ""),
+                        "bytes": received}
+        except httpx.TimeoutException as exc:
+            diag = self._diag(request_id, url, None, started, 1, exception=exc.__class__.__name__)
+            raise ConnectorError(f"Délai d'attente dépassé ({self.timeout:.0f} s).", kind="unavailable",
+                                 code="timeout", diagnostic=diag) from exc
+        except httpx.HTTPError as exc:
+            diag = self._diag(request_id, url, None, started, 1, exception=exc.__class__.__name__)
+            raise ConnectorError(f"Ressource injoignable : {exc.__class__.__name__}.", kind="unavailable",
+                                 code="connect", diagnostic=diag) from exc
+
     def get_json(self, url, params=None, **kwargs):
         result = self.get(url, params, **kwargs)
         try:
