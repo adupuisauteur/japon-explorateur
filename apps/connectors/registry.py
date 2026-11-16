@@ -37,10 +37,10 @@ def _load():
     global _LOADED
     if _LOADED:
         return
-    from . import aozora, cinii, japansearch, kokusho, local, ndl
+    from . import aozora, cinii, japansearch, kokusho, local, ndl, waseda
     from .base import BaseConnector
 
-    for module in (aozora, cinii, japansearch, kokusho, local, ndl):  # sans dépendre de l'ordre des imports
+    for module in (aozora, cinii, japansearch, kokusho, local, ndl, waseda):  # sans dépendre de l'ordre des imports
         for value in vars(module).values():
             if isinstance(value, type) and issubclass(value, BaseConnector) and value is not BaseConnector \
                     and value.__module__ == module.__name__:

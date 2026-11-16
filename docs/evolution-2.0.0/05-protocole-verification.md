@@ -450,6 +450,26 @@ l'œuvre d'Akutagawa.
 furigana, bas de page « 底本： ». Envoyer au projet (un projet d'essai) : le document apparaît dans le projet,
 sans furigana.
 
+**V10-5 — Kokusho (étape 3).** Rechercher 方丈記 avec la seule source Kokusho. Attendu : environ 112 notices, avec
+titre, auteur (ex. 山岡元隣), date (明暦４), 刊 ou 写, établissement dans la description ; aucun avertissement
+« filtrage approximatif ». Sources → Kokusho → Tester le connecteur : « Japan Search (base nij16) : OK ».
+
+**V10-6 — Waseda (étape 3).** Sources → Waseda : suivre le bandeau (Configuration → Connecteur « Waseda Kotenseki
+(via NDL Search) » → Enregistrer), puis Tester le connecteur. Rechercher 源氏物語 avec la seule source Waseda :
+environ 223 notices ; sur une notice, « Ouvrir sur le site de Waseda » mène à la page de l'ouvrage, avec la mention
+早稲田大学図書館古典籍総合データベース.
+
+**V10-7 — Ouvrir le document.** Fiche d'une notice Kokusho à images (par exemple une recherche
+`10.20730/200015559` dans Kokusho) : bouton « Ouvrir dans le Kokusho ». Fiche d'une notice NDL numérisée :
+« Ouvrir dans la NDL Digital Collections ».
+
+**V10-8 — Visionneuse intégrée.** Administration → Paramètres → cocher « Visionneuse d'images intégrée »,
+Enregistrer. Sur la fiche Kokusho de V10-7 : « Voir les images dans J-ed » ; 152 vues, flèches du clavier,
+« Taille réelle », mention 国文学研究資料館. Décocher ensuite si tu ne veux pas la garder.
+
+**V10-9 — Étude, accès NDL.** `docker compose exec web python manage.py etudier_sources` (plan 3, par défaut),
+puis `docker compose cp web:/tmp/etude-sources.txt etude-sources-3.txt`. Joins le fichier.
+
 ## Grille de résultats
 
 | Vérification | Résultat | Remarque |
@@ -528,3 +548,8 @@ sans furigana.
 | V10-2 Étude des sources (2) | | fichier joint |
 | V10-3 Aozora : import | | |
 | V10-4 Aozora : texte | | |
+| V10-5 Kokusho | | |
+| V10-6 Waseda | | |
+| V10-7 Ouvrir le document | | |
+| V10-8 Visionneuse intégrée | | |
+| V10-9 Étude, accès NDL | | fichier joint |

@@ -182,3 +182,9 @@ pre.json { background: #fff; border: 1px solid var(--line); border-radius: .5rem
 .aozora-text rt { font-size: .55em; }
 .aozora-head, .aozora-colophon { white-space: pre-wrap; font-family: inherit; background: none; border: 0; padding: 0; }
 .aozora-gaiji { text-decoration: underline dotted; cursor: help; }
+
+/* 2.0.0 (lot 10) : visionneuse intégrée */
+.viewer-page { width: 5em; }
+.viewer-stage { background: #222; text-align: center; overflow: auto; max-height: 80vh; border-radius: .25rem; }
+.viewer-stage img { max-width: 100%; max-height: 80vh; }
+.viewer-zoomed .viewer-stage img { max-width: none; max-height: none; }

@@ -228,22 +228,40 @@ class SearchTests(AppTestCase):
         self.assertEqual(res.data["source_url"], "https://kokusho.nijl.ac.jp/biblio/200016993")
         self.assertEqual(res.data["digital_access"], "image")
 
-    def test_kokusho_search_via_japansearch_filters_kokusho_links(self):
-        payload = {"hit": 2, "list": [
-            {"id": "nijl-1", "database": "kokusho-db", "common": {"title": "徒然草", "linkUrl": "https://kokusho.nijl.ac.jp/biblio/100000001",
-                                                            "contributor": ["兼好"], "provider": "国文学研究資料館"}},
-            {"id": "other-1", "common": {"title": "徒然草図", "linkUrl": "https://example.org/item/1"}}]}
-        ConnectorHTTP.transport = httpx.MockTransport(lambda req: httpx.Response(200, text=json.dumps(payload)))
-        session = services.run_all_sources(services.create_session(self.admin, query="徒然草", sources=["kokusho"]))
-        self.assertEqual(session.results.count(), 1)
+    def test_kokusho_search_via_japansearch_base_nij16(self):
+        """2.0.0 (lot 10) : étude du 16/11/2026 — les notices du NIJL sont dans la base Japan Search « nij16 », sans
+        lien kokusho.nijl.ac.jp ; l'ancien filtrage sur ces liens ne trouvait rien."""
+        item = {"id": "nij16-2054377", "common": {"title": "方丈記", "database": "nij16",
+                                                  "linkUrl": "https://int.nihu.jp/view/nijl/nijl_nijl_nihonkotenseki_00099003"},
+                "nij16-NihuRoot": {"nihuDC": {"FesData": {
+                    "Title-s": ["方丈記", "鴨長明方丈記之抄", "方丈記"], "Creator-s": ["山岡元隣"], "Subject-s": ["文学‐随筆"],
+                    "Description-s": ["１巻", "二松学舎大図"], "Publisher-s": ["長谷川／市良兵衛（／）"], "Date-s": ["明暦４"],
+                    "Type-s": ["刊"], "Format-s": ["大，１冊"], "Identifier-s": ["2054377"]}}}}
+        seen = []
+
+        def transport(req):
+            seen.append(req.url.params.get("f-db"))
+            return httpx.Response(200, text=json.dumps({"hit": 112, "list": [item]}))
+
+        ConnectorHTTP.transport = httpx.MockTransport(transport)
+        session = services.run_all_sources(services.create_session(self.admin, query="方丈記", sources=["kokusho"]))
         res = session.results.get()
-        self.assertEqual(res.source_id, "100000001")
-        self.assertTrue(session.source_stats["kokusho"]["warnings"])
+        self.assertEqual(seen[0], "nij16")
+        self.assertEqual(res.source_id, "nij16-2054377")
+        self.assertEqual(res.data["original_title"], "方丈記")
+        self.assertEqual(res.data["creator_original"], "山岡元隣")
+        self.assertEqual(res.data["copy_date_text"], "明暦４")
+        self.assertEqual(res.data["material_type_original"], "刊")
+        self.assertIn("Autres titres : 鴨長明方丈記之抄", res.data["description_original"])
+        self.assertIn("二松学舎大図", res.data["description_original"])
+        self.assertEqual(res.data["source_url"], "https://int.nihu.jp/view/nijl/nijl_nijl_nihonkotenseki_00099003")
+        self.assertEqual(session.source_stats["kokusho"]["total"], 112)
+        self.assertFalse(session.source_stats["kokusho"].get("warnings"))
         from apps.updates.models import SyncJob
         from apps.updates.services import run_sync
 
         job = run_sync(SyncJob.objects.create(catalogue=self.catalogue("kokusho"), kind="test"))
-        self.assertEqual(job.report["details"].get("detected_japansearch_db"), "kokusho-db")
+        self.assertIn("Japan Search (base nij16) : OK, 112 notice(s)", job.message)
 
     def test_purge_expired_sessions_keeps_records(self):
         from datetime import timedelta

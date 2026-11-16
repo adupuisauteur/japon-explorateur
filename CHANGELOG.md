@@ -5,6 +5,22 @@
 Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquette `v1.3.0-rc3` (commit
 `d7296d4`). Audit et plan : `docs/evolution-2.0.0/01-audit.md`.
 
+- **Lot 10 — étape 3** (16 novembre 2026, d'après le second passage de l'étude) :
+  - **Kokusho** : recherche dans Japan Search sur la base `nij16` (日本古典籍総合目録 du NIJL, constatée sur le
+    poste) sans réglage ; notices lues dans leur structure propre (titres, auteur, sujet, date, 刊/写, format,
+    établissement et cote, autres titres) ; « Tester le connecteur » interroge cette base. L'ancien filtrage sur les
+    liens kokusho.nijl.ac.jp ne trouvait rien ;
+  - **Waseda**, connecteur dédié : fonds `waseda` de l'API officielle de NDL Search, lien vers la page de l'ouvrage
+    sur le site de Waseda (jamais lu par J-ed), mention « 早稲田大学図書館古典籍総合データベース » ; nouvelle
+    installation : réglé d'office ; installation existante : bandeau qui explique comment le choisir ;
+  - **« Ouvrir le document »** dans les fiches et les résultats : visionneuse du Kokusho, NDL Digital Collections,
+    page de Waseda, lecture Aozora, à la place du manifeste IIIF ;
+  - **visionneuse intégrée**, désactivée par défaut (Administration → Paramètres) : vues d'un manifeste IIIF, une
+    à une (flèches, numéro de vue, taille réelle), mentions de la source ; le navigateur charge les images des
+    seuls sites autorisés (par défaut kokusho.nijl.ac.jp et dl.ndl.go.jp), et l'en-tête de sécurité n'est élargi
+    que sur cette page (migration additive des paramètres) ;
+  - `etudier_sources` : chaque requête de l'étape NDL est indépendante (un délai dépassé l'arrêtait toute
+    entière) ; `--plan 3` (défaut) ne refait que cette étape.
 - **Lot 10 — étape 2** (16 novembre 2026) :
   - **Aozora Bunko**, source à part entière : liste officielle des œuvres (CSV compressé, CC BY) importée par
     « Synchroniser », une notice par œuvre (auteurs, traducteurs, texte source, droits), colonnes lues par leur nom ;

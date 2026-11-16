@@ -106,8 +106,8 @@ class SourceStudyTests(AppTestCase):
             return Router()(request)
 
         study = E.Study(transport=httpx.MockTransport(transport), pause=0)
-        report = E.text_report(study.run(["11164407"]), study.requests)
-        self.assertIn("Étude des sources (2)", report)
+        report = E.text_report(study.run(["11164407"], plan=2), study.requests)
+        self.assertIn("Étude des sources", report)
         self.assertIn("nij16-12345", report)
         self.assertIn("書誌ID 12345", report)
         self.assertIn("Contrôle positif (Japan Search, base dignl) : ['2574385']", report)
@@ -377,6 +377,31 @@ class AozoraTests(AppTestCase):
         self.assertIn("底本：「架空全集」", text)
 
 
+class StudyPlan3Tests(AppTestCase):
+    def test_slow_answer_does_not_sink_the_ndl_step(self):
+        def transport(request):
+            url = str(request.url)
+            if url.endswith("/robots.txt"):
+                return httpx.Response(404)
+            if "jps-cross" in url:
+                raise httpx.ReadTimeout("lent")
+            if "manifest.json" in url:
+                return httpx.Response(404)
+            if "opensearch" in url:
+                raise httpx.ReadTimeout("lent")
+            return httpx.Response(200, text="<html>国立国会図書館内限定</html>", headers={"content-type": "text/html"})
+
+        study = E.Study(transport=httpx.MockTransport(transport), pause=0)
+        steps = study.run(["11164407"])
+        self.assertEqual(len(steps), 1)
+        self.assertEqual(steps[0].state, "ok")
+        facts = "\n".join(steps[0].facts)
+        self.assertIn("Japan Search (dignl) : ReadTimeout", facts)
+        self.assertIn("manifeste → HTTP 404", facts)
+        self.assertIn("国立国会図書館内", facts)
+        self.assertIn("NDL Search dpid=ndl-dl : ReadTimeout", facts)
+
+
 class RegistryTests(AppTestCase):
     def test_registry_complete_even_if_one_connector_module_was_imported_first(self):
         """Cause des tests de recherche instables : un module importé seul remplissait le registre à moitié."""
@@ -420,3 +445,159 @@ class LargeSyncApplyTests(AozoraTests):
         job.refresh_from_db()
         self.assertEqual(job.status, "applied")
         self.assertEqual(Record.objects.filter(catalogue=self.aozora).count(), 14)
+
+
+# --------------------------------------------------------------------------- « Ouvrir le document » et visionneuse
+
+MANIFEST_V2 = {
+    "@context": "http://iiif.io/api/presentation/2/context.json", "@type": "sc:Manifest", "label": "歌仙繪",
+    "attribution": "国文学研究資料館", "license": "https://creativecommons.org/publicdomain/mark/1.0/",
+    "sequences": [{"canvases": [
+        {"label": str(n), "images": [{"resource": {
+            "@id": f"https://kokusho.nijl.ac.jp/api/iiif/200015559/v4/NIKI/099-0144/099-0144-{n:05d}.tif/full/full/0/default.jpg",
+            "service": {"@id": f"https://kokusho.nijl.ac.jp/api/iiif/200015559/v4/NIKI/099-0144/099-0144-{n:05d}.tif"}}}]}
+        for n in (1, 2, 3)]}]}
+
+
+class DocumentLinkTests(AppTestCase):
+    def test_best_link_per_source(self):
+        from apps.catalog.documents import document_link
+
+        self.assertEqual(document_link({"image_url": "https://kokusho.nijl.ac.jp/biblio/200015559/manifest"})["url"],
+                         "https://kokusho.nijl.ac.jp/biblio/200015559")
+        waseda = document_link({"source_url": "https://www.wul.waseda.ac.jp/kotenseki/html/bunko30/bunko30_a0040/"})
+        self.assertEqual(waseda["label"], "Ouvrir sur le site de Waseda")
+        self.assertIn("早稲田大学図書館古典籍総合データベース", waseda["mention"])
+        ndl = document_link({"digital_access_url": "https://dl.ndl.go.jp/info:ndljp/pid/2574385"})
+        self.assertEqual(ndl["url"], "https://dl.ndl.go.jp/pid/2574385")
+        self.assertEqual(document_link({"digital_access_url": XHTML_URL})["label"], "Lire le texte (Aozora Bunko)")
+        self.assertIsNone(document_link({"image_url": "https://example.org/manifest.json"}))
+
+    def test_record_page_shows_document_button_and_viewer_only_when_enabled(self):
+        from apps.core.models import AppSettings
+
+        record, _ = upsert_record(self.catalogue("kokusho"), {
+            "source_id": "200015559", "original_title": "歌仙繪",
+            "image_url": "https://kokusho.nijl.ac.jp/biblio/200015559/manifest"})
+        self.client.force_login(self.admin)
+        page = self.client.get(record.get_absolute_url()).content.decode()
+        self.assertIn("Ouvrir dans le Kokusho", page)
+        self.assertNotIn("Voir les images dans J-ed", page)
+        AppSettings.get()
+        AppSettings.objects.update(iiif_viewer_enabled=True)
+        self.assertIn("Voir les images dans J-ed", self.client.get(record.get_absolute_url()).content.decode())
+
+
+class ViewerTests(AppTestCase):
+    def setUp(self):
+        super().setUp()
+        self.calls = []
+
+        def transport(request):
+            self.calls.append(str(request.url))
+            if str(request.url).endswith("/manifest"):
+                return httpx.Response(200, json=self.manifest)
+            return httpx.Response(404)
+
+        self.manifest = MANIFEST_V2
+        ConnectorHTTP.transport = httpx.MockTransport(transport)
+        self.addCleanup(setattr, ConnectorHTTP, "transport", None)
+        self.record, _ = upsert_record(self.catalogue("kokusho"), {
+            "source_id": "200015559", "original_title": "歌仙繪",
+            "image_url": "https://kokusho.nijl.ac.jp/biblio/200015559/manifest"})
+        self.url = f"/notices/{self.record.record_id}/visionneuse/"
+        self.client.force_login(self.reader)
+
+    def test_disabled_by_default_goes_to_the_source_without_any_request(self):
+        response = self.client.get(self.url)
+        self.assertRedirects(response, "https://kokusho.nijl.ac.jp/biblio/200015559", fetch_redirect_response=False)
+        self.assertEqual(self.calls, [])
+
+    def test_enabled_viewer_widens_csp_for_named_site_on_this_page_only(self):
+        from apps.core.models import AppSettings
+
+        AppSettings.get()
+        AppSettings.objects.update(iiif_viewer_enabled=True)
+        response = self.client.get(self.url)
+        page = response.content.decode()
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("img-src 'self' data: https://kokusho.nijl.ac.jp;", response["Content-Security-Policy"])
+        self.assertIn("script-src 'self';", response["Content-Security-Policy"])  # le reste est inchangé
+        self.assertIn("/full/1600,/0/default.jpg", page)
+        self.assertIn("国文学研究資料館", page)  # mention de la source
+        self.assertIn("visionneuse.js", page)
+        other = self.client.get(self.record.get_absolute_url())
+        self.assertIn("img-src 'self' data:;", other["Content-Security-Policy"])
+
+    def test_images_from_a_site_not_listed_are_refused(self):
+        import json
+        from apps.core.models import AppSettings
+
+        AppSettings.get()
+        AppSettings.objects.update(iiif_viewer_enabled=True, iiif_viewer_hosts="dl.ndl.go.jp\nhttps://bad/x\n")
+        self.assertEqual(AppSettings.get().viewer_hosts(), ["dl.ndl.go.jp"])
+        response = self.client.get(self.url)
+        self.assertIn("site absent de la liste autorisée", response.content.decode())
+        self.assertIn("img-src 'self' data:;", response["Content-Security-Policy"])
+        self.assertNotIn("default.jpg", response.content.decode())
+
+    def test_iiif3_views_and_required_statement(self):
+        from apps.catalog import iiif
+
+        manifest = {"@context": "http://iiif.io/api/presentation/3/context.json", "type": "Manifest",
+                    "requiredStatement": {"label": {"ja": ["所蔵"]}, "value": {"ja": ["<b>架空文庫</b>"]}},
+                    "items": [{"type": "Canvas", "label": {"none": ["1オ"]}, "items": [{"items": [{"body": {
+                        "id": "https://example.org/a.jpg", "service": [{"id": "https://example.org/iiif/a"}]}}]}]}]}
+        self.assertEqual(iiif.views_of(manifest)[0],
+                         {"label": "1オ", "image": "https://example.org/iiif/a/full/1600,/0/default.jpg",
+                          "thumb": "https://example.org/iiif/a/full/160,/0/default.jpg"})
+        self.assertEqual(iiif.rights_of(manifest), ["所蔵 : 架空文庫"])
+
+
+WASEDA_NDL = """<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcndl="http://ndl.go.jp/dcndl/terms/"
+ xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+ xmlns:openSearch="http://a9.com/-/spec/opensearchrss/1.0/"><channel><title>t</title>
+<openSearch:totalResults>223</openSearch:totalResults>
+<item><title>源氏物語</title><link>https://ndlsearch.ndl.go.jp/books/R000000050-I000076334</link><dc:title>源氏物語</dc:title>
+<dc:creator>紫式部</dc:creator><guid>https://ndlsearch.ndl.go.jp/books/R000000050-I000076334</guid>
+<rdfs:seeAlso rdf:resource="https://www.wul.waseda.ac.jp/kotenseki/html/bunko30/bunko30_a0040/"/></item>
+</channel></rss>"""
+
+
+class WasedaConnectorTests(AppTestCase):
+    def test_search_goes_through_ndl_search_with_dpid_and_links_to_waseda(self):
+        from apps.catalog.models import Catalogue
+        from apps.catalog.documents import document_link
+        from apps.connectors.base import SearchQuery
+        from apps.connectors.registry import get_connector
+
+        seen = []
+
+        def transport(request):
+            seen.append(request.url)
+            return httpx.Response(200, text=WASEDA_NDL, headers={"content-type": "application/rss+xml"})
+
+        ConnectorHTTP.transport = httpx.MockTransport(transport)
+        self.addCleanup(setattr, ConnectorHTTP, "transport", None)
+        waseda = Catalogue.objects.get(code="waseda")
+        self.assertEqual(waseda.connector, "waseda")
+        response = get_connector(waseda).search(SearchQuery(text="源氏物語"))
+        self.assertEqual(seen[0].host, "ndlsearch.ndl.go.jp")
+        self.assertEqual(seen[0].params["dpid"], "waseda")
+        self.assertFalse(any("waseda.ac.jp" in u.host for u in seen))  # jamais le site de Waseda
+        data = response.results[0].data
+        self.assertEqual(data["source_url"], "https://www.wul.waseda.ac.jp/kotenseki/html/bunko30/bunko30_a0040/")
+        self.assertEqual(data["holding_institution_text"], "早稲田大学図書館")
+        self.assertIn("autorisation", data["rights_and_access"])
+        self.assertEqual(response.total, 223)
+        self.assertIn("早稲田大学図書館古典籍総合データベース", document_link(data)["mention"])
+
+    def test_old_waseda_source_gets_a_switch_banner(self):
+        from apps.catalog.models import Catalogue
+
+        Catalogue.objects.filter(code="waseda").update(connector="japansearch")
+        self.client.force_login(self.admin)
+        page = self.client.get("/sources/waseda/").content.decode()
+        self.assertIn("Un connecteur dédié à Waseda est disponible", page)
+        self.assertIn("Waseda Kotenseki (via NDL Search)", page)  # proposé dans la liste des connecteurs

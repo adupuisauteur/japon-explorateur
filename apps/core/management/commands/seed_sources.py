@@ -90,10 +90,16 @@ SOURCES = [
                        "d'Aozora Bunko.",
          min_interval_seconds=2.0, timeout_seconds=60.0),
     dict(code="waseda", name="Waseda Kotenseki Sōgō Database", name_original="古典籍総合データベース",
-         status="to_study", sort_order=60, base_url="https://www.wul.waseda.ac.jp/kotenseki/",
-         role="Collections de textes anciens.",
-         access_method="Pas d'API publique identifiée : consultation externe. Si la base est diffusée par Japan Search, "
-                       "créez une source avec « Trouver une base Japan Search » (recherche 早稲田)."),
+         connector="waseda", status="available", sort_order=60, base_url="https://www.wul.waseda.ac.jp/kotenseki/",
+         terms_url="https://www.waseda.jp/library/user/using-images/",
+         role="Livres anciens japonais et chinois de la bibliothèque de l'université Waseda (images complètes).",
+         access_method="API officielle de NDL Search, fournisseur « waseda » (2.0.0, lot 10). Le site de Waseda "
+                       "refuse les requêtes automatiques : J-ed n'y lit rien et donne le lien vers la page de chaque "
+                       "ouvrage.",
+         license_notes="Notices : réutilisation libre à des fins non commerciales (NDL Search). Images : toute "
+                       "réutilisation demande l'autorisation de la bibliothèque ; lien permis depuis un site à but "
+                       "scientifique avec la mention « 早稲田大学図書館古典籍総合データベース ».",
+         min_interval_seconds=1.0),
     dict(code="kyoto", name="Kyoto University Digital Archive", name_original="京都大学貴重資料デジタルアーカイブ",
          status="to_study", sort_order=70, base_url="https://rmda.kulib.kyoto-u.ac.jp/",
          role="Collections et documents rares.",

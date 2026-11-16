@@ -328,3 +328,49 @@ def record_text_to_project(request, record_id):
                               "Mention à garder : texte d'Aozora Bunko, d'après le texte source indiqué en fin de "
                               "document.")
     return redirect("translation:project_detail", pk=project.pk)
+
+
+@login_required
+def record_viewer(request, record_id):
+    """2.0.0 (lot 10) : visionneuse intégrée (facultative). Le manifeste est lu à l'ouverture (clic de l'utilisateur) ;
+    le navigateur charge les images des seuls sites autorisés, et sur cette seule page (en-tête CSP propre)."""
+    from urllib.parse import urlparse
+
+    from apps.connectors.base import ConnectorError
+    from apps.core.middleware import CONTENT_SECURITY_POLICY
+    from apps.core.models import AppSettings
+
+    from . import iiif
+    from .documents import document_link
+
+    record = get_object_or_404(Record.objects.select_related("catalogue"), record_id=record_id)
+    link = document_link(record)
+    app_settings = AppSettings.get()
+    if not app_settings.iiif_viewer_enabled:
+        messages.info(request, "La visionneuse intégrée est désactivée (Administration → Paramètres).")
+        return redirect(link["url"] if link else record.get_absolute_url())
+    if not (record.image_url or "").startswith("http"):
+        messages.warning(request, "Aucun manifeste IIIF connu pour cette notice.")
+        return redirect(record.get_absolute_url())
+    allowed = app_settings.viewer_hosts()
+    error, views, rights = "", [], []
+    try:
+        data = iiif.load_manifest(record.image_url, record.catalogue)
+        views = iiif.views_of(data)
+        rights = iiif.rights_of(data)
+    except (iiif.ManifestError, ConnectorError) as exc:
+        error = str(exc)
+    hosts = sorted({urlparse(v["image"]).netloc.lower() for v in views})
+    refused = [h for h in hosts if h not in allowed]
+    if refused and not error:
+        error = (f"Images servies par {', '.join(refused)}, site absent de la liste autorisée (Administration → "
+                 "Paramètres → Sites d'images autorisés).")
+    if error:
+        views = []
+    response = render(request, "catalog/record_viewer.html", {
+        "record": record, "views": views, "rights": rights, "error": error, "link": link})
+    if views:
+        sources = " ".join(f"https://{h}" for h in hosts)
+        response["Content-Security-Policy"] = CONTENT_SECURITY_POLICY.replace(
+            "img-src 'self' data:", f"img-src 'self' data: {sources}")
+    return response

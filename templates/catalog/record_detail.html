@@ -43,6 +43,10 @@
       {% if record.source_url %}<a class="btn btn-sm btn-outline-secondary flex-grow-1" href="{{ record.source_url }}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> Notice officielle</a>{% endif %}
       <button class="btn btn-sm btn-outline-secondary" data-cache-offline="{{ request.path }}" title="Conserver cette fiche pour une consultation hors ligne"><i class="bi bi-cloud-download"></i> Hors ligne</button>
     </div>
+    {% with doc=record|document_link %}{% viewer_enabled as viewer_on %}{# 2.0.0 (lot 10) #}
+    {% if doc %}<a class="btn btn-sm btn-primary" href="{{ doc.url }}" target="_blank" rel="noopener"{% if doc.mention %} title="{{ doc.mention }}"{% endif %}><i class="bi bi-book"></i> {{ doc.label }}</a>{% endif %}
+    {% if viewer_on and record.image_url %}<a class="btn btn-sm btn-outline-primary" href="{% url 'catalog:record_viewer' record.record_id %}"><i class="bi bi-images"></i> Voir les images dans J-ed</a>{% endif %}
+    {% if doc.mention %}<div class="form-text">Lien vers : {{ doc.mention }}</div>{% endif %}{% endwith %}
     {% if record.catalogue.code == 'aozora' or record.texts.exists %}<a class="btn btn-sm btn-outline-primary" href="{% url 'catalog:record_text' record.record_id %}"><i class="bi bi-file-text"></i> Texte intégral</a>{% endif %}
     <a class="btn btn-sm btn-outline-secondary" href="{% url 'exports:prepare' %}?scope=selection&records={{ record.record_id }}"><i class="bi bi-box-arrow-up"></i> Exporter cette fiche</a>
     {% if user.can_edit %}

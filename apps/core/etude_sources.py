@@ -91,8 +91,8 @@ class Study:
 
     # ------------------------------------------------------------------ étapes
 
-    def run(self, ndl_ids=(), plan=2):
-        """Plan 2 (16/11/2026, après la première étude) : notices Kokusho de Japan Search (base nij16), contrôle
+    def run(self, ndl_ids=(), plan=3):
+        """Plan 3 (défaut) : accès des numérisations NDL seulement. Plan 2 (16/11/2026, après la première étude) : notices Kokusho de Japan Search (base nij16), contrôle
         positif des numérisations NDL, liste Aozora avec ses colonnes. Plan 1 : première étude, complète."""
         steps = []
         first = ((self.robots_files, ()), (self.japan_search, ()), (self.japan_search_databases, ()),
@@ -102,7 +102,8 @@ class Study:
         second = ((self.jps_sample, ("nij16", "方丈記")), (self.jps_sample, ("nij16", "源氏物語")),
                   (self.jps_sample, ("arc_books", "早稲田 源氏")), (self.ndl_access_v2, (ndl_ids,)),
                   (self.aozora, ()))
-        for method, args in (first if plan == 1 else second):
+        third = ((self.ndl_access_v2, (ndl_ids,)),)  # 16/11/2026 : l'étape NDL du plan 2 a dépassé le délai
+        for method, args in {1: first, 2: second}.get(plan, third):
             try:
                 steps.append(method(*args))
             except Exception as exc:  # noqa: BLE001 — une étape en échec n'arrête pas l'étude
@@ -311,7 +312,11 @@ class Study:
         dignl) puis numérisations de la base, par quatre voies, pour savoir laquelle dit l'accès."""
         step = Step("ndl-acces-2", "NDL : accès des numérisations (contrôle positif, puis celles de la base)")
         control = []
-        response = self.get(JPSEARCH, {"keyword": "源氏物語", "f-db": "dignl", "size": 10})
+        try:
+            response = self.get(JPSEARCH, {"keyword": "源氏物語", "f-db": "dignl", "size": 10})
+        except httpx.HTTPError as exc:  # 16/11/2026 : un délai dépassé arrêtait toute l'étape
+            step.facts.append(f"Japan Search (dignl) : {exc.__class__.__name__}")
+            response = httpx.Response(599)
         if response.status_code == 200:
             for pid in re.findall(r"dl\.ndl\.go\.jp/(?:info:ndljp/)?pid/(\d{5,})", response.text):
                 if pid not in control:
@@ -348,7 +353,11 @@ class Study:
                         except ValueError:
                             pass
                     step.facts.append(line)
-                ndl = self.get(NDL_OPENSEARCH, {"any": pid, "dpid": "ndl-dl", "cnt": 1})
+                try:
+                    ndl = self.get(NDL_OPENSEARCH, {"any": pid, "dpid": "ndl-dl", "cnt": 1})
+                except httpx.HTTPError as exc:
+                    step.facts.append(f"  NDL Search dpid=ndl-dl : {exc.__class__.__name__}")
+                    continue
                 tags = sorted({etree.QName(e).localname for e in etree.fromstring(
                     ndl.content, parser=etree.XMLParser(resolve_entities=False, no_network=True)).iter("*")}) \
                     if ndl.status_code == 200 else []
@@ -451,7 +460,7 @@ def ndl_digital_ids(limit=8):
 
 
 def text_report(steps, requests):
-    lines = ["Étude des sources (2) — J-ed 2.0.0 (lot 10)", f"{requests} requête(s), lecture seule ; rien n'est enregistré.", ""]
+    lines = ["Étude des sources — J-ed 2.0.0 (lot 10)", f"{requests} requête(s), lecture seule ; rien n'est enregistré.", ""]
     marks = {"ok": "[OK]", "erreur": "[Erreur]", "non_permis": "[Non lu : robots.txt]"}
     for step in steps:
         lines.append(f"== {step.title} {marks.get(step.state, '')}")

@@ -1,6 +1,6 @@
 # Rapport du lot 10 — documents et nouvelles sources (2.0.0)
 
-*État : étapes 1 (étude des sources) et 2 (Aozora Bunko, registre des connecteurs, second passage de l'étude) livrées.*
+*État : étapes 1 à 3 livrées ; reste l'accès des numérisations NDL (troisième passage de l'étude).*
 
 ## 1. Périmètre validé (16 novembre 2026)
 
@@ -112,9 +112,51 @@ recherche. Aucun signalement de l'utilisateur ne s'en approche, mais la correcti
 `dignl`) puis celles de la base, par quatre voies (manifeste, API de notice, page, NDL Search). Colonnes exactes de
 la liste Aozora. L'ancienne étude reste disponible : `--premiere`.
 
-## 6. Livrables
+## 6. Résultats du second passage (16 novembre 2026, 22 h 23)
+
+- **Aozora Bunko** : 19 502 lignes, 55 colonnes, exactement celles qu'attend J-ed.
+- **Kokusho, base Japan Search `nij16`** : c'est le 日本古典籍総合目録 du NIJL, figé en septembre 2021, sans
+  images. Les notices sont dans un bloc `nij16-NihuRoot.nihuDC.FesData` (Title-s, Creator-s, Subject-s,
+  Description-s, Publisher-s, Date-s, Type-s, Format-s, Identifier-s). Le lien mène à la plateforme du NIHU
+  (`int.nihu.jp`). 112 notices pour 方丈記, 819 pour 源氏物語.
+- **Waseda, base Japan Search `arc_books`** : notices du portail ARC (Ritsumeikan), avec pour fournisseur la
+  bibliothèque de Waseda. Elles donnent un manifeste IIIF hébergé par l'ARC (`www.dh-jac.net`), la page de lecture
+  et le PDF sur `archive.wul.waseda.ac.jp`, et la mention « Copyright (C) Waseda University Library ». Ce n'est
+  qu'une partie du fonds (3 078 réponses pour « 早稲田 源氏 », tous fonds de l'ARC confondus).
+- **NDL** : l'étape a dépassé le délai d'attente (25 s) sur une requête, ce qui l'a arrêtée tout entière. Elle
+  n'a donc rien conclu.
+
+## 7. Étape 3
+
+- **Kokusho** : sans réglage, la recherche interroge la base `nij16`. Chaque notice garde l'identifiant de Japan
+  Search (`nij16-…`), distinct des numéros de notices à images du Kokusho (neuf chiffres) tant que leur
+  correspondance n'est pas vérifiée. La recherche par numéro ou DOI (manifeste officiel, images) est inchangée.
+  Ces notices sont sans images et figées en 2021 ; leur bandeau « Droits » le dit.
+- **Waseda** : nouveau connecteur, branché sur NDL Search (fournisseur `waseda`) et non sur Japan Search
+  (`arc_books`), parce que NDL Search couvre tout le catalogue et garantit la réutilisation non commerciale des
+  notices. Le lien mène à la page de l'ouvrage, avec la mention exigée. J-ed ne lit jamais le site de Waseda.
+  Sur une installation existante, la source « Waseda » garde son réglage : un bandeau explique comment choisir le
+  nouveau connecteur. Rien n'est changé d'office. Les manifestes de l'ARC pourraient alimenter la visionneuse
+  plus tard. Ils ne le font pas ici, puisque la réutilisation des images demande l'accord de Waseda.
+- **« Ouvrir le document »** (fiches et résultats) : le document lui-même plutôt que le manifeste IIIF. Ce peut
+  être la visionneuse du Kokusho, la page NDL Digital Collections, la page Waseda (avec la mention) ou la lecture
+  Aozora. Le lien est déduit des adresses déjà connues, sans appel réseau.
+- **Visionneuse intégrée** (décision « les deux ») : désactivée par défaut, activée dans Administration →
+  Paramètres. Le manifeste est lu quand l'utilisateur ouvre la visionneuse, puis les vues s'affichent une à une
+  (flèches, numéro, taille réelle), avec les mentions de la source. La politique de sécurité n'est élargie qu'à
+  `img-src` pour les sites listés (par défaut kokusho.nijl.ac.jp et dl.ndl.go.jp), et seulement sur cette page.
+  Une image venue d'un autre site est refusée, avec un message. Aucun script externe, aucune copie des images.
+  Le script est un fichier statique de 40 lignes.
+- **Étude** : chaque requête de l'étape NDL est indépendante ; `--plan 3` (défaut) ne refait que cette étape.
+
+Statut : tout est testé en simulation, avec les structures réelles relevées sur le poste. Les tests réels sont
+V10-5 à V10-8.
+
+## 8. Livrables
+
 
 
 - Étape 1 : `japon-explorateur-2.0.0-lot10-etape1.zip` et son empreinte `.sha256`.
 - Étape 2 : `japon-explorateur-2.0.0-lot10-etape2.zip` et son empreinte `.sha256`.
-- Protocole : section « Lot 10 » (V10-1 à V10-4).
+- Étape 3 : `japon-explorateur-2.0.0-lot10-etape3.zip` et son empreinte `.sha256`.
+- Protocole : section « Lot 10 » (V10-1 à V10-9).

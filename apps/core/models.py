@@ -1,3 +1,5 @@
+import re
+
 from django.conf import settings
 from django.db import models
 
@@ -37,6 +39,15 @@ class AppSettings(models.Model):
     # à conseiller (Docker ne voit souvent qu'une partie de la mémoire sous Windows), rien n'est modifié d'office.
     computer_memory_gb = models.PositiveSmallIntegerField("Mémoire totale de l'ordinateur (Go)", null=True,
                                                           blank=True)
+    # 2.0.0 (lot 10) : visionneuse intégrée, désactivée par défaut (décision de l'utilisateur, 16/11/2026). Activée,
+    # elle autorise le navigateur à charger les images des seuls sites listés, et sur la seule page de la visionneuse.
+    iiif_viewer_enabled = models.BooleanField(
+        "Visionneuse d'images intégrée", default=False,
+        help_text="Affiche dans J-ed les images IIIF des sites listés ci-dessous. Votre navigateur les charge "
+                  "directement depuis ces sites. Désactivée : « Ouvrir le document » mène au site de la source.")
+    iiif_viewer_hosts = models.TextField(
+        "Sites d'images autorisés dans la visionneuse", default="kokusho.nijl.ac.jp\ndl.ndl.go.jp", blank=True,
+        help_text="Un nom de site par ligne (ex. kokusho.nijl.ac.jp). Seuls ces sites peuvent fournir des images.")
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -45,6 +56,15 @@ class AppSettings(models.Model):
 
     def __str__(self):
         return self.instance_name
+
+    def viewer_hosts(self):
+        """2.0.0 (lot 10) : noms de sites seuls (sans schéma, chemin ni joker)."""
+        hosts = []
+        for line in (self.iiif_viewer_hosts or "").splitlines():
+            host = line.strip().lower()
+            if host and re.fullmatch(r"[a-z0-9.-]+\.[a-z]{2,}", host):
+                hosts.append(host)
+        return hosts
 
     @classmethod
     def get(cls):

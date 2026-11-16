@@ -3,7 +3,7 @@ titre: Lire une notice
 rubrique: Chercher et lire
 ordre: 20
 public: tous
-ecrans: catalog:record_detail, catalog:version_detail, catalog:work_detail
+ecrans: catalog:record_detail, catalog:version_detail, catalog:work_detail, catalog:record_viewer
 resume: Ce que montre la fiche d'une notice, et ce qui vient de la source ou de vous.
 ---
 La fiche d'une notice réunit plusieurs couches, toujours distinguées :
@@ -36,3 +36,27 @@ vous ne l'avez pas validé.
 
 Une erreur dans la notice ? **Proposez une correction** : l'administrateur la valide ou la refuse. Les données de la
 source ne sont jamais écrasées.
+
+## Ouvrir le document
+
+Quand J-ed sait où lire le document lui-même, la fiche et les résultats de recherche proposent un bouton qui y
+mène directement, plutôt que vers le manifeste IIIF (un fichier technique) :
+
+- **Ouvrir dans le Kokusho** : la visionneuse du 国書データベース ;
+- **Ouvrir dans la NDL Digital Collections** : la page du document numérisé (son accès peut être réservé aux
+  bibliothèques ou à la NDL) ;
+- **Ouvrir sur le site de Waseda** : la page de l'ouvrage. Les images restent celles du
+  « 早稲田大学図書館古典籍総合データベース », qu'il faut citer. Toute réutilisation demande l'autorisation de la
+  bibliothèque de Waseda ;
+- **Lire le texte (Aozora Bunko)** : la page de lecture ; voir aussi [le texte intégral dans J-ed](aide:aozora-bunko).
+
+## Voir les images dans J-ed (facultatif)
+
+L'administrateur peut activer la **visionneuse intégrée** : Administration → Paramètres → « Visionneuse d'images
+intégrée ». Elle est désactivée par défaut. Une fois activée, le bouton **Voir les images dans J-ed** apparaît sur
+les fiches qui ont un manifeste IIIF. La visionneuse permet de passer d'une vue à l'autre (flèches du clavier) et
+d'afficher la taille réelle.
+
+Votre navigateur charge alors les images directement depuis le site de la source, et seulement depuis les sites
+listés dans « Sites d'images autorisés » (par défaut `kokusho.nijl.ac.jp` et `dl.ndl.go.jp`). J-ed ne copie pas
+les images. Les mentions demandées par la source (attribution, licence) s'affichent sous l'image.

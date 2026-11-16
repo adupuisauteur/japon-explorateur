@@ -13,6 +13,12 @@
     <a class="btn btn-primary" href="{% url 'updates:import_new' %}?catalogue={{ catalogue.code }}"><i class="bi bi-upload"></i> Importer un fichier</a>
   </div>{% endif %}</div>
 
+{% if catalogue.code == 'waseda' and catalogue.connector != 'waseda' and user.is_admin_role %}{# 2.0.0 (lot 10) #}
+<div class="alert alert-info">Un connecteur dédié à Waseda est disponible : il interroge le fonds de Waseda par l'API
+  officielle de NDL Search, sans lire le site de Waseda. Pour l'utiliser : formulaire <a href="#parametres">Configuration</a>
+  de cette page → Connecteur : « Waseda Kotenseki (via NDL Search) », Enregistrer, puis « Tester le
+  connecteur ».</div>
+{% endif %}
 {% if request.session.detected_db and request.session.detected_db.code == catalogue.code %}
 <div class="alert alert-info d-flex flex-wrap align-items-center gap-2">Base Japan Search détectée pour Kokusho : <code>{{ request.session.detected_db.value }}</code>
   <form method="post" action="{% url 'connectors:apply_detection' catalogue.code %}" class="ms-auto">{% csrf_token %}<button class="btn btn-sm btn-primary">Enregistrer ce paramètre</button></form></div>
@@ -68,7 +74,7 @@
     </tbody></table>
   </div>
   {% if form %}
-  <div class="col-lg-5"><div class="card-soft"><h2 class="h5">Configuration</h2>
+  <div class="col-lg-5"><div class="card-soft" id="parametres"><h2 class="h5">Configuration</h2>
     <form method="post">{% csrf_token %}{% include "partials/form.html" %}<button class="btn btn-primary">Enregistrer</button></form></div></div>
   {% endif %}
 </div>

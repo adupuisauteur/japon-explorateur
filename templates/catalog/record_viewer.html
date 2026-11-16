@@ -1,0 +1,28 @@
+{% extends "base.html" %}{% load static %}
+{% block title %}Visionneuse — {{ record.original_title|truncatechars:50 }}{% endblock %}
+{% block content %}
+<nav aria-label="Fil d'Ariane" class="small mb-2"><a href="{{ record.get_absolute_url }}">{{ record.original_title|truncatechars:60 }}</a> › Visionneuse</nav>
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="h4 mb-0">{{ record.original_title }}</h1>
+  {% if link %}<a class="btn btn-sm btn-outline-secondary" href="{{ link.url }}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> {{ link.label }}</a>{% endif %}
+</div>
+{% if error %}
+  <div class="alert alert-warning">{{ error }}{% if link %} Vous pouvez <a href="{{ link.url }}" target="_blank" rel="noopener">ouvrir le document sur le site de la source</a>.{% endif %}</div>
+{% else %}
+  <div class="viewer" data-viewer>
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-viewer-prev aria-label="Vue précédente"><i class="bi bi-chevron-left"></i></button>
+      <label class="small">Vue <input type="number" min="1" max="{{ views|length }}" value="1" class="form-control form-control-sm d-inline-block viewer-page" data-viewer-page> / {{ views|length }}</label>
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-viewer-next aria-label="Vue suivante"><i class="bi bi-chevron-right"></i></button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-viewer-zoom><i class="bi bi-zoom-in"></i> Taille réelle</button>
+      <span class="small text-muted" data-viewer-label></span>
+    </div>
+    <div class="viewer-stage"><img data-viewer-image src="{{ views.0.image }}" alt="Vue 1 du document" referrerpolicy="no-referrer"></div>
+    {{ views|json_script:"viewer-views" }}
+  </div>
+{% endif %}
+{% if rights %}<div class="small text-muted mt-2"><strong>Mentions de la source :</strong> {% for r in rights %}{{ r }}{% if not forloop.last %} · {% endif %}{% endfor %}</div>{% endif %}
+{% if link.mention %}<div class="small mt-1">Images : {{ link.mention }}</div>{% endif %}
+<p class="small text-muted mt-2">Les images sont chargées par votre navigateur depuis le site de la source ; J-ed ne les copie pas.</p>
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/visionneuse.js' %}"></script>{% endblock %}

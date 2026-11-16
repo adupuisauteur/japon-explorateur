@@ -242,3 +242,81 @@ def run_pending(*, limit=None, delay=None):
     finally:
         cache.delete(LOCK_KEY)
     return done
+
+
+# --------------------------------------------------------------------------- 2.0.0 (lot 10) : visionneuse
+
+
+def _label(value):
+    """Libellé IIIF 2 (chaîne ou liste) ou 3 (dictionnaire de langues)."""
+    if isinstance(value, dict):
+        for key in ("ja", "none", "en", "fr"):
+            if value.get(key):
+                return " ".join(str(v) for v in _as_list(value[key]))
+        return " ".join(str(v) for vals in value.values() for v in _as_list(vals))
+    if isinstance(value, list):
+        return " ".join(_label(v) for v in value)
+    return str(value or "")
+
+
+def _image_at(services, fallback, width):
+    for service in _as_list(services):
+        base = _id(service).rstrip("/")
+        if base.startswith("http"):
+            return f"{base}/full/{width},/0/default.jpg"
+    return fallback if str(fallback).startswith("http") else ""
+
+
+def views_of(data, width=1600):
+    """Toutes les vues d'un manifeste : [{"label", "image", "thumb"}] (images servies par le serveur IIIF)."""
+    inspect(data)
+    out = []
+    if "presentation/3" in _context(data) or data.get("type") == "Manifest":
+        for canvas in _as_list(data.get("items")):
+            for page in _as_list(canvas.get("items") if isinstance(canvas, dict) else None):
+                for annotation in _as_list(page.get("items") if isinstance(page, dict) else None):
+                    body = annotation.get("body") if isinstance(annotation, dict) else None
+                    for b in _as_list(body):
+                        if isinstance(b, dict):
+                            image = _image_at(b.get("service"), _id(b), width)
+                            if image:
+                                out.append({"label": _label(canvas.get("label")), "image": image,
+                                            "thumb": _image_at(b.get("service"), _id(b), 160)})
+    else:
+        for sequence in _as_list(data.get("sequences"))[:1]:
+            for canvas in _as_list(sequence.get("canvases") if isinstance(sequence, dict) else None):
+                for annotation in _as_list(canvas.get("images") if isinstance(canvas, dict) else None):
+                    resource = annotation.get("resource") if isinstance(annotation, dict) else None
+                    if isinstance(resource, dict):
+                        image = _image_at(resource.get("service"), _id(resource), width)
+                        if image:
+                            out.append({"label": _label(canvas.get("label")), "image": image,
+                                        "thumb": _image_at(resource.get("service"), _id(resource), 160)})
+    return out
+
+
+def rights_of(data):
+    """Mentions à afficher avec les images : attribution, licence, droits (texte brut, jamais interprété en HTML)."""
+    from django.utils.html import strip_tags
+
+    lines = []
+    for key in ("attribution", "requiredStatement", "license", "rights"):
+        value = data.get(key)
+        if isinstance(value, dict) and "value" in value:  # IIIF 3 requiredStatement
+            value = f"{_label(value.get('label'))} : {_label(value.get('value'))}"
+        text = strip_tags(_label(value) if not isinstance(value, str) else value).strip()
+        if text:
+            lines.append(text)
+    return lines
+
+
+def load_manifest(url, catalogue):
+    """Manifeste téléchargé sur demande (ouverture de la visionneuse). Une collection : son premier manifeste."""
+    http = ConnectorHTTP(catalogue)
+    data = _fetch_json(http, url)
+    info = inspect(data)
+    if info["type"] == "collection":
+        if not info["members"]:
+            raise ManifestError("Collection IIIF sans manifeste.", code="manifeste_vide")
+        data = _fetch_json(http, info["members"][0])
+    return data

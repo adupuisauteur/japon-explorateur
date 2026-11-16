@@ -189,3 +189,19 @@ def status_pills(statuses):
             STATUS_CHIP_CLASS.get(value, "chip-muted"), status_title(kind, status), STATUS_ICONS[kind],
             KIND_LABELS[kind], LABELS.get(value, value)))
     return format_html('<span class="status-pills">{}</span>', mark_safe("".join(chips)))
+
+
+@register.filter
+def document_link(obj):
+    """2.0.0 (lot 10) : {"url", "label", "mention"} du meilleur lien vers le document, ou None."""
+    from apps.catalog.documents import document_link as _link
+
+    return _link(obj)
+
+
+@register.simple_tag
+def viewer_enabled():
+    """2.0.0 (lot 10) : la visionneuse intégrée est-elle activée (Administration → Paramètres) ?"""
+    from apps.core.models import AppSettings
+
+    return AppSettings.get().iiif_viewer_enabled
