@@ -5,6 +5,13 @@
 Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquette `v1.3.0-rc3` (commit
 `d7296d4`). Audit et plan : `docs/evolution-2.0.0/01-audit.md`.
 
+- **Lot 10 — documents et nouvelles sources, étape 1** (16 novembre 2026, rapport :
+  `docs/evolution-2.0.0/rapport-lot-10.md`) : commande `manage.py etudier_sources`, à lancer sur le poste
+  (l'environnement de développement ne joint pas ces sites). Lecture seule, une trentaine de requêtes espacées d'une
+  seconde, robots.txt respecté : bases et sites réellement présents dans Japan Search (cause de « aucune notice
+  Kokusho reconnue »), fonds Waseda et Aozora dans NDL Search, structure d'une page d'ouvrage Waseda, accès réel des
+  numérisations NDL de la base (manifeste, première image), liste des œuvres d'Aozora Bunko, pages d'accès de
+  l'Historiographical Institute.
 - **Lot 9 — performances, étape 1** (16 novembre 2026, rapport : `docs/evolution-2.0.0/rapport-lot-9.md`) :
   - commande `manage.py mesurer_performances` : recherche (libre, titre, auteur), doublons, calcul de la
     consommation et pages principales, mesurés sur 50 000 notices fictives dans une base temporaire supprimée

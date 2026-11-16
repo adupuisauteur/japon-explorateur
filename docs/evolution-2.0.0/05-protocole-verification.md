@@ -430,6 +430,13 @@ mise à jour. Attendu : la ligne IA locale n'est plus « Problème ». Elle est 
 **V9-5 — Étape 2 : doublons.** Ouvre une fiche dont tu sais qu'elle a un doublon (même œuvre dans deux sources).
 Attendu : le doublon est proposé, comme avant.
 
+## Lot 10 — documents et nouvelles sources
+
+**V10-1 — Étude des sources (étape 1).** Dans PowerShell, depuis le dossier de J-ed :
+`docker compose exec web python manage.py etudier_sources`, puis
+`docker compose cp web:/tmp/etude-sources.txt etude-sources.txt`. Attendu : 1 à 2 minutes, dix rubriques, aucune
+erreur Python. Joins le fichier `etude-sources.txt` à ta réponse.
+
 ## Grille de résultats
 
 | Vérification | Résultat | Remarque |
@@ -504,3 +511,4 @@ Attendu : le doublon est proposé, comme avant.
 | V9-3 Page Consommation | | |
 | V9-4 IA locale après mise à jour | | |
 | V9-5 Doublons | | |
+| V10-1 Étude des sources | | fichier joint |
