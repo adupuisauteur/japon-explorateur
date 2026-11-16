@@ -152,11 +152,40 @@ la liste Aozora. L'ancienne étude reste disponible : `--premiere`.
 Statut : tout est testé en simulation, avec les structures réelles relevées sur le poste. Les tests réels sont
 V10-5 à V10-8.
 
-## 8. Livrables
+## 8. Correctif 1 de l'étape 3 : intégrations simultanées (incident INC-20261116-5D1D5E)
+
+**Constat (rapport de 22 h 32).** Pendant l'intégration des quelque 17 000 notices d'Aozora Bunko, 8 561 erreurs
+« duplicate key … unique_source_record » se sont produites en trois minutes, toutes sur la source Aozora.
+
+**Cause.** Deux intégrations de la même synchronisation ont tourné en même temps. Probablement un double clic
+sur « Intégrer », ou le bouton « Reprendre », que l'étape 2 affichait pendant toute l'intégration, même quand
+elle tournait encore. Pour une notice nouvelle, chaque intégration constatait qu'elle n'existait pas, puis la
+créait. Le verrou de ligne posé par la lecture ne protège rien quand la ligne n'existe pas encore.
+
+**Conséquences.** Aucune donnée abîmée. La contrainte d'unicité de la base a refusé chaque doublon, et l'autre
+intégration a bien créé la notice. L'incident ne garde qu'un bruit dans le journal (une entrée, 8 561
+occurrences).
+
+**Correction.**
+- Une seule intégration à la fois par source, entre tous les processus (navigateur, tâche de fond). C'est un
+  verrou consultatif PostgreSQL, libéré à la fin, ou par la base si le processus s'arrête. Il vaut pour les
+  synchronisations comme pour les imports de fichiers.
+- Une seconde demande est refusée par un message, sans rien relancer. La tâche de fond qui trouve le verrou pris
+  s'arrête sans rien faire.
+- « Reprendre » n'apparaît que si aucune intégration ne tourne. La page indique combien de notices sont
+  intégrées et combien restent.
+- Dernier filet : une notice créée entre-temps par une autre opération (une recherche en mode automatique, par
+  exemple) devient une mise à jour, au lieu d'une erreur.
+
+Deux tests, dont un qui prend le verrou depuis une autre connexion à la base (749 tests réussis).
+
+## 9. Livrables
+
 
 
 
 - Étape 1 : `japon-explorateur-2.0.0-lot10-etape1.zip` et son empreinte `.sha256`.
 - Étape 2 : `japon-explorateur-2.0.0-lot10-etape2.zip` et son empreinte `.sha256`.
 - Étape 3 : `japon-explorateur-2.0.0-lot10-etape3.zip` et son empreinte `.sha256`.
+- Correctif 1 : `japon-explorateur-2.0.0-lot10-etape3-correctif1.zip` et son empreinte `.sha256`.
 - Protocole : section « Lot 10 » (V10-1 à V10-9).

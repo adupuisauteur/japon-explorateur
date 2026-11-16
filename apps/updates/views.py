@@ -97,6 +97,10 @@ def sync_detail(request, pk):
     return render(request, "updates/sync_detail.html", {
         "job": job, "page": _incoming_page(request, job.incoming.all()),
         "summary": job.incoming.values("comparison", "decision").annotate(n=Count("pk")),
+        # 2.0.0 (lot 10) : « Reprendre » seulement si aucune intégration ne tourne encore
+        "apply_busy": job.status == "running" and services.apply_running(job.catalogue_id),
+        "applied_count": job.incoming.filter(decision="applied").count() if job.status == "running" else 0,
+        "accepted_count": job.incoming.filter(decision="accept").count() if job.status == "running" else 0,
     })
 
 
@@ -124,6 +128,10 @@ def incoming_decide(request):
 @require_POST
 def sync_apply(request, pk):
     job = get_object_or_404(SyncJob, pk=pk)
+    if services.apply_running(job.catalogue_id):  # 2.0.0 (lot 10) : double clic, « Reprendre » trop tôt…
+        messages.info(request, f"Une intégration est déjà en cours pour « {job.catalogue.name} » : rien n'a été "
+                               "relancé. Rechargez la page pour suivre l'avancement.")
+        return redirect(job.get_absolute_url())
     accepted = job.incoming.filter(decision="accept").count()
     if accepted > services.APPLY_INLINE_MAX:  # 2.0.0 (lot 10) : trop long pour une page (délai de 180 s)
         from .tasks import apply_sync_job
@@ -136,7 +144,11 @@ def sync_apply(request, pk):
         messages.info(request, f"Intégration de {accepted} notice(s) lancée en tâche de fond : rechargez la page "
                                "pour suivre l'avancement. Une interruption n'efface rien ; relancez pour continuer.")
         return redirect(job.get_absolute_url())
-    stats = services.apply_sync(job, request.user)
+    try:
+        stats = services.apply_sync(job, request.user)
+    except services.ApplyBusy as exc:
+        messages.info(request, f"{exc} Rien n'a été relancé.")
+        return redirect(job.get_absolute_url())
     log_action(request, "sync.apply", job.catalogue, "Synchronisation intégrée", **stats)
     messages.success(request, f"Intégration : {stats['created']} créée(s), {stats['updated']} mise(s) à jour (historisées), "
                               f"{stats['marked_unavailable']} marquée(s) indisponible(s), {stats['errors']} erreur(s).")
@@ -239,7 +251,11 @@ def import_detail(request, pk):
             else:
                 messages.success(request, "Correspondance enregistrée.")
         elif action == "apply" and job.status == "review":
-            stats = services.apply_import(job, request.user)
+            try:
+                stats = services.apply_import(job, request.user)
+            except services.ApplyBusy as exc:
+                messages.info(request, f"{exc} Rien n'a été relancé ; réessayez quand elle sera terminée.")
+                return redirect(job.get_absolute_url())
             log_action(request, "import.apply", job, job.file_name, **stats)
             messages.success(request, f"Import intégré : {stats['created']} notice(s) créée(s), {stats['updated']} mise(s) à "
                                       f"jour avec historique, {stats['errors']} erreur(s).")

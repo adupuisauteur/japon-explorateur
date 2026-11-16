@@ -5,6 +5,13 @@
 Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquette `v1.3.0-rc3` (commit
 `d7296d4`). Audit et plan : `docs/evolution-2.0.0/01-audit.md`.
 
+- **Lot 10 — étape 3, correctif 1** (16 novembre 2026, incident INC-20261116-5D1D5E) : deux intégrations de la
+  liste Aozora ont tourné en même temps (double clic ou « Reprendre » pendant que la première tournait) ; 8 561
+  créations refusées par la contrainte d'unicité, aucune donnée abîmée. Une seule intégration à la fois par
+  source (verrou PostgreSQL entre processus, libéré même si le processus s'arrête) ; une seconde demande est
+  refusée avec un message, sans rien relancer ; « Reprendre » n'apparaît que si l'intégration ne tourne plus, avec
+  le nombre de notices intégrées et restantes ; une notice créée entre-temps par une autre opération devient une
+  mise à jour au lieu d'une erreur.
 - **Lot 10 — étape 3** (16 novembre 2026, d'après le second passage de l'étude) :
   - **Kokusho** : recherche dans Japan Search sur la base `nij16` (日本古典籍総合目録 du NIJL, constatée sur le
     poste) sans réglage ; notices lues dans leur structure propre (titres, auteur, sujet, date, 刊/写, format,

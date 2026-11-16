@@ -470,6 +470,12 @@ Enregistrer. Sur la fiche Kokusho de V10-7 : « Voir les images dans J-ed » ; 1
 **V10-9 — Étude, accès NDL.** `docker compose exec web python manage.py etudier_sources` (plan 3, par défaut),
 puis `docker compose cp web:/tmp/etude-sources.txt etude-sources-3.txt`. Joins le fichier.
 
+**V10-10 — Correctif 1 : intégrations simultanées.** Mises à jour → la synchronisation Aozora Bunko. Si elle
+indique « En cours » sans avancer, ou s'il reste des éléments « À intégrer » : « Reprendre » (ou « Intégrer les
+éléments acceptés »). Un double clic ne lance qu'une intégration ; le second clic affiche « déjà en cours ».
+Journal des dysfonctionnements : l'incident INC-20261116-5D1D5E peut être marqué « Résolu » ; aucune nouvelle
+occurrence.
+
 ## Grille de résultats
 
 | Vérification | Résultat | Remarque |
@@ -553,3 +559,4 @@ puis `docker compose cp web:/tmp/etude-sources.txt etude-sources-3.txt`. Joins l
 | V10-7 Ouvrir le document | | |
 | V10-8 Visionneuse intégrée | | |
 | V10-9 Étude, accès NDL | | fichier joint |
+| V10-10 Intégrations simultanées | | |

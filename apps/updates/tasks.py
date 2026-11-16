@@ -43,9 +43,12 @@ def apply_sync_job(job_id, user_id):
     from apps.accounts.models import User
 
     from .models import SyncJob
-    from .services import apply_sync
+    from .services import ApplyBusy, apply_sync
 
     job = SyncJob.objects.filter(pk=job_id).first()
     user = User.objects.filter(pk=user_id).first()
     if job and user:
-        apply_sync(job, user)
+        try:
+            apply_sync(job, user)
+        except ApplyBusy:
+            return "déjà en cours"  # l'intégration en cours traitera tout : rien à faire

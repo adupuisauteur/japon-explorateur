@@ -6,7 +6,7 @@ import difflib
 
 from django.conf import settings
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from apps.core import japanese as jp
@@ -117,18 +117,24 @@ def upsert_record(catalogue, data, *, raw=None, raw_format="", origin="import", 
     now = collected_at or timezone.now()
 
     if existing is None:
-        record = build_unsaved_record(catalogue, clean, raw, raw_format)
-        record.collected_at = now
-        record.dataset_label = dataset_label
-        record.created_by = user
-        record.record_hash = ""
-        record.save()
-        record.record_hash = record.compute_hash()
-        record.save(update_fields=["record_hash"])
-        RecordVersion.objects.create(record=record, version=1, change_type="created", origin=origin,
-                                     snapshot=record.source_snapshot(), record_hash=record.record_hash,
-                                     created_by=user, note=note)
-        return record, "created"
+        try:
+            with transaction.atomic():  # point de reprise : une création concurrente ne casse pas la transaction
+                record = build_unsaved_record(catalogue, clean, raw, raw_format)
+                record.collected_at = now
+                record.dataset_label = dataset_label
+                record.created_by = user
+                record.record_hash = ""
+                record.save()
+                record.record_hash = record.compute_hash()
+                record.save(update_fields=["record_hash"])
+                RecordVersion.objects.create(record=record, version=1, change_type="created", origin=origin,
+                                             snapshot=record.source_snapshot(), record_hash=record.record_hash,
+                                             created_by=user, note=note)
+            return record, "created"
+        except IntegrityError:
+            # 2.0.0 (lot 10, incident du 16/11/2026) : la même notice vient d'être créée par une autre opération
+            # (deux intégrations simultanées). On la reprend et on continue comme une mise à jour.
+            existing = Record.objects.select_for_update().get(catalogue=catalogue, source_id=clean["source_id"])
 
     previous = existing.source_snapshot()
     for key, value in clean.items():

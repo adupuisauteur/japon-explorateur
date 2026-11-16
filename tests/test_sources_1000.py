@@ -601,3 +601,68 @@ class WasedaConnectorTests(AppTestCase):
         page = self.client.get("/sources/waseda/").content.decode()
         self.assertIn("Un connecteur dédié à Waseda est disponible", page)
         self.assertIn("Waseda Kotenseki (via NDL Search)", page)  # proposé dans la liste des connecteurs
+
+
+class ConcurrentApplyTests(AozoraTests):
+    """Incident du 16/11/2026 (INC-20261116-5D1D5E) : deux intégrations simultanées de la liste Aozora, 8 561 conflits
+    « unique_source_record » (aucune donnée abîmée : la contrainte d'unicité a refusé les doublons)."""
+
+    def _other_session_lock(self):
+        import psycopg
+        from django.db import connection
+
+        from apps.updates.services import _APPLY_LOCK
+
+        other = psycopg.connect(**connection.get_connection_params())
+        other.execute("SELECT pg_advisory_lock(%s, %s)", [_APPLY_LOCK, self.aozora.pk])
+        self.addCleanup(other.close)
+        return other
+
+    def test_second_apply_is_refused_while_one_is_running(self):
+        from apps.updates import services
+        from apps.updates.models import SyncJob
+
+        job = services.run_sync(SyncJob.objects.create(catalogue=self.aozora, kind="full"))
+        other = self._other_session_lock()  # une intégration tourne ailleurs (autre processus)
+        with self.assertRaises(services.ApplyBusy):
+            services.apply_sync(job, self.admin)
+        with mock.patch("apps.updates.tasks.apply_sync_job.delay") as delay:
+            response = self.client.post(f"/mises-a-jour/synchro/{job.pk}/integrer/", follow=True)
+        delay.assert_not_called()
+        self.assertContains(response, "déjà en cours")
+        job.refresh_from_db()
+        job.status = "running"
+        job.message = "Intégration de 2 notice(s) en cours (tâche de fond)."
+        job.save()
+        page = self.client.get(job.get_absolute_url()).content.decode()
+        self.assertIn("L'intégration avance", page)
+        self.assertNotIn(">Reprendre<", page)
+        from apps.updates.tasks import apply_sync_job
+        self.assertEqual(apply_sync_job(job.pk, self.admin.pk), "déjà en cours")
+        self.assertFalse(Record.objects.filter(catalogue=self.aozora).exists())
+        other.execute("SELECT pg_advisory_unlock_all()")
+        self.assertIn(">Reprendre<", self.client.get(job.get_absolute_url()).content.decode())
+        services.apply_sync(job, self.admin)
+        self.assertEqual(Record.objects.filter(catalogue=self.aozora).count(), 2)
+
+    def test_record_created_meanwhile_becomes_an_update(self):
+        from apps.catalog import services as catalog_services
+
+        existing, _ = upsert_record(self.aozora, {"source_id": "900001", "original_title": "架空の物語"})
+        real = Record.objects.select_for_update
+
+        class Stale:
+            """Simule la lecture faite juste avant qu'un autre processus crée la notice."""
+            calls = 0
+
+            def __call__(self):
+                Stale.calls += 1
+                if Stale.calls == 1:
+                    return mock.Mock(filter=lambda **kw: mock.Mock(first=lambda: None))
+                return real()
+
+        with mock.patch.object(catalog_services.Record.objects, "select_for_update", Stale()):
+            record, status = upsert_record(self.aozora, {"source_id": "900001", "original_title": "架空の物語・改"})
+        self.assertEqual(record.pk, existing.pk)
+        self.assertEqual(status, "updated")
+        self.assertEqual(Record.objects.filter(catalogue=self.aozora, source_id="900001").count(), 1)

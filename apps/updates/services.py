@@ -5,9 +5,10 @@ dans un export ou une moisson (§9.5).
 """
 import logging
 import os
+from contextlib import contextmanager
 
 from django.conf import settings
-from django.db import DatabaseError, transaction
+from django.db import DatabaseError, connection, transaction
 from django.utils import timezone
 
 from apps.catalog.models import Catalogue, Record
@@ -168,6 +169,11 @@ def apply_incoming(items, user, *, origin, dataset_label=""):
 
 
 def apply_import(job, user):
+    with apply_lock(job.catalogue_id):
+        return _apply_import(job, user)
+
+
+def _apply_import(job, user):
     items = job.incoming.filter(decision="accept").select_related("import_job", "import_job__catalogue")
     stats = apply_incoming(items, user, origin="import", dataset_label=job.dataset_label or job.file_name)
     pending = job.incoming.filter(decision__in=["pending", "hold"]).count()
@@ -313,9 +319,46 @@ def _stage_sync_result(job, catalogue, res, counts):
 
 
 APPLY_INLINE_MAX = 1000  # au-delà, l'intégration d'une synchronisation passe en tâche de fond
+_APPLY_LOCK = 20261116  # espace des verrous consultatifs PostgreSQL « intégration d'une source »
+
+
+class ApplyBusy(Exception):
+    """Une intégration est déjà en cours pour cette source (autre onglet, double clic, tâche de fond)."""
+
+
+@contextmanager
+def apply_lock(catalogue_id):
+    """2.0.0 (lot 10, incident du 16/11/2026 : deux intégrations simultanées de la liste Aozora, 8 561 conflits).
+    Une seule intégration à la fois par source, entre tous les processus (verrou consultatif PostgreSQL, libéré
+    à la fin ou si le processus s'arrête). Lève ApplyBusy si le verrou est déjà pris."""
+    if connection.vendor != "postgresql":
+        yield
+        return
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT pg_try_advisory_lock(%s, %s)", [_APPLY_LOCK, catalogue_id])
+        if not cursor.fetchone()[0]:
+            raise ApplyBusy("Une intégration est déjà en cours pour cette source.")
+    try:
+        yield
+    finally:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_advisory_unlock(%s, %s)", [_APPLY_LOCK, catalogue_id])
+
+
+def apply_running(catalogue_id):
+    try:
+        with apply_lock(catalogue_id):
+            return False
+    except ApplyBusy:
+        return True
 
 
 def apply_sync(job, user):
+    with apply_lock(job.catalogue_id):
+        return _apply_sync(job, user)
+
+
+def _apply_sync(job, user):
     if job.status == "running":
         job.message = ""
     stats = apply_incoming(job.incoming.filter(decision="accept").select_related("sync_job__catalogue"), user,
