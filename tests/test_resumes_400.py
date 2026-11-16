@@ -811,6 +811,62 @@ class LocalAutoSelftestTests(AppTestCase):
             self.assertTrue(local.last_selftest().ok)
             self.assertEqual(local.auto_selftest(), "inutile")  # déjà réussi avec un modèle installé
 
+    def test_old_failure_just_after_restart_is_only_pending(self):
+        """Rapport du 16/11, 20:26 : vérification lancée une minute après la mise à jour, avant l'essai automatique."""
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.ai import local
+        from apps.core import health
+        from apps.core.models import ServiceCheck
+
+        ServiceCheck.record(local.CHECK_NAME, False, "Essai de résumé en échec : ancien format", model="qwen3:4b")
+        ServiceCheck.objects.filter(name=local.CHECK_NAME).update(checked_at=timezone.now() - timedelta(hours=2))
+        just_started = timezone.now() - timedelta(minutes=1)
+        with mock.patch.object(health, "container_started_at", return_value=just_started):
+            check = health.check_local_ai()
+        self.assertEqual((check.level, check.summary), (health.WARNING, "Essai automatique en attente"))
+        self.assertTrue(any("refait automatiquement vers" in d for d in check.details))
+        long_ago = timezone.now() - timedelta(hours=1)  # démarrage ancien : l'essai automatique aurait dû avoir lieu
+        with mock.patch.object(health, "container_started_at", return_value=long_ago):
+            self.assertEqual(health.check_local_ai().level, health.ERROR)
+        with mock.patch.object(health, "container_started_at", return_value=None):
+            self.assertEqual(health.check_local_ai().level, health.ERROR)
+
+    def test_failure_followed_by_a_real_summary_is_ok(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.ai import local
+        from apps.ai.models import AITask
+        from apps.core import health
+        from apps.core.models import ServiceCheck
+
+        ServiceCheck.record(local.CHECK_NAME, False, "Essai de résumé en échec : ancien format", model="qwen3:4b")
+        with mock.patch.object(health, "container_started_at", return_value=None):
+            self.assertEqual(health.check_local_ai().level, health.ERROR)
+            AITask.objects.create(user=self.admin, function="summary", provider="openai", status="done",
+                                  finished_at=timezone.now() + timedelta(seconds=1))
+            self.assertEqual(health.check_local_ai().level, health.ERROR)  # autre fournisseur : ne prouve rien
+            AITask.objects.create(user=self.admin, function="summary", provider="ollama", status="done",
+                                  finished_at=timezone.now() + timedelta(seconds=1))
+            check = health.check_local_ai()
+        self.assertEqual((check.level, check.summary), (health.OK, "Prête"))
+        self.assertTrue(any("vrai résumé" in d for d in check.details))
+
+    def test_verifier_shows_the_cause(self):
+        from apps.ai import local
+        from apps.core import health, verification
+        from apps.core.models import ServiceCheck
+
+        ServiceCheck.record(local.CHECK_NAME, False, "Essai de résumé en échec : délai dépassé", model="qwen3:4b")
+        with mock.patch.object(health, "container_started_at", return_value=None):
+            level, _summary, details = verification.check_installation(None)
+        self.assertEqual(level, health.ERROR)
+        self.assertTrue(any("délai dépassé" in d for d in details), details)
+
     def test_nothing_without_service_or_model(self):
         import os
 

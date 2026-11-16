@@ -52,8 +52,17 @@ class SearchTests(AppTestCase):
         cache.clear()
 
     def _session(self, mode="selective", sources=("local", "ndl")):
-        return services.run_all_sources(services.create_session(self.admin, query="五輪書", sources=list(sources),
-                                                                mode=mode))
+        session = services.run_all_sources(services.create_session(self.admin, query="五輪書", sources=list(sources),
+                                                                   mode=mode))
+        # 2.0.0, lot 9 : ces tests échouaient parfois (« error » au lieu du statut attendu, résultats absents).
+        # Une erreur inattendue est rapportée avec sa trace, pour en connaître la cause.
+        unexpected = {code: s for code, s in session.source_stats.items() if s.get("status") == "error"}
+        if unexpected:
+            from apps.incidents.models import Incident
+
+            traces = [(i.title, i.message, (i.context or {}).get("traceback")) for i in Incident.objects.all()]
+            self.fail(f"Erreur inattendue d'une source : {unexpected} ; incidents : {traces}")
+        return session
 
     def test_at03_provenance_and_tolerance_to_failing_connector(self):
         ConnectorHTTP.transport = httpx.MockTransport(failing_transport)

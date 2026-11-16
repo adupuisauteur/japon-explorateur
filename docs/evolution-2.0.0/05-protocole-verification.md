@@ -422,6 +422,14 @@ nouvelle notice « fictif », aucun utilisateur « mesure-fictif » dans Adminis
 
 **V9-3 — Page Consommation.** Traduction → Consommation : mêmes totaux qu'avant la mise à jour pour le mois en cours.
 
+**V9-4 — Étape 2 : IA locale juste après la mise à jour.** Lance `verifier-j-ed.ps1` dans la minute qui suit la
+mise à jour. Attendu : la ligne IA locale n'est plus « Problème ». Elle est soit « OK », soit « à surveiller » avec
+« Essai automatique en attente » et une heure. Trois minutes plus tard, la page « État de l'installation » indique
+« Prête ».
+
+**V9-5 — Étape 2 : doublons.** Ouvre une fiche dont tu sais qu'elle a un doublon (même œuvre dans deux sources).
+Attendu : le doublon est proposé, comme avant.
+
 ## Grille de résultats
 
 | Vérification | Résultat | Remarque |
@@ -494,3 +502,5 @@ nouvelle notice « fictif », aucun utilisateur « mesure-fictif » dans Adminis
 | V9-1 Mesure des performances | | résultat joint |
 | V9-2 Rien n'a changé | | |
 | V9-3 Page Consommation | | |
+| V9-4 IA locale après mise à jour | | |
+| V9-5 Doublons | | |

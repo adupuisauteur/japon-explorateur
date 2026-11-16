@@ -146,3 +146,31 @@ class MeasureCommandTests(TransactionTestCase):
         self.assertIn("supprimée", err.getvalue())
         self.assertEqual(self._temporary_databases(), [])
         self.assertEqual(Record.objects.count(), before)
+
+
+class DuplicatesAtVolumeTests(TestCase):
+    """Mesure du 16/11 (50 000 notices) : 0 doublon proposé, les 200 notices examinées étant prises au hasard."""
+
+    def test_true_duplicate_found_among_many_records_sharing_the_title_start(self):
+        from apps.catalog.models import Catalogue, Record, new_uid
+        from apps.catalog.normalization import normalize_record
+        from apps.catalog.services import duplicate_candidates
+
+        catalogue = Catalogue.objects.create(code="fictif-doublons", name="Fictif")
+
+        def make(i, title, creator):
+            r = Record(catalogue=catalogue, source_id=f"d{i}", original_title=title, creator_original=creator)
+            r.record_id = new_uid("REC")
+            normalize_record(r)
+            return r
+
+        # même début de titre, classés avant le vrai doublon (ordre alphabétique par défaut des notices), mais trop
+        # différents pour être des doublons (similarité 0,71 < 0,75)
+        decoys = [make(i, "日記紀行抄集" + "一" * 4, "架空太郎") for i in range(400)]
+        Record.objects.bulk_create(decoys)
+        original = make(1000, "日記紀行抄集録", "紀貫之")
+        twin = make(1001, "日記紀行抄集録", "紀貫之")
+        Record.objects.bulk_create([original, twin])
+        original = Record.objects.get(source_id="d1000")
+        found = [r.source_id for r, _score, _reasons in duplicate_candidates(original)]
+        self.assertIn("d1001", found)

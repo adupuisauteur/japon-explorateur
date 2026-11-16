@@ -13,6 +13,16 @@ Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquet
   - page **Consommation** : nombre de requêtes fixe (six au plus), quel que soit le nombre de tâches du mois (avant :
     deux à trois par tâche) ; résultats identiques, vérifiés par un test qui compare avec l'ancien calcul ;
   - test parfois instable (recherche rapide) : diagnostic complet en cas d'échec, pour en trouver la cause.
+- **Lot 9 — étape 2** (16 novembre 2026, d'après la mesure faite sur le poste de l'utilisateur) :
+  - **détection des doublons** : les 200 notices examinées étaient les 200 premières par ordre alphabétique parmi
+    celles qui partagent le début du titre ; à 50 000 notices, les vrais doublons n'y figuraient pas (mesure :
+    0 candidat, alors que 206 notices avaient un titre semblable). Elles sont désormais prises par ressemblance du
+    titre (extension pg_trgm, déjà installée), les plus proches d'abord ;
+  - **IA locale** : un essai en échec enregistré avant un redémarrage n'est plus signalé comme un problème tant que
+    l'essai automatique n'a pas eu lieu (« Essai automatique en attente », avec l'heure prévue) ; il n'est plus
+    signalé non plus si un vrai résumé par l'IA locale a réussi depuis ;
+  - `verifier-j-ed.ps1` : pour Argos et l'IA locale, le rapport donne la cause et la date de l'essai en échec ;
+  - tests de recherche multi-source parfois en échec : diagnostic complet en cas d'erreur d'une source.
 - **Lot 6 — aide intégrée, historique des versions, logo** (16 novembre 2026, rapport :
   `docs/evolution-2.0.0/rapport-lot-6.md`) :
   - aide intégrée : 30 pages courtes orientées tâches dans `docs/aide/*.md` (une seule source), en six rubriques ;

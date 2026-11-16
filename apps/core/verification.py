@@ -60,7 +60,12 @@ def check_installation(ctx):
     results = health.collect()
     problems = [r for r in results if r.level == health.ERROR]
     warnings = [r for r in results if r.level == health.WARNING]
-    details = [f"{r.label} : {r.summary}" for r in problems + warnings]
+    details = []
+    for r in problems + warnings:
+        details.append(f"{r.label} : {r.summary}")
+        if r.key in ("ia_locale", "argos"):  # 2.0.0 (lot 9) : cause et date de l'essai (aucun chemin ni compte)
+            details.extend("  " + d for d in r.details if d.startswith(("Résumé d'essai", "Traduction d'essai",
+                                                                         "J-ed vient de démarrer")))
     if problems:
         return ERROR, f"{len(problems)} point(s) en erreur sur la page « État de l'installation »", details
     if warnings:

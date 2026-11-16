@@ -15,6 +15,7 @@ Commencez toujours par [Vérifier l'installation](aide:verifier-l-installation) 
 | « Fichier .env : la ligne … figure 2 fois » | Gardez une seule ligne, mettez `#` devant les autres, puis `docker compose up -d`. Remplacez aussi votre `mettre-a-jour.ps1` par le plus récent : voir [Mettre à jour J-ed](aide:mettre-a-jour) |
 | Argos « non démarré » | La ligne `COMPOSE_PROFILES` de `.env` doit contenir `argos` (par exemple `COMPOSE_PROFILES=argos` ou `argos,ollama`), puis `docker compose up -d` |
 | IA locale « non installée » alors que vous l'utilisez | Même ligne : elle doit contenir `ollama`. Les modèles déjà téléchargés sont conservés |
+| IA locale « Essai automatique en attente » | Normal dans les minutes qui suivent la mise à jour : J-ed refait l'essai environ 2 minutes après le démarrage. Rechargez la page ensuite |
 | « Vérification dans l'application : réponse illisible » | Transmettez le rapport : les lignes « Cause », « Début » et « Erreur » permettent de trouver l'origine |
 | Des tâches « En retard — à confirmer » | Normal : leur heure (ou la plage de nuit) est passée pendant l'arrêt. Ouvrez Tâches, puis confirmez, reprogrammez ou annulez |
 | L'icône de l'application installée n'a pas changé | Désinstallez puis réinstallez l'application depuis le navigateur |

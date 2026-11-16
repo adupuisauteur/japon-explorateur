@@ -207,6 +207,40 @@ def check_argos():
                  "Prêt" if selftest else "En service ; traduction d'essai non encore faite", details)
 
 
+def container_started_at():
+    """Heure de démarrage du conteneur (processus n° 1), ou None. Sert à savoir si J-ed vient de redémarrer."""
+    try:
+        boot = next(int(line.split()[1]) for line in Path("/proc/stat").read_text().splitlines()
+                    if line.startswith("btime "))
+        ticks = int(Path("/proc/1/stat").read_text().rsplit(")", 1)[1].split()[19])
+        from datetime import datetime, timezone as dt_timezone
+
+        return datetime.fromtimestamp(boot + ticks / os.sysconf("SC_CLK_TCK"), tz=dt_timezone.utc)
+    except (OSError, ValueError, IndexError, StopIteration):
+        return None
+
+
+AUTO_SELFTEST_MARGIN = timedelta(minutes=10)  # cinq tentatives espacées, si Ollama tarde à répondre
+
+
+def _auto_selftest_due(checked_at):
+    """Heure prévue de l'essai automatique si l'essai enregistré date d'avant le démarrage et que ce démarrage est
+    assez récent pour que l'essai automatique n'ait pas encore eu lieu ; sinon None."""
+    started = container_started_at()
+    if started is None or checked_at >= started:
+        return None
+    due = started + timedelta(seconds=settings.ARGOS_AUTO_SELFTEST_DELAY)
+    return due if timezone.now() < due + AUTO_SELFTEST_MARGIN else None
+
+
+def _local_summary_after(checked_at):
+    from apps.ai.models import AITask
+
+    task = (AITask.objects.filter(provider="ollama", status="done", finished_at__gt=checked_at)
+            .order_by("-finished_at").first())
+    return task.finished_at if task else None
+
+
 def check_local_ai():
     """2.0.0 (lot 4) : IA locale facultative. Absente du profil : ligne omise (rien à signaler)."""
     from apps.ai import local
@@ -225,6 +259,18 @@ def check_local_ai():
         return Check("ia_locale", label, WARNING, "En service, mais aucun modèle installé",
                      details + ["Choisissez un modèle : Traduction → Moteurs locaux, section « IA locale »."])
     if selftest and not selftest.ok:
+        # 2.0.0 (lot 9) : un essai en échec n'est pas une erreur s'il a été démenti depuis (vrai résumé réussi) ou
+        # s'il date d'avant le redémarrage et que l'essai automatique n'a pas encore eu lieu (rapport du 16/11, 20:26).
+        success = _local_summary_after(selftest.checked_at)
+        if success:
+            return Check("ia_locale", label, OK, "Prête", details + [
+                f"Un vrai résumé par l'IA locale a réussi depuis l'essai en échec ({_ago(success)}).",
+                "L'essai sera refait automatiquement au prochain démarrage de J-ed."])
+        due = _auto_selftest_due(selftest.checked_at)
+        if due:
+            return Check("ia_locale", label, WARNING, "Essai automatique en attente", details + [
+                f"J-ed vient de démarrer : l'essai est refait automatiquement vers "
+                f"{timezone.localtime(due):%H:%M}. Rechargez la page ensuite."])
         return Check("ia_locale", label, ERROR, "Résumé d'essai en échec",
                      details + ["Relancez l'essai : Traduction → Moteurs locaux, section « IA locale », bouton « Essai » "
                                 "(il est aussi refait automatiquement au prochain démarrage de J-ed)."])
