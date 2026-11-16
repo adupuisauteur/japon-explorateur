@@ -197,6 +197,20 @@ class VerifyScriptRunTests(SimpleTestCase):
             self.assertIn("[Problème] Conteneurs : arrêtés : argos", result.stdout)
             self.assertIn("[OK] Conteneurs : en service", self.run_script(argos=1).stdout)
 
+    def test_local_ai_is_optional(self):
+        """Lot 4 : l'IA locale n'est jamais attendue par défaut ; avec le profil « ollama », son conteneur l'est."""
+        self.write_env(COMPOSE_PROFILES="argos")
+        result = self.run_script(argos=1)
+        self.assertIn("[Non vérifié] IA locale : non installée (facultative", result.stdout)
+        self.assertIn("[OK] Conteneurs : en service", result.stdout)
+        self.assertIn("[À surveiller] IA locale : en service, mais « ollama » manque",
+                      self.run_script(argos=1, ollama=1).stdout)
+        self.write_env(COMPOSE_PROFILES="argos,ollama")
+        self.assertIn("[Problème] Conteneurs : arrêtés : ollama", self.run_script(argos=1).stdout)
+        result = self.run_script(argos=1, ollama=1)
+        self.assertIn("[OK] Conteneurs : en service", result.stdout)
+        self.assertIn("[OK] IA locale : service Ollama démarré", result.stdout)
+
     def test_docker_not_running(self):
         result = self.run_script(docker_info=1)
         self.assertEqual(result.returncode, 1)

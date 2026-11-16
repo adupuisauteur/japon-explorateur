@@ -322,6 +322,49 @@ quel à l'enregistrement.
 **V8-5 — Autres écrans.** La même liste apparaît dans les Préférences IA (modèle par défaut et par fonction), la
 fiche d'un projet de traduction et Traduction → Évaluation.
 
+## Lot 4 — résumés IA, IA locale, japonais ancien
+
+Sur l'essai mis à jour avec l'archive du lot 4. Recharge une fois avec Ctrl + F5. Les essais V4-5 à V4-7
+téléchargent le programme Ollama puis un modèle (2,5 Go pour qwen3:4b) : fais-les quand tu peux laisser le
+téléchargement se faire.
+
+**V4-1 — Résumé d'une notice.** Traduction → Moteurs, section « Résumés IA » : choisis une IA en ligne déjà
+configurée (fournisseur et modèle). Sur une fiche avec une description japonaise : type « Résumé court », langue
+Français, « Résumer maintenant ». Attendu : écran de confirmation (appels, coût estimé, « généré par IA ») ; après
+confirmation, le résumé apparaît sur la fiche avec la mention « généré par IA », le modèle et la date. Refais-le en
+« Fiche d'analyse » : thèmes, personnes, lieux, dates ; « Détail » montre aussi la version précédente.
+
+**V4-2 — Résumer après la traduction.** Prépare une traduction de deux notices (« Traduire… »). Sur l'écran de
+confirmation, coche « Résumer aussi », choisis « juste après chaque traduction », confirme. Attendu : la
+traduction, puis les résumés (notification « Résumés prêts »). Refais-le avec la file de nuit et « après l'ensemble
+des traductions » : la page Tâches montre les résumés après toutes les traductions de la nuit.
+
+**V4-3 — Bibliothèque et atelier.** Bibliothèque : sélectionne des notices, action « Résumer maintenant ». Atelier
+d'un document : bouton « Résumer ». Attendu : les mêmes écrans ; un projet confidentiel refuse une IA en ligne.
+
+**V4-4 — Exports.** Exporte une notice résumée deux fois : sans cocher « Inclure les résumés IA » (aucun résumé),
+puis en le cochant (résumé marqué « Généré par IA — Non vérifié », ligne « Résumés IA » dans la méthodologie).
+
+**V4-5 — Installer l'IA locale.** Dans `.env`, remplace la ligne par `COMPOSE_PROFILES=argos,ollama`, puis
+`docker compose up -d`. `verifier-j-ed.ps1` : ligne « IA locale : service Ollama démarré ». Moteurs locaux,
+section « IA locale » : « En service », la liste des trois modèles avec leur taille.
+
+**V4-6 — Télécharger un modèle.** Coche « télécharger 2,5 Go depuis Internet » pour qwen3:4b, « Installer ».
+Attendu : « Installations récentes » montre la progression (pourcentage) ; à la fin, « Dernier essai : IA locale
+prête » avec le résumé d'un texte fictif, et une notification. Note la durée du résumé d'essai.
+
+**V4-7 — Résumé avec l'IA locale.** Traduction → Moteurs, « Résumés IA » : IA locale, qwen3:4b. Résume une notice.
+Attendu : coût 0, mention « IA locale : gratuite, rien ne quitte l'ordinateur » ; note la durée et la qualité du
+résumé (c'est l'essai réel qui décide du modèle conseillé).
+
+**V4-8 — Japonais ancien.** Ouvre une notice en japonais classique (un texte avec けり, べし, 候…). Attendu : bandeau
+« Japonais classique (bungo) — probable » avec ses indices ; « Confirmer » ou corrige la variété. Signale-moi
+quelques notices anciennes mal repérées (ou modernes repérées à tort) pour régler le repérage.
+
+**V4-9 — Moteur pour le japonais ancien.** Traduction → Moteurs, « Pour le japonais ancien, utiliser… » : une IA.
+Prépare une traduction d'une notice moderne et d'une notice ancienne. Attendu : « Tâche en deux parties,
+confirmées ensemble » avec le moteur de chaque partie ; « Confirmer » lance les deux.
+
 ## Grille de résultats
 
 | Vérification | Résultat | Remarque |
@@ -374,3 +417,12 @@ fiche d'un projet de traduction et Traduction → Évaluation.
 | V8-3 Choisir et enregistrer | | |
 | V8-4 Saisie libre et avertissement | | |
 | V8-5 Autres écrans | | |
+| V4-1 Résumé d'une notice | | |
+| V4-2 Résumer après la traduction | | |
+| V4-3 Bibliothèque et atelier | | |
+| V4-4 Exports | | |
+| V4-5 Installer l'IA locale | | |
+| V4-6 Télécharger un modèle | | |
+| V4-7 Résumé avec l'IA locale | | |
+| V4-8 Japonais ancien | | |
+| V4-9 Moteur pour le japonais ancien | | |

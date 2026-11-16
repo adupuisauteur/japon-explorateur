@@ -12,9 +12,9 @@ traitée et son état.
 | U5 | 15/11/2026 | Module de traduction : retrouver les traductions déjà effectuées | 3 | Fait : Traduction → Traductions effectuées |
 | U6 | 15/11/2026 | Depuis les résultats, arriver directement sur les documents (pas seulement les notices) ; Aozora Bunko : texte compressé (zip) ou HTML | à placer (lot 10 proposé) | Étude faite, plan à valider |
 | U7 | 15/11/2026 | Nouvelles sources : bases du NIJL, 日本古典籍総合目録, Historiographical Institute (東京大学史料編纂所), 日本古典文学大系本文データベース, Waseda Kotenseki | à placer (lot 10 proposé) | Étude faite, plan à valider |
-| U8 | 15/11/2026 | IA locale gratuite (comme Argos) pour les résumés | 4 | Décidé : service Ollama facultatif, modèle installé en un clic après confirmation |
-| U9 | 15/11/2026 | Résumer directement après la traduction (file d'attente ou de nuit), ou après l'ensemble des traductions | 4 | Décidé |
-| U10 | 15/11/2026 | Repérer les textes anciens et utiliser une autre IA pour les traduire et les résumer | 4 | Décidé |
+| U8 | 15/11/2026 | IA locale gratuite (comme Argos) pour les résumés | 4 | Fait (lot 4) ; choix du modèle après l'essai réel (V4-6, V4-7) |
+| U9 | 15/11/2026 | Résumer directement après la traduction (file d'attente ou de nuit), ou après l'ensemble des traductions | 4 | Fait (lot 4) |
+| U10 | 15/11/2026 | Repérer les textes anciens et utiliser une autre IA pour les traduire et les résumer | 4 | Fait (lot 4) ; repérage « testé en simulation », à régler sur tes notices |
 
 ## U2 — Pied de page des exports
 

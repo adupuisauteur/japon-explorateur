@@ -17,6 +17,8 @@ SECTIONS = [
      "translation:job_list"),
     ("bi-check2-square", "Traductions effectuées", "Notices traduites (filtre par état, moteur, date) et "
      "avancement des documents.", 3, "translation:done"),
+    ("bi-card-text", "Résumés IA", "Résumés courts, détaillés et fiches d'analyse, dans votre langue ; versions "
+     "successives.", 4, "translation:summary_list"),
     ("bi-file-earmark-arrow-down", "Exports", "Texte, CSV, DOCX bilingue.", 8, "translation:exports"),
     ("bi-speedometer2", "Consommation", "Caractères, coûts estimés et plafonds, par moteur et par mois.", 10,
      "translation:usage"),

@@ -5,6 +5,26 @@
 Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquette `v1.3.0-rc3` (commit
 `d7296d4`). Audit et plan : `docs/evolution-2.0.0/01-audit.md`.
 
+- **Lot 4 — résumés IA, IA locale, japonais ancien** (16 novembre 2026, rapport :
+  `docs/evolution-2.0.0/rapport-lot-4.md`) :
+  - trois types de résumé (court, détaillé, fiche d'analyse avec thèmes, personnes, lieux et dates), toujours
+    rédigés dans la langue choisie (français par défaut) à partir de l'original japonais ; versions successives
+    gardées ; mention « généré par IA » partout ;
+  - un résumé est une tâche de la file : confirmation avec coût estimé, file de nuit, plafonds, pause et reprise
+    (un texte long est découpé en parties puis synthétisé ; une reprise ne renvoie rien) ;
+  - boutons sur la fiche, dans la Bibliothèque et dans l'atelier d'un document ; page « Résumés IA » ;
+  - à la confirmation d'une traduction : « Résumer aussi », juste après chaque traduction ou après l'ensemble
+    (imposé la nuit quand Argos et l'IA locale travailleraient en même temps) ;
+  - exports : case « Inclure les résumés IA », décochée par défaut ;
+  - IA locale facultative (Ollama, profil `ollama` de `COMPOSE_PROFILES`) : modèle choisi dans une courte liste
+    avec sa taille, téléchargé après confirmation dans une tâche suivie et reprenable, résumé d'essai, ligne dans la
+    page « État » et dans `verifier-j-ed.ps1` ;
+  - japonais ancien : repérage « probable » (bungo, kanbun, sōrōbun) sur la fiche, à confirmer ou corriger ;
+    réglage « Pour le japonais ancien, utiliser… » pour les traductions et les résumés ; une tâche mixte est
+    présentée en deux parties confirmées ensemble ;
+  - projets confidentiels : résumés seulement par l'IA locale ;
+  - migrations : retour arrière vérifié sur une base temporaire (la mise à jour des données passe dans sa propre
+    migration, `translation 0005`).
 - **Lot 3 — tâches, file de nuit, « Traduire maintenant », travail en parallèle** (15 novembre 2026, rapport :
   `docs/evolution-2.0.0/rapport-lot-3.md`) :
   - lancement au choix à la confirmation : immédiat, programmé (date et heure) ou file de nuit ; le coût est
