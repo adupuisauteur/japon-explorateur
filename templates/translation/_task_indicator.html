@@ -1,2 +1,2 @@
-{# 2.0.0 (lot 3) : indicateur discret des traductions en cours (actualisé avec les fenêtres de notification). #}
-<span id="task-indicator"{% if oob %} hx-swap-oob="true"{% endif %}>{% if tasks_running %}<a class="nav-link small py-1 px-2 text-nowrap" href="{% url 'translation:job_list' %}" title="Voir les tâches"><span class="spinner-grow spinner-grow-sm text-secondary me-1" aria-hidden="true"></span>{{ tasks_running }} traduction{{ tasks_running|pluralize }} en cours</a>{% endif %}</span>
+{# 2.0.0 (lots 3 et 4) : indicateur discret des traductions et résumés en cours (actualisé avec les fenêtres de notification). #}
+<span id="task-indicator"{% if oob %} hx-swap-oob="true"{% endif %}>{% if tasks_running %}<a class="nav-link small py-1 px-2 text-nowrap" href="{% url 'translation:job_list' %}" title="Voir les tâches"><span class="spinner-grow spinner-grow-sm text-secondary me-1" aria-hidden="true"></span>{{ tasks_running }}</a>{% endif %}</span>

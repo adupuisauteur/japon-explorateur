@@ -31,6 +31,8 @@ Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquet
   - correctif du 16 novembre 2026 : une variable présente plusieurs fois dans `.env` (par exemple deux lignes
     `COMPOSE_PROFILES`) est signalée par `verifier-j-ed.ps1` et `mettre-a-jour.ps1` ; comme Docker, les deux
     scripts retiennent désormais la dernière ligne (ils lisaient la première).
+  - correctif du 16 novembre 2026 : l'indicateur de la barre de menu distingue les résumés des traductions
+    (« 1 résumé en cours », « 1 traduction et 1 résumé en cours »).
 - **Lot 3 — tâches, file de nuit, « Traduire maintenant », travail en parallèle** (15 novembre 2026, rapport :
   `docs/evolution-2.0.0/rapport-lot-3.md`) :
   - lancement au choix à la confirmation : immédiat, programmé (date et heure) ou file de nuit ; le coût est

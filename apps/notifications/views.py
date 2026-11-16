@@ -41,11 +41,11 @@ def notification_list(request):
 @login_required
 def popups(request):
     """Fenêtres en attente (appelé par HTMX à chaque page puis périodiquement) et compteur à jour."""
-    from apps.translation.queue import running_count
+    from apps.translation.queue import running_label
 
     return render(request, "notifications/_popups.html", {
         "popups": services.take_popups(request.user), "unread": services.unread_count(request.user),
-        "tasks_running": running_count(request.user) if request.user.can_edit else 0})
+        "tasks_running": running_label(request.user) if request.user.can_edit else ""})
 
 
 @login_required

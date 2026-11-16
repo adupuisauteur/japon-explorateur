@@ -83,6 +83,10 @@ et l'actualisation est datée. Deux tests ajoutés (666 tests réussis). Archive
 dernière ligne, comme Docker, et signalent toute variable présente plusieurs fois (test ajouté). Archive :
 `japon-explorateur-2.0.0-lot4-correctif2.zip`, qui contient aussi le premier correctif.
 
+**Troisième point du même jour** : un résumé en cours était annoncé « 1 traduction en cours » dans la barre de menu.
+L'indicateur dit maintenant « 1 résumé en cours », ou « 1 traduction et 1 résumé en cours » (test ajouté, 668 tests
+réussis). Archive : `japon-explorateur-2.0.0-lot4-correctif3.zip`, qui contient aussi les deux premiers correctifs.
+
 ## 6. Livrables du lot
 
 - Archive `japon-explorateur-2.0.0-lot4.zip` et son empreinte `.sha256`.

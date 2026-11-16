@@ -360,11 +360,28 @@ def move(job, user, direction):
         TranslationJob.objects.filter(pk=item.pk).update(queue_position=item.queue_position)
 
 
-def running_count(user):
-    """Traductions en cours de l'utilisateur, hors tâches sans signe d'activité (indicateur de la barre de menu)."""
+def _running(user):
     limit = timezone.now() - timedelta(minutes=settings.TRANSLATION_STALE_MINUTES)
     from django.db.models import Q
 
     return (TranslationJob.objects.filter(user=user).exclude(kind="package")
-            .filter(Q(status="running", heartbeat_at__gte=limit) | Q(status="confirmed", confirmed_at__gte=limit))
-            .count())
+            .filter(Q(status="running", heartbeat_at__gte=limit) | Q(status="confirmed", confirmed_at__gte=limit)))
+
+
+def running_count(user):
+    """Tâches en cours de l'utilisateur, hors tâches sans signe d'activité (indicateur de la barre de menu)."""
+    return _running(user).count()
+
+
+def running_label(user):
+    """Texte de l'indicateur : « 1 traduction en cours », « 1 résumé en cours », « 2 traductions et 1 résumé en cours »
+    (2.0.0, lot 4 : un résumé n'est pas une traduction). Vide s'il n'y a rien en cours."""
+    kinds = list(_running(user).values_list("kind", flat=True))
+    summaries = kinds.count("summary")
+    translations = len(kinds) - summaries
+    parts = []
+    if translations:
+        parts.append(f"{translations} traduction{'s' if translations > 1 else ''}")
+    if summaries:
+        parts.append(f"{summaries} résumé{'s' if summaries > 1 else ''}")
+    return f"{' et '.join(parts)} en cours" if parts else ""

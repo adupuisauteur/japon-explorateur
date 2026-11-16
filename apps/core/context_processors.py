@@ -17,9 +17,9 @@ def app_context(request):
 
         ctx["notifications_unread"] = unread_count(user)  # 2.0.0 (lot 5) : compteur du menu à son nom
     if user is not None and user.is_authenticated and user.can_edit:
-        from apps.translation.queue import running_count
+        from apps.translation.queue import running_label
 
-        ctx["tasks_running"] = running_count(user)  # 2.0.0 (lot 3) : indicateur « 1 traduction en cours »
+        ctx["tasks_running"] = running_label(user)  # 2.0.0 : indicateur « 1 traduction en cours », « 1 résumé… »
     if user is not None and user.is_authenticated and user.can_edit:  # module IA fermé au Lecteur
         from apps.ai.preferences import active_profile
 

@@ -692,3 +692,20 @@ class LocalPickerStateTests(AppTestCase):
             page = self.client.post("/ia/modeles/actualiser/", self.params).content.decode()
         self.assertIn("qwen3:4b — gratuit, sur cet ordinateur", page)
         self.assertNotIn("aucun modèle", page)
+
+
+class IndicatorTests(SummaryCase):
+    """16 novembre 2026, poste de l'utilisateur : un résumé en cours s'affichait « 1 traduction en cours »."""
+
+    def test_summary_is_not_called_a_translation(self):
+        (job,) = S.prepare(self.user, records=[self.record])
+        TranslationJob.objects.filter(pk=job.pk).update(status="running", heartbeat_at=timezone.now())
+        page = self.client.get("/traduction/taches/").content.decode()
+        self.assertIn("1 résumé en cours", page)
+        self.assertNotIn("traduction en cours", page)
+        self.assertEqual(Q.running_label(self.user), "1 résumé en cours")
+        other = TranslationJob.objects.create(user=self.user, kind="records", engine="argos", status="running",
+                                              heartbeat_at=timezone.now())
+        self.assertEqual(Q.running_label(self.user), "1 traduction et 1 résumé en cours")
+        TranslationJob.objects.filter(pk__in=[job.pk, other.pk]).update(status="done")
+        self.assertEqual(Q.running_label(self.user), "")
