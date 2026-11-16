@@ -1,6 +1,6 @@
 # Rapport du lot 10 — documents et nouvelles sources (2.0.0)
 
-*État : étapes 1 à 3 livrées ; reste l'accès des numérisations NDL (troisième passage de l'étude).*
+*État : lot terminé (étapes 1 à 4, correctif 1), en attente des vérifications V10-1 à V10-11.*
 
 ## 1. Périmètre validé (16 novembre 2026)
 
@@ -179,7 +179,62 @@ occurrences).
 
 Deux tests, dont un qui prend le verrou depuis une autre connexion à la base (749 tests réussis).
 
-## 9. Livrables
+## 9. Étape 4 : accès des documents numérisés de la NDL (reporté du lot 3)
+
+**Troisième passage de l'étude (22 h 47).**
+
+| Numérisation | Manifeste IIIF | Autres voies |
+| --- | --- | --- |
+| 2586959 (contrôle, citée par Japan Search) | HTTP 200, attribution « 国立国会図書館 National Diet Library, JAPAN » | API de notice 200, page 200 |
+| 2610271 (contrôle, citée par Japan Search) | HTTP 404 | API de notice 200, page 200 |
+| 11164407 (base de l'utilisateur) | HTTP 404 | API de notice 200, page 200 |
+| 13434771 (base de l'utilisateur) | HTTP 404 | API de notice 200, page 200 |
+
+La NDL distingue trois niveaux d'accès : Internet (0,61 million de documents), NDL seulement (1,23 million),
+envoi aux bibliothèques et aux particuliers inscrits (2,05 million). Japan Search cite des numérisations des
+trois niveaux, ce qui explique le 404 de 2610271. La page du document ne contient pas le niveau dans son HTML,
+car elle est construite par JavaScript. L'API de notice répond, mais son contenu n'a pas été relevé.
+
+**Règle retenue.** Elle ne s'appuie que sur ce qui a été observé :
+- manifeste publié et première image servie → « Document : oui », consultable librement sur Internet ;
+- manifeste absent (HTTP 404) → « Document : non vérifié », pas en accès libre sur Internet, accès réservé
+  probable. J-ed ne dit pas lequel des deux niveaux réservés s'applique : le manifeste ne l'indique pas. La page
+  du document, à un clic, le dit.
+
+**Réalisation.**
+- L'adresse du manifeste est construite à partir du numéro de numérisation. Le statut IIIF devient « identifié »,
+  avec l'origine « déduit par J-ed ».
+- « Vérifier le manifeste IIIF » applique la règle ci-dessus. Un 404 de la NDL n'est plus enregistré comme un
+  dysfonctionnement. La conclusion de J-ed est gardée lors des actualisations tant que l'adresse ne change pas.
+  Les statuts sont recalculés juste avant la vérification, si bien qu'une notice enregistrée avant cette version
+  se vérifie sans autre manipulation.
+- La visionneuse intégrée sert aussi les documents NDL en accès libre (site `dl.ndl.go.jp` autorisé par défaut).
+
+Amélioration possible plus tard : lire le niveau exact dans l'API de notice de la NDL, après avoir relevé sa
+structure sur le poste.
+
+Quatre tests (753 tests réussis).
+
+## 10. Bilan du lot 10
+
+| Demande | Réalisé | Statut |
+| --- | --- | --- |
+| U6 — arriver aux documents | « Ouvrir le document » ; visionneuse intégrée facultative ; texte intégral Aozora | testé en simulation ; essais V10-4, V10-7, V10-8 |
+| U6 — Aozora Bunko | source à part entière, texte, envoi vers un projet | liste importée sur le poste (21 395 notices au total) ; texte : V10-4 |
+| U7 — 日本古典籍総合目録 / Kokusho | recherche sur la base `nij16`, structure réelle | testé en simulation ; essai V10-5 |
+| U7 — autres bases du NIJL | bases nij01 à nij22 visibles dans Japan Search, utilisables par « Trouver une base Japan Search » | inchangé |
+| U7 — 日本古典文学大系本文データベース | publication arrêtée le 31 mars 2023 | aucun accès possible |
+| U7 — Historiographical Institute (SHIPS) | aucune interface automatique (recherche Google intégrée) | lien vers le site seulement |
+| U7 — Waseda | connecteur par NDL Search ; lien et mention ; site jamais lu | testé en simulation ; essai V10-6 |
+| Accès NDL (lot 3) | règle établie par contrôle positif | essai V10-11 |
+
+Défauts corrigés en cours de lot : registre des connecteurs incomplet (cause des tests instables) ; intégrations
+simultanées (incident INC-20261116-5D1D5E) ; robots.txt en erreur lu comme une autorisation.
+
+Hors lot, décidé avec l'utilisateur : la traduction du japonais ancien en trois étapes (plus tard).
+
+## 11. Livrables
+
 
 
 
@@ -188,4 +243,5 @@ Deux tests, dont un qui prend le verrou depuis une autre connexion à la base (7
 - Étape 2 : `japon-explorateur-2.0.0-lot10-etape2.zip` et son empreinte `.sha256`.
 - Étape 3 : `japon-explorateur-2.0.0-lot10-etape3.zip` et son empreinte `.sha256`.
 - Correctif 1 : `japon-explorateur-2.0.0-lot10-etape3-correctif1.zip` et son empreinte `.sha256`.
-- Protocole : section « Lot 10 » (V10-1 à V10-9).
+- Lot complet : `japon-explorateur-2.0.0-lot10.zip` et son empreinte `.sha256`.
+- Protocole : section « Lot 10 » (V10-1 à V10-11).

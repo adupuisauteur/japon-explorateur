@@ -666,3 +666,84 @@ class ConcurrentApplyTests(AozoraTests):
         self.assertEqual(record.pk, existing.pk)
         self.assertEqual(status, "updated")
         self.assertEqual(Record.objects.filter(catalogue=self.aozora, source_id="900001").count(), 1)
+
+
+class NdlAccessTests(AppTestCase):
+    """Étude du 16/11/2026 : numérisation libre → manifeste publié (contrôle 2586959) ; réservée → HTTP 404."""
+
+    def setUp(self):
+        super().setUp()
+
+        def transport(request):
+            url = str(request.url)
+            if url == "https://dl.ndl.go.jp/api/iiif/2586959/manifest.json":
+                return httpx.Response(200, json={
+                    "@context": "http://iiif.io/api/presentation/2/context.json", "@type": "sc:Manifest",
+                    "attribution": "国立国会図書館 National Diet Library, JAPAN",
+                    "sequences": [{"canvases": [{"images": [{"resource": {
+                        "@id": "https://dl.ndl.go.jp/api/iiif/2586959/R0000001/full/full/0/default.jpg",
+                        "service": {"@id": "https://dl.ndl.go.jp/api/iiif/2586959/R0000001"}}}]}]}]})
+            if "/R0000001/full/" in url:
+                return httpx.Response(200, content=b"\xff\xd8jpeg", headers={"content-type": "image/jpeg"})
+            return httpx.Response(404, json={"error": "not found"})
+
+        ConnectorHTTP.transport = httpx.MockTransport(transport)
+        self.addCleanup(setattr, ConnectorHTTP, "transport", None)
+        from apps.catalog.models import Catalogue
+        Catalogue.objects.filter(code="ndl").update(min_interval_seconds=0)
+        ndl = self.catalogue("ndl")
+        self.free, _ = upsert_record(ndl, {"source_id": "F1", "original_title": "公開資料",
+                                           "digital_access_url": "https://dl.ndl.go.jp/info:ndljp/pid/2586959"},
+                                     raw_format="ndl-opensearch")
+        self.reserved, _ = upsert_record(ndl, {"source_id": "R1", "original_title": "送信資料",
+                                               "digital_access_url": "https://dl.ndl.go.jp/pid/11164407"},
+                                         raw_format="ndl-opensearch")
+
+    def _check(self, record):
+        from apps.catalog import iiif
+        from apps.catalog.models import RecordStatus
+
+        queued, _ = iiif.request_checks([record], self.admin)
+        self.assertEqual(queued, 1)
+        iiif.run_pending(delay=0)
+        return {s.kind: s for s in RecordStatus.objects.filter(record=record)}
+
+    def test_manifest_address_is_deduced_from_the_digitisation_number(self):
+        from apps.catalog.statuses import derive
+
+        status = derive(self.reserved)["iiif"]
+        self.assertEqual((status.value, status.origin), ("identifie", "deduit"))
+        self.assertEqual(status.url, "https://dl.ndl.go.jp/api/iiif/11164407/manifest.json")
+
+    def test_free_document_is_confirmed(self):
+        rows = self._check(self.free)
+        self.assertEqual(rows["iiif"].value, "verifie")
+        self.assertEqual((rows["document"].value, rows["document"].origin), ("oui", "jed"))
+        self.assertIn("librement sur Internet", rows["document"].detail)
+
+    def test_reserved_document_is_not_an_incident_and_says_so(self):
+        from apps.catalog.statuses import refresh
+        from apps.incidents.models import Incident
+
+        rows = self._check(self.reserved)
+        self.assertEqual(rows["iiif"].value, "absent")
+        self.assertIn("pas en accès libre", rows["iiif"].detail)
+        self.assertEqual((rows["document"].value, rows["document"].origin), ("non_verifie", "jed"))
+        self.assertIn("accès réservé probable", rows["document"].detail)
+        self.assertFalse(Incident.objects.exists())
+        refresh(self.reserved)  # une actualisation n'efface pas la conclusion de J-ed
+        from apps.catalog.models import RecordStatus
+        self.assertEqual(RecordStatus.objects.get(record=self.reserved, kind="document").origin, "jed")
+        self.client.force_login(self.admin)
+        self.assertContains(self.client.get(self.reserved.get_absolute_url()), "accès réservé probable")
+
+    def test_viewer_uses_the_deduced_manifest(self):
+        from apps.core.models import AppSettings
+
+        AppSettings.get()
+        AppSettings.objects.update(iiif_viewer_enabled=True)
+        self.client.force_login(self.admin)
+        self.assertIn("Voir les images dans J-ed", self.client.get(self.free.get_absolute_url()).content.decode())
+        response = self.client.get(f"/notices/{self.free.record_id}/visionneuse/")
+        self.assertIn("https://dl.ndl.go.jp", response["Content-Security-Policy"])
+        self.assertIn("R0000001/full/1600,/0/default.jpg", response.content.decode())

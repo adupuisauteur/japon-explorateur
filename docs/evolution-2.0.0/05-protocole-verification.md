@@ -476,6 +476,12 @@ indique « En cours » sans avancer, ou s'il reste des éléments « À intégre
 Journal des dysfonctionnements : l'incident INC-20261116-5D1D5E peut être marqué « Résolu » ; aucune nouvelle
 occurrence.
 
+**V10-11 — Accès des documents NDL (étape 4).** Ouvre la fiche d'une de tes deux notices NDL numérisées →
+« Vérifier le manifeste IIIF », recharge après quelques secondes. Attendu : IIIF « absent », Document « non
+vérifié » avec « accès réservé probable » ; aucun nouvel incident. Puis Rechercher, source NDL, `2586959` : sur la
+fiche intégrée, même vérification → Document « oui », « consultable librement sur Internet » ; avec la
+visionneuse activée, « Voir les images dans J-ed » affiche ses vues.
+
 ## Grille de résultats
 
 | Vérification | Résultat | Remarque |
@@ -560,3 +566,4 @@ occurrence.
 | V10-8 Visionneuse intégrée | | |
 | V10-9 Étude, accès NDL | | fichier joint |
 | V10-10 Intégrations simultanées | | |
+| V10-11 Accès des documents NDL | | |

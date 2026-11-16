@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 LOCK_KEY = "jed:verification-iiif"
 LOCK_SECONDS = 300
-CHECKABLE = ("identifie", "verifie", "echec")
+CHECKABLE = ("identifie", "verifie", "echec", "absent")
 
 
 class ManifestError(Exception):
@@ -175,13 +175,21 @@ def verify(row):
         detail = f"Manifeste injoignable : {exc}"
         code = exc.code or "connect"
         category = "indisponibilite" if exc.kind == "unavailable" else "erreur_technique"
-    row.value = "verifie" if ok else "echec"
+    ndl = row.url.startswith("https://dl.ndl.go.jp/api/iiif/")
+    not_published = ndl and not ok and code == "http_404"
+    row.value = "verifie" if ok else ("absent" if not_published else "echec")
     row.origin = "jed"
     row.checked_at = timezone.now()
+    if not_published:
+        detail = ("La NDL ne publie pas de manifeste pour cette numérisation : elle n'est pas en accès libre sur "
+                  "Internet (accès réservé probable : envoi aux bibliothèques ou aux particuliers inscrits, ou "
+                  "consultation à la NDL).")
     row.detail = detail[:500]
     row.check_requested_at = None
     row.save(update_fields=["value", "origin", "checked_at", "detail", "check_requested_at", "updated_at"])
-    if not ok:
+    if ndl and (ok or not_published):
+        _ndl_document_access(record, row, ok)
+    if not ok and not not_published:  # un document réservé n'est pas un dysfonctionnement
         from apps.incidents.services import record_incident
 
         record_incident(module="metadonnees", category=category, severity="warning",
@@ -190,6 +198,21 @@ def verify(row):
                         technical_code=code, context={"notice": record.record_id})
         logger.warning("Vérification IIIF en échec (%s, %s) : %s", record.record_id, code, detail)
     return ok
+
+
+def _ndl_document_access(record, iiif_row, free):
+    """2.0.0 (lot 10, reporté du lot 3) : accès d'un document NDL d'après la vérification de son manifeste.
+    Étude du 16/11/2026 : une numérisation en accès libre publie son manifeste (HTTP 200, attribution de la NDL) ;
+    les numérisations réservées n'en publient pas (HTTP 404). Le niveau exact de réservation n'y figure pas."""
+    url = record.digital_access_url or record.source_url
+    if free:
+        value, detail = "oui", ("Consultable librement sur Internet : la NDL publie le manifeste et la première image "
+                                "(vérifié par J-ed).")
+    else:
+        value, detail = "non_verifie", ("Pas en accès libre sur Internet d'après la NDL (manifeste non publié) : accès "
+                                        "réservé probable. La page du document indique les conditions.")
+    RecordStatus.objects.update_or_create(record=record, kind="document", defaults={
+        "value": value, "origin": "jed", "url": url[:600], "detail": detail, "checked_at": iiif_row.checked_at})
 
 
 # --------------------------------------------------------------------------- demandes et file
@@ -202,10 +225,8 @@ def request_checks(records, user):
     queued, skipped = 0, 0
     now = timezone.now()
     for record in records:
+        refresh(record)  # 2.0.0 (lot 10) : statuts recalculés d'abord (adresse NDL construite, sans réseau)
         row = RecordStatus.objects.filter(record=record, kind="iiif").first()
-        if row is None:
-            refresh(record)
-            row = RecordStatus.objects.filter(record=record, kind="iiif").first()
         if row is None or row.value not in CHECKABLE or not row.url:
             skipped += 1
             continue

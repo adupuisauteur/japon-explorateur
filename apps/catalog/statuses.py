@@ -41,6 +41,8 @@ ON_SITE_MARKERS = re.compile(
 MANIFEST_MARKER = re.compile(r"manifest", re.IGNORECASE)
 IMPORT_FORMATS = {"csv", "tsv", "xlsx", "json", "json_export", "xml", "marcxml", "dc"}
 KOKUSHO_MANIFEST = re.compile(r"^https://kokusho\.nijl\.ac\.jp/biblio/\d+/manifest$")
+NDL_PID = re.compile(r"dl\.ndl\.go\.jp/(?:info:ndljp/)?pid/(\d{5,})")
+NDL_MANIFEST = "https://dl.ndl.go.jp/api/iiif/{pid}/manifest.json"  # forme vérifiée sur le poste (16/11/2026)
 
 
 @dataclass
@@ -180,6 +182,10 @@ def iiif_status(record):
     if record.raw_format == "ndl-opensearch":
         if image_url:
             return Status("identifie", "source", image_url, "Manifeste indiqué par la NDL", when)
+        pid = NDL_PID.search(record.digital_access_url or "")
+        if pid:  # 2.0.0 (lot 10) : adresse construite, vérifiable par « Vérifier le manifeste IIIF »
+            return Status("identifie", "deduit", NDL_MANIFEST.format(pid=pid.group(1)),
+                          "Adresse du manifeste NDL construite par J-ed à partir du numéro de numérisation", when)
         if record.digital_access_url:
             return Status("non_verifie", "", "", "Numérisation signalée, manifeste non indiqué par la NDL")
         return Status("absent", "source", "", "La NDL n'indique ni numérisation ni manifeste", when)
@@ -218,7 +224,8 @@ def refresh(record, *, using=None):
     existing = {s.kind: s for s in manager.filter(record=record)}
     for kind, status in derive(record).items():
         row = existing.get(kind)
-        if row is not None and row.origin == "jed" and kind == "iiif":
+        if row is not None and row.origin == "jed" and kind in ("iiif", "document"):
+            # 2.0.0 (lot 10) : l'accès d'un document NDL vérifié par J-ed est conservé de même
             if row.url and row.url == status.url:
                 continue
         values = {"value": status.value, "origin": status.origin, "url": status.url[:600],

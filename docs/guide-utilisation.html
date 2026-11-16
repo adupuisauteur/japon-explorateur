@@ -102,6 +102,12 @@ l'<strong>Historique des versions</strong> (Administration).</p>
   Bibliothèque ou l'atelier ; enchaînés aux traductions si vous le souhaitez.</li>
 <li><strong>IA locale</strong> facultative : une IA gratuite qui travaille sur votre ordinateur, pour les résumés.</li>
 <li><strong>Japonais ancien</strong> : repérage du bungo, du kanbun et du sōrōbun, et moteur choisi pour eux.</li>
+<li><strong>Documents et nouvelles sources</strong> : <strong>Aozora Bunko</strong> (plus de 17 000 œuvres) dont le texte intégral se lit
+  dans J-ed avec ses furigana et s'envoie vers un projet de traduction ; <strong>Waseda</strong> par le catalogue de la NDL ;
+  <strong>Kokusho</strong> interrogé dans sa vraie base ; bouton <strong>« Ouvrir le document »</strong> vers la visionneuse de la source ;
+  <strong>visionneuse intégrée</strong> facultative ; pour la NDL, J-ed dit si un document numérisé est en accès libre.</li>
+<li><strong>Rapidité mesurée</strong> sur l'ordinateur (commande <code>mesurer_performances</code>) ; doublons trouvés aussi dans une
+  grande base.</li>
 <li><strong>Aide intégrée</strong> : une page d'aide par écran (bouton <strong>?</strong>), une recherche, un lexique, cet historique, et une
   rubrique « Installation et mises à jour » (mettre à jour, vérifier, dépanner).</li>
 <li><strong>Installation</strong> : mise à jour en une commande (<code>mettre-a-jour.ps1</code>), vérification automatique
@@ -269,7 +275,18 @@ construit lui-même l'adresse d'un manifeste), sa <strong>date</strong> et l'adr
   ouverte. <strong>Vérifier le IIIF</strong> (sur la fiche) l'ouvre et passe le statut à « vérifié » ou « vérification en échec ».</li>
 </ul>
 <p>Dans la Bibliothèque, vous pouvez filtrer les notices selon ces statuts.</p>
-<p>Voir aussi le <a href="#lexique">Lexique</a> (IIIF, manifeste).</p></section><section id='sources'><h2>Les sources documentaires</h2><p class=lead>Les catalogues interrogés par J-ed, leurs capacités et leur état.</p><p>Menu <strong>Sources</strong> : la liste des catalogues que J-ed sait interroger.</p>
+<p>Voir aussi le <a href="#lexique">Lexique</a> (IIIF, manifeste).</p>
+<h3 id="trois-statuts--documents-de-la-ndl-acces-libre-ou-reserve">Documents de la NDL : accès libre ou réservé</h3>
+<p>La NDL numérise des millions de documents, mais beaucoup ne sont consultables qu'en bibliothèque, par le service
+d'envoi aux particuliers inscrits, ou sur place. Sur la fiche d'un document numérisé de la NDL,
+<strong>Vérifier le manifeste IIIF</strong> permet de savoir s'il est en accès libre :</p>
+<ul>
+<li><strong>Document : oui</strong> (vérifié par J-ed) : la NDL publie ses images sur Internet ; « Voir les images dans J-ed »
+  fonctionne si la visionneuse intégrée est activée ;</li>
+<li><strong>Document : non vérifié</strong>, avec la mention « accès réservé probable » : la NDL ne publie pas ses images ; la
+  page du document (« Ouvrir dans la NDL Digital Collections ») indique les conditions exactes.</li>
+</ul>
+<p>Ce n'est pas un dysfonctionnement : rien n'est ajouté au journal.</p></section><section id='sources'><h2>Les sources documentaires</h2><p class=lead>Les catalogues interrogés par J-ed, leurs capacités et leur état.</p><p>Menu <strong>Sources</strong> : la liste des catalogues que J-ed sait interroger.</p>
 <table>
 <thead>
 <tr>
@@ -1253,6 +1270,12 @@ contient de données personnelles ni de texte de recherche.</p></section><h1 cla
   Bibliothèque ou l'atelier ; enchaînés aux traductions si vous le souhaitez.</li>
 <li><strong>IA locale</strong> facultative : une IA gratuite qui travaille sur votre ordinateur, pour les résumés.</li>
 <li><strong>Japonais ancien</strong> : repérage du bungo, du kanbun et du sōrōbun, et moteur choisi pour eux.</li>
+<li><strong>Documents et nouvelles sources</strong> : <strong>Aozora Bunko</strong> (plus de 17 000 œuvres) dont le texte intégral se lit
+  dans J-ed avec ses furigana et s'envoie vers un projet de traduction ; <strong>Waseda</strong> par le catalogue de la NDL ;
+  <strong>Kokusho</strong> interrogé dans sa vraie base ; bouton <strong>« Ouvrir le document »</strong> vers la visionneuse de la source ;
+  <strong>visionneuse intégrée</strong> facultative ; pour la NDL, J-ed dit si un document numérisé est en accès libre.</li>
+<li><strong>Rapidité mesurée</strong> sur l'ordinateur (commande <code>mesurer_performances</code>) ; doublons trouvés aussi dans une
+  grande base.</li>
 <li><strong>Aide intégrée</strong> : une page d'aide par écran (bouton <strong>?</strong>), une recherche, un lexique, cet historique, et une
   rubrique « Installation et mises à jour » (mettre à jour, vérifier, dépanner).</li>
 <li><strong>Installation</strong> : mise à jour en une commande (<code>mettre-a-jour.ps1</code>), vérification automatique

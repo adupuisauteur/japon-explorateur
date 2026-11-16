@@ -25,6 +25,12 @@ Une version de consolidation : J-ed devient plus sûr, travaille seul la nuit, r
   Bibliothèque ou l'atelier ; enchaînés aux traductions si vous le souhaitez.
 - **IA locale** facultative : une IA gratuite qui travaille sur votre ordinateur, pour les résumés.
 - **Japonais ancien** : repérage du bungo, du kanbun et du sōrōbun, et moteur choisi pour eux.
+- **Documents et nouvelles sources** : **Aozora Bunko** (plus de 17 000 œuvres) dont le texte intégral se lit
+  dans J-ed avec ses furigana et s'envoie vers un projet de traduction ; **Waseda** par le catalogue de la NDL ;
+  **Kokusho** interrogé dans sa vraie base ; bouton **« Ouvrir le document »** vers la visionneuse de la source ;
+  **visionneuse intégrée** facultative ; pour la NDL, J-ed dit si un document numérisé est en accès libre.
+- **Rapidité mesurée** sur l'ordinateur (commande `mesurer_performances`) ; doublons trouvés aussi dans une
+  grande base.
 - **Aide intégrée** : une page d'aide par écran (bouton **?**), une recherche, un lexique, cet historique, et une
   rubrique « Installation et mises à jour » (mettre à jour, vérifier, dépanner).
 - **Installation** : mise à jour en une commande (`mettre-a-jour.ps1`), vérification automatique

@@ -5,6 +5,14 @@
 Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquette `v1.3.0-rc3` (commit
 `d7296d4`). Audit et plan : `docs/evolution-2.0.0/01-audit.md`.
 
+- **Lot 10 — étape 4, fin du lot** (16 novembre 2026, d'après le troisième passage de l'étude) : **accès des
+  documents numérisés de la NDL** (reporté du lot 3). L'adresse du manifeste est construite à partir du numéro de
+  numérisation (`https://dl.ndl.go.jp/api/iiif/<numéro>/manifest.json`, forme vérifiée sur le poste) ; « Vérifier le
+  manifeste IIIF » conclut : manifeste et première image servis → « Document : oui, consultable librement sur
+  Internet » ; manifeste absent (HTTP 404) → « pas en accès libre, accès réservé probable », sans incident (le
+  niveau exact de réservation n'est pas publié dans le manifeste) ; conclusion conservée lors des actualisations ;
+  la visionneuse intégrée sert aussi les documents NDL en accès libre ; aide (trois statuts) et historique des
+  versions complétés.
 - **Lot 10 — étape 3, correctif 1** (16 novembre 2026, incident INC-20261116-5D1D5E) : deux intégrations de la
   liste Aozora ont tourné en même temps (double clic ou « Reprendre » pendant que la première tournait) ; 8 561
   créations refusées par la contrainte d'unicité, aucune donnée abîmée. Une seule intégration à la fois par

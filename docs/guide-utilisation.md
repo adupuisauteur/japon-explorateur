@@ -75,6 +75,12 @@ Une version de consolidation : J-ed devient plus sûr, travaille seul la nuit, r
   Bibliothèque ou l'atelier ; enchaînés aux traductions si vous le souhaitez.
 - **IA locale** facultative : une IA gratuite qui travaille sur votre ordinateur, pour les résumés.
 - **Japonais ancien** : repérage du bungo, du kanbun et du sōrōbun, et moteur choisi pour eux.
+- **Documents et nouvelles sources** : **Aozora Bunko** (plus de 17 000 œuvres) dont le texte intégral se lit
+  dans J-ed avec ses furigana et s'envoie vers un projet de traduction ; **Waseda** par le catalogue de la NDL ;
+  **Kokusho** interrogé dans sa vraie base ; bouton **« Ouvrir le document »** vers la visionneuse de la source ;
+  **visionneuse intégrée** facultative ; pour la NDL, J-ed dit si un document numérisé est en accès libre.
+- **Rapidité mesurée** sur l'ordinateur (commande `mesurer_performances`) ; doublons trouvés aussi dans une
+  grande base.
 - **Aide intégrée** : une page d'aide par écran (bouton **?**), une recherche, un lexique, cet historique, et une
   rubrique « Installation et mises à jour » (mettre à jour, vérifier, dépanner).
 - **Installation** : mise à jour en une commande (`mettre-a-jour.ps1`), vérification automatique
@@ -256,6 +262,19 @@ Les statuts sont calculés à partir des données enregistrées, sans interroger
 Dans la Bibliothèque, vous pouvez filtrer les notices selon ces statuts.
 
 Voir aussi le [Lexique](#lexique) (IIIF, manifeste).
+
+### Documents de la NDL : accès libre ou réservé
+
+La NDL numérise des millions de documents, mais beaucoup ne sont consultables qu'en bibliothèque, par le service
+d'envoi aux particuliers inscrits, ou sur place. Sur la fiche d'un document numérisé de la NDL,
+**Vérifier le manifeste IIIF** permet de savoir s'il est en accès libre :
+
+- **Document : oui** (vérifié par J-ed) : la NDL publie ses images sur Internet ; « Voir les images dans J-ed »
+  fonctionne si la visionneuse intégrée est activée ;
+- **Document : non vérifié**, avec la mention « accès réservé probable » : la NDL ne publie pas ses images ; la
+  page du document (« Ouvrir dans la NDL Digital Collections ») indique les conditions exactes.
+
+Ce n'est pas un dysfonctionnement : rien n'est ajouté au journal.
 
 ## Les sources documentaires
 
@@ -1175,6 +1194,12 @@ Une version de consolidation : J-ed devient plus sûr, travaille seul la nuit, r
   Bibliothèque ou l'atelier ; enchaînés aux traductions si vous le souhaitez.
 - **IA locale** facultative : une IA gratuite qui travaille sur votre ordinateur, pour les résumés.
 - **Japonais ancien** : repérage du bungo, du kanbun et du sōrōbun, et moteur choisi pour eux.
+- **Documents et nouvelles sources** : **Aozora Bunko** (plus de 17 000 œuvres) dont le texte intégral se lit
+  dans J-ed avec ses furigana et s'envoie vers un projet de traduction ; **Waseda** par le catalogue de la NDL ;
+  **Kokusho** interrogé dans sa vraie base ; bouton **« Ouvrir le document »** vers la visionneuse de la source ;
+  **visionneuse intégrée** facultative ; pour la NDL, J-ed dit si un document numérisé est en accès libre.
+- **Rapidité mesurée** sur l'ordinateur (commande `mesurer_performances`) ; doublons trouvés aussi dans une
+  grande base.
 - **Aide intégrée** : une page d'aide par écran (bouton **?**), une recherche, un lexique, cet historique, et une
   rubrique « Installation et mises à jour » (mettre à jour, vérifier, dépanner).
 - **Installation** : mise à jour en une commande (`mettre-a-jour.ps1`), vérification automatique

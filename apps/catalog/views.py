@@ -349,13 +349,18 @@ def record_viewer(request, record_id):
     if not app_settings.iiif_viewer_enabled:
         messages.info(request, "La visionneuse intégrée est désactivée (Administration → Paramètres).")
         return redirect(link["url"] if link else record.get_absolute_url())
-    if not (record.image_url or "").startswith("http"):
+    from .statuses import statuses_for
+
+    iiif_row = statuses_for(record).get("iiif")
+    manifest_url = record.image_url or (iiif_row.url if iiif_row and iiif_row.value in ("identifie", "verifie")
+                                        else "")
+    if not (manifest_url or "").startswith("http"):
         messages.warning(request, "Aucun manifeste IIIF connu pour cette notice.")
         return redirect(record.get_absolute_url())
     allowed = app_settings.viewer_hosts()
     error, views, rights = "", [], []
     try:
-        data = iiif.load_manifest(record.image_url, record.catalogue)
+        data = iiif.load_manifest(manifest_url, record.catalogue)
         views = iiif.views_of(data)
         rights = iiif.rights_of(data)
     except (iiif.ManifestError, ConnectorError) as exc:

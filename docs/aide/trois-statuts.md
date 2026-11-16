@@ -30,3 +30,16 @@ Les statuts sont calculés à partir des données enregistrées, sans interroger
 Dans la Bibliothèque, vous pouvez filtrer les notices selon ces statuts.
 
 Voir aussi le [Lexique](aide:lexique) (IIIF, manifeste).
+
+## Documents de la NDL : accès libre ou réservé
+
+La NDL numérise des millions de documents, mais beaucoup ne sont consultables qu'en bibliothèque, par le service
+d'envoi aux particuliers inscrits, ou sur place. Sur la fiche d'un document numérisé de la NDL,
+**Vérifier le manifeste IIIF** permet de savoir s'il est en accès libre :
+
+- **Document : oui** (vérifié par J-ed) : la NDL publie ses images sur Internet ; « Voir les images dans J-ed »
+  fonctionne si la visionneuse intégrée est activée ;
+- **Document : non vérifié**, avec la mention « accès réservé probable » : la NDL ne publie pas ses images ; la
+  page du document (« Ouvrir dans la NDL Digital Collections ») indique les conditions exactes.
+
+Ce n'est pas un dysfonctionnement : rien n'est ajouté au journal.

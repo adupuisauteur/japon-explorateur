@@ -10,8 +10,8 @@ traitée et son état.
 | U3 | 15/11/2026 | Lien « À propos » dans le menu du bas de page ; l'entrée du menu utilisateur n'est pas utile | 1 | Fait (archive `lot1b`) : lien « À propos » en bas de page pour tout compte connecté, retiré du menu utilisateur |
 | U4 | 15/11/2026 | Historique des versions dans l'Administration : évolutions et améliorations, sans lister les bugs rencontrés | 6 | Fait (lot 6) : Administration → Historique des versions, et « Quoi de neuf » |
 | U5 | 15/11/2026 | Module de traduction : retrouver les traductions déjà effectuées | 3 | Fait : Traduction → Traductions effectuées |
-| U6 | 15/11/2026 | Depuis les résultats, arriver directement sur les documents (pas seulement les notices) ; Aozora Bunko : texte compressé (zip) ou HTML | à placer (lot 10 proposé) | Étude faite, plan à valider |
-| U7 | 15/11/2026 | Nouvelles sources : bases du NIJL, 日本古典籍総合目録, Historiographical Institute (東京大学史料編纂所), 日本古典文学大系本文データベース, Waseda Kotenseki | à placer (lot 10 proposé) | Étude faite, plan à valider |
+| U6 | 15/11/2026 | Depuis les résultats, arriver directement sur les documents (pas seulement les notices) ; Aozora Bunko : texte compressé (zip) ou HTML | lot 10 | Fait (rapport-lot-10.md) |
+| U7 | 15/11/2026 | Nouvelles sources : bases du NIJL, 日本古典籍総合目録, Historiographical Institute (東京大学史料編纂所), 日本古典文学大系本文データベース, Waseda Kotenseki | lot 10 | Fait ou établi impossible (rapport-lot-10.md, § 10) |
 | U8 | 15/11/2026 | IA locale gratuite (comme Argos) pour les résumés | 4 | Fait (lot 4) ; choix du modèle après l'essai réel (V4-6, V4-7) |
 | U9 | 15/11/2026 | Résumer directement après la traduction (file d'attente ou de nuit), ou après l'ensemble des traductions | 4 | Fait (lot 4) |
 | U10 | 15/11/2026 | Repérer les textes anciens et utiliser une autre IA pour les traduire et les résumer | 4 | Fait (lot 4) ; repérage « testé en simulation », à régler sur tes notices |

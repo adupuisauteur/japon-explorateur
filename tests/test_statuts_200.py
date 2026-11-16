@@ -129,7 +129,10 @@ class DerivationTests(StatusTestCase):
         document = self.status(record, "document")
         self.assertEqual((document.value, document.url), ("non_verifie", "https://dl.ndl.go.jp/pid/0000001"))
         self.assertIn("non précisé", document.detail)
-        self.assertEqual(self.status(record, "iiif").value, "non_verifie")
+        # 2.0.0 (lot 10) : adresse du manifeste construite par J-ed, vérifiable ; l'accès reste « non vérifié »
+        iiif = self.status(record, "iiif")
+        self.assertEqual((iiif.value, iiif.origin, iiif.url),
+                         ("identifie", "deduit", "https://dl.ndl.go.jp/api/iiif/0000001/manifest.json"))
         self.assertEqual(record.digital_access, "image")  # ancien champ inchangé (exports 1.0)
 
     def test_ndl_without_anything_has_no_manifest(self):
