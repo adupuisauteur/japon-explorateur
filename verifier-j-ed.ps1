@@ -84,11 +84,34 @@ function Masquer([string]$Texte) {
     return ($Texte -replace '(?i)([a-z]:\\users\\)[^\\\s]+', '$1…')
 }
 
+$script:ErreurJson = ''
 function Lire-Json([string]$Texte) {
-    $debut = $Texte.IndexOf('{')
-    $fin = $Texte.LastIndexOf('}')
-    if ($debut -lt 0 -or $fin -le $debut) { return $null }
-    try { return $Texte.Substring($debut, $fin - $debut + 1) | ConvertFrom-Json } catch { return $null }
+    # 2.0.0 (lot 6) : le JSON est encadré par deux repères ; ce qui est écrit autour (avertissements, journaux) ne
+    # peut plus le rendre illisible. Sans repères (version antérieure), on garde l'ancienne lecture.
+    $script:ErreurJson = ''
+    $m = [regex]::Match($Texte, '<<<JED-JSON\s*(.*?)\s*JED-JSON>>>', 'Singleline')
+    if ($m.Success) {
+        $json = $m.Groups[1].Value
+    } else {
+        $debut = $Texte.IndexOf('{')
+        $fin = $Texte.LastIndexOf('}')
+        if ($debut -lt 0 -or $fin -le $debut) { $script:ErreurJson = 'aucune réponse JSON'; return $null }
+        $json = $Texte.Substring($debut, $fin - $debut + 1)
+    }
+    try { return $json | ConvertFrom-Json } catch { $script:ErreurJson = $_.Exception.Message; return $null }
+}
+
+function Docker-Separe([string[]]$Arguments) {
+    # Sortie et erreurs séparées : seules les erreurs vont dans un fichier temporaire, supprimé ensuite.
+    $tmp = [System.IO.Path]::GetTempFileName()
+    try {
+        $sortie = & docker @Arguments 2> $tmp
+        $code = $LASTEXITCODE
+        $erreurs = (Get-Content -LiteralPath $tmp -ErrorAction SilentlyContinue | ForEach-Object { "$_" }) -join "`n"
+    } finally {
+        Remove-Item -LiteralPath $tmp -ErrorAction SilentlyContinue
+    }
+    return [pscustomobject]@{ Code = $code; Texte = (($sortie | ForEach-Object { "$_" }) -join "`n").Trim(); Erreurs = $erreurs.Trim() }
 }
 
 if (-not $Dossier) { $Dossier = $PSScriptRoot }
@@ -296,10 +319,15 @@ Titre '4. Fonctions de l''application (données fictives, base non modifiée)'
 $commande = @('compose', 'exec', '-T', 'web', 'python', 'manage.py', 'verifier_fonctionnalites', '--json')
 if ($AvecSources) { $commande += '--sources' }
 Write-Host 'Vérification en cours (une à trois minutes)…' -ForegroundColor Gray
-$verif = Docker-Ici $commande
+$verif = Docker-Separe $commande
 $resultat = Lire-Json $verif.Texte
 if (-not $resultat) {
-    Noter 'error' 'Vérification dans l''application' 'impossible à lancer' @(($verif.Texte -split "`n" | Select-Object -Last 5))
+    # Diagnostic complet : la cause, le début et la fin de la sortie, les premières erreurs (sans données personnelles).
+    $diag = @("Cause : $($script:ErreurJson)")
+    $diag += @($verif.Texte -split "`n" | Select-Object -First 3 | ForEach-Object { "Début : $_" })
+    $diag += @($verif.Texte -split "`n" | Select-Object -Last 2 | ForEach-Object { "Fin : $_" })
+    $diag += @($verif.Erreurs -split "`n" | Where-Object { $_ } | Select-Object -First 6 | ForEach-Object { "Erreur : $_" })
+    Noter 'error' 'Vérification dans l''application' 'réponse illisible' $diag
 } else {
     if ($resultat.version -ne $Version) {
         Noter 'error' 'Version en service' "l'application répond en $($resultat.version), le dossier contient la $Version : redémarrez (docker compose up -d --build)"

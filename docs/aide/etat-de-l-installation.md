@@ -16,8 +16,8 @@ planificateur, Argos, IA locale, sauvegardes…), chacun « Correct », « À su
 - **Diagnostic à transmettre** : un texte à copier pour signaler un problème. Il ne contient ni clé, ni nom de
   compte, ni texte de recherche ou de traduction ; les chemins personnels sont masqués.
 
-Pour un contrôle complet depuis Windows, lancez `verifier-j-ed.ps1` dans le dossier de J-ed : il essaie chaque
-fonction avec des données fictives, sans modifier votre base, et enregistre un rapport.
+Pour lire chaque ligne en détail, et pour le contrôle complet depuis Windows (`verifier-j-ed.ps1`), voir
+[Vérifier l'installation](aide:verifier-l-installation).
 
 ## Profil de la machine
 

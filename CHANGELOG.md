@@ -26,6 +26,14 @@ Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquet
     « caractère(s) lu(s) par l'IA », élément « Résumé ») ;
   - `verifier_fonctionnalites` ouvre aussi l'aide, sa recherche, « Quoi de neuf », l'historique et les résumés IA ;
   - aucune migration.
+  - correctif du 16 novembre 2026 : sur la fiche, un titre long ne rejette plus les boutons sous le titre ;
+  - correctif du 16 novembre 2026 : `verifier_fonctionnalites --json` encadre sa réponse de repères, que
+    `verifier-j-ed.ps1` lit en séparant la sortie des erreurs ; une réponse illisible est expliquée (cause, début,
+    fin, premières erreurs) au lieu de « impossible à lancer » ;
+  - correctif du 16 novembre 2026 : `mettre-a-jour.ps1` signale quand le script lancé n'est pas celui de l'archive
+    (un ancien script, gardé à côté des archives, ajoutait `COMPOSE_PROFILES=hors-ligne` à chaque mise à jour) ;
+  - aide : nouvelle rubrique « Installation et mises à jour » (mettre à jour, vérifier l'installation, dépannage
+    après une mise à jour), demandée le 16 novembre 2026.
 - **Lot 4 — résumés IA, IA locale, japonais ancien** (16 novembre 2026, rapport :
   `docs/evolution-2.0.0/rapport-lot-4.md`) :
   - trois types de résumé (court, détaillé, fiche d'analyse avec thèmes, personnes, lieux et dates), toujours

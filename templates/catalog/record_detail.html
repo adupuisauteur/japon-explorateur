@@ -4,7 +4,8 @@
 <nav aria-label="Fil d'Ariane" class="small mb-2"><a href="{% url 'library:index' %}">Bibliothèque</a> › <a href="{{ record.catalogue.get_absolute_url }}">{{ record.catalogue.name }}</a></nav>
 
 <div class="d-flex flex-wrap gap-3 justify-content-between align-items-start mb-3">
-  <div class="flex-grow-1" style="min-width:280px">
+  {# 2.0.0 (lot 6, 16/11/2026) : un titre long passait toute la largeur et rejetait les boutons dessous, à gauche #}
+  <div class="record-head-title">
     <div class="big-title">{{ record.original_title }}</div>
     {% if record.reading %}<div class="text-muted fs-5 ja">{{ record.reading }}</div>{% endif %}
     {% if record.title_romaji %}<div class="text-muted small">{{ record.title_romaji }} <span class="chip" title="Lecture automatique non vérifiée">rōmaji automatique</span></div>{% endif %}
@@ -20,7 +21,7 @@
     <div class="mt-2">{% status_pills statuses %} <a class="small ms-1" href="#disponibilite">Détail</a></div>
     <div class="mt-2">{% include "translation/_variety.html" %}</div>
   </div>
-  <div class="d-flex flex-column gap-2" style="min-width:240px">
+  <div class="d-flex flex-column gap-2 record-head-actions">
     {% if user.can_edit %}
       {% if entry %}
         <form method="post" action="{% url 'library:entry_update' entry.pk %}" class="d-flex gap-2">{% csrf_token %}

@@ -25,7 +25,8 @@ Une version de consolidation : J-ed devient plus sûr, travaille seul la nuit, r
   Bibliothèque ou l'atelier ; enchaînés aux traductions si vous le souhaitez.
 - **IA locale** facultative : une IA gratuite qui travaille sur votre ordinateur, pour les résumés.
 - **Japonais ancien** : repérage du bungo, du kanbun et du sōrōbun, et moteur choisi pour eux.
-- **Aide intégrée** : une page d'aide par écran (bouton **?**), une recherche, un lexique et cet historique.
+- **Aide intégrée** : une page d'aide par écran (bouton **?**), une recherche, un lexique, cet historique, et une
+  rubrique « Installation et mises à jour » (mettre à jour, vérifier, dépanner).
 - **Installation** : mise à jour en une commande (`mettre-a-jour.ps1`), vérification automatique
   (`verifier-j-ed.ps1`), page « État de l'installation », sauvegardes copiées dans un dossier de Windows, réglage
   automatique selon la puissance de l'ordinateur.

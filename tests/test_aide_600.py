@@ -61,6 +61,12 @@ class HelpContentTests(AppTestCase):
         known = url_names()
         self.assertEqual([(p.slug, s) for p in self.reg.pages.values() for s in p.screens if s not in known], [])
 
+    def test_installation_section_for_the_administrator(self):
+        pages = {p.slug: p for p in self.reg.pages.values() if p.section == "Installation et mises à jour"}
+        self.assertEqual(set(pages), {"mettre-a-jour", "verifier-l-installation", "depannage-apres-mise-a-jour"})
+        self.assertTrue(all(p.audience == "admin" for p in pages.values()))
+        self.assertIn("mettre-a-jour.ps1", pages["mettre-a-jour"].body)
+
     def test_every_page_has_title_section_and_summary(self):
         for page in self.reg.pages.values():
             self.assertIn(page.section, P.SECTIONS, page.slug)
@@ -228,3 +234,19 @@ class GuideTests(AppTestCase):
         self.assertEqual(set(re.findall(r"href=['\"]#([^'\"]+)['\"]", html)) - ids, set())
         self.assertNotIn("](aide:", md)
         self.assertNotIn('href="/', html)  # aucun lien vers l'application : le guide se lit sans elle
+
+
+class LongTitleTests(AppTestCase):
+    """16 novembre 2026, poste de l'utilisateur : un titre long rejetait les boutons de la fiche sous le titre."""
+
+    def test_title_and_actions_side_by_side(self):
+        from django.contrib.staticfiles import finders
+
+        cat = Catalogue.objects.get(code="codh-pmjt")
+        record = Record.objects.create(catalogue=cat, source_id="titre-long", original_title="TITRE FICTIF " * 12)
+        self.client.force_login(self.researcher)
+        page = self.client.get(record.get_absolute_url()).content.decode()
+        self.assertIn('<div class="record-head-title">', page)
+        self.assertIn('record-head-actions', page)
+        css = Path(finders.find("css/app.css")).read_text(encoding="utf-8")
+        self.assertIn(".record-head-title { flex: 1 1 0;", css)  # base 0 : le titre se replie au lieu de pousser

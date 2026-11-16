@@ -28,11 +28,14 @@ class Command(BaseCommand):
             raise CommandError(f"Problème : base de données injoignable ({' '.join(str(exc).split())[:300]}). "
                                "Vérifiez le conteneur « db » dans Docker Desktop.") from None
         if options["json"]:
+            # 2.0.0 (lot 6) : repères autour du JSON, lus par verifier-j-ed.ps1 (rien d'autre ne peut s'y mêler)
+            self.stdout.write("<<<JED-JSON")
             self.stdout.write(json.dumps({
                 "version": settings.APP_VERSION, "etat": V.overall(results),
                 "verifications": [{"cle": r.key, "libelle": r.label, "niveau": r.level, "resume": r.summary,
                                    "details": r.details} for r in results],
             }, ensure_ascii=False, indent=1))
+            self.stdout.write("JED-JSON>>>")
         else:
             self.stdout.write(V.report_text(results))
         errors = [r for r in results if r.level == V.ERROR]

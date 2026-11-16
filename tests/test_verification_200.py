@@ -76,7 +76,9 @@ class FeatureCheckTests(TransactionTestCase):
         with replaced("japonais", mock.Mock(return_value=(V.ERROR, "panne fictive", []))):
             with self.assertRaises(CommandError):
                 call_command("verifier_fonctionnalites", "--json", stdout=out)
-        data = json.loads(out.getvalue())
+        raw = out.getvalue()
+        self.assertTrue(raw.startswith("<<<JED-JSON\n") and raw.rstrip().endswith("JED-JSON>>>"))  # repères (lot 6)
+        data = json.loads(raw.split("<<<JED-JSON", 1)[1].rsplit("JED-JSON>>>", 1)[0])
         self.assertEqual(data["version"], settings.APP_VERSION)
         self.assertEqual(data["etat"], "error")
         self.assertIn("japonais", [v["cle"] for v in data["verifications"]])
@@ -221,6 +223,20 @@ class VerifyScriptRunTests(SimpleTestCase):
                       "compte", result.stdout)
         self.assertIn("Valeur retenue par Docker : COMPOSE_PROFILES=hors-ligne", result.stdout)
         self.assertIn("[Non vérifié] IA locale : non installée", result.stdout)  # comme Docker : ollama absent
+
+    def test_json_survives_noise_and_unreadable_reply_is_explained(self):
+        """16 novembre 2026, poste de l'utilisateur : « Vérification dans l'application : impossible à lancer »,
+        sans cause affichée. Le JSON est maintenant encadré de repères ; ce qui l'entoure ne le gêne plus."""
+        body = self.verif.read_text(encoding="utf-8")
+        self.verif.write_text("Avertissement {bruit} avant\n<<<JED-JSON\n" + body + "\nJED-JSON>>>\nfin {bruit}\n",
+                              encoding="utf-8")
+        result = self.run_script()
+        self.assertNotIn("Vérification dans l'application", result.stdout)
+        self.verif.write_text("<<<JED-JSON\n{\"version\": \"2.0.0\", \"verif\nJED-JSON>>>\n", encoding="utf-8")
+        result = self.run_script()
+        self.assertIn("[Problème] Vérification dans l'application : réponse illisible", result.stdout)
+        self.assertIn("Cause : ", result.stdout)
+        self.assertIn("Début : <<<JED-JSON", result.stdout)
 
     def test_docker_not_running(self):
         result = self.run_script(docker_info=1)

@@ -30,7 +30,7 @@ HELP_DIR = Path(settings.BASE_DIR) / "docs" / "aide"
 AUDIENCES = ("tous", "editeur", "admin")
 #: Rubriques de l'index, dans l'ordre d'affichage.
 SECTIONS = ("Premiers pas", "Chercher et lire", "Bibliothèque et exports", "Traduire et résumer",
-            "Administration", "Référence")
+            "Administration", "Installation et mises à jour", "Référence")
 
 
 @dataclass

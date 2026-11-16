@@ -56,10 +56,12 @@ class UpdateScriptRunTests(SimpleTestCase):
     def write_env(self, text):
         (self.current / ".env").write_text(text, encoding="utf-8")
 
-    def make_archive(self, version, name=None, corrupt_hash=False):
+    def make_archive(self, version, name=None, corrupt_hash=False, script=None):
         archive = self.tmp / (name or f"jed-{version}.zip")
         with zipfile.ZipFile(archive, "w") as z:
             z.writestr("VERSION", f"{version}\n")
+            if script is not None:
+                z.writestr("mettre-a-jour.ps1", script)
             z.writestr("docker-compose.yml", "name: ${COMPOSE_PROJECT_NAME}\n")
             z.writestr("README.md", "fictif\n")
         digest = hashlib.sha256(archive.read_bytes()).hexdigest()
@@ -105,6 +107,19 @@ class UpdateScriptRunTests(SimpleTestCase):
         self.assertTrue(order[2].startswith(str(dest)) and "up -d --build" in order[2])
         self.assertIn("etat_installation", order[3])
         self.assertEqual((self.current / "VERSION").read_text().strip(), "1.3.0", "ancien dossier inchangé")
+
+    def test_outdated_script_is_flagged(self):
+        """16 novembre 2026 : un ancien mettre-a-jour.ps1, gardé à côté des archives, ajoutait une ligne
+        COMPOSE_PROFILES=hors-ligne à chaque mise à jour. Le script dit maintenant s'il n'est pas celui de l'archive."""
+        self.archive = self.make_archive("2.0.0", script=SCRIPT.read_bytes())
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("n'est pas celui de l'archive", result.stdout)
+        self.archive = self.make_archive("2.0.0", name="jed-autre.zip", script="# version plus récente\n")
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("ce script de mise à jour n'est pas celui de l'archive", result.stdout)
+        self.assertIn("Rappel : copiez", result.stdout)
 
     def test_argos_is_restarted_when_it_was_running(self):
         result = self.run_script(argos=1)

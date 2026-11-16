@@ -73,6 +73,17 @@ par la décision D11 du plan validé.
   imprimant le HTML. Je n'en ai pas fait un document éditable à part : il y aurait alors deux textes à tenir à jour.
 - **Historique des versions 1.1.** Sa date précise n'est pas connue des documents du dépôt : « novembre 2026 ».
 
+## 4 bis. Correctifs et ajouts du 16 novembre 2026 (après installation)
+
+| Constat sur ton poste | Cause | Correction |
+| --- | --- | --- |
+| Fiche : un titre long rejette les boutons sous le titre, à gauche | L'en-tête de la fiche donnait au titre sa largeur naturelle ; un titre long prenait toute la ligne | Titre et boutons restent côte à côte (le titre se replie). Vérifié dans Chrome avec un titre fictif de 110 caractères ; test ajouté |
+| Une ligne `COMPOSE_PROFILES=hors-ligne` ajoutée à `.env` à chaque mise à jour | Le `mettre-a-jour.ps1` lancé est celui du lot 0, gardé dans `C:\J-ed`. Il ajoutait cette ligne quand Argos tournait et que la première ligne ne contenait pas « hors-ligne ». Le script actuel ne le fait plus, mais il n'était pas utilisé | Remplacer le script du dossier parent par le dernier, joint à part. Désormais, le script signale s'il n'est pas celui de l'archive. L'aide explique pourquoi le remplacer à chaque mise à jour |
+| `verifier-j-ed.ps1` : « Vérification dans l'application : impossible à lancer », alors que la réponse JSON semblait complète | Cause exacte **non trouvée** ici : la même vérification est lisible par Python et par PowerShell 7 ; ton poste utilise Windows PowerShell 5.1, avec la sortie et les erreurs mélangées | La réponse est encadrée de repères, la sortie est séparée des erreurs, et un échec affiche la cause exacte avec le début et la fin de la sortie. Si le problème revient, le rapport dira pourquoi |
+| Aide : prévoir mise à jour, vérification, dépannage | Demande | Rubrique « Installation et mises à jour », réservée à l'administrateur : « Mettre à jour J-ed », « Vérifier l'installation » (page « État » et `verifier-j-ed.ps1`, signification de chaque repère) et « Dépannage après une mise à jour » |
+
+Archive : `japon-explorateur-2.0.0-lot6-correctif1.zip`. Suite : 690 tests réussis.
+
 ## 5. Livrables du lot
 
 - Archive `japon-explorateur-2.0.0-lot6.zip` et son empreinte `.sha256`.

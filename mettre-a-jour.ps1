@@ -115,6 +115,25 @@ function Version-Archive([string]$Zip) {
     }
 }
 
+function Script-Different([string]$Zip) {
+    # 2.0.0 (lot 6) : le script lancé est-il celui de l'archive ? Un ancien script garde d'anciens défauts
+    # (16 novembre 2026 : celui du lot 0 ajoutait une ligne COMPOSE_PROFILES=hors-ligne à chaque mise à jour).
+    if (-not $PSCommandPath) { return $false }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $z = [System.IO.Compression.ZipFile]::OpenRead($Zip)
+    try {
+        $entree = $z.Entries | Where-Object { $_.FullName -match '^([^/]+/)?mettre-a-jour\.ps1$' } | Select-Object -First 1
+        if (-not $entree) { return $false }
+        $flux = $entree.Open()
+        try {
+            $sha = [System.Security.Cryptography.SHA256]::Create()
+            $dansArchive = [System.BitConverter]::ToString($sha.ComputeHash($flux)).Replace('-', '')
+        } finally { $flux.Close() }
+    } finally { $z.Dispose() }
+    $lance = (Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash
+    return $dansArchive -ne $lance
+}
+
 Write-Host 'Mise à jour de J-ed' -ForegroundColor White
 
 # --- 1. Contrôles ---------------------------------------------------------------------------------
@@ -145,6 +164,11 @@ if ($Attendue -ne $Calculee) {
 Write-Host "Empreinte de l'archive vérifiée : $Calculee"
 
 $VersionNouvelle = Version-Archive $Archive
+$ScriptAncien = Script-Different $Archive
+if ($ScriptAncien) {
+    Write-Host ("Attention : ce script de mise à jour n'est pas celui de l'archive ; il peut contenir d'anciens défauts. " +
+        "Après la mise à jour, remplacez « $PSCommandPath » par le fichier mettre-a-jour.ps1 du nouveau dossier.") -ForegroundColor Yellow
+}
 if (-not $VersionNouvelle) { Arreter 'fichier VERSION introuvable dans l''archive : ce n''est pas une archive de J-ed.' }
 $VersionActuelle = (Get-Content -LiteralPath ([System.IO.Path]::Combine($Actuel, 'VERSION')) -Raw).Trim()
 try {
@@ -344,4 +368,7 @@ Write-Host ''
 Write-Host "Mise à jour terminée : J-ed $VersionNouvelle, http://localhost:$Port" -ForegroundColor Green
 Write-Host "Sauvegarde faite avant la mise à jour : $CopieLocale"
 Write-Host "L'ancien dossier ($Actuel) n'a pas été modifié ; gardez-le jusqu'à ce que la nouvelle version vous convienne."
+if ($ScriptAncien) {
+    Write-Host "Rappel : copiez « $([System.IO.Path]::Combine($Destination, 'mettre-a-jour.ps1')) » à la place de « $PSCommandPath » pour les prochaines mises à jour." -ForegroundColor Yellow
+}
 exit 0

@@ -172,3 +172,7 @@ pre.json { background: #fff; border: 1px solid var(--line); border-radius: .5rem
 .help-page code { white-space: pre-wrap; }
 .help-page pre { background: #fff; border: 1px solid var(--line); border-radius: .5rem; padding: .7rem 1rem; }
 .brand-logo { height: 38px; width: auto; display: block; }
+
+/* 2.0.0 (lot 6) : en-tête de la fiche, titre et boutons côte à côte quel que soit la longueur du titre */
+.record-head-title { flex: 1 1 0; min-width: 280px; overflow-wrap: anywhere; }
+.record-head-actions { flex: 0 0 auto; width: 300px; max-width: 100%; }

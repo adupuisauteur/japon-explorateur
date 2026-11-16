@@ -75,7 +75,8 @@ Une version de consolidation : J-ed devient plus sûr, travaille seul la nuit, r
   Bibliothèque ou l'atelier ; enchaînés aux traductions si vous le souhaitez.
 - **IA locale** facultative : une IA gratuite qui travaille sur votre ordinateur, pour les résumés.
 - **Japonais ancien** : repérage du bungo, du kanbun et du sōrōbun, et moteur choisi pour eux.
-- **Aide intégrée** : une page d'aide par écran (bouton **?**), une recherche, un lexique et cet historique.
+- **Aide intégrée** : une page d'aide par écran (bouton **?**), une recherche, un lexique, cet historique, et une
+  rubrique « Installation et mises à jour » (mettre à jour, vérifier, dépanner).
 - **Installation** : mise à jour en une commande (`mettre-a-jour.ps1`), vérification automatique
   (`verifier-j-ed.ps1`), page « État de l'installation », sauvegardes copiées dans un dossier de Windows, réglage
   automatique selon la puissance de l'ordinateur.
@@ -787,8 +788,8 @@ planificateur, Argos, IA locale, sauvegardes…), chacun « Correct », « À su
 - **Diagnostic à transmettre** : un texte à copier pour signaler un problème. Il ne contient ni clé, ni nom de
   compte, ni texte de recherche ou de traduction ; les chemins personnels sont masqués.
 
-Pour un contrôle complet depuis Windows, lancez `verifier-j-ed.ps1` dans le dossier de J-ed : il essaie chaque
-fonction avec des données fictives, sans modifier votre base, et enregistre un rapport.
+Pour lire chaque ligne en détail, et pour le contrôle complet depuis Windows (`verifier-j-ed.ps1`), voir
+[Vérifier l'installation](#verifier-l-installation).
 
 ### Profil de la machine
 
@@ -896,6 +897,140 @@ vous **intégrez** ou vous écartez. L'ancienne version reste consultable sur la
 montre ce qu'il a compris, compare avec les notices existantes, puis attend votre décision. Des fichiers d'exemple
 sont livrés dans `docs/exemples/`.
 
+# Installation et mises à jour
+
+## Mettre à jour J-ed
+
+Passer à une nouvelle version sans rien perdre, avec le script de mise à jour.
+
+Une mise à jour **garde toutes vos données** : notices, bibliothèque, projets, glossaires, comptes, clés, paquets
+Argos et modèles de l'IA locale. Elle se fait en une commande, avec le script `mettre-a-jour.ps1`. Le **guide de
+mise à jour** livré avec chaque version détaille chaque étape.
+
+### Ce qu'il faut
+
+- Docker Desktop démarré, et J-ed en marche (sa page s'ouvre dans le navigateur).
+- Environ 5 Go d'espace disque libre.
+- Les trois fichiers de la nouvelle version, dans le **dossier parent** de l'installation (par exemple `C:\J-ed`) :
+  l'archive `.zip`, son empreinte `.zip.sha256`, et `mettre-a-jour.ps1`.
+
+### Toujours le script de la nouvelle version
+
+Le script `mettre-a-jour.ps1` évolue avec J-ed. **À chaque mise à jour, remplacez celui du dossier parent** par celui
+livré avec la nouvelle version (ou par celui du nouveau dossier, après la mise à jour). Un ancien script garde ses
+anciens défauts. Par exemple, une version de novembre 2026 ajoutait une ligne `COMPOSE_PROFILES=hors-ligne` au
+fichier `.env` à chaque passage.
+
+Le script le signale lui-même : « Attention : ce script de mise à jour n'est pas celui de l'archive », puis un
+rappel à la fin.
+
+### Lancer la mise à jour
+
+Dans PowerShell (clic droit sur Démarrer → Terminal), en adaptant les chemins :
+
+```
+cd C:\J-ed
+powershell -ExecutionPolicy Bypass -File .\mettre-a-jour.ps1 -Archive .\japon-explorateur-2.0.0.zip -Actuel C:\J-ed\japon-explorateur-1.3.0 -DossierSauvegardes C:\J-ed\sauvegardes
+```
+
+- `-Actuel` : le dossier de la version **actuellement installée** (celui qui contient `.env`).
+- Le script vérifie l'archive, fait une **sauvegarde vérifiée** copiée dans `-DossierSauvegardes`, installe la
+  nouvelle version dans un **nouveau dossier** (l'ancien n'est jamais modifié), reprend votre `.env`, puis demande de
+  taper `OUI` avant d'arrêter l'ancienne version et de démarrer la nouvelle.
+- À la moindre anomalie, il s'arrête avec un message qui commence par **ARRÊT** et dit quoi faire.
+
+### Après la mise à jour
+
+1. Ouvrez J-ed et rechargez la page avec **Ctrl + F5**.
+2. Vérifiez l'installation : voir [Vérifier l'installation](#verifier-l-installation).
+3. En cas de souci : [Dépannage après une mise à jour](#depannage-apres-mise-a-jour).
+
+Gardez l'ancien dossier quelques semaines : il permet de revenir en arrière. La procédure de retour est dans le
+guide de mise à jour.
+
+## Vérifier l'installation
+
+La page « État de l'installation » et le script verifier-j-ed.ps1 : lire leurs résultats.
+
+Deux outils, à utiliser après chaque installation ou mise à jour, et dès qu'un doute apparaît.
+
+### La page « État de l'installation »
+
+Menu à votre nom → **Administration → État de l'installation**. Une ligne par élément :
+
+| Ligne | Ce qui est contrôlé |
+| --- | --- |
+| Version, base de données | La version en service et des migrations à jour |
+| Redis, workers, planificateur | Les tâches de fond peuvent tourner (le planificateur passe à « Correct » dans les 5 minutes) |
+| Argos | Le service répond, ses paquets japonais → français sont installés, la dernière traduction d'essai |
+| IA locale | Le service répond, les modèles installés, le dernier résumé d'essai (ligne absente si l'IA locale n'est pas installée) |
+| Sauvegardes | La dernière sauvegarde et sa vérification |
+| Clés, disque, ressources | La clé de chiffrement, la place libre, la mémoire et les cœurs accordés par Docker |
+| Profil de la machine | Le profil retenu et un conseil |
+
+Chaque ligne est **Correct**, **À surveiller**, **Problème** ou **Non vérifiable**, avec le détail.
+**Copier le diagnostic** donne un texte à transmettre, sans clé, sans nom de compte et sans aucun texte de recherche
+ou de traduction.
+
+### Le script verifier-j-ed.ps1
+
+Il contrôle tout depuis Windows, dans le dossier de l'installation :
+
+```
+cd C:\J-ed\japon-explorateur-2.0.0
+powershell -ExecutionPolicy Bypass -File .\verifier-j-ed.ps1
+```
+
+1. **Dossier et `.env`** : version, nom de l'installation, mots de passe renseignés, dossier des sauvegardes, lignes en
+   double.
+2. **Docker et conteneurs** : les conteneurs attendus sont en service (Argos, et l'IA locale si elle est prévue).
+3. **Adresse** : les pages répondent.
+4. **Fonctions de l'application** : chaque fonction est essayée avec des **données fictives**, sans modifier votre
+   base.
+
+| Repère | Signification |
+| --- | --- |
+| `[OK]` | Tout va bien |
+| `[À surveiller]` | Fonctionne, mais un point mérite attention (le détail dit lequel) |
+| `[Problème]` | À corriger : le détail dit quoi faire |
+| `[Non vérifié]` | Contrôle non fait (option non demandée, élément facultatif absent) |
+
+Un rapport `verification-j-ed-….txt` est enregistré dans le dossier parent. Il ne contient ni clé, ni nom de compte,
+ni texte de recherche ou de traduction : vous pouvez le transmettre tel quel.
+
+Options : `-AvecSources` (une recherche d'essai par source, sur Internet), `-AvecTests` (la suite de tests
+automatiques, 3 à 10 minutes).
+
+## Dépannage après une mise à jour
+
+Les problèmes les plus courants après une mise à jour, et leur solution.
+
+Commencez toujours par [Vérifier l'installation](#verifier-l-installation) : la page « État » et
+`verifier-j-ed.ps1` disent le plus souvent ce qui ne va pas.
+
+| Ce que vous voyez | Que faire |
+| --- | --- |
+| L'ancienne version, ou une page sans le nouveau logo | Rechargez avec **Ctrl + F5** : le navigateur garde une copie de l'interface |
+| « J-ed ne répond pas » | Attendez une ou deux minutes (premier démarrage). Sinon, dans le dossier : `docker compose ps`, puis `docker compose logs --tail 200 web` |
+| « Fichier .env : la ligne … figure 2 fois » | Gardez une seule ligne, mettez `#` devant les autres, puis `docker compose up -d`. Remplacez aussi votre `mettre-a-jour.ps1` par le plus récent : voir [Mettre à jour J-ed](#mettre-a-jour) |
+| Argos « non démarré » | La ligne `COMPOSE_PROFILES` de `.env` doit contenir `argos` (par exemple `COMPOSE_PROFILES=argos` ou `argos,ollama`), puis `docker compose up -d` |
+| IA locale « non installée » alors que vous l'utilisez | Même ligne : elle doit contenir `ollama`. Les modèles déjà téléchargés sont conservés |
+| « Vérification dans l'application : réponse illisible » | Transmettez le rapport : les lignes « Cause », « Début » et « Erreur » permettent de trouver l'origine |
+| Des tâches « En retard — à confirmer » | Normal : leur heure (ou la plage de nuit) est passée pendant l'arrêt. Ouvrez Tâches, puis confirmez, reprogrammez ou annulez |
+| L'icône de l'application installée n'a pas changé | Désinstallez puis réinstallez l'application depuis le navigateur |
+| Un message « ARRÊT » du script de mise à jour | Lisez la ligne qui suit : elle dit quoi faire. Avant l'étape 5, rien n'a été modifié |
+
+### Revenir à la version précédente
+
+Si la nouvelle version ne convient pas, suivez la section « Revenir à la version précédente » du **guide de mise à
+jour**. L'ancien dossier n'a pas été modifié ; vos données sont dans Docker, et la sauvegarde faite avant la mise à
+jour est dans votre dossier de sauvegardes.
+
+### Demander de l'aide
+
+Joignez le rapport de `verifier-j-ed.ps1` et le texte de **Copier le diagnostic** (page « État »). Aucun des deux ne
+contient de données personnelles ni de texte de recherche.
+
 # Référence
 
 ## Lexique
@@ -960,7 +1095,8 @@ Une version de consolidation : J-ed devient plus sûr, travaille seul la nuit, r
   Bibliothèque ou l'atelier ; enchaînés aux traductions si vous le souhaitez.
 - **IA locale** facultative : une IA gratuite qui travaille sur votre ordinateur, pour les résumés.
 - **Japonais ancien** : repérage du bungo, du kanbun et du sōrōbun, et moteur choisi pour eux.
-- **Aide intégrée** : une page d'aide par écran (bouton **?**), une recherche, un lexique et cet historique.
+- **Aide intégrée** : une page d'aide par écran (bouton **?**), une recherche, un lexique, cet historique, et une
+  rubrique « Installation et mises à jour » (mettre à jour, vérifier, dépanner).
 - **Installation** : mise à jour en une commande (`mettre-a-jour.ps1`), vérification automatique
   (`verifier-j-ed.ps1`), page « État de l'installation », sauvegardes copiées dans un dossier de Windows, réglage
   automatique selon la puissance de l'ordinateur.

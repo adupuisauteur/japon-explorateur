@@ -393,6 +393,18 @@ installé comme application, l'icône peut ne changer qu'après l'avoir désinst
 **V6-7 — Logo dans les exports.** Exporte une notice en PDF, en Word et en site HTML. Attendu : le logo sur la page
 de titre et dans l'en-tête des pages (PDF, Word), et dans l'en-tête de chaque page du site HTML.
 
+**V6-9 — Correctifs du 16 novembre 2026.**
+- **Script de mise à jour.** Avant la mise à jour, remplace `C:\J-ed\mettre-a-jour.ps1` par celui joint à
+  l'archive.
+- **Fichier `.env`.** Dans le `.env` actuel, ne garde qu'une ligne active `COMPOSE_PROFILES=argos,ollama` : mets un
+  `#` devant les lignes `hors-ligne`.
+
+Après la mise à jour :
+- `.env` n'a pas de nouvelle ligne `hors-ligne` ;
+- `verifier-j-ed.ps1` passe la section 4 ;
+- la fiche « HANKYO TAISAKU… » garde ses boutons à droite du titre ;
+- l'aide a la rubrique « Installation et mises à jour ».
+
 **V6-8 — Guide d'utilisation.** Ouvre `docs/guide-utilisation.html` dans le navigateur : sommaire, toutes les pages
 de l'aide. Imprimer → Enregistrer au format PDF donne le guide en PDF.
 
