@@ -300,7 +300,7 @@ def _price_labels(provider):
     return label
 
 
-def _picker_context(request, data, *, error=""):
+def _picker_context(request, data, *, error="", refreshed=False):
     provider_field = data.get("provider_field", "")
     model_field = data.get("model_field", "")
     provider = data.get(provider_field, "") if provider_field else ""
@@ -314,13 +314,17 @@ def _picker_context(request, data, *, error=""):
     if provider == "ollama":  # 2.0.0 (lot 4) : modèles installés dans l'IA locale (aucune clé, aucun coût)
         from django.utils import timezone
 
-        from .local import credential_for, installed
+        from .local import credential_for, health, installed
 
         cred = credential_for(request.user)
-        state_models = installed()
-        if state_models != (cred.available_models or []):
+        state, problem = health()
+        state_models = installed(state) if state else []
+        if refreshed or state_models != (cred.available_models or []):
             cred.available_models, cred.last_tested_at = state_models, timezone.now()
             cred.save(update_fields=["available_models", "last_tested_at"])
+        # État du service toujours affiché : sans lui, « Actualiser la liste » semblait ne rien faire
+        ctx["local_problem"] = problem or ("" if state_models else
+                                           "L'IA locale est en service, mais aucun modèle n'est installé.")
     else:
         cred = AIProviderCredential.objects.filter(user=request.user, provider=provider).first()
     ctx["credential"] = cred if cred and cred.is_configured else None
@@ -348,7 +352,7 @@ def model_refresh(request):
     provider = request.POST.get(request.POST.get("provider_field", ""), "")
     error = ""
     if provider == "ollama":  # 2.0.0 (lot 4) : la liste vient du service local (relue par _picker_context)
-        return render(request, "ai/_model_picker.html", _picker_context(request, request.POST))
+        return render(request, "ai/_model_picker.html", _picker_context(request, request.POST, refreshed=True))
     cred = AIProviderCredential.objects.filter(user=request.user, provider=provider).first()
     if cred is not None and cred.is_configured:
         try:

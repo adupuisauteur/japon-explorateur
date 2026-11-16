@@ -68,7 +68,16 @@
 - **Test instable connu** (`test_search_sessions`) : de nouveau un échec en exécution parallèle, puis réussi seul et dans les trois suites complètes suivantes. Toujours pour le lot 9.
 - **Vérification réelle** (vraie IA en ligne, vrai service Ollama et vrai modèle) : V4-1 à V4-9. Statut : testé en simulation ; test réel à confirmer.
 
-## 5. Livrables du lot
+## 5. Correctif du 16 novembre 2026 (après installation)
+
+Signalé sur ton poste : dans Traduction → Moteurs, « Résumés : fournisseur IA » = IA locale, « Actualiser la liste »
+ne faisait rien de visible. Cause : pour l'IA locale, l'actualisation relisait les modèles installés sans afficher
+l'état du service ; sans service (profil `ollama` absent de `COMPOSE_PROFILES`) ou sans modèle, la liste restait
+vide et « Liste jamais actualisée » ne changeait pas. Correction : le sélecteur affiche la raison (IA locale non
+installée et la ligne à ajouter, service injoignable, ou aucun modèle installé) avec le lien vers Moteurs locaux,
+et l'actualisation est datée. Deux tests ajoutés (666 tests réussis). Archive : `japon-explorateur-2.0.0-lot4-correctif1.zip`.
+
+## 6. Livrables du lot
 
 - Archive `japon-explorateur-2.0.0-lot4.zip` et son empreinte `.sha256`.
 - Protocole : `docs/evolution-2.0.0/05-protocole-verification.md`, section « Lot 4 » (V4-1 à V4-9).

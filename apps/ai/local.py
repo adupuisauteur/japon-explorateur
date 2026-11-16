@@ -49,7 +49,8 @@ def _client(timeout):
 def health():
     """(état, problème) : {"version", "models": [{"name", "size"}]} ou (None, message)."""
     if not base_url():
-        return None, ("IA locale non configurée : adresse du service absente (OLLAMA_URL).")
+        return None, ("IA locale non installée : ajoutez « ollama » à la ligne COMPOSE_PROFILES du fichier .env "
+                      "(par exemple COMPOSE_PROFILES=argos,ollama), puis lancez « docker compose up -d ».")
     try:
         with _client(10) as client:
             version = client.get(f"{base_url()}/api/version").json().get("version", "")

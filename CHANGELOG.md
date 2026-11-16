@@ -25,6 +25,9 @@ Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquet
   - projets confidentiels : résumés seulement par l'IA locale ;
   - migrations : retour arrière vérifié sur une base temporaire (la mise à jour des données passe dans sa propre
     migration, `translation 0005`).
+  - correctif du 16 novembre 2026 : avec « IA locale » comme fournisseur, « Actualiser la liste » des modèles
+    semblait ne rien faire ; le sélecteur dit maintenant pourquoi la liste est vide (service non installé,
+    injoignable, ou aucun modèle installé), avec le lien vers Moteurs locaux, et date l'actualisation.
 - **Lot 3 — tâches, file de nuit, « Traduire maintenant », travail en parallèle** (15 novembre 2026, rapport :
   `docs/evolution-2.0.0/rapport-lot-3.md`) :
   - lancement au choix à la confirmation : immédiat, programmé (date et heure) ou file de nuit ; le coût est

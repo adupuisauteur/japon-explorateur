@@ -657,3 +657,38 @@ class AncientTranslationTests(SummaryCase):
         V.confirm_record(self.old, "modern", self.user)
         job = self.prepare([self.record, Record.objects.get(pk=self.old.pk)])
         self.assertEqual((job.engine, job.total_items, services.job_siblings(job)), ("deepl", 2, []))
+
+
+class LocalPickerStateTests(AppTestCase):
+    """16 novembre 2026, poste de l'utilisateur : « Actualiser la liste » de l'IA locale semblait ne rien faire."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.researcher)
+        self.params = {"provider_field": "summary_provider", "model_field": "summary_model",
+                       "summary_provider": "ollama", "provider_id": "id_summary_provider",
+                       "model_id": "id_summary_model"}
+
+    def test_refresh_says_why_the_list_is_empty(self):
+        import os
+
+        with mock.patch.dict(os.environ, {"COMPOSE_PROFILES": "argos"}):
+            page = self.client.post("/ia/modeles/actualiser/", self.params).content.decode()
+        self.assertIn("IA locale non installée : ajoutez « ollama » à la ligne COMPOSE_PROFILES", page)
+        self.assertIn("Liste du ", page)  # l'actualisation est datée
+        self.assertNotIn("Liste jamais actualisée", page)
+
+    def test_service_without_model(self):
+        import os
+
+        import httpx
+
+        fake = FakeOllama()
+        with self.settings(OLLAMA_URL="http://ollama:11434", OLLAMA_TRANSPORT=httpx.MockTransport(fake)), \
+                mock.patch.dict(os.environ, {"COMPOSE_PROFILES": "argos,ollama"}):
+            page = self.client.post("/ia/modeles/actualiser/", self.params).content.decode()
+            self.assertIn("aucun modèle n&#x27;est installé", page)
+            fake.models = ["qwen3:4b"]
+            page = self.client.post("/ia/modeles/actualiser/", self.params).content.decode()
+        self.assertIn("qwen3:4b — gratuit, sur cet ordinateur", page)
+        self.assertNotIn("aucun modèle", page)
