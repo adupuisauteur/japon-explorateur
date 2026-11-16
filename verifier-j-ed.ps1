@@ -72,10 +72,12 @@ function Docker-Ici([string[]]$Arguments) {
 }
 
 function Lire-Env([string]$Nom) {
+    # Comme Docker Compose : si une variable figure plusieurs fois, c'est la DERNIÈRE ligne qui compte.
+    $valeur = ''
     foreach ($ligne in $script:EnvLignes) {
-        if ($ligne -match "^\s*$Nom\s*=(.*)$") { return $Matches[1].Trim() }
+        if ($ligne -match "^\s*$Nom\s*=(.*)$") { $valeur = $Matches[1].Trim() }
     }
-    return ''
+    return $valeur
 }
 
 function Masquer([string]$Texte) {
@@ -141,6 +143,15 @@ if ($aRemplacer.Count) {
     Noter 'ok' 'Mots de passe techniques' 'renseignés (valeurs non affichées)'
 }
 $Profils = Lire-Env 'COMPOSE_PROFILES'
+# 16 novembre 2026, poste de l'utilisateur : deux lignes COMPOSE_PROFILES, la dernière (hors-ligne) annulait
+# « argos,ollama » sans que rien ne le dise.
+$Doublons = @($script:EnvLignes | Where-Object { $_ -match '^\s*([A-Z_][A-Z0-9_]*)\s*=' } |
+    ForEach-Object { ($_ -replace '^\s*([A-Z_][A-Z0-9_]*)\s*=.*$', '$1') } | Group-Object | Where-Object { $_.Count -gt 1 })
+foreach ($d in $Doublons) {
+    Noter 'warning' 'Fichier .env' "la ligne $($d.Name)= figure $($d.Count) fois : seule la dernière compte" @(
+        "Valeur retenue par Docker : $($d.Name)=$(Lire-Env $d.Name)",
+        'Gardez une seule ligne (celle que vous voulez), supprimez ou mettez # devant les autres, puis : docker compose up -d')
+}
 # 2.0.0 (lot 7) : profil « argos » (installation standard) ; l'ancien profil « hors-ligne » reste accepté.
 $ArgosAttendu = $Profils -match '(^|,)\s*(argos|hors-ligne)\s*(,|$)'
 $ArgosDesactive = @($script:EnvLignes | Where-Object { $_ -match '^\s*COMPOSE_PROFILES\s*=' }).Count -gt 0

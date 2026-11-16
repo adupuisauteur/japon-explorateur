@@ -77,6 +77,12 @@ vide et « Liste jamais actualisée » ne changeait pas. Correction : le sélect
 installée et la ligne à ajouter, service injoignable, ou aucun modèle installé) avec le lien vers Moteurs locaux,
 et l'actualisation est datée. Deux tests ajoutés (666 tests réussis). Archive : `japon-explorateur-2.0.0-lot4-correctif1.zip`.
 
+**Deuxième point du même jour** : ton `.env` contenait deux lignes `COMPOSE_PROFILES` (`argos,ollama`, puis plus bas
+`hors-ligne`). Docker ne retient que la dernière : Ollama ne pouvait pas démarrer. Rien ne le signalait, et
+`verifier-j-ed.ps1` lisait la première ligne, donc le contraire de Docker. Correction : les deux scripts lisent la
+dernière ligne, comme Docker, et signalent toute variable présente plusieurs fois (test ajouté). Archive :
+`japon-explorateur-2.0.0-lot4-correctif2.zip`, qui contient aussi le premier correctif.
+
 ## 6. Livrables du lot
 
 - Archive `japon-explorateur-2.0.0-lot4.zip` et son empreinte `.sha256`.

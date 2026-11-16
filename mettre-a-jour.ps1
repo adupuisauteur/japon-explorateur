@@ -93,10 +93,12 @@ function Docker-Dans {
 }
 
 function Lire-Env([string]$Fichier, [string]$Nom) {
+    # Comme Docker Compose : si une variable figure plusieurs fois, c'est la DERNIÈRE ligne qui compte.
+    $valeur = ''
     foreach ($ligne in (Get-Content -LiteralPath $Fichier -Encoding UTF8)) {
-        if ($ligne -match "^\s*$Nom\s*=(.*)$") { return $Matches[1].Trim() }
+        if ($ligne -match "^\s*$Nom\s*=(.*)$") { $valeur = $Matches[1].Trim() }
     }
-    return ''
+    return $valeur
 }
 
 function Version-Archive([string]$Zip) {
@@ -274,6 +276,9 @@ if ($PSBoundParameters.ContainsKey('DossierSauvegardes') -and -not (Lire-Env $En
 # elle n'est ajoutée que si elle manque. Laissée vide (« COMPOSE_PROFILES= »), elle désactive Argos : respecté.
 $LigneProfils = @(Get-Content -LiteralPath $EnvNouveau -Encoding UTF8 | Where-Object { $_ -match '^\s*COMPOSE_PROFILES\s*=' })
 $Profils = Lire-Env $EnvNouveau 'COMPOSE_PROFILES'
+if ($LigneProfils.Count -gt 1) {
+    Write-Host "Attention : la ligne COMPOSE_PROFILES figure $($LigneProfils.Count) fois dans .env ; seule la dernière compte (COMPOSE_PROFILES=$Profils). Gardez-en une seule." -ForegroundColor Yellow
+}
 if ($LigneProfils.Count -eq 0) {
     Add-Content -LiteralPath $EnvNouveau -Value "`r`n# Ajouté par mettre-a-jour.ps1 : Argos (traduction hors ligne) démarre avec J-ed. Pour ne pas le démarrer`r`n# (poste à mémoire limitée), laissez la ligne vide : COMPOSE_PROFILES=`r`nCOMPOSE_PROFILES=argos" -Encoding UTF8
     Write-Host 'Argos fait désormais partie de l''installation standard : ligne COMPOSE_PROFILES=argos ajoutée au nouveau .env.'

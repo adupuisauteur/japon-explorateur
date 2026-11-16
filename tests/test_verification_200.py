@@ -211,6 +211,17 @@ class VerifyScriptRunTests(SimpleTestCase):
         self.assertIn("[OK] Conteneurs : en service", result.stdout)
         self.assertIn("[OK] IA locale : service Ollama démarré", result.stdout)
 
+    def test_duplicate_env_line_is_flagged_and_the_last_one_counts(self):
+        """16 novembre 2026, poste de l'utilisateur : « argos,ollama » puis, plus bas, « hors-ligne »."""
+        self.write_env(COMPOSE_PROFILES="argos,ollama")
+        with (self.install / ".env").open("a", encoding="utf-8") as env:
+            env.write("# Ajouté plus tard\nCOMPOSE_PROFILES=hors-ligne\n")
+        result = self.run_script(argos=1)
+        self.assertIn("[À surveiller] Fichier .env : la ligne COMPOSE_PROFILES= figure 2 fois : seule la dernière "
+                      "compte", result.stdout)
+        self.assertIn("Valeur retenue par Docker : COMPOSE_PROFILES=hors-ligne", result.stdout)
+        self.assertIn("[Non vérifié] IA locale : non installée", result.stdout)  # comme Docker : ollama absent
+
     def test_docker_not_running(self):
         result = self.run_script(docker_info=1)
         self.assertEqual(result.returncode, 1)
