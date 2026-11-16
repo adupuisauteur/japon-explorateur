@@ -27,6 +27,8 @@ x-app: &app
     # simulée, sauf « mode démonstration » activé par l'administrateur).
     TRANSLATION_ARGOS_URL: ${TRANSLATION_ARGOS_URL:-http://argos:5000}
     TRANSLATION_ARGOS_DEPOT_DIR: /argos-depot
+    # 2.0.0 (lot 4) : IA locale facultative (service « ollama », profil du même nom).
+    OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
     # 2.0.0 : chaque sauvegarde est aussi copiée dans /backups-externes (voir le volume ci-dessous).
     BACKUP_EXTERNAL_DIR: /backups-externes
   volumes:
@@ -85,6 +87,7 @@ services:
       COMPOSE_PROJECT_CHECK: ${COMPOSE_PROJECT_NAME}
       TRANSLATION_ARGOS_URL: ${TRANSLATION_ARGOS_URL:-http://argos:5000}
       TRANSLATION_ARGOS_DEPOT_DIR: /argos-depot
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
       BACKUP_EXTERNAL_DIR: /backups-externes
     # Nombre de travaux courts en parallèle : selon le profil de machine (CELERY_WORKER_CONCURRENCY).
     command: ["celery", "-A", "config", "worker", "-l", "info", "-n", "courts@%h", "-Q", "celery"]
@@ -140,9 +143,31 @@ services:
       - argos-depot:/depot:ro
     restart: unless-stopped
 
+  # 2.0.0 (lot 4, demande U8) : IA locale gratuite pour les résumés (et, si on la choisit, la traduction par IA).
+  # FACULTATIVE : elle ne démarre que si « ollama » figure dans COMPOSE_PROFILES (.env), par exemple
+  #   COMPOSE_PROFILES=argos,ollama
+  # Image officielle Ollama (licence MIT), version fixée (OLLAMA_VERSION pour la changer). AUCUN modèle n'est
+  # livré ni téléchargé d'office : l'utilisateur en choisit un dans Traduction → Moteurs locaux (taille affichée,
+  # confirmation). Modèles dans le volume « ollama-models ». Aucun port publié : joignable par J-ed seulement.
+  ollama:
+    profiles: ["ollama"]
+    image: ollama/ollama:${OLLAMA_VERSION:-0.30.9}
+    cpus: ${OLLAMA_COEURS:-0}
+    mem_limit: ${OLLAMA_MEMOIRE_MAX:-0}
+    environment:
+      # Un seul modèle chargé, une seule demande à la fois ; le modèle quitte la mémoire après 5 minutes sans
+      # demande (Argos et l'IA locale ne tiennent pas toujours ensemble en mémoire).
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-5m}
+    volumes:
+      - ollama-models:/root/.ollama
+    restart: unless-stopped
+
 volumes:
   db-data:
   app-data:
   argos-packages:
   argos-depot:
+  ollama-models:
   sauvegardes-externes:

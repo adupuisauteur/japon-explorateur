@@ -235,6 +235,12 @@ def _create(user, targets, *, provider, model, kind, language, source, launch, p
     return job
 
 
+def _confidential(job):
+    if job.project_id and job.project.confidential:
+        return True
+    return job.items.filter(document__project__confidential=True).exists()
+
+
 def problems(job):
     """Ce qui empêche l'envoi d'une tâche de résumé (préparation, confirmation, reprise)."""
     out = []
@@ -261,6 +267,8 @@ def problems(job):
                        "(IA → Fournisseurs).")
     if not job.ai_model:
         out.append("Aucun modèle n'est choisi pour les résumés.")
+    if not local and _confidential(job):  # même règle que pour la traduction
+        out.append("Projet confidentiel : les IA en ligne sont refusées. Choisissez l'IA locale pour ses résumés.")
     if not local and profile.monthly_budget is not None:
         from apps.ai.services import monthly_spend
 

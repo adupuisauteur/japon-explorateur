@@ -144,6 +144,8 @@ $Profils = Lire-Env 'COMPOSE_PROFILES'
 # 2.0.0 (lot 7) : profil « argos » (installation standard) ; l'ancien profil « hors-ligne » reste accepté.
 $ArgosAttendu = $Profils -match '(^|,)\s*(argos|hors-ligne)\s*(,|$)'
 $ArgosDesactive = @($script:EnvLignes | Where-Object { $_ -match '^\s*COMPOSE_PROFILES\s*=' }).Count -gt 0
+# 2.0.0 (lot 4) : IA locale facultative (profil « ollama »), jamais attendue par défaut.
+$OllamaAttendu = $Profils -match '(^|,)\s*ollama\s*(,|$)'
 
 $DossierSauv = Lire-Env 'DOSSIER_SAUVEGARDES'
 if (-not $DossierSauv) {
@@ -191,6 +193,7 @@ if ($memoire -lt 4) {
 # 2.0.0 (lot 3) : trois workers (travaux courts, longues traductions, demandes « maintenant »)
 $attendus = @('db', 'redis', 'web', 'worker', 'worker-traduction', 'worker-maintenant', 'beat')
 if ($ArgosAttendu) { $attendus += 'argos' }
+if ($OllamaAttendu) { $attendus += 'ollama' }
 $enService = Docker-Ici @('compose', 'ps', '--services', '--status', 'running')
 $services = @($enService.Texte -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -and $_ -notmatch '\s' })
 $manquants = @($attendus | Where-Object { $services -notcontains $_ })
@@ -213,6 +216,16 @@ if (-not $ArgosAttendu) {
             'Argos fait partie de l''installation standard depuis la 2.0.0. Ajoutez cette ligne à la fin de .env,',
             'puis : docker compose up -d --build')
     }
+}
+if ($OllamaAttendu) {
+    if ($services -contains 'ollama') {
+        Noter 'ok' 'IA locale' 'service Ollama démarré (modèles : Traduction → Moteurs locaux)'
+    }
+} elseif ($services -contains 'ollama') {
+    Noter 'warning' 'IA locale' 'en service, mais « ollama » manque dans la ligne COMPOSE_PROFILES de .env' @(
+        'Un simple « docker compose up -d » ne la démarrerait plus.')
+} else {
+    Noter 'skipped' 'IA locale' 'non installée (facultative : ajouter ollama à COMPOSE_PROFILES dans .env)'
 }
 
 $publie = Docker-Ici @('compose', 'port', 'web', '8000')

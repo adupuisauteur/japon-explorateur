@@ -262,6 +262,10 @@ def run_package_job(job_id):
     job = TranslationJob.objects.filter(pk=job_id, kind="package").first()
     if job is None or job.status not in ("confirmed", "running"):
         return
+    from apps.ai import local
+
+    if local.is_install_job(job):  # 2.0.0 (lot 4) : modèle de l'IA locale
+        return local.run_install_job(job)
     now = timezone.now()
     job.status, job.started_at, job.heartbeat_at = "running", job.started_at or now, now
     job.save(update_fields=["status", "started_at", "heartbeat_at"])

@@ -207,6 +207,29 @@ def check_argos():
                  "Prêt" if selftest else "En service ; traduction d'essai non encore faite", details)
 
 
+def check_local_ai():
+    """2.0.0 (lot 4) : IA locale facultative. Absente du profil : ligne omise (rien à signaler)."""
+    from apps.ai import local
+
+    if not local.base_url():
+        return None
+    label = "IA locale (Ollama, facultative)"
+    selftest = local.last_selftest()
+    details = [f"Résumé d'essai ({_ago(selftest.checked_at)}) : {selftest.message}"] if selftest else []
+    state, problem = local.health()
+    if state is None:
+        return Check("ia_locale", label, WARNING, "Service injoignable", [problem] + details)
+    names = local.installed(state)
+    details.insert(0, f"Ollama {state['version'] or '?'} ; modèles : {', '.join(names) or 'aucun'}")
+    if not names:
+        return Check("ia_locale", label, WARNING, "En service, mais aucun modèle installé",
+                     details + ["Choisissez un modèle : Traduction → Moteurs locaux, section « IA locale »."])
+    if selftest and not selftest.ok:
+        return Check("ia_locale", label, ERROR, "Résumé d'essai en échec", details)
+    return Check("ia_locale", label, OK if selftest else UNKNOWN,
+                 "Prête" if selftest else "En service ; résumé d'essai non encore fait", details)
+
+
 def check_backups():
     from apps.backups.models import BackupJob
 
@@ -343,13 +366,15 @@ def check_resources():
                  details)
 
 
-CHECKS = (check_version, check_database, check_broker, check_workers, check_scheduler, check_argos, check_backups,
+CHECKS = (check_version, check_database, check_broker, check_workers, check_scheduler, check_argos, check_local_ai,
+          check_backups,
           check_keys, check_disk, check_resources, check_profile)
 #: libellés affichés si un contrôle échoue lui-même (exception)
 CHECK_LABELS = {
     "check_version": "Version", "check_database": "Base de données et migrations",
     "check_broker": "Redis (file des tâches)", "check_workers": "Workers (tâches de fond)",
     "check_scheduler": "Planificateur (Celery beat)", "check_argos": "Argos (traduction hors ligne)",
+    "check_local_ai": "IA locale (Ollama, facultative)",
     "check_backups": "Sauvegardes", "check_keys": "Clés des services en ligne", "check_disk": "Espace disque",
     "check_resources": "Ressources accordées par Docker", "check_profile": "Profil de la machine",
 }
@@ -359,7 +384,9 @@ def collect():
     results = []
     for func in CHECKS:
         try:
-            results.append(func())
+            result = func()
+            if result is not None:  # contrôle sans objet (service facultatif non installé)
+                results.append(result)
         except Exception as exc:  # noqa: BLE001 — un contrôle défaillant est affiché, il n'arrête pas la page
             message = " ".join(str(exc).split())[:300]
             results.append(Check(func.__name__.removeprefix("check_"), CHECK_LABELS.get(func.__name__, func.__name__),

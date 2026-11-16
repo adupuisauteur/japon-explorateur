@@ -2,7 +2,7 @@
 {% block title %}Traduction — Moteurs locaux{% endblock %}
 {% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item"><a href="{% url 'translation:engines' %}">Moteurs</a></li><li class="breadcrumb-item active">Moteurs locaux</li></ol></nav>{% endblock %}
 {% block content %}
-<div class="page-head"><div><h1><i class="bi bi-box-seam"></i> Moteurs locaux — Argos Translate</h1>
+<div class="page-head"><div><h1><i class="bi bi-box-seam"></i> Moteurs locaux — Argos Translate et IA locale</h1>
   <p>Argos Translate traduit sur votre ordinateur, sans Internet. Son service démarre avec J-ed (installation standard).
   Ses paquets de langues ne sont pas livrés : ils sont téléchargés <strong>seulement si vous le décidez</strong>, en un clic, ou installés depuis un fichier.</p></div></div>
 
@@ -51,12 +51,34 @@
   {% if health.packages %}<ul class="small mb-0">{% for p in health.packages %}<li>{{ p.from }}→{{ p.to }} v{{ p.version }} : {% if p.license %}licence déclarée par le paquet : {{ p.license }}{% else %}<span class="text-muted">le paquet ne déclare pas de licence dans ses métadonnées ; consultez l'index Argos</span>{% endif %}</li>{% endfor %}</ul>{% endif %}
 </section>
 
+{% with o=ollama %}
+<section id="ia-locale" class="card-soft mb-3"><h2 class="h5"><i class="bi bi-cpu" aria-hidden="true"></i> IA locale (Ollama) — facultative</h2>
+  <p class="small">Une IA qui tourne <strong>sur cet ordinateur</strong>, gratuite et sans Internet une fois le modèle installé : elle peut faire les résumés IA et, si vous la choisissez, des traductions par IA. Plus lente qu'une IA en ligne et de qualité moindre ; elle a besoin de mémoire (voir la taille de chaque modèle).</p>
+  {% if not o.configured %}<p class="small mb-0"><span class="badge text-bg-secondary">Non installée</span> Pour l'ajouter : dans le fichier <code>.env</code>, ajoutez <code>ollama</code> à la ligne <code>COMPOSE_PROFILES</code> (par exemple <code>COMPOSE_PROFILES=argos,ollama</code>), puis lancez <code>docker compose up -d</code>. Le programme Ollama (image Docker) est alors téléchargé ; aucun modèle ne l'est sans votre choix ci-dessous.</p>
+  {% elif not o.state %}<p class="small mb-0"><span class="badge text-bg-warning">Indisponible</span> {{ o.problem }}</p>
+  {% else %}<p class="mb-1"><span class="badge text-bg-success">En service</span> Ollama {{ o.state.version }}</p>
+  {% if o.selftest %}<p class="small mb-2">Dernier essai ({{ o.selftest.checked_at|date:"d/m/Y H:i" }}{% if o.selftest.data.model %}, {{ o.selftest.data.model }}{% endif %}) : {% if o.selftest.ok %}<span class="text-success"><i class="bi bi-check-circle" aria-hidden="true"></i> {{ o.selftest.message }}</span>{% if o.selftest.data.summary %}<span class="text-muted"> — résumé d'un texte fictif : « {{ o.selftest.data.summary }} »</span>{% endif %}{% else %}<span class="text-danger">{{ o.selftest.message }}</span>{% endif %}</p>{% endif %}
+  <table class="table table-sm align-middle" style="max-width:900px"><thead><tr><th>Modèle</th><th>Taille</th><th>Mémoire</th><th>Remarque</th><th></th></tr></thead><tbody>
+  {% for m in o.catalogue %}<tr><td><code>{{ m.model }}</code>{% if m.installed %} <span class="badge text-bg-success">installé</span>{% endif %}</td><td class="small text-nowrap">{{ m.size }}</td><td class="small">{{ m.memory }}</td><td class="small">{{ m.note }}</td>
+    <td class="small">{% if can_manage %}{% if m.installed %}
+      <form method="post" action="{% url 'translation:ollama_test' %}" class="d-inline">{% csrf_token %}<input type="hidden" name="model" value="{{ m.model }}"><button class="btn btn-sm btn-outline-secondary py-0">Essai</button></form>
+      <form method="post" action="{% url 'translation:ollama_remove' %}" class="d-inline-flex gap-1 align-items-center ms-1">{% csrf_token %}<input type="hidden" name="model" value="{{ m.model }}"><input class="form-check-input" type="checkbox" name="confirm" value="1" id="rm-{{ forloop.counter }}" aria-label="Confirmer la suppression de {{ m.model }}"><button class="btn btn-sm btn-link text-danger p-0">Supprimer</button></form>
+    {% else %}
+      <form method="post" action="{% url 'translation:ollama_install' %}" class="d-inline-flex gap-1 align-items-center">{% csrf_token %}<input type="hidden" name="model" value="{{ m.model }}"><input class="form-check-input" type="checkbox" name="confirm" value="1" id="dl-{{ forloop.counter }}"><label for="dl-{{ forloop.counter }}" class="text-nowrap">télécharger {{ m.size }} depuis Internet</label><button class="btn btn-sm btn-outline-primary py-0" {% if running %}disabled{% endif %}>Installer</button></form>
+    {% endif %}{% endif %}</td></tr>{% endfor %}
+  {% for m in o.others %}<tr><td><code>{{ m.model }}</code> <span class="badge text-bg-success">installé</span></td><td class="small">{{ m.bytes|filesizeformat }}</td><td></td><td class="small text-muted">Installé hors de J-ed ; utilisable s'il lit le japonais.</td><td></td></tr>{% endfor %}
+  </tbody></table>
+  <p class="small text-muted mb-0">Après l'installation, choisissez « IA locale » et le modèle dans <a href="{% url 'translation:engines' %}#resumes-reglages">Traduction → Moteurs → Résumés IA</a>. Les tailles viennent de la bibliothèque Ollama (relevé du 15 novembre 2026). Programme Ollama : licence MIT ; modèles Qwen3 : licence Apache 2.0.</p>
+  {% endif %}
+</section>
+{% endwith %}
+
 <section id="argos-jobs" class="mb-3" {% if running %}hx-get="{% url 'translation:local_engines' %}" hx-trigger="every 5s" data-pause-hidden hx-select="#argos-jobs" hx-swap="outerHTML"{% endif %}>
 <h2 class="h5">Installations récentes</h2>
 {% if jobs %}<table class="table table-sm align-middle"><thead><tr><th>N°</th><th>Opération</th><th>Par</th><th>État</th><th>Détail</th>{% if can_manage %}<th></th>{% endif %}</tr></thead><tbody>
 {% for job, stale in jobs %}<tr><td>{{ job.pk }}</td><td class="small">{{ job.scope_label }}<div class="text-muted">{{ job.created_at|date:"d/m/Y H:i" }}</div></td><td class="small">{{ job.user|default:"—" }}</td>
   <td>{% if stale %}<span class="badge text-bg-warning">interrompue</span>{% else %}{{ job.get_status_display }}{% endif %}</td>
-  <td class="small">{% for item in job.items.all %}<div>{{ item.record_field|cut:"index:"|cut:"fichier:" }} : {{ item.get_status_display }}{% if item.error_message %} — {{ item.error_message }}{% endif %}</div>{% endfor %}</td>
+  <td class="small">{% for item in job.items.all %}<div>{{ item.record_field|cut:"index:"|cut:"fichier:"|cut:"ollama:" }} : {{ item.get_status_display }}{% if item.error_message %} — {{ item.error_message }}{% endif %}</div>{% endfor %}</td>
   {% if can_manage %}<td>{% if stale or job.status == 'failed' %}<form method="post" action="{% url 'translation:argos_job_action' job.pk %}">{% csrf_token %}<button class="btn btn-sm btn-outline-primary" name="action" value="relaunch">Reprendre</button></form>{% endif %}</td>{% endif %}</tr>{% endfor %}
 </tbody></table>{% else %}<p class="small text-muted">Aucune.</p>{% endif %}
 </section>

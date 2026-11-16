@@ -219,8 +219,19 @@ class NowAndQueueTests(SummaryCase):
 
     def test_confidential_document_summary_is_private(self):
         secret = TranslationProject.objects.create(owner=self.user, title="Secret fictif", confidential=True)
-        self.run_summary(documents=[self.document(MODERN, project=secret)])
+        document = self.document(MODERN, project=secret)
+        (job,) = S.prepare(self.user, documents=[document])
+        self.assertIn("Projet confidentiel", " ".join(S.problems(job)))  # IA en ligne refusée
+        with self.assertRaises(services.TranslationUnavailable):
+            services.confirm(job, self.user)
+        self.assertEqual(self.stub.prompts, [])
+        # par l'IA locale : permis ; le résumé reste privé
+        with mock.patch("apps.ai.local.service_problem", return_value=""):
+            TranslationPreference.objects.filter(user=self.user).update(summary_provider="ollama",
+                                                                        summary_model="qwen3:4b")
+            self.run_summary(documents=[document])
         summary = Summary.objects.get()
+        self.assertEqual(summary.provider, "ollama")
         self.assertEqual(self.client.get(f"/traduction/resumes/{summary.pk}/").status_code, 200)
         self.client.force_login(self.admin)
         self.assertEqual(self.client.get(f"/traduction/resumes/{summary.pk}/").status_code, 403)
@@ -424,3 +435,136 @@ def _at(day, hour, minute=0):
     from datetime import datetime
 
     return timezone.make_aware(datetime(2026, 11, 16 + day, hour, minute), timezone.get_current_timezone())
+
+
+class FakeOllama:
+    """Faux service Ollama : /api/version, /api/tags, /api/pull (en flux), /api/delete."""
+
+    def __init__(self, models=()):
+        self.models, self.pulls, self.cut_pull = list(models), [], False
+
+    def __call__(self, request):
+        import httpx
+
+        path = request.url.path
+        if path == "/api/version":
+            return httpx.Response(200, json={"version": "0.30.9"})
+        if path == "/api/tags":
+            return httpx.Response(200, json={"models": [{"name": m, "size": 2_500_000_000} for m in self.models]})
+        if path == "/api/pull":
+            model = json.loads(request.content)["model"]
+            self.pulls.append(model)
+            lines = [{"status": "pulling manifest"}, {"status": "pulling abc", "total": 100, "completed": 40}]
+            if self.cut_pull:
+                self.cut_pull = False
+                lines.append({"error": "connexion coupée (simulation)"})
+            else:
+                lines += [{"status": "pulling abc", "total": 100, "completed": 100}, {"status": "success"}]
+                self.models.append(model)
+            return httpx.Response(200, content="\n".join(json.dumps(x) for x in lines).encode())
+        if path == "/api/delete":
+            self.models.remove(json.loads(request.content)["model"])
+            return httpx.Response(200)
+        return httpx.Response(404)
+
+
+class LocalAITests(AppTestCase):
+    def setUp(self):
+        import os
+
+        import httpx
+
+        super().setUp()
+        self.fake = FakeOllama()
+        overrides = self.settings(OLLAMA_URL="http://ollama:11434", OLLAMA_TRANSPORT=httpx.MockTransport(self.fake))
+        overrides.enable()
+        self.addCleanup(overrides.disable)
+        env = mock.patch.dict(os.environ, {"COMPOSE_PROFILES": "argos,ollama"})
+        env.start()
+        self.addCleanup(env.stop)
+        self.client.force_login(self.admin)
+
+    def test_not_installed_when_profile_absent(self):
+        import os
+
+        from apps.ai import local
+        from apps.core.health import check_local_ai
+
+        with mock.patch.dict(os.environ, {"COMPOSE_PROFILES": "argos"}):
+            self.assertEqual(local.base_url(), "")
+            self.assertIsNone(check_local_ai())
+            page = self.client.get("/traduction/moteurs/locaux/").content.decode()
+            self.assertIn("Non installée", page)
+            self.assertIn("COMPOSE_PROFILES=argos,ollama", page)
+
+    def test_install_is_tracked_then_tested(self):
+        from apps.ai import local
+        from apps.core.health import check_local_ai
+
+        page = self.client.get("/traduction/moteurs/locaux/").content.decode()
+        self.assertIn("En service", page)
+        self.assertIn("télécharger 2,5 Go depuis Internet", page)
+        self.assertEqual(check_local_ai().summary, "En service, mais aucun modèle installé")
+        self.client.post("/traduction/moteurs/locaux/ia/installer/", {"model": "qwen3:4b"})
+        self.assertEqual(self.fake.pulls, [])  # sans confirmation : rien n'est téléchargé
+        self.client.post("/traduction/moteurs/locaux/ia/installer/", {"model": "inconnu:1b", "confirm": "1"})
+        self.assertEqual(self.fake.pulls, [])
+        stub = StubProvider()
+        with mock.patch("apps.ai.providers.get_provider", return_value=stub):
+            self.client.post("/traduction/moteurs/locaux/ia/installer/", {"model": "qwen3:4b", "confirm": "1"})
+        job = TranslationJob.objects.get(kind="package")
+        self.assertEqual((job.status, job.ai_model), ("done", "qwen3:4b"))
+        self.assertEqual(job.items.get().error_message, "Modèle qwen3:4b installé.")
+        self.assertEqual(self.fake.pulls, ["qwen3:4b"])
+        check = local.last_selftest()
+        self.assertTrue(check.ok)
+        self.assertEqual(check.data["summary"], "Résumé fictif n° 1.")
+        self.assertIn("/no_think", stub.prompts[0])
+        self.assertTrue(Notification.objects.filter(recipient=self.admin, title__startswith="Terminé : IA locale")
+                        .exists())
+        self.assertEqual(check_local_ai().summary, "Prête")
+        page = self.client.get("/traduction/moteurs/locaux/").content.decode()
+        self.assertIn("résumé d'un texte fictif", page)
+
+    def test_cut_download_is_resumed(self):
+        from apps.translation import argos_packages as A
+
+        self.fake.cut_pull = True
+        with mock.patch("apps.ai.providers.get_provider", return_value=StubProvider()):
+            self.client.post("/traduction/moteurs/locaux/ia/installer/", {"model": "qwen3:1.7b", "confirm": "1"})
+            job = TranslationJob.objects.get(kind="package")
+            self.assertEqual(job.status, "failed")
+            self.assertIn("connexion coupée", job.items.get().error_message)
+            A.relaunch(job)
+        job.refresh_from_db()
+        self.assertEqual(job.status, "done")
+        self.assertEqual(self.fake.pulls, ["qwen3:1.7b", "qwen3:1.7b"])
+
+    def test_researcher_cannot_install_and_remove_needs_confirmation(self):
+        self.fake.models = ["qwen3:4b"]
+        self.client.post("/traduction/moteurs/locaux/ia/supprimer/", {"model": "qwen3:4b"})
+        self.assertEqual(self.fake.models, ["qwen3:4b"])
+        self.client.post("/traduction/moteurs/locaux/ia/supprimer/", {"model": "qwen3:4b", "confirm": "1"})
+        self.assertEqual(self.fake.models, [])
+        self.client.force_login(self.researcher)
+        response = self.client.post("/traduction/moteurs/locaux/ia/installer/", {"model": "qwen3:4b", "confirm": "1"})
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(self.fake.pulls, [])
+
+    def test_picker_and_providers_page(self):
+        self.fake.models = ["qwen3:4b"]
+        page = self.client.get("/ia/modeles/choix/", {"provider_field": "summary_provider", "model_field": "summary_model",
+                                               "summary_provider": "ollama"}).content.decode()
+        self.assertIn("qwen3:4b", page)
+        self.assertIn("gratuit, sur cet ordinateur", page)
+        self.assertNotIn("IA locale (Ollama", self.client.get("/ia/fournisseurs/").content.decode())
+
+    def test_local_summary_is_free_and_smaller_parts(self):
+        from apps.translation import terms
+
+        self.fake.models = ["qwen3:4b"]
+        self.assertEqual(S.part_size("ollama"), 3000)
+        est = S.estimate("ollama", "qwen3:4b", ["架空" * 2000], "court")
+        self.assertEqual(est["amount"], Decimal("0"))
+        self.assertGreaterEqual(est["calls"], 3)
+        self.assertIsNone(terms.needed(self.admin, "ai", "ollama"))

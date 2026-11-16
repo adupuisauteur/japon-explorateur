@@ -25,7 +25,91 @@ def local_engines(request):
         "running": any(j.status in ("confirmed", "running") and not A.is_stale(j) for j in jobs),
         "invite": A.invite(request.user, health, problem), "memory_warning": A.memory_warning(health),
         "selftest": ServiceCheck.objects.filter(name=CHECK_NAME).first(),
+        **_local_ai_context(),
     })
+
+
+def _local_ai_context():
+    """2.0.0 (lot 4, U8) : IA locale facultative (Ollama) pour les résumés et la traduction par IA."""
+    from apps.ai import local
+
+    configured = bool(local.base_url())
+    state, problem = local.health() if configured else (None, "")
+    names = local.installed(state) if state else []
+    sizes = {m["name"]: m["size"] for m in (state or {}).get("models", [])}
+    catalogue = [{**m, "installed": m["model"] in names} for m in local.CATALOGUE]
+    others = [{"model": n, "bytes": sizes.get(n, 0)} for n in names if n not in [m["model"] for m in local.CATALOGUE]]
+    return {"ollama": {"configured": configured, "state": state, "problem": problem, "catalogue": catalogue,
+                       "others": others, "installed": names, "selftest": local.last_selftest()}}
+
+
+def _model_from(request):
+    from apps.ai import local
+
+    model = request.POST.get("model", "")
+    if local.entry(model) is None and model not in local.installed():
+        messages.error(request, "Modèle inconnu.")
+        return None
+    return model
+
+
+@admin_required
+@require_POST
+def ollama_install(request):
+    """Téléchargement d'un modèle choisi dans la courte liste, après affichage de sa taille et confirmation."""
+    from apps.ai import local
+
+    model = _model_from(request)
+    back = reverse("translation:local_engines") + "#ia-locale"
+    if model is None:
+        return redirect(back)
+    item = local.entry(model)
+    if not request.POST.get("confirm"):
+        messages.error(request, f"Cochez la case de confirmation : le modèle {model} ({item['size'] if item else '?'})"
+                                " sera téléchargé depuis Internet.")
+        return redirect(back)
+    try:
+        job = local.prepare_install(request.user, model)
+    except local.LocalAIError as exc:
+        messages.error(request, str(exc))
+        return redirect(back)
+    log_action(request, "ai.local_model_download", job, job.scope_label)
+    A.dispatch(job)
+    messages.success(request, "Téléchargement lancé : suivez la progression dans « Installations récentes ». Un "
+                              "résumé d'essai sera fait à la fin ; vous pouvez continuer à travailler en attendant.")
+    return redirect(reverse("translation:local_engines") + "#argos-jobs")
+
+
+@admin_required
+@require_POST
+def ollama_test(request):
+    from apps.ai import local
+
+    model = _model_from(request)
+    if model is not None:
+        check = local.run_selftest(request.user, model)
+        (messages.success if check.ok else messages.error)(request, check.message)
+    return redirect(reverse("translation:local_engines") + "#ia-locale")
+
+
+@admin_required
+@require_POST
+def ollama_remove(request):
+    """Suppression d'un modèle installé (sur confirmation) : libère la place sur le disque, rien d'autre."""
+    from apps.ai import local
+
+    model = _model_from(request)
+    if model is not None:
+        if not request.POST.get("confirm"):
+            messages.error(request, "Cochez la case de confirmation pour supprimer ce modèle.")
+        else:
+            try:
+                local.remove(model)
+                log_action(request, "ai.local_model_removed", None, model)
+                messages.success(request, f"Modèle {model} supprimé de l'IA locale.")
+            except (RuntimeError, Exception) as exc:  # noqa: BLE001 — erreur du service affichée telle quelle
+                messages.error(request, f"Suppression impossible : {exc}")
+    return redirect(reverse("translation:local_engines") + "#ia-locale")
 
 
 @admin_required

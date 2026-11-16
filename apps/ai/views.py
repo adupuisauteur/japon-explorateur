@@ -326,7 +326,7 @@ def _picker_context(request, data, *, error=""):
     ctx["credential"] = cred if cred and cred.is_configured else None
     if ctx["credential"] is None:
         return ctx
-    label = _price_labels(provider)
+    label = (lambda model_id: "gratuit, sur cet ordinateur") if provider == "ollama" else _price_labels(provider)
     ids = text_models(provider, cred.available_models)
     ctx["models"] = [{"id": m, "price": label(m)} for m in ids]
     ctx["listed"] = current in ids
@@ -347,6 +347,8 @@ def model_refresh(request):
     """« Actualiser la liste » : interroge le fournisseur avec la clé de l'utilisateur, sur son action seulement."""
     provider = request.POST.get(request.POST.get("provider_field", ""), "")
     error = ""
+    if provider == "ollama":  # 2.0.0 (lot 4) : la liste vient du service local (relue par _picker_context)
+        return render(request, "ai/_model_picker.html", _picker_context(request, request.POST))
     cred = AIProviderCredential.objects.filter(user=request.user, provider=provider).first()
     if cred is not None and cred.is_configured:
         try:

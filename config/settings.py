@@ -175,7 +175,6 @@ AI_ALLOWED_LOCAL_URLS = env.list("AI_ALLOWED_LOCAL_URLS", default=[])
 # l'interface ; délai d'un résumé (calcul sur le processeur) et d'un téléchargement de modèle.
 OLLAMA_URL = env.str("OLLAMA_URL", default="")
 OLLAMA_TIMEOUT = env.int("OLLAMA_TIMEOUT", default=900)
-OLLAMA_PULL_TIMEOUT = env.int("OLLAMA_PULL_TIMEOUT", default=3600)
 
 # Police japonaise pour les PDF (TrueType). Si absente, police CID intégrée à ReportLab.
 PDF_JAPANESE_FONT = env("PDF_JAPANESE_FONT", default="")
