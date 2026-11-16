@@ -5,6 +5,14 @@
 Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquette `v1.3.0-rc3` (commit
 `d7296d4`). Audit et plan : `docs/evolution-2.0.0/01-audit.md`.
 
+- **Lot 9 — performances, étape 1** (16 novembre 2026, rapport : `docs/evolution-2.0.0/rapport-lot-9.md`) :
+  - commande `manage.py mesurer_performances` : recherche (libre, titre, auteur), doublons, calcul de la
+    consommation et pages principales, mesurés sur 50 000 notices fictives dans une base temporaire supprimée
+    ensuite, puis recherches en lecture seule sur les données réelles (transaction annulée) ; durée médiane et
+    nombre de requêtes ; sortie texte ou `--json` ; section « Mesurer la rapidité » dans l'aide ;
+  - page **Consommation** : nombre de requêtes fixe (six au plus), quel que soit le nombre de tâches du mois (avant :
+    deux à trois par tâche) ; résultats identiques, vérifiés par un test qui compare avec l'ancien calcul ;
+  - test parfois instable (recherche rapide) : diagnostic complet en cas d'échec, pour en trouver la cause.
 - **Lot 6 — aide intégrée, historique des versions, logo** (16 novembre 2026, rapport :
   `docs/evolution-2.0.0/rapport-lot-6.md`) :
   - aide intégrée : 30 pages courtes orientées tâches dans `docs/aide/*.md` (une seule source), en six rubriques ;

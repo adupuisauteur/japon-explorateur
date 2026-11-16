@@ -58,9 +58,19 @@ class PlatformTests(AppTestCase):
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "Interrogation des sources")
         session_url = r.redirect_chain[-1][0]
-        self.client.post(session_url + "source/local/")
+        posted = self.client.post(session_url + "source/local/")
         results = self.client.get(session_url + "resultats/")
-        self.assertContains(results, "葉隠")
+        if "葉隠" not in results.content.decode():  # 2.0.0, lot 9 : test parfois instable, on garde la cause
+            from apps.catalog.models import Catalogue
+            from apps.searching.models import SearchSession
+
+            session = SearchSession.objects.order_by("-pk").first()
+            self.fail("Résultat local absent. Diagnostic : "
+                      f"POST source → {posted.status_code} ; GET résultats → {results.status_code} ; "
+                      f"sources={getattr(session, 'sources', None)} ; stats={getattr(session, 'source_stats', None)} ; "
+                      f"résultats en base={session.results.count() if session else None} ; "
+                      f"notices={list(Record.objects.values_list('original_title', 'record_status'))} ; "
+                      f"catalogues={list(Catalogue.objects.values_list('code', 'status', 'enabled_for_search'))}")
 
     def test_pwa_manifest_and_service_worker(self):
         m = self.client.get("/manifest.webmanifest").json()

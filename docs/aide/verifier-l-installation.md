@@ -54,3 +54,17 @@ ni texte de recherche ou de traduction : vous pouvez le transmettre tel quel.
 
 Options : `-AvecSources` (une recherche d'essai par source, sur Internet), `-AvecTests` (la suite de tests
 automatiques, 3 à 10 minutes).
+
+## Mesurer la rapidité
+
+Si J-ed vous paraît lent, une commande mesure la recherche, la détection des doublons et les pages principales. Dans
+PowerShell, depuis le dossier de J-ed :
+
+```
+docker compose exec web python manage.py mesurer_performances
+```
+
+Elle crée une **base temporaire** remplie de 50 000 notices fictives, mesure, puis supprime cette base (comptez
+quelques minutes). Sur vos propres données, elle ne fait que des recherches en lecture seule. Le résultat donne,
+pour chaque mesure, la durée en millisecondes et le nombre de requêtes à la base. Option `--notices 10000` pour un
+essai plus court.

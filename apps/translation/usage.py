@@ -81,33 +81,71 @@ def _add(target, costs):
 
 
 def monthly_usage(user, month):
-    """Lignes par moteur pour le mois `month` (date du 1er), totaux par devise, détail des tâches."""
+    """Lignes par moteur pour le mois `month` (date du 1er), totaux par devise, détail des tâches.
+
+    2.0.0 (lot 9) : un nombre fixe de requêtes, quel que soit le nombre de tâches (auparavant deux ou trois par
+    tâche : 903 requêtes et 1,4 s pour 300 tâches). Mêmes chiffres qu'avant (test de comparaison).
+    """
+    from apps.ai.models import AITask
+
+    from .models import TranslationJobItem
+
     start, end = month_bounds(month.year, month.month)
-    jobs = (TranslationJob.objects.filter(user=user, status__in=SPENDING_STATUSES, created_at__gte=start,
-                                          created_at__lt=end)
-            .exclude(kind="package").select_related("project").order_by("created_at"))
+    jobs = list(TranslationJob.objects.filter(user=user, status__in=SPENDING_STATUSES, created_at__gte=start,
+                                              created_at__lt=end)
+                .exclude(kind="package").select_related("project").order_by("created_at"))
+    ids = [j.pk for j in jobs]
+    # Éléments traduits : nombre, versions simulées et coûts, en une requête
+    per_job = {pk: {"done": 0, "simulated": 0, "costs": {}} for pk in ids}
+    done_items = (TranslationJobItem.objects.filter(job_id__in=ids, status="done")
+                  .values_list("job_id", "version_id", "version__cost_estimate", "version__currency",
+                               "version__simulated", "editorial_id", "editorial__data"))
+    for job_id, version_id, v_cost, v_currency, v_simulated, editorial_id, e_data in done_items:
+        entry = per_job[job_id]
+        entry["done"] += 1
+        if version_id and v_simulated:
+            entry["simulated"] += 1
+        amount, currency = None, ""
+        if version_id:
+            amount, currency = v_cost, v_currency
+        elif editorial_id:
+            data = e_data or {}
+            if data.get("cost_estimate") not in (None, ""):
+                amount, currency = Decimal(str(data["cost_estimate"])), data.get("currency", "")
+        if amount is not None:
+            key = currency or "?"
+            entry["costs"][key] = entry["costs"].get(key, Decimal("0")) + amount
+    # Jetons des IA : chaque tâche IA comptée une fois par tâche de traduction, en une requête
+    ai_ids = [j.pk for j in jobs if j.engine == "ai"]
+    tokens, seen = {}, set()
+    if ai_ids:
+        rows = (AITask.objects.filter(translation_job_items__job_id__in=ai_ids)
+                .values_list("pk", "translation_job_items__job_id", "tokens_in", "tokens_out"))
+        for task_id, job_id, t_in, t_out in rows:
+            if (task_id, job_id) in seen:
+                continue
+            seen.add((task_id, job_id))
+            got = tokens.setdefault(job_id, [0, 0])
+            got[0] += t_in or 0
+            got[1] += t_out or 0
     rows, detail, totals = OrderedDict(), [], {}
     for job in jobs:
         key, label, code = engine_key(job)
         row = rows.setdefault(key, {"label": label, "code": code, "jobs": 0, "chars": 0, "translations": 0,
                                     "simulated": 0, "costs": {}, "tokens_in": 0, "tokens_out": 0})
-        costs = job_cost(job)
-        done = job.items.filter(status="done").count()
-        simulated = job.items.filter(status="done", version__simulated=True).count()
+        entry = per_job[job.pk]
+        costs = entry["costs"]
         row["jobs"] += 1
         row["chars"] += job.chars_sent
-        row["translations"] += done
-        row["simulated"] += simulated
+        row["translations"] += entry["done"]
+        row["simulated"] += entry["simulated"]
         _add(row["costs"], costs)
         _add(totals, costs)
         if code == "ai":
-            from apps.ai.models import AITask
-
-            agg = AITask.objects.filter(translation_job_items__job=job).distinct().aggregate(
-                i=Sum("tokens_in"), o=Sum("tokens_out"))
-            row["tokens_in"] += agg["i"] or 0
-            row["tokens_out"] += agg["o"] or 0
-        detail.append({"job": job, "label": label, "costs": costs, "done": done})
+            t_in, t_out = tokens.get(job.pk, (0, 0))
+            row["tokens_in"] += t_in
+            row["tokens_out"] += t_out
+        detail.append({"job": job, "label": label, "costs": costs, "done": entry["done"]})
     legacy = _legacy_ai(user, start, end)
     if legacy["tasks"]:
         _add(totals, legacy["costs"])

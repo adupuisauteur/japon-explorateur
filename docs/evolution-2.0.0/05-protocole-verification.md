@@ -408,6 +408,20 @@ Après la mise à jour :
 **V6-8 — Guide d'utilisation.** Ouvre `docs/guide-utilisation.html` dans le navigateur : sommaire, toutes les pages
 de l'aide. Imprimer → Enregistrer au format PDF donne le guide en PDF.
 
+## Lot 9 — performances (étape 1 : mesure)
+
+Sur l'essai mis à jour avec l'archive `lot9-etape1`.
+
+**V9-1 — Mesure.** Dans PowerShell, depuis `C:\J-ed` :
+`docker compose exec web python manage.py mesurer_performances`. Attendu : quelques minutes, puis deux tableaux
+(« Base temporaire : 50000 notices fictives » et « Vos données (lecture seule) »), et la ligne « Base temporaire …
+supprimée ». Copie le résultat complet dans ta réponse.
+
+**V9-2 — Rien n'a changé.** Après la mesure : même nombre de notices dans la Bibliothèque et dans Sources, aucune
+nouvelle notice « fictif », aucun utilisateur « mesure-fictif » dans Administration → Utilisateurs.
+
+**V9-3 — Page Consommation.** Traduction → Consommation : mêmes totaux qu'avant la mise à jour pour le mois en cours.
+
 ## Grille de résultats
 
 | Vérification | Résultat | Remarque |
@@ -477,3 +491,6 @@ de l'aide. Imprimer → Enregistrer au format PDF donne le guide en PDF.
 | V6-6 Logo | | |
 | V6-7 Logo dans les exports | | |
 | V6-8 Guide d'utilisation | | |
+| V9-1 Mesure des performances | | résultat joint |
+| V9-2 Rien n'a changé | | |
+| V9-3 Page Consommation | | |

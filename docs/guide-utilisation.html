@@ -990,7 +990,15 @@ powershell -ExecutionPolicy Bypass -File .\verifier-j-ed.ps1</code></p>
 <p>Un rapport <code>verification-j-ed-….txt</code> est enregistré dans le dossier parent. Il ne contient ni clé, ni nom de compte,
 ni texte de recherche ou de traduction : vous pouvez le transmettre tel quel.</p>
 <p>Options : <code>-AvecSources</code> (une recherche d'essai par source, sur Internet), <code>-AvecTests</code> (la suite de tests
-automatiques, 3 à 10 minutes).</p></section><section id='depannage-apres-mise-a-jour'><h2>Dépannage après une mise à jour <span class='badge'>administrateur</span></h2><p class=lead>Les problèmes les plus courants après une mise à jour, et leur solution.</p><p>Commencez toujours par <a href="#verifier-l-installation">Vérifier l'installation</a> : la page « État » et
+automatiques, 3 à 10 minutes).</p>
+<h3 id="verifier-l-installation--mesurer-la-rapidite">Mesurer la rapidité</h3>
+<p>Si J-ed vous paraît lent, une commande mesure la recherche, la détection des doublons et les pages principales. Dans
+PowerShell, depuis le dossier de J-ed :</p>
+<p><code>docker compose exec web python manage.py mesurer_performances</code></p>
+<p>Elle crée une <strong>base temporaire</strong> remplie de 50 000 notices fictives, mesure, puis supprime cette base (comptez
+quelques minutes). Sur vos propres données, elle ne fait que des recherches en lecture seule. Le résultat donne,
+pour chaque mesure, la durée en millisecondes et le nombre de requêtes à la base. Option <code>--notices 10000</code> pour un
+essai plus court.</p></section><section id='depannage-apres-mise-a-jour'><h2>Dépannage après une mise à jour <span class='badge'>administrateur</span></h2><p class=lead>Les problèmes les plus courants après une mise à jour, et leur solution.</p><p>Commencez toujours par <a href="#verifier-l-installation">Vérifier l'installation</a> : la page « État » et
 <code>verifier-j-ed.ps1</code> disent le plus souvent ce qui ne va pas.</p>
 <table>
 <thead>
