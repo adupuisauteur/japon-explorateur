@@ -395,19 +395,35 @@ def check_sources(ctx):
     from apps.catalog.models import Catalogue
     from apps.connectors.registry import get_connector
 
-    details, failures = [], 0
+    from apps.connectors.base import ConnectorNotConfigured
+
+    details, failures, tested, offline = [], 0, 0, []
     for catalogue in Catalogue.objects.filter(enabled_for_search=True).exclude(code="local").order_by("name"):
         try:
             ok, message, _data = get_connector(catalogue).test()
+        except ConnectorNotConfigured as exc:
+            # 16 novembre 2026 : une source sans connecteur en ligne (import de fichiers, « à étudier ») n'est pas
+            # une source qui ne répond pas ; elle est citée à part, sans compter comme échec. Une source mal réglée
+            # (Japan Search sans base) est signalée, elle.
+            if "import de fichiers uniquement" in str(exc):
+                offline.append(catalogue.name)
+            else:
+                tested += 1
+                failures += 1
+                details.append(f"{catalogue.name} : À RÉGLER — {str(exc)[:220]}")
+            continue
         except Exception as exc:  # noqa: BLE001 — affiché tel quel
             ok, message = False, f"{exc.__class__.__name__} : {exc}"
+        tested += 1
         failures += 0 if ok else 1
         details.append(f"{catalogue.name} : {'répond' if ok else 'ÉCHEC'} — {str(message)[:150]}")
-    if not details:
-        return SKIPPED, "Aucune source en ligne activée pour la recherche", []
+    if offline:
+        details.append("Sans interrogation en ligne (import de fichiers ou source à étudier) : " + ", ".join(offline))
+    if not tested:
+        return SKIPPED, "Aucune source en ligne activée pour la recherche", details
     if failures:
-        return WARNING, f"{failures} source(s) sur {len(details)} ne répondent pas", details
-    return OK, f"{len(details)} source(s) en ligne répondent", details
+        return WARNING, f"{failures} source(s) sur {tested} ne répondent pas", details
+    return OK, f"{tested} source(s) en ligne répondent", details
 
 
 #: (clé, libellé, fonction, prérequis) — prérequis : "comptes" (comptes fictifs), "notice" (notice fictive),

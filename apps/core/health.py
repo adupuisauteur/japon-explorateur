@@ -225,7 +225,9 @@ def check_local_ai():
         return Check("ia_locale", label, WARNING, "En service, mais aucun modèle installé",
                      details + ["Choisissez un modèle : Traduction → Moteurs locaux, section « IA locale »."])
     if selftest and not selftest.ok:
-        return Check("ia_locale", label, ERROR, "Résumé d'essai en échec", details)
+        return Check("ia_locale", label, ERROR, "Résumé d'essai en échec",
+                     details + ["Relancez l'essai : Traduction → Moteurs locaux, section « IA locale », bouton « Essai » "
+                                "(il est aussi refait automatiquement au prochain démarrage de J-ed)."])
     return Check("ia_locale", label, OK if selftest else UNKNOWN,
                  "Prête" if selftest else "En service ; résumé d'essai non encore fait", details)
 

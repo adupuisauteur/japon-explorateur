@@ -245,3 +245,34 @@ def last_selftest():
     from apps.core.models import ServiceCheck
 
     return ServiceCheck.objects.filter(name=CHECK_NAME).first()
+
+
+AUTO_ATTEMPTS = 5
+
+
+def auto_selftest(attempt=1):
+    """Essai automatique après un démarrage (16 novembre 2026 : un essai en échec, fait avant un correctif, restait
+    affiché « en échec » alors que l'IA locale fonctionnait). Rien si l'IA locale n'est pas installée, n'a aucun
+    modèle, ou si le dernier essai a réussi avec un modèle toujours installé. Retourne « fait », « inutile »,
+    « attente » ou « abandon »."""
+    from apps.accounts.models import User
+
+    if not base_url():
+        return "inutile"
+    state, _problem = health()
+    if state is None:
+        return "attente" if attempt < AUTO_ATTEMPTS else "abandon"
+    names = installed(state)
+    if not names:
+        return "inutile"
+    last = last_selftest()
+    model = (last.data or {}).get("model") if last else None
+    if last and last.ok and model in names:
+        return "inutile"
+    if model not in names:
+        model = next((m["model"] for m in CATALOGUE if m["model"] in names), names[0])
+    admin = User.objects.filter(role=User.ROLE_ADMIN, is_active=True).order_by("pk").first()
+    if admin is None:
+        return "inutile"
+    run_selftest(admin, model)
+    return "fait"

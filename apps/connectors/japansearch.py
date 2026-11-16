@@ -16,7 +16,7 @@ réponses illisibles classées comme telles.
 """
 import time
 
-from .base import BaseConnector, ConnectorError, ConnectorResult, SearchResponse
+from .base import BaseConnector, ConnectorError, ConnectorNotConfigured, ConnectorResult, SearchResponse
 from .http import ConnectorHTTP, format_error
 from .registry import register
 
@@ -173,9 +173,17 @@ class JapanSearchConnector(BaseConnector):
     }
 
     def search(self, query):
+        database = self.config.get("database") or None
+        if database is None and self.catalogue.code != "japansearch":
+            # 16 novembre 2026 (-AvecSources sur le poste de l'utilisateur) : « Waseda » relié à Japan Search sans
+            # identifiant de base renvoyait tout le portail (87 797 résultats, les mêmes que Japan Search).
+            raise ConnectorNotConfigured(
+                f"« {self.catalogue.name} » passe par Japan Search sans identifiant de base : elle renverrait tout le "
+                "portail. Choisissez sa base (Sources → Japan Search → « Trouver une base Japan Search »), "
+                "ou rendez-la au mode « import de fichiers ».")
         started = time.monotonic()
         http = ConnectorHTTP(self.catalogue)
-        payload = jpsearch_query(http, self.config, query, database=self.config.get("database") or None)
+        payload = jpsearch_query(http, self.config, query, database=database)
         results, warnings = parse_payload(payload)
         total = payload.get("hit") if isinstance(payload.get("hit"), int) else None
         return SearchResponse(results=results, total=total, page=query.page, warnings=warnings,

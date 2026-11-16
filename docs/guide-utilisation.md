@@ -254,6 +254,8 @@ dernier essai. **Tester** lance une recherche d'essai. Un connecteur n'est prés
 essai réel réussi.
 
 **Japan Search → bases** : la liste des bases du portail, à ajouter une par une comme sources.
+Une source qui passe par Japan Search doit avoir sa base choisie : sans elle, J-ed refuse de l'interroger,
+car elle renverrait tout le portail.
 
 ### Mettre à jour les notices
 

@@ -19,5 +19,7 @@ def schedule_argos_selftest(sender=None, **kwargs):
 
     try:
         app.send_task("apps.translation.tasks.auto_argos_selftest", countdown=settings.ARGOS_AUTO_SELFTEST_DELAY)
+        # 2.0.0 (lot 6) : même chose pour l'IA locale (rien si elle n'est pas installée ou déjà essayée avec succès)
+        app.send_task("apps.translation.tasks.auto_local_ai_selftest", countdown=settings.ARGOS_AUTO_SELFTEST_DELAY)
     except Exception:  # noqa: BLE001 — le planificateur démarre quand même ; l'essai reste faisable à la main
-        logging.getLogger(__name__).exception("Essai automatique d'Argos non programmé")
+        logging.getLogger(__name__).exception("Essai automatique d'Argos ou de l'IA locale non programmé")

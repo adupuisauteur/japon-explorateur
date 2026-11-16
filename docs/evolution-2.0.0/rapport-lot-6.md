@@ -84,6 +84,27 @@ par la décision D11 du plan validé.
 
 Archive : `japon-explorateur-2.0.0-lot6-correctif1.zip`. Suite : 690 tests réussis.
 
+**Correctif 2 (rapports `verifier-j-ed.ps1` de 18 h 28 et 18 h 39).** La section 4 est désormais lue. Les 690 tests
+passent aussi sur ton poste (`-AvecTests`). Un seul problème restait : « IA locale : Résumé d'essai en échec ».
+Cause : le dernier résumé d'essai datait de l'installation du modèle, avant le correctif 4 du lot 4 (ancienne
+façon d'appeler Ollama). Rien ne le refaisait, alors que l'IA locale fonctionnait (tâche n° 15 réussie).
+Correction : comme pour Argos, l'essai est refait automatiquement deux minutes après le démarrage de J-ed. Il l'est
+s'il a échoué, ou si son modèle n'est plus installé ; sinon rien n'est fait. La page « État » dit aussi comment le
+relancer à la main. Deux tests ajoutés.
+
+**Rapport `-AvecSources` de 18 h 42**, traité dans le même correctif :
+- **« Nichibunken, Tōyō Bunko… : ÉCHEC — ConnectorNotConfigured ».** Cette source n'a pas de connecteur en ligne
+  (import de fichiers). Elle est désormais citée à part, sans compter comme échec.
+- **« Waseda Kotenseki Sōgō Database : répond (4 ms, 87 797 résultats) ».** C'est le même total que Japan Search,
+  servi par le cache. Waseda est relié à Japan Search sur ton installation, mais sans identifiant de base : chaque
+  recherche « dans Waseda » renvoyait en fait tout le portail. J-ed refuse maintenant d'interroger une telle source
+  et dit comment choisir sa base.
+- **« Université Kokugakuin : 0 résultat ».** Normal : la question d'essai (源氏物語) n'existe pas dans cette base.
+- **Kokusho : « aucune notice Kokusho reconnue dans l'échantillon » de Japan Search.** Constat à reprendre au lot 10
+  (documents et sources).
+
+Deux tests ajoutés (694 tests réussis). Archive : `japon-explorateur-2.0.0-lot6-correctif2.zip`.
+
 ## 5. Livrables du lot
 
 - Archive `japon-explorateur-2.0.0-lot6.zip` et son empreinte `.sha256`.

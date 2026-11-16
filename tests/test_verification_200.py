@@ -58,6 +58,23 @@ class FeatureCheckTests(TransactionTestCase):
         self.assertEqual(results["sources"].level, V.SKIPPED, "aucun appel à Internet sans --sources")
         self.assertEqual(results["taches"].level, V.SKIPPED)  # tests : tâches exécutées immédiatement
 
+    def test_sources_without_online_connector_are_not_failures(self):
+        """16 novembre 2026 (-AvecSources) : « Nichibunken, Tōyō Bunko… : ÉCHEC — ConnectorNotConfigured »."""
+        Catalogue.objects.update(enabled_for_search=False)
+        Catalogue.objects.filter(code="others").update(enabled_for_search=True)
+        ok_source = Catalogue.objects.filter(code="ndl").first()
+        Catalogue.objects.filter(pk=ok_source.pk).update(enabled_for_search=True)
+        fake = mock.Mock()
+        fake.test.return_value = (True, "La source répond (fictif).", {})
+        from apps.connectors import registry
+
+        real = registry.get_connector
+        with mock.patch.object(registry, "get_connector",
+                               side_effect=lambda c: fake if c.pk == ok_source.pk else real(c)):
+            level, summary, details = V.check_sources(None)
+        self.assertEqual((level, summary), (V.OK, "1 source(s) en ligne répondent"))
+        self.assertIn("Sans interrogation en ligne (import de fichiers ou source à étudier) : Nichibunken", details[-1])
+
     def test_a_failing_check_is_reported_and_the_others_still_run(self):
         with replaced("doublons", mock.Mock(side_effect=RuntimeError("panne fictive"))):
             results = {r.key: r for r in V.run()}
@@ -278,3 +295,20 @@ class TestIsolationTests(SimpleTestCase):
         self.assertIn("LocMemCache", settings.CACHES["default"]["BACKEND"])
         self.assertTrue(str(settings.DATA_DIR).startswith(tempfile.gettempdir()))
         self.assertTrue(str(settings.TRANSLATION_ARGOS_DEPOT_DIR).startswith(str(settings.DATA_DIR)))
+
+
+class JapanSearchWithoutDatabaseTests(TransactionTestCase):
+    """16 novembre 2026 : Waseda relié à Japan Search sans base renvoyait tout le portail."""
+
+    def test_refused_with_a_clear_message(self):
+        from apps.connectors.registry import get_connector
+
+        call_command("seed_sources", verbosity=0)
+        waseda = Catalogue.objects.get(code="waseda")
+        waseda.connector, waseda.config = "japansearch", {}
+        waseda.save()
+        ok, message, _ = get_connector(waseda).test()
+        self.assertFalse(ok)
+        self.assertIn("passe par Japan Search sans identifiant de base", message)
+        archives = Catalogue.objects.filter(connector="japansearch").exclude(code__in=["japansearch", "waseda"]).first()
+        self.assertTrue(archives.config.get("database"))  # Archives nationales : base « najda », non concernée

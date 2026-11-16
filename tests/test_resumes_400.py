@@ -782,3 +782,41 @@ class WordingTests(SummaryCase):
         self.assertIn('<td class="small">Résumé</td>', page)
         self.assertNotIn("Tâche de traduction", page)
         self.assertNotIn("traduit(s)", page)
+
+
+class LocalAutoSelftestTests(AppTestCase):
+    """16 novembre 2026 : « Résumé d'essai en échec » restait affiché, l'essai datant d'avant le correctif 4."""
+
+    def setUp(self):
+        import os
+
+        import httpx
+
+        super().setUp()
+        self.fake = FakeOllama(models=["qwen3:4b"])
+        overrides = self.settings(OLLAMA_URL="http://ollama:11434", OLLAMA_TRANSPORT=httpx.MockTransport(self.fake))
+        overrides.enable()
+        self.addCleanup(overrides.disable)
+        env = mock.patch.dict(os.environ, {"COMPOSE_PROFILES": "argos,ollama"})
+        env.start()
+        self.addCleanup(env.stop)
+
+    def test_failed_selftest_is_redone_at_startup_then_left_alone(self):
+        from apps.ai import local
+        from apps.core.models import ServiceCheck
+
+        ServiceCheck.record(local.CHECK_NAME, False, "Essai de résumé en échec : ancien format", model="qwen3:4b")
+        with mock.patch("apps.ai.providers.get_provider", return_value=StubProvider()):
+            self.assertEqual(local.auto_selftest(), "fait")
+            self.assertTrue(local.last_selftest().ok)
+            self.assertEqual(local.auto_selftest(), "inutile")  # déjà réussi avec un modèle installé
+
+    def test_nothing_without_service_or_model(self):
+        import os
+
+        from apps.ai import local
+
+        self.fake.models = []
+        self.assertEqual(local.auto_selftest(), "inutile")
+        with mock.patch.dict(os.environ, {"COMPOSE_PROFILES": "argos"}):
+            self.assertEqual(local.auto_selftest(), "inutile")

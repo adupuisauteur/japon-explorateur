@@ -372,6 +372,8 @@ class SelftestButtonAndAutoTests(ClientMixin, AppTestCase):
 
         with mock.patch.object(celery_config.app, "send_task") as send:
             celery_config.schedule_argos_selftest()
-        send.assert_called_once_with("apps.translation.tasks.auto_argos_selftest", countdown=120)
+        self.assertEqual([c.args[0] for c in send.call_args_list],  # 2.0.0 (lot 6) : IA locale aussi
+                         ["apps.translation.tasks.auto_argos_selftest", "apps.translation.tasks.auto_local_ai_selftest"])
+        self.assertTrue(all(c.kwargs == {"countdown": 120} for c in send.call_args_list))
         with mock.patch.object(celery_config.app, "send_task", side_effect=OSError("broker absent")):
             celery_config.schedule_argos_selftest()  # n'empêche jamais le planificateur de démarrer
