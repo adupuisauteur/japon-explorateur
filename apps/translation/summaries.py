@@ -545,3 +545,136 @@ def _has_variety(record):
         return record.language_variety is not None
     except RecordVariety.DoesNotExist:
         return False
+
+
+# --------------------------------------------------------------------------- 2.0.0 (lot 4b, U9) : après la traduction
+
+
+def targets_of(translation_job):
+    """Notices ou documents d'une tâche de traduction (ce qui sera résumé après elle)."""
+    from apps.catalog.models import Record
+
+    from .models import TranslationDocument
+
+    if translation_job.kind == "records":
+        ids = translation_job.items.exclude(record=None).values_list("record_id", flat=True).distinct()
+        return list(Record.objects.filter(pk__in=ids)), []
+    if translation_job.kind == "segments":
+        ids = translation_job.items.exclude(segment=None).values_list("segment__document_id", flat=True).distinct()
+        return [], list(TranslationDocument.objects.filter(pk__in=ids))
+    return [], []
+
+
+def forced_all(translation_job, provider):
+    """La nuit, Argos et l'IA locale ne tiennent pas ensemble en mémoire : résumés après l'ensemble des traductions."""
+    return translation_job.engine == "argos" and is_local(provider)
+
+
+def chain_offer(translation_job):
+    """Ce que l'écran de confirmation d'une traduction propose : « Résumer aussi »."""
+    if translation_job.kind not in ("records", "segments"):
+        return None
+    records, documents = targets_of(translation_job)
+    if not records and not documents:
+        return None
+    from .services import ensure_preference
+
+    pref = ensure_preference(translation_job.user)
+    provider, model = choice_for(translation_job.user)
+    texts = [record_text(r) for r in records] + [document_text(d)[0] for d in documents]
+    est = estimate(provider or "", model or "", texts, pref.summary_kind)
+    return {"targets": len(texts), "engine": (f"{dict(PROVIDERS).get(provider, provider)}"
+                                              f"{' — ' + model if model else ''}") if provider else "",
+            "estimate": est, "kinds": SUMMARY_KINDS, "languages": SUMMARY_LANGUAGES, "pref": pref,
+            "forced_all": forced_all(translation_job, provider or "")}
+
+
+def chain(translation_job, user, *, kind, language, mode, launch, scheduled_for=None):
+    """Prépare et confirme les résumés enchaînés à une traduction (déjà vérifiée et confirmée par l'appelant).
+
+    - nuit : tâches de nuit placées juste après la traduction (« chaque ») ou après toutes les traductions
+      (« ensemble ») ;
+    - sinon : tâches « après la traduction », lancées quand elle se termine (services._touch → start_after).
+    Retourne les tâches de résumé.
+    """
+    from . import services
+
+    records, documents = targets_of(translation_job)
+    jobs = prepare(user, records=records, documents=documents, kind=kind, language=language,
+                   launch="immediate")
+    if mode != "all" and forced_all(translation_job, jobs[0].ai_provider):
+        mode = "all"
+    for job in jobs:
+        job.options = dict(job.options, after_job=translation_job.pk, mode=mode)
+        job.save(update_fields=["options"])
+    if launch == "night":
+        services.confirm(jobs[0], user, launch="night", terms_acknowledged=True)
+        _position_after(translation_job, jobs, mode)
+    else:
+        for job in jobs:
+            job.refresh_from_db()
+            if job.status != "draft":
+                continue
+            job.launch, job.status, job.confirmed_at = "after", "scheduled", timezone.now()
+            job.save(update_fields=["launch", "status", "confirmed_at"])
+        translation_job.refresh_from_db(fields=["status"])
+        if translation_job.status in ("done", "failed", "cancelled"):  # traduction déjà finie (petite tâche)
+            start_after(translation_job)
+    return jobs
+
+
+def chain_problems(user, translation_job, kind, language):
+    """Problèmes des résumés enchaînés, vérifiés AVANT de confirmer la traduction (tout ou rien)."""
+    records, documents = targets_of(translation_job)
+    try:
+        jobs = prepare(user, records=records, documents=documents, kind=kind, language=language)
+    except SummaryUnavailable as exc:
+        return [str(exc)]
+    out = [p for j in jobs for p in problems(j)]
+    from .terms import needed
+
+    for j in jobs:
+        terms = needed(user, j.engine, j.ai_provider)
+        if terms is not None:
+            out.append(f"Résumés : lisez d'abord les conditions de {terms['name']} (un premier résumé confirmé "
+                       "à part suffit).")
+        j.delete()
+    return out
+
+
+def _position_after(translation_job, jobs, mode):
+    from .models import TranslationJob as Job
+
+    translation_job.refresh_from_db(fields=["queue_position"])
+    if mode == "all":
+        for job in jobs:
+            job.refresh_from_db()
+            job.options = dict(job.options, after_all=True)
+            job.save(update_fields=["options"])
+        return
+    base = translation_job.queue_position or 0
+    queue = Job.objects.filter(user=translation_job.user, launch="night", queue_position__gt=base).exclude(
+        pk__in=[j.pk for j in jobs])
+    for other in queue:
+        Job.objects.filter(pk=other.pk).update(queue_position=other.queue_position + len(jobs))
+    for offset, job in enumerate(jobs, start=1):
+        Job.objects.filter(pk=job.pk).update(queue_position=base + offset)
+
+
+def start_after(translation_job):
+    """Fin d'une traduction : ses résumés enchaînés partent (ou sont annulés si elle a été annulée)."""
+    from apps.notifications.services import notify
+
+    from .queue import _start
+
+    waiting = TranslationJob.objects.filter(launch="after", status="scheduled", options__after_job=translation_job.pk)
+    for job in waiting:
+        if translation_job.status == "cancelled":
+            job.status, job.finished_at = "cancelled", timezone.now()
+            job.save(update_fields=["status", "finished_at"])
+            if job.user_id:
+                notify(job.user, "task_paused", f"Résumés annulés avec la traduction : {job.scope_label}"[:200],
+                       body="La traduction à laquelle ils étaient enchaînés a été annulée.", severity="warning",
+                       group_key=f"translation:{job.pk}:chain")
+            continue
+        transaction.on_commit(lambda j=job: _start(j, timezone.now()))

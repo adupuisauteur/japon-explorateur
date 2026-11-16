@@ -106,11 +106,26 @@ def job_action(request, pk):
             launch = request.POST.get("launch", "immediate")
             if launch not in ("immediate", "now", "scheduled", "night"):
                 launch = "immediate"
+            chained = None
+            if request.POST.get("then_summary") and job.kind in ("records", "segments"):  # 2.0.0 (lot 4, U9)
+                from .. import summaries as S
+
+                chained = {"kind": request.POST.get("summary_kind", ""), "language": request.POST.get("summary_language", ""),
+                           "mode": "all" if request.POST.get("summary_mode") == "all" else "each"}
+                problems = S.chain_problems(request.user, job, chained["kind"], chained["language"])
+                if problems:  # tout ou rien : la traduction n'est pas lancée sans ses résumés
+                    raise services.TranslationUnavailable("Résumés : " + " ".join(problems))
             services.confirm(job, request.user, second_confirmation=bool(request.POST.get("second_confirmation")),
                              terms_acknowledged=bool(request.POST.get("terms_acknowledged")), launch=launch,
                              scheduled_for=_parse_when(request.POST.get("scheduled_for")))
             log_action(request, "translation.job_confirmed", job,
                        f"{services.engine_label(job)} : {job.chars_estimated} caractère(s) prévus ({job.get_launch_display()})")
+            if chained:
+                summary_jobs = S.chain(job, request.user, launch=launch, **chained)
+                log_action(request, "summary.chained", summary_jobs[0], summary_jobs[0].scope_label)
+                messages.info(request, "Résumés prévus " + ("après l'ensemble des traductions." if chained["mode"] == "all"
+                                                            or summary_jobs[0].options.get("mode") == "all"
+                                                            else "juste après cette traduction."))
             messages.success(request, {
                 "scheduled": "Traduction programmée : elle partira à l'heure prévue si J-ed est en marche.",
                 "night": "Traduction ajoutée à la file de nuit : elle partira pendant la plage choisie.",

@@ -235,7 +235,14 @@ def summary(job):
         argos_invite = invite(job.user)
     return {"engine": engine, "status": engine.status(), "counts": counts, "cost": cost,
             "quota": (setting.quota_info if setting else {}) or {}, "problems": problems,
-            "glossary": _bundle(job), "terms": _terms_needed(job), "argos_invite": argos_invite}
+            "glossary": _bundle(job), "terms": _terms_needed(job), "argos_invite": argos_invite,
+            "then_summary": _chain_offer(job)}
+
+
+def _chain_offer(job):
+    from .summaries import chain_offer
+
+    return chain_offer(job)
 
 
 def _summary_job_summary(job):
@@ -414,6 +421,10 @@ def cancel(job, user):
         raise TranslationUnavailable("Cette tâche ne peut pas être annulée.")
     job.status, job.finished_at = "cancelled", timezone.now()
     job.save(update_fields=["status", "finished_at"])
+    if job.kind in ("records", "segments"):
+        from .summaries import start_after
+
+        start_after(job)  # résumés enchaînés : annulés avec la traduction
     for other in job_siblings(job):  # 2.0.0 (lot 4) : une partie préparée ne survit pas à l'autre
         if other.status == "draft":
             other.status, other.finished_at = "cancelled", timezone.now()
@@ -504,6 +515,10 @@ def _touch(job, **fields):
         from apps.notifications.services import translation_job_ended
 
         translation_job_ended(job)
+    if fields.get("status") in ("done", "failed") and job.kind in ("records", "segments"):
+        from .summaries import start_after  # 2.0.0 (lot 4) : résumés enchaînés à cette traduction
+
+        start_after(job)
 
 
 def _next_chunk(job, engine):

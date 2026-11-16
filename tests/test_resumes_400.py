@@ -311,3 +311,116 @@ class ExportTests(SummaryCase):
         self.assertEqual((entry["origin"], entry["status"]), ("Généré par IA", "Non vérifié"))
         self.assertIn("Résumé fictif n° 1.", entry["content"])
         self.assertTrue(data["export_metadata"]["ai_summaries_included"])
+
+
+class ChainTests(SummaryCase):
+    """U9 : résumer juste après chaque traduction, ou après l'ensemble des traductions."""
+
+    def setUp(self):
+        super().setUp()
+        import httpx
+
+        from apps.translation.engines.deepl import DeepLEngine
+        from apps.translation.models import EngineSetting
+
+        from .test_translation_pipeline import DeepLStub
+
+        EngineSetting.objects.create(user=self.user, engine="deepl", plan="free", status="ok",
+                                     encrypted_key=encrypt_secret("fake-deepl-key-0000000000"))
+        DeepLEngine.transport = httpx.MockTransport(DeepLStub())
+        self.addCleanup(setattr, DeepLEngine, "transport", None)
+        from apps.translation import terms
+
+        terms.acknowledge(self.user, "deepl")
+
+    def translation_job(self, record):
+        return services.prepare_records_job(self.user, [record], ["description_original"],
+                                            choice=services.EngineChoice("deepl"))
+
+    def confirm(self, job, **extra):
+        return self.client.post(f"/traduction/taches/{job.pk}/action/", {"action": "confirm", "then_summary": "1",
+                                                                         "summary_kind": "court",
+                                                                         "summary_language": "fr", **extra})
+
+    def test_offer_on_confirmation_screen(self):
+        job = self.translation_job(self.record)
+        page = self.client.get(f"/traduction/taches/{job.pk}/").content.decode()
+        self.assertIn("Résumer aussi 1 notice(s) ou document(s) avec OpenAI", page)
+        self.assertIn("juste après chaque traduction", page)
+
+    def test_immediate_translation_then_summary(self):
+        job = self.translation_job(self.record)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.confirm(job, summary_mode="each")
+        job.refresh_from_db()
+        self.assertEqual(job.status, "done")
+        summary_job = TranslationJob.objects.get(kind="summary")
+        self.assertEqual((summary_job.status, summary_job.options["after_job"]), ("done", job.pk))
+        self.assertEqual(Summary.objects.get().record, self.record)
+
+    def test_summary_problem_blocks_everything(self):
+        TranslationPreference.objects.filter(user=self.user).update(summary_provider="anthropic",
+                                                                    summary_model="claude-fictif")
+        job = self.translation_job(self.record)
+        response = self.client.post(f"/traduction/taches/{job.pk}/action/", {
+            "action": "confirm", "then_summary": "1", "summary_kind": "court", "summary_mode": "each"}, follow=True)
+        job.refresh_from_db()
+        self.assertEqual(job.status, "draft")  # rien n'est parti
+        self.assertFalse(TranslationJob.objects.filter(kind="summary").exists())
+        self.assertContains(response, "Résumés : Aucune clé enregistrée pour Anthropic")
+
+    def test_night_each_and_all_ordering(self):
+        pref = TranslationPreference.objects.get(user=self.user)
+        pref.night_start, pref.night_end = time(22), time(7)
+        pref.save()
+        other = Record.objects.create(catalogue=self.cat, source_id="lot4-2", original_title="架空二",
+                                      description_original=MODERN)
+        first, second = self.translation_job(self.record), self.translation_job(other)
+        self.confirm(first, launch="night", summary_mode="all")
+        self.client.post(f"/traduction/taches/{second.pk}/action/", {"action": "confirm", "launch": "night"})
+        summary_job = TranslationJob.objects.get(launch="night", kind="summary")
+        self.assertTrue(summary_job.options["after_all"])
+        jobs = [None, summary_job]
+        # la nuit : les deux traductions d'abord, puis le résumé
+        started = []
+        for minute in range(4):
+            with mock.patch("django.utils.timezone.now", return_value=_at(0, 22, minute)), \
+                    self.captureOnCommitCallbacks(execute=True):
+                started += Q.clock(_at(0, 22, minute))["started"]
+        self.assertEqual(started, [first.pk, second.pk, jobs[1].pk])
+
+    def test_each_at_night_is_placed_right_after(self):
+        pref = TranslationPreference.objects.get(user=self.user)
+        pref.night_start, pref.night_end = time(22), time(7)
+        pref.save()
+        other = Record.objects.create(catalogue=self.cat, source_id="lot4-3", original_title="架空三",
+                                      description_original=MODERN)
+        first, second = self.translation_job(self.record), self.translation_job(other)
+        self.client.post(f"/traduction/taches/{first.pk}/action/", {"action": "confirm", "launch": "night"})
+        self.client.post(f"/traduction/taches/{second.pk}/action/", {"action": "confirm", "launch": "night"})
+        first.refresh_from_db()
+        S.chain(first, self.user, kind="court", language="fr", mode="each", launch="night")
+        order = list(TranslationJob.objects.filter(launch="night").order_by("queue_position")
+                     .values_list("kind", "pk"))
+        self.assertEqual([k for k, _ in order], ["records", "summary", "records"])
+        self.assertEqual(order[0][1], first.pk)
+
+    def test_local_pair_forces_all(self):
+        job = TranslationJob(engine="argos")
+        self.assertTrue(S.forced_all(job, "ollama"))
+        self.assertFalse(S.forced_all(job, "openai"))
+
+    def test_cancelled_translation_cancels_its_summaries(self):
+        job = self.translation_job(self.record)
+        services.confirm(job, self.user, launch="scheduled", scheduled_for=timezone.now() + timedelta(hours=2))
+        (summary_job,) = S.chain(job, self.user, kind="court", language="fr", mode="each", launch="scheduled")
+        self.assertEqual((summary_job.status, summary_job.launch), ("scheduled", "after"))
+        services.cancel(job, self.user)
+        summary_job.refresh_from_db()
+        self.assertEqual(summary_job.status, "cancelled")
+
+
+def _at(day, hour, minute=0):
+    from datetime import datetime
+
+    return timezone.make_aware(datetime(2026, 11, 16 + day, hour, minute), timezone.get_current_timezone())

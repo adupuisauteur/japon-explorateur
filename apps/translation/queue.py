@@ -139,9 +139,24 @@ def clock(now=None):
     now = now or timezone.now()
     report = {"started": [], "late": [], "night_reports": 0}
     _scheduled(now, report)
+    _after(now, report)
     for pref in TranslationPreference.objects.exclude(night_start=None).exclude(night_end=None).select_related("user"):
         _night(pref, now, report)
     return report
+
+
+def _after(now, report):
+    """Filet de sécurité : résumé « après la traduction » dont la traduction est déjà terminée ou annulée."""
+    from .summaries import start_after
+
+    for job in TranslationJob.objects.filter(launch="after", status="scheduled"):
+        before = TranslationJob.objects.filter(pk=(job.options or {}).get("after_job")).first()
+        if before is None or before.status in ("done", "failed", "cancelled"):
+            if before is None:
+                _start(job, now)
+            else:
+                start_after(before)
+            report["started"].append(job.pk)
 
 
 def _scheduled(now, report):
@@ -209,7 +224,10 @@ def _night(pref, now, report):
             return
     if active:
         return
-    for job in _night_jobs(user).filter(Q_waiting()).order_by("queue_position", "created_at").select_related("project"):
+    waiting = sorted(_night_jobs(user).filter(Q_waiting()).select_related("project"),
+                     # 2.0.0 (lot 4) : « résumer après l'ensemble » passe après toutes les traductions de la file
+                     key=lambda j: (bool((j.options or {}).get("after_all")), j.queue_position or 0, j.created_at))
+    for job in waiting:
         if _start(job, now):
             report["started"].append(job.pk)
             return
