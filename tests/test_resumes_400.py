@@ -568,3 +568,92 @@ class LocalAITests(AppTestCase):
         self.assertEqual(est["amount"], Decimal("0"))
         self.assertGreaterEqual(est["calls"], 3)
         self.assertIsNone(terms.needed(self.admin, "ai", "ollama"))
+
+
+class AncientTranslationTests(SummaryCase):
+    """U10 : « Pour le japonais ancien, utiliser… » — tâche mixte en deux parties, confirmées ensemble."""
+
+    def setUp(self):
+        super().setUp()
+        import httpx
+
+        from apps.translation.engines.deepl import DeepLEngine
+        from apps.translation.models import EngineSetting
+
+        from .test_translation_pipeline import DeepLStub
+
+        EngineSetting.objects.create(user=self.user, engine="deepl", plan="free", status="ok",
+                                     encrypted_key=encrypt_secret("fake-deepl-key-0000000000"))
+        self.deepl = DeepLStub()
+        DeepLEngine.transport = httpx.MockTransport(self.deepl)
+        self.addCleanup(setattr, DeepLEngine, "transport", None)
+        from apps.translation import terms
+
+        terms.acknowledge(self.user, "deepl")
+        self.old = Record.objects.create(catalogue=self.cat, source_id="lot4-old", original_title="架空物語",
+                                         description_original=BUNGO)
+
+    def prepare(self, records):
+        return services.prepare_records_job(self.user, records, ["description_original"],
+                                            choice=services.EngineChoice("deepl"))
+
+    def test_without_setting_nothing_changes(self):
+        job = self.prepare([self.record, self.old])
+        self.assertEqual((job.engine, job.total_items, services.job_siblings(job)), ("deepl", 2, []))
+
+    def test_mixed_job_has_two_parts_confirmed_together(self):
+        TranslationPreference.objects.filter(user=self.user).update(
+            ancient_engine="ai", ancient_ai_provider="openai", ancient_ai_model="gpt-fictif")
+        job = self.prepare([self.record, self.old])
+        (sister,) = services.job_siblings(job)
+        self.assertEqual((job.engine, job.total_items), ("deepl", 1))
+        self.assertEqual((sister.engine, sister.ai_provider, sister.total_items), ("ai", "openai", 1))
+        self.assertTrue(sister.options["ancient"])
+        self.assertEqual(sister.items.get().record, self.old)
+        page = self.client.get(f"/traduction/taches/{job.pk}/").content.decode()
+        self.assertIn("Tâche en deux parties", page)
+        self.assertIn("Japonais ancien</strong> : 1 élément(s), 54 caractère(s) → OpenAI — gpt-fictif", page)
+        self.assertIn("Résumer aussi 2 notice(s)", page)
+        # la partie ancienne est bloquée (pas de clé) : rien ne part, ni l'une ni l'autre
+        AIProviderCredential.objects.filter(user=self.user, provider="openai").delete()
+        with self.assertRaises(services.TranslationUnavailable):
+            services.confirm(job, self.user)
+        job.refresh_from_db()
+        self.assertEqual(job.status, "draft")
+        self.assertEqual(self.deepl.texts, [])
+
+    def test_confirmed_together_and_ai_receives_the_classical_note(self):
+        TranslationPreference.objects.filter(user=self.user).update(
+            ancient_engine="ai", ancient_ai_provider="openai", ancient_ai_model="gpt-fictif")
+        job = self.prepare([self.record, self.old])
+        (sister,) = services.job_siblings(job)
+        captured = []
+
+        def fake_translate(engine, segments, source, target, **kwargs):
+            from apps.translation.engines.base import EngineResult
+
+            captured.append(kwargs.get("variety"))
+            return EngineResult({s.id: f"Traduction fictive de {s.text}" for s in segments},
+                                chars_sent=sum(len(s.text) for s in segments), model="gpt-fictif")
+
+        with mock.patch("apps.translation.engines.ai.AIEngine.translate", autospec=True, side_effect=fake_translate):
+            services.confirm(job, self.user)
+        sister.refresh_from_db()
+        self.assertNotEqual(sister.status, "draft")
+        self.assertEqual(captured, ["classical"])
+        self.assertEqual(len(self.deepl.texts), 1)
+
+    def test_all_ancient_goes_to_the_ancient_engine(self):
+        TranslationPreference.objects.filter(user=self.user).update(
+            ancient_engine="ai", ancient_ai_provider="openai", ancient_ai_model="gpt-fictif")
+        job = self.prepare([self.old])
+        self.assertEqual((job.engine, job.options["ancient"]), ("ai", True))
+        page = self.client.get(f"/traduction/taches/{job.pk}/").content.decode()
+        self.assertIn("Tous les textes sont repérés comme anciens", page)
+
+    def test_user_correction_wins(self):
+        TranslationPreference.objects.filter(user=self.user).update(
+            ancient_engine="ai", ancient_ai_provider="openai", ancient_ai_model="gpt-fictif")
+        V.confirm_record(self.old, "modern", self.user)
+        job = self.prepare([self.record, Record.objects.get(pk=self.old.pk)])
+        self.assertEqual((job.engine, job.total_items, services.job_siblings(job)), ("deepl", 2, []))

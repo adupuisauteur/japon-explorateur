@@ -36,7 +36,7 @@ from .glossary import bundle_for as glossary_bundle_for
 from .engines.base import Segment, TranslationEngineError
 from .engines.registry import get_engine
 from .journal import record_translation_error
-from .models import (EngineSetting, TranslationJob, TranslationJobItem, TranslationPreference, TranslationSegment,
+from .models import (ENGINES, EngineSetting, TranslationJob, TranslationJobItem, TranslationPreference, TranslationSegment,
                      TranslationVersion)
 from .pricing import estimate
 
@@ -129,19 +129,31 @@ def _variety_of_segment(segment):
 
 
 def _variety_of_record(record):
-    return "kanbun" if getattr(record, "language", "") == "lzh" else "modern"
+    """2.0.0 (lot 4, U10) : langue déclarée kanbun, variété confirmée sur la fiche, sinon repérage « probable »."""
+    from .variety import variety_of_record
+
+    return variety_of_record(record)
+
+
+def _variety_of_spec(spec):
+    if spec.get("segment") is not None:
+        return _variety_of_segment(spec["segment"])
+    if spec.get("record") is not None:
+        return _variety_of_record(spec["record"])
+    return "modern"
 
 
 # --------------------------------------------------------------------------- préparation
 
 
-def prepare_segments_job(user, segments, *, project, choice=None):
+def prepare_segments_job(user, segments, *, project, choice=None, route_ancient=True):
     specs = [{"segment": s, "text": s.source_text} for s in segments]
-    return _prepare(user, "segments", specs, project=project, choice=choice,
-                    scope_label=f"{len(specs)} segment(s) — {project.title}")
+    return _prepare_routed(user, "segments", specs, project=project, choice=choice, route_ancient=route_ancient,
+                           scope_label=f"{len(specs)} segment(s) — {project.title}")
 
 
-def prepare_records_job(user, records, fields=("original_title", "description_original"), *, choice=None):
+def prepare_records_job(user, records, fields=("original_title", "description_original"), *, choice=None,
+                        route_ancient=True):
     specs = []
     for record in records:
         for field in fields:
@@ -150,8 +162,52 @@ def prepare_records_job(user, records, fields=("original_title", "description_or
             text = (getattr(record, field, "") or "").strip()
             if text:
                 specs.append({"record": record, "field": field, "text": text})
-    return _prepare(user, "records", specs, project=None, choice=choice,
-                    scope_label=f"{len(records)} notice(s), {len(specs)} champ(s)")
+    return _prepare_routed(user, "records", specs, project=None, choice=choice, route_ancient=route_ancient,
+                           scope_label=f"{len(records)} notice(s), {len(specs)} champ(s)")
+
+
+def ancient_choice(user):
+    """Moteur choisi d'avance pour le japonais ancien (Traduction → Moteurs), ou None."""
+    return EngineChoice.of(ensure_preference(user), "ancient")
+
+
+def _prepare_routed(user, kind, specs, *, project, choice, scope_label, route_ancient):
+    """2.0.0 (lot 4, U10) : textes anciens (bungo, kanbun, sōrōbun) vers le moteur choisi pour eux.
+
+    Une tâche mixte devient deux tâches sœurs, présentées ensemble et confirmées ensemble ; jamais de changement
+    de moteur silencieux (l'écran de confirmation montre les deux parties). Sans réglage, rien ne change.
+    """
+    choice = choice or resolve_choice(user, project=project)
+    ancient = ancient_choice(user) if route_ancient else None
+    if choice is None or ancient is None or ancient == choice:
+        return _prepare(user, kind, specs, project=project, choice=choice, scope_label=scope_label)
+    old = [s for s in specs if _variety_of_spec(s) != "modern"]
+    if not old:
+        return _prepare(user, kind, specs, project=project, choice=choice, scope_label=scope_label)
+    new = [s for s in specs if _variety_of_spec(s) == "modern"]
+    with transaction.atomic():
+        try:
+            old_job = _prepare(user, kind, old, project=project, choice=ancient,
+                               scope_label=f"Japonais ancien — {scope_label}")
+        except TranslationUnavailable as exc:
+            raise TranslationUnavailable(f"Japonais ancien ({engine_label_of(ancient)}) : {exc}",
+                                         reason=exc.reason) from None
+        old_job.options = dict(old_job.options or {}, ancient=True)
+        if not new:
+            old_job.save(update_fields=["options"])
+            return old_job
+        main = _prepare(user, kind, new, project=project, choice=choice, scope_label=scope_label)
+        main.options = dict(main.options or {}, sibling=old_job.pk)
+        main.save(update_fields=["options"])
+        old_job.options["sibling_of"] = main.pk
+        old_job.save(update_fields=["options"])
+    return main
+
+
+def engine_label_of(choice):
+    if choice.code == "ai":
+        return f"{dict(AI_PROVIDERS).get(choice.ai_provider, choice.ai_provider)} — {choice.ai_model}"
+    return dict(ENGINES).get(choice.code, choice.code)
 
 
 def _prepare(user, kind, specs, *, project, choice, scope_label):
@@ -233,10 +289,23 @@ def summary(job):
         from .argos_packages import invite
 
         argos_invite = invite(job.user)
+    sisters = job_siblings(job) if job.status == "draft" else []
+    parts = []
+    if sisters:  # 2.0.0 (lot 4, U10) : tâche mixte, deux parties confirmées ensemble
+        for part in [job] + sisters:
+            parts.append({"job": part, "engine": engine_label(part), "ancient": part.options.get("ancient", False),
+                          "items": part.items.filter(status="pending").count(), "chars": part.chars_estimated,
+                          "cost": part.cost_estimate, "currency": part.currency})
+            if part is not job:
+                problems = problems + [f"Partie « japonais ancien » : {p}" for p in blocking_problems(part)]
+    elif job.options.get("ancient"):
+        parts.append({"job": job, "engine": engine_label(job), "ancient": True, "items": counts["pending"],
+                      "chars": job.chars_estimated, "cost": job.cost_estimate, "currency": job.currency})
     return {"engine": engine, "status": engine.status(), "counts": counts, "cost": cost,
             "quota": (setting.quota_info if setting else {}) or {}, "problems": problems,
             "glossary": _bundle(job), "terms": _terms_needed(job), "argos_invite": argos_invite,
-            "then_summary": _chain_offer(job)}
+            "then_summary": _chain_offer(job), "parts": parts,
+            "second_needed": any(p["job"].requires_second_confirmation for p in parts)}
 
 
 def _chain_offer(job):
@@ -347,6 +416,14 @@ def confirm(job, user, *, second_confirmation=False, terms_acknowledged=False, l
         other_problems = blocking_problems(other)
         if other_problems:
             raise TranslationUnavailable("Partie « japonais ancien » : " + " ".join(other_problems), reason="blocked")
+        other_terms = T.needed(user, other.engine, other.ai_provider)
+        if other_terms is not None and not terms_acknowledged:
+            raise TranslationUnavailable(f"Premier envoi à {other_terms['name']} (japonais ancien) : lisez le résumé "
+                                         "de ses conditions d'utilisation des textes et cochez la case de prise de "
+                                         "connaissance.", reason="terms")
+        if other.requires_second_confirmation and not second_confirmation:
+            raise TranslationUnavailable("Volume important (japonais ancien) : cochez la seconde confirmation pour "
+                                         "lancer l'envoi.", reason="second_confirmation")
     job.confirmed_at = timezone.now()
     try:
         start_now = Q.place(job, launch, scheduled_for=scheduled_for)
@@ -493,13 +570,13 @@ def propose_second_engine(job, user):
     items = job.items.filter(status__in=("failed", "pending")).select_related("segment", "record")
     if job.kind == "segments":
         return prepare_segments_job(user, [i.segment for i in items if i.segment_id], project=job.project,
-                                    choice=second)
+                                    choice=second, route_ancient=False)
     records = {}
     for i in items:
         if i.record_id:
             records.setdefault(i.record, []).append(i.record_field)
     fields = sorted({f for fs in records.values() for f in fs})
-    return prepare_records_job(user, list(records), fields, choice=second)
+    return prepare_records_job(user, list(records), fields, choice=second, route_ancient=False)
 
 
 # --------------------------------------------------------------------------- exécution

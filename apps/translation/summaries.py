@@ -564,11 +564,14 @@ def targets_of(translation_job):
 
     from .models import TranslationDocument
 
-    if translation_job.kind == "records":
-        ids = translation_job.items.exclude(record=None).values_list("record_id", flat=True).distinct()
+    from .services import job_siblings
+
+    items = TranslationJobItem.objects.filter(job__in=[translation_job] + job_siblings(translation_job))
+    if translation_job.kind == "records":  # partie « japonais ancien » comprise (U10)
+        ids = items.exclude(record=None).values_list("record_id", flat=True).distinct()
         return list(Record.objects.filter(pk__in=ids)), []
     if translation_job.kind == "segments":
-        ids = translation_job.items.exclude(segment=None).values_list("segment__document_id", flat=True).distinct()
+        ids = items.exclude(segment=None).values_list("segment__document_id", flat=True).distinct()
         return [], list(TranslationDocument.objects.filter(pk__in=ids))
     return [], []
 

@@ -25,6 +25,10 @@
       {% if summary.glossary %}<dt class="col-sm-4">Glossaires</dt><dd class="col-sm-8">{% for g in summary.glossary.refs %}{{ g.name }} (v{{ g.version }}, {% if g.application == 'native' %}appliqué par DeepL{% elif g.application == 'consigne' %}termes présents ajoutés à la consigne de l'IA{% else %}contrôle local{% endif %}){% if not forloop.last %} · {% endif %}{% endfor %}
         {% for n in summary.glossary.notes %}<div class="small text-muted">{{ n|capfirst }}.</div>{% endfor %}
         <div class="small text-muted">Contrôle terminologique local après traduction : il signale les écarts sans les corriger.</div></dd>{% endif %}
+      {% if summary.parts %}<dt class="col-sm-4">Japonais ancien</dt><dd class="col-sm-8">
+        {% if summary.parts|length > 1 %}Tâche en deux parties, confirmées ensemble :<ul class="small mb-1">{% for part in summary.parts %}<li><strong>{% if part.ancient %}Japonais ancien{% else %}Japonais moderne{% endif %}</strong> : {{ part.items }} élément(s), {{ part.chars }} caractère(s) → {{ part.engine }}{% if part.cost is not None %} ({{ part.cost|floatformat:4 }} {{ part.currency }}){% endif %}</li>{% endfor %}</ul>
+        {% else %}Tous les textes sont repérés comme anciens : ils partent vers {{ summary.parts.0.engine }}, le moteur choisi pour le japonais ancien.{% endif %}
+        <div class="small text-muted">Choix fait d'avance dans Traduction → Moteurs (« Pour le japonais ancien, utiliser… »). Le repérage est « probable » tant que vous ne l'avez pas confirmé sur la fiche ; corrigez-le si besoin avant de confirmer.</div></dd>{% endif %}
       {% if summary.quota.character_limit %}<dt class="col-sm-4">Quota lu</dt><dd class="col-sm-8">{{ summary.quota.character_count }} / {{ summary.quota.character_limit }} caractères</dd>{% endif %}
       {% if job.project %}<dt class="col-sm-4">Projet</dt><dd class="col-sm-8">{{ job.project.title }}{% if job.project.confidential %} <span class="badge text-bg-dark"><i class="bi bi-lock-fill"></i> confidentiel</span>{% endif %}</dd>{% endif %}
     </dl>
@@ -37,7 +41,7 @@
     <form method="post" action="{% url 'translation:job_action' job.pk %}" class="d-flex flex-wrap gap-2 align-items-center">{% csrf_token %}
       {% if summary.terms %}<div class="form-check w-100"><input class="form-check-input" type="checkbox" name="terms_acknowledged" value="1" id="terms-ack">
         <label class="form-check-label" for="terms-ack">J'ai pris connaissance de ce résumé des conditions de {{ summary.terms.name }}.</label></div>{% endif %}
-      {% if job.requires_second_confirmation %}<div class="form-check w-100"><input class="form-check-input" type="checkbox" name="second_confirmation" value="1" id="second-confirmation">
+      {% if job.requires_second_confirmation or summary.second_needed %}<div class="form-check w-100"><input class="form-check-input" type="checkbox" name="second_confirmation" value="1" id="second-confirmation">
         <label class="form-check-label" for="second-confirmation">Je confirme l'envoi de ce volume ({{ job.chars_estimated }} caractères).</label></div>{% endif %}
       <fieldset class="w-100 mb-1"><legend class="h6 mb-1">Lancement</legend>
         {% if job.launch == 'now' %}<div class="form-check"><input class="form-check-input" type="radio" name="launch" value="now" id="launch-now" {% if default_launch == 'now' %}checked{% endif %}>

@@ -5,14 +5,6 @@ from django.conf import settings
 from django.db import migrations, models
 
 
-def back_to_known_values(apps, schema_editor):
-    """Retour arrière : les tâches de résumé sont annulées (aucune supprimée), le lancement « après » devient
-    « immédiat » ; les états et lancements restent ainsi connus de la version précédente."""
-    Job = apps.get_model("translation", "TranslationJob")
-    Job.objects.filter(kind="summary").exclude(status__in=("done", "failed", "cancelled")).update(status="cancelled")
-    Job.objects.filter(launch="after").update(launch="immediate")
-
-
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -368,5 +360,4 @@ class Migration(migrations.Migration):
                 "verbose_name": "variété de langue d'une notice",
             },
         ),
-        migrations.RunPython(migrations.RunPython.noop, back_to_known_values),
     ]
