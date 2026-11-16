@@ -119,7 +119,8 @@ def month_start():
 
 def monthly_chars(user, engine_code):
     total = (TranslationJob.objects.filter(user=user, engine=engine_code, status__in=SPENDING_STATUSES,
-                                           created_at__gte=month_start()).aggregate(s=Sum("chars_sent"))["s"])
+                                           created_at__gte=month_start()).exclude(kind="summary")
+             .aggregate(s=Sum("chars_sent"))["s"])  # 2.0.0 (lot 4) : les résumés comptent dans le budget IA
     return total or 0
 
 
@@ -213,6 +214,8 @@ def _prepare(user, kind, specs, *, project, choice, scope_label):
 
 def summary(job):
     """Ce que l'écran de confirmation affiche (rien n'a encore été envoyé)."""
+    if job.kind == "summary":  # 2.0.0 (lot 4)
+        return _summary_job_summary(job)
     items = job.items.all()
     counts = {"pending": 0, "validated": 0, "memory": 0}
     for item in items:
@@ -235,10 +238,27 @@ def summary(job):
             "glossary": _bundle(job), "terms": _terms_needed(job), "argos_invite": argos_invite}
 
 
+def _summary_job_summary(job):
+    from . import summaries as S
+
+    sisters = S.siblings(job)
+    problems = blocking_problems(job) + [p for s in sisters for p in blocking_problems(s)]
+    parts = [job] + sisters
+    return {"summary_job": True, "parts": [{"job": j, "engine": S.engine_label(j), "calls": j.options.get("calls", 0),
+                                            "cost": j.cost_estimate, "basis": j.options.get("basis", ""),
+                                            "ancient": j.options.get("ancient", False)} for j in parts],
+            "problems": problems, "terms": _terms_needed(job), "local": S.is_local(job.ai_provider)}
+
+
 def _terms_needed(job):
     from . import terms as T
 
-    return T.needed(job.user, job.engine, job.ai_provider)
+    needed = T.needed(job.user, job.engine, job.ai_provider)
+    for other in job_siblings(job) if needed is None else []:
+        needed = T.needed(other.user, other.engine, other.ai_provider)
+        if needed is not None:
+            break
+    return needed
 
 
 def blocking_problems(job, *, resuming=False):
@@ -246,6 +266,12 @@ def blocking_problems(job, *, resuming=False):
 
     En reprise, une tâche sans élément restant n'est pas bloquée : la reprise la clôt simplement.
     """
+    if job.kind == "summary":  # 2.0.0 (lot 4)
+        from .summaries import problems as summary_problems
+
+        if resuming and not job.items.filter(status="pending").exists():
+            return []
+        return summary_problems(job)
     problems = []
     user = job.user
     engine = EngineChoice.of_job(job).engine(user)
@@ -280,8 +306,15 @@ def blocking_problems(job, *, resuming=False):
 # --------------------------------------------------------------------------- confirmation et suivi
 
 
+def job_siblings(job):
+    """2.0.0 (lot 4, U10) : tâche sœur (textes anciens envoyés à un autre moteur), confirmée et annulée ensemble."""
+    pk = (job.options or {}).get("sibling")
+    other = TranslationJob.objects.filter(pk=pk, user=job.user).first() if pk else None
+    return [other] if other is not None else []
+
+
 def confirm(job, user, *, second_confirmation=False, terms_acknowledged=False, launch="immediate",
-            scheduled_for=None):
+            scheduled_for=None, _sibling=False):
     """Confirme une tâche préparée. 2.0.0 (lot 3) : lancement immédiat, « maintenant », programmé ou de nuit ;
     le coût est confirmé ici, une seule fois, quel que soit le lancement."""
     from . import queue as Q
@@ -302,6 +335,11 @@ def confirm(job, user, *, second_confirmation=False, terms_acknowledged=False, l
     if job.requires_second_confirmation and not second_confirmation:
         raise TranslationUnavailable("Volume important : cochez la seconde confirmation pour lancer l'envoi.",
                                      reason="second_confirmation")
+    others = [] if _sibling else [o for o in job_siblings(job) if o.status == "draft"]
+    for other in others:  # les deux parties partent ensemble, ou aucune
+        other_problems = blocking_problems(other)
+        if other_problems:
+            raise TranslationUnavailable("Partie « japonais ancien » : " + " ".join(other_problems), reason="blocked")
     job.confirmed_at = timezone.now()
     try:
         start_now = Q.place(job, launch, scheduled_for=scheduled_for)
@@ -311,6 +349,9 @@ def confirm(job, user, *, second_confirmation=False, terms_acknowledged=False, l
         T.acknowledge(user, pending_terms["key"])
     if start_now:
         dispatch(job)
+    for other in others:
+        confirm(other, user, second_confirmation=second_confirmation, terms_acknowledged=terms_acknowledged,
+                launch=launch, scheduled_for=scheduled_for, _sibling=True)
     return job
 
 
@@ -373,6 +414,10 @@ def cancel(job, user):
         raise TranslationUnavailable("Cette tâche ne peut pas être annulée.")
     job.status, job.finished_at = "cancelled", timezone.now()
     job.save(update_fields=["status", "finished_at"])
+    for other in job_siblings(job):  # 2.0.0 (lot 4) : une partie préparée ne survit pas à l'autre
+        if other.status == "draft":
+            other.status, other.finished_at = "cancelled", timezone.now()
+            other.save(update_fields=["status", "finished_at"])
 
 
 def is_stale(job):
@@ -692,6 +737,10 @@ def process_next_chunk(job_id):
         return False
     if job.status == "confirmed":
         _touch(job, status="running", started_at=job.started_at or timezone.now())
+    if job.kind == "summary":  # 2.0.0 (lot 4) : un appel à l'IA par passage (partie ou synthèse)
+        from .summaries import process_next
+
+        return process_next(job)
     if job.kind == "segments":
         _apply_memory(job)
     engine = EngineChoice.of_job(job).engine(job.user)
@@ -757,6 +806,10 @@ def run_job_safely(job_id):
 
 
 def engine_label(job):
+    if job.kind == "summary":
+        from .summaries import engine_label as summary_label
+
+        return summary_label(job)
     if job.engine == "ai":
         return f"{dict(AI_PROVIDERS).get(job.ai_provider, job.ai_provider)} — {job.ai_model}"
     return job.get_engine_display()
@@ -774,7 +827,16 @@ def job_report(job):
     errors = Counter((i.error_message or i.error_kind or "Erreur non précisée") for i in items if i.status == "failed")
     cost = estimate(job.engine, job.chars_sent, ai_provider=job.ai_provider, ai_model=job.ai_model)
     links = []
-    if job.kind == "records":
+    if job.kind == "summary":  # 2.0.0 (lot 4) : coût réel estimé d'après les appels faits
+        from apps.ai.models import AITask
+
+        from .summaries import report_links
+
+        spent = AITask.objects.filter(function="summary", parameters__job=job.pk).aggregate(s=Sum("cost_estimate"))["s"]
+        cost = {"amount": spent or Decimal("0"), "currency": "USD",
+                "basis": "somme des appels faits ; la facture du fournisseur fait foi"}
+        links = report_links(job)
+    elif job.kind == "records":
         records = {i.record for i in items.select_related("record") if i.record_id and i.status == "done"}
         links = [(r.original_title or r.record_id,
                   reverse("translation:record_translations", args=[r.record_id])) for r in list(records)[:20]]

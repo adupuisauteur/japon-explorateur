@@ -97,6 +97,7 @@ JOB_LAUNCHES = [
     ("now", "Maintenant (depuis une fiche)"),
     ("scheduled", "Programmé"),
     ("night", "File de nuit"),
+    ("after", "Après la traduction"),  # 2.0.0 (lot 4) : résumé enchaîné
 ]
 PAUSE_REASONS = [
     ("user", "Demande de l'utilisateur"),
@@ -108,6 +109,7 @@ JOB_KINDS = [
     ("records", "Champs de notices"),
     ("evaluation", "Comparaison sur le corpus de référence"),
     ("package", "Installation de paquets Argos"),
+    ("summary", "Résumés IA"),  # 2.0.0 (lot 4)
 ]
 ITEM_STATUS = [("pending", "En attente"), ("done", "Traduit"), ("failed", "Échec"), ("skipped", "Non envoyé")]
 
@@ -196,6 +198,23 @@ class TranslationPreference(EngineChoiceMixin):
     night_end = models.TimeField("File de nuit : fin", null=True, blank=True)
     night_window_seen = models.DateTimeField("Début de la dernière plage observée", null=True, blank=True)
     night_window_open = models.BooleanField("Plage de nuit commencée à l'heure", default=False)
+    # 2.0.0 (lot 4) : résumés (fournisseur et modèle, type et langue par défaut)
+    summary_provider = models.CharField("Résumés : fournisseur IA", max_length=30, choices=AI_PROVIDERS, blank=True)
+    summary_model = models.CharField("Résumés : modèle", max_length=120, blank=True)
+    summary_kind = models.CharField("Résumés : type par défaut", max_length=10, default="court",
+                                    choices=[("court", "Résumé court"), ("detaille", "Résumé détaillé"),
+                                             ("analyse", "Fiche d'analyse")])
+    summary_language = models.CharField("Résumés : langue par défaut", max_length=5, default="fr",
+                                        choices=[("fr", "Français"), ("en", "Anglais"), ("ja", "Japonais")])
+    # 2.0.0 (lot 4, U10) : moteur choisi d'avance pour le japonais ancien (bungo, kanbun, sōrōbun)
+    ancient_engine = models.CharField("Japonais ancien : moteur de traduction", max_length=20, choices=ENGINES,
+                                      blank=True)
+    ancient_ai_provider = models.CharField("Japonais ancien : fournisseur IA", max_length=30, choices=AI_PROVIDERS,
+                                           blank=True)
+    ancient_ai_model = models.CharField("Japonais ancien : modèle IA", max_length=120, blank=True)
+    summary_ancient_provider = models.CharField("Japonais ancien : fournisseur IA des résumés", max_length=30,
+                                                choices=AI_PROVIDERS, blank=True)
+    summary_ancient_model = models.CharField("Japonais ancien : modèle des résumés", max_length=120, blank=True)
     confirm_below = models.DecimalField("« Traduire maintenant » sans confirmation en dessous de (USD)", max_digits=8,
                                         decimal_places=4, null=True, blank=True,
                                         help_text="Vide : toujours confirmer. Les plafonds et le consentement IA "
@@ -443,6 +462,8 @@ class TranslationJob(models.Model):
     scheduled_for = models.DateTimeField("Heure prévue", null=True, blank=True)
     queue_position = models.PositiveIntegerField("Ordre dans la file", null=True, blank=True)
     pause_reason = models.CharField("Raison de la pause", max_length=10, choices=PAUSE_REASONS, blank=True)
+    # 2.0.0 (lot 4) : réglages d'une tâche de résumé (type, langue, texte), enchaînement, tâche sœur (textes anciens)
+    options = models.JSONField("Options", default=dict, blank=True)
 
     class Meta:
         ordering = ["-created_at"]
@@ -471,6 +492,10 @@ class TranslationJobItem(models.Model):
     record = models.ForeignKey("catalog.Record", null=True, blank=True, related_name="translation_job_items",
                                on_delete=models.SET_NULL)
     record_field = models.CharField(max_length=60, blank=True)
+    # 2.0.0 (lot 4) : document résumé ; résumés partiels déjà obtenus (reprise sans renvoi)
+    document = models.ForeignKey("TranslationDocument", null=True, blank=True, related_name="job_items",
+                                 on_delete=models.SET_NULL)
+    data = models.JSONField(default=dict, blank=True)
     status = models.CharField(max_length=10, choices=ITEM_STATUS, default="pending")
     skip_reason = models.CharField(max_length=30, blank=True)
     error_kind = models.CharField(max_length=30, blank=True)
@@ -489,3 +514,23 @@ class TranslationJobItem(models.Model):
         ordering = ["job", "position"]
         constraints = [models.UniqueConstraint(fields=["job", "position"], name="translation_job_item_position")]
         verbose_name = "élément de tâche"
+
+
+class RecordVariety(models.Model):
+    """2.0.0 (lot 4, U10) : variété de langue d'une notice — repérée automatiquement (« probable ») ou confirmée.
+
+    Le repérage n'est jamais présenté comme sûr ; seule la confirmation de l'utilisateur fait foi.
+    """
+
+    ORIGINS = [("detected", "Repérée automatiquement (probable)"), ("user", "Confirmée par l'utilisateur")]
+
+    record = models.OneToOneField("catalog.Record", related_name="language_variety", on_delete=models.CASCADE)
+    variety = models.CharField("Variété de langue", max_length=12, choices=VARIETIES)
+    origin = models.CharField(max_length=10, choices=ORIGINS, default="detected")
+    reasons = models.JSONField("Indices", default=list, blank=True)
+    source_sha256 = models.CharField(max_length=64, blank=True)
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "variété de langue d'une notice"

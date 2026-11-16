@@ -50,6 +50,7 @@ NON_TEXT_MARKERS = {
                           "flux"),
     "gemini": ("embedding", "imagen", "veo", "tts", "image-generation", "native-audio", "aqa"),
     "anthropic": (),
+    "ollama": ("embed", "rerank"),
 }
 
 
@@ -241,8 +242,40 @@ class GeminiProvider(BaseProvider):
                           usage.get("candidatesTokenCount", 0), model)
 
 
+class OllamaProvider(OpenAIProvider):
+    """2.0.0 (lot 4) : IA locale de J-ed (service Ollama facultatif). Adresse interne fixée par l'exploitant
+    (OLLAMA_URL), aucune clé, délai long : le calcul se fait sur le processeur de l'ordinateur."""
+
+    key = "ollama"
+    label = "IA locale (Ollama)"
+
+    def __init__(self, credential):
+        from django.conf import settings
+
+        self.credential = credential
+        root = (getattr(settings, "OLLAMA_URL", "") or "").rstrip("/")
+        if not root:
+            raise ProviderError("IA locale non configurée (OLLAMA_URL absent).", kind="unavailable")
+        self.base_url = f"{root}/v1"
+        self.timeout = getattr(settings, "OLLAMA_TIMEOUT", 900)
+
+    def _headers(self):
+        return {}
+
+    def complete(self, system, prompt, model, max_tokens=2000):
+        body = {"model": model, "messages": [{"role": "system", "content": system},
+                                             {"role": "user", "content": prompt}], "max_tokens": max_tokens}
+        data = self._request("POST", f"{self.base_url}/chat/completions", headers={}, json=body, timeout=self.timeout)
+        try:
+            text = data["choices"][0]["message"]["content"] or ""
+        except (KeyError, IndexError):
+            raise ProviderError("Réponse de l'IA locale sans contenu.", kind="unparsable") from None
+        usage = data.get("usage") or {}
+        return Completion(text, usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0), data.get("model", model))
+
+
 PROVIDER_CLASSES = {cls.key: cls for cls in (OpenAIProvider, AnthropicProvider, GeminiProvider,
-                                             OpenAICompatibleProvider)}
+                                             OpenAICompatibleProvider, OllamaProvider)}
 
 
 def get_provider(credential):

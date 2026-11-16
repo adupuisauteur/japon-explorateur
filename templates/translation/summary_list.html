@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Résumés IA{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item active">Résumés IA</li></ol></nav>{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1><i class="bi bi-card-text"></i> Résumés IA</h1>
+  <p>Résumés et fiches d'analyse des notices et des documents, toujours marqués « généré par IA ». On les demande depuis une fiche, la Bibliothèque ou l'atelier d'un document.</p></div></div>
+<form method="get" class="d-flex flex-wrap gap-2 align-items-end mb-2">
+  <div><label class="form-label small mb-0" for="f-type">Type</label><select id="f-type" name="type" class="form-select form-select-sm"><option value="">Tous</option>{% for v, l in kinds %}<option value="{{ v }}"{% if v == kind %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  <div><label class="form-label small mb-0" for="f-langue">Langue</label><select id="f-langue" name="langue" class="form-select form-select-sm"><option value="">Toutes</option>{% for v, l in languages %}<option value="{{ v }}"{% if v == language %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  <button class="btn btn-sm btn-primary">Filtrer</button></form>
+{% if page.object_list %}
+<table class="table table-sm align-top"><thead><tr><th>Notice ou document</th><th>Type</th><th>Résumé</th><th>IA</th><th>Date</th></tr></thead><tbody>
+{% for s in page.object_list %}<tr>
+  <td>{% if s.document %}<a href="{% url 'translation:document_workbench' s.document_id %}">{{ s.document.title|truncatechars:40 }}</a>{% elif s.record %}<a href="{{ s.record.get_absolute_url }}">{{ s.record.original_title|default:s.record.record_id|truncatechars:40 }}</a>{% endif %}</td>
+  <td class="small">{{ s.get_kind_display }} · {{ s.language }}</td>
+  <td class="small"><a href="{% url 'translation:summary_detail' s.pk %}">{{ s.content|truncatechars:140 }}</a>{% if s.unvalidated_source %} <span class="chip chip-warn">traduction non validée</span>{% endif %}</td>
+  <td class="small">{{ s.get_provider_display }}</td><td class="small text-muted text-nowrap">{{ s.created_at|date:"d/m/Y H:i" }}</td></tr>{% endfor %}
+</tbody></table>
+{% if page.has_other_pages %}<nav aria-label="Pages"><ul class="pagination pagination-sm">
+  {% if page.has_previous %}<li class="page-item"><a class="page-link" href="?type={{ kind }}&langue={{ language }}&page={{ page.previous_page_number }}">Précédente</a></li>{% endif %}
+  <li class="page-item disabled"><span class="page-link">{{ page.number }} / {{ page.paginator.num_pages }}</span></li>
+  {% if page.has_next %}<li class="page-item"><a class="page-link" href="?type={{ kind }}&langue={{ language }}&page={{ page.next_page_number }}">Suivante</a></li>{% endif %}</ul></nav>{% endif %}
+{% else %}<p class="small text-muted">Aucun résumé.</p>{% endif %}
+{% endblock %}

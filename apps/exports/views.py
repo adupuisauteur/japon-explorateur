@@ -43,6 +43,8 @@ class ExportForm(BootstrapMixin, forms.Form):
                                     required=False,
                                     initial=True)
     include_notes = forms.BooleanField(label="Inclure les notes et annotations", required=False, initial=True)
+    include_summaries = forms.BooleanField(label="Inclure les résumés IA des notices (marqués « généré par IA »)",
+                                           required=False, initial=False)
     include_images = forms.BooleanField(label="Inclure les liens vers images (uniquement si droits connus)",
                                         required=False)
     pagination = forms.BooleanField(label="Pagination (DOCX/PDF)", required=False, initial=True)
@@ -51,7 +53,8 @@ class ExportForm(BootstrapMixin, forms.Form):
                                        initial=True)
     save_profile_as = forms.CharField(label="Enregistrer ces réglages comme profil (nom)", required=False)
 
-    OPTION_FIELDS = ["column_profile", "csv_separator", "csv_bom", "csv_neutralize", "include_ai", "include_notes", "include_images",
+    OPTION_FIELDS = ["column_profile", "csv_separator", "csv_bom", "csv_neutralize", "include_ai", "include_notes",
+                     "include_summaries", "include_images",
                      "pagination", "toc", "hide_user"]
 
 

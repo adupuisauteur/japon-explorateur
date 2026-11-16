@@ -171,6 +171,11 @@ AI_KEYS_ENCRYPTION_KEY = env("AI_KEYS_ENCRYPTION_KEY", default="")
 # Adresses de modèles locaux autorisées malgré le contrôle anti-SSRF (ex. http://host.docker.internal:11434/v1).
 # Réglées uniquement par l'exploitant dans .env, jamais depuis l'interface.
 AI_ALLOWED_LOCAL_URLS = env.list("AI_ALLOWED_LOCAL_URLS", default=[])
+# 2.0.0 (lot 4) : IA locale (service Ollama facultatif, profil « ollama »). Adresse interne fixée ici, jamais depuis
+# l'interface ; délai d'un résumé (calcul sur le processeur) et d'un téléchargement de modèle.
+OLLAMA_URL = env.str("OLLAMA_URL", default="")
+OLLAMA_TIMEOUT = env.int("OLLAMA_TIMEOUT", default=900)
+OLLAMA_PULL_TIMEOUT = env.int("OLLAMA_PULL_TIMEOUT", default=3600)
 
 # Police japonaise pour les PDF (TrueType). Si absente, police CID intégrée à ReportLab.
 PDF_JAPANESE_FONT = env("PDF_JAPANESE_FONT", default="")
@@ -363,6 +368,7 @@ if TESTING:
     TRANSLATION_ARGOS_DEPOT_DIR = DATA_DIR / "argos-depot"
     TRANSLATION_ARGOS_URL = ""
     AI_ALLOWED_LOCAL_URLS = []
+    OLLAMA_URL = ""
     CINII_APPID = ""
     CELERY_BROKER_URL = ""
     CELERY_TASK_ALWAYS_EAGER = True

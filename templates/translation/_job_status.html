@@ -2,6 +2,19 @@
 {% if job.status == 'draft' %}
   <section class="card-soft mb-3">
     <h2 class="h5">À confirmer — rien n'a encore été envoyé</h2>
+    {% if summary.summary_job %}
+    <dl class="row mb-2">
+      <dt class="col-sm-4">Résumés</dt><dd class="col-sm-8">{{ job.options.kind|default:"court" }} · langue {{ job.options.language|default:"fr" }} · texte lu : {% if job.options.source == 'translation' %}traduction du document{% else %}original japonais{% endif %}
+        <div class="small text-muted">Chaque résumé porte la mention « généré par IA » ; il n'entre ni dans la mémoire de traduction ni dans les exports de traduction.</div></dd>
+      {% for part in summary.parts %}
+      <dt class="col-sm-4">{% if summary.parts|length > 1 %}{% if part.ancient %}Japonais ancien{% else %}Japonais moderne{% endif %}{% else %}IA{% endif %}</dt>
+      <dd class="col-sm-8">{{ part.job.total_items }} notice(s) ou document(s) · {{ part.engine }} · {{ part.calls }} appel(s)
+        <div class="small">{% if part.cost is not None %}Coût estimé : {{ part.cost|floatformat:4 }} USD{% else %}Coût : non disponible{% endif %} <span class="text-muted">({{ part.basis }})</span></div>
+        {% if part.job.ai_provider == 'ollama' %}<div class="small text-muted">IA locale : aucun texte ne quitte votre ordinateur ; le calcul peut prendre plusieurs minutes par document.</div>{% else %}<div class="small text-muted">Service en ligne : le texte sera envoyé au fournisseur.</div>{% endif %}</dd>
+      {% endfor %}
+      {% if summary.parts|length > 1 %}<dt class="col-sm-4"></dt><dd class="col-sm-8 small text-muted">Les textes repérés comme anciens partent vers l'IA que vous avez choisie pour eux (Traduction → Moteurs) ; les deux parties sont confirmées ensemble.</dd>{% endif %}
+    </dl>
+    {% else %}
     <dl class="row mb-2">
       <dt class="col-sm-4">Moteur</dt><dd class="col-sm-8">{{ engine_label }} — <span class="text-{{ summary.status.level }}">{{ summary.status.label }}</span>
         {% if summary.status.simulated %}<span class="chip chip-warn">Simulation</span>{% endif %}
@@ -15,6 +28,7 @@
       {% if summary.quota.character_limit %}<dt class="col-sm-4">Quota lu</dt><dd class="col-sm-8">{{ summary.quota.character_count }} / {{ summary.quota.character_limit }} caractères</dd>{% endif %}
       {% if job.project %}<dt class="col-sm-4">Projet</dt><dd class="col-sm-8">{{ job.project.title }}{% if job.project.confidential %} <span class="badge text-bg-dark"><i class="bi bi-lock-fill"></i> confidentiel</span>{% endif %}</dd>{% endif %}
     </dl>
+    {% endif %}
     {% if summary.problems %}
       <div class="alert alert-danger"><strong>Envoi impossible :</strong><ul class="mb-0">{% for p in summary.problems %}<li>{{ p }}</li>{% endfor %}</ul></div>
       {% include "translation/_argos_invite.html" with invite=summary.argos_invite place="tache" %}

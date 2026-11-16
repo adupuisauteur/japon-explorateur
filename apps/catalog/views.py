@@ -38,7 +38,7 @@ def _record_context(request, record):
     bulk, bulk_skipped = (plan_bulk_validation(list(record.editorial.filter(kind="translation", status="proposed")))
                           if request.user.is_admin_role else ([], []))
     statuses = record.status_map
-    return {
+    context = {
         "record": record, "bulk": bulk, "bulk_skipped": bulk_skipped,
         "statuses": statuses, "status_rows": _status_rows(statuses),
         "can_check_iiif": request.user.can_edit and getattr(statuses.get("iiif"), "url", "")
@@ -57,6 +57,10 @@ def _record_context(request, record):
         "correction_fields": CorrectionProposal.FIELDS,
         "quick_job": _quick_job(request.user, record),
     }
+    from apps.translation.summaries import page_context
+
+    context.update(page_context(request.user, record=record))  # 2.0.0 (lot 4) : résumés IA, variété de langue
+    return context
 
 
 def _quick_job(user, record):

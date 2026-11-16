@@ -28,11 +28,25 @@ class EngineSettingForm(BootstrapMixin, forms.Form):
 
 
 class PreferenceForm(BootstrapMixin, forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name in ("summary_kind", "summary_language"):  # 2.0.0 (lot 4) : valeur par défaut si absente
+            self.fields[name].required = False
+
+    def clean_summary_kind(self):
+        return self.cleaned_data.get("summary_kind") or "court"
+
+    def clean_summary_language(self):
+        return self.cleaned_data.get("summary_language") or "fr"
+
     class Meta:
         model = TranslationPreference
         fields = ["default_engine", "default_ai_provider", "default_ai_model", "second_engine", "second_ai_provider",
                   "second_ai_model", "confirmation_threshold", "send_neighbour_context", "translate_subjects",
-                  "translate_place", "night_start", "night_end", "confirm_below"]
+                  "translate_place", "night_start", "night_end", "confirm_below",
+                  "summary_provider", "summary_model", "summary_kind", "summary_language",
+                  "ancient_engine", "ancient_ai_provider", "ancient_ai_model", "summary_ancient_provider",
+                  "summary_ancient_model"]
         widgets = {"night_start": forms.TimeInput(attrs={"type": "time"}, format="%H:%M"),
                    "night_end": forms.TimeInput(attrs={"type": "time"}, format="%H:%M")}
 
@@ -58,6 +72,12 @@ class PreferenceForm(BootstrapMixin, forms.ModelForm):
             self.add_error("second_engine", "Le deuxième moteur doit différer du moteur par défaut.")
         if second[0] and not first[0]:
             self.add_error("default_engine", "Choisissez d'abord un moteur par défaut.")
+        # 2.0.0 (lot 4) : fournisseur et modèle vont ensemble ; moteur IA pour le japonais ancien = fournisseur et modèle
+        for prov, model in (("summary_provider", "summary_model"), ("summary_ancient_provider", "summary_ancient_model")):
+            if bool(data.get(prov)) != bool((data.get(model) or "").strip()):
+                self.add_error(model, "Choisissez le fournisseur ET le modèle (ou laissez les deux vides).")
+        if data.get("ancient_engine") == "ai" and not (data.get("ancient_ai_provider") and data.get("ancient_ai_model")):
+            self.add_error("ancient_ai_model", "Pour une IA, choisissez le fournisseur et le modèle.")
         # 2.0.0 (lot 3) : plage de nuit complète ou vide ; elle peut passer minuit (22:00 → 07:00)
         start, end = data.get("night_start"), data.get("night_end")
         if (start is None) != (end is None):

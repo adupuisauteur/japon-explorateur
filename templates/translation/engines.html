@@ -23,6 +23,19 @@
       <div class="form-check">{{ pref_form.translate_subjects }} <label class="form-check-label" for="{{ pref_form.translate_subjects.id_for_label }}">{{ pref_form.translate_subjects.label }}</label></div>
       <div class="form-check">{{ pref_form.translate_place }} <label class="form-check-label" for="{{ pref_form.translate_place.id_for_label }}">{{ pref_form.translate_place.label }}</label></div>
     </div>
+    <div class="col-12" id="resumes-reglages"><h3 class="h6 mt-2 mb-1">Résumés IA</h3>
+      <p class="small text-muted mb-2">IA utilisée pour les résumés et fiches d'analyse (vide : celle de votre profil IA pour « Résumé documentaire »). « IA locale » : service Ollama de J-ed, gratuit, rien ne quitte l'ordinateur (Traduction → Moteurs locaux).</p></div>
+    <div class="col-md-3">{{ pref_form.summary_provider.label_tag }}{{ pref_form.summary_provider }}</div>
+    <div class="col-md-3">{{ pref_form.summary_model.label_tag }}{{ pref_form.summary_model }}{% include "partials/model_picker.html" with provider_id="id_summary_provider" provider_name="summary_provider" model_id="id_summary_model" model_name="summary_model" %}{{ pref_form.summary_model.errors }}</div>
+    <div class="col-md-3">{{ pref_form.summary_kind.label_tag }}{{ pref_form.summary_kind }}</div>
+    <div class="col-md-3">{{ pref_form.summary_language.label_tag }}{{ pref_form.summary_language }}</div>
+    <div class="col-12" id="japonais-ancien"><h3 class="h6 mt-2 mb-1">Japonais ancien (bungo, kanbun, sōrōbun)</h3>
+      <p class="small text-muted mb-2">J-ed repère les textes anciens probables (vous confirmez ou corrigez sur la fiche ou dans l'atelier). Choisissez ici, d'avance, le moteur à utiliser pour eux : une tâche qui mélange textes modernes et anciens est alors présentée en deux parties, chacune avec son moteur et son coût. Vide : même moteur pour tous les textes. J-ed ne change jamais de moteur sans que ce soit affiché avant l'envoi.</p></div>
+    <div class="col-md-4">{{ pref_form.ancient_engine.label_tag }}{{ pref_form.ancient_engine }}</div>
+    <div class="col-md-4">{{ pref_form.ancient_ai_provider.label_tag }}{{ pref_form.ancient_ai_provider }}</div>
+    <div class="col-md-4">{{ pref_form.ancient_ai_model.label_tag }}{{ pref_form.ancient_ai_model }}{% include "partials/model_picker.html" with provider_id="id_ancient_ai_provider" provider_name="ancient_ai_provider" model_id="id_ancient_ai_model" model_name="ancient_ai_model" %}{{ pref_form.ancient_ai_model.errors }}</div>
+    <div class="col-md-4 offset-md-4">{{ pref_form.summary_ancient_provider.label_tag }}{{ pref_form.summary_ancient_provider }}</div>
+    <div class="col-md-4">{{ pref_form.summary_ancient_model.label_tag }}{{ pref_form.summary_ancient_model }}{% include "partials/model_picker.html" with provider_id="id_summary_ancient_provider" provider_name="summary_ancient_provider" model_id="id_summary_ancient_model" model_name="summary_ancient_model" %}{{ pref_form.summary_ancient_model.errors }}</div>
     <div class="col-12" id="file-de-nuit"><h3 class="h6 mt-2 mb-1">File de nuit et « Traduire maintenant »</h3>
       <p class="small text-muted mb-2">Les traductions ajoutées à la file de nuit s'exécutent pendant la plage que vous choisissez (elle peut passer minuit). Sans plage, la file de nuit n'est pas proposée. L'ordinateur doit rester allumé, sans mise en veille, avec Docker Desktop démarré.</p></div>
     <div class="col-md-3">{{ pref_form.night_start.label_tag }}{{ pref_form.night_start }}{{ pref_form.night_start.errors }}</div>

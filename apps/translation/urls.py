@@ -1,7 +1,7 @@
 from django.urls import path
 
 from . import views
-from .views import (documents, done, engines, evaluation, exports, glossaries, jobs, local_engines, memory, projects,
+from .views import (documents, done, summaries, engines, evaluation, exports, glossaries, jobs, local_engines, memory, projects,
                     records, usage)
 
 app_name = "translation"
@@ -21,6 +21,11 @@ urlpatterns = [
     path("moteurs/<slug:code>/", engines.engine_save, name="engine_save"),
     path("taches/", jobs.job_list, name="job_list"),
     path("effectuees/", done.translations_done, name="done"),
+    path("resumes/", summaries.summary_list, name="summary_list"),
+    path("resumes/demander/", summaries.summarize, name="summarize"),
+    path("resumes/<int:pk>/", summaries.summary_detail, name="summary_detail"),
+    path("notices/<str:record_id>/variete/", summaries.record_variety, name="record_variety"),
+    path("documents/<int:pk>/variete/", summaries.document_variety, name="document_variety"),
     path("taches/<int:pk>/", jobs.job_detail, name="job_detail"),
     path("taches/<int:pk>/action/", jobs.job_action, name="job_action"),
     path("taches/<int:pk>/etat/", jobs.job_mini, name="job_mini"),

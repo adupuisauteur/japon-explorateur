@@ -129,12 +129,21 @@ class AIEngine(TranslationEngine):
     max_items = 20
     max_chars = 6000
 
+    def __init__(self, user, **kwargs):
+        super().__init__(user, **kwargs)
+        if self.ai_provider == "ollama":  # 2.0.0 (lot 4) : IA locale, rien ne quitte l'ordinateur
+            self.online = False
+
     @property
     def display_name(self):
         provider = dict(PROVIDERS).get(self.ai_provider, self.ai_provider or "fournisseur à choisir")
         return f"{provider} — {self.ai_model or 'modèle à choisir'}"
 
     def credential(self):
+        if self.ai_provider == "ollama" and self.user is not None:  # 2.0.0 (lot 4) : IA locale, sans clé
+            from apps.ai.local import credential_for
+
+            return credential_for(self.user)
         return AIProviderCredential.objects.filter(user=self.user, provider=self.ai_provider).first()
 
     def consent_problem(self):

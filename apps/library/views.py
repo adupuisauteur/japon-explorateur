@@ -165,6 +165,13 @@ def bulk(request):
     elif action == "translate":  # 1.3.0 : module de traduction
         ids = ",".join(e.record.record_id for e in entries)
         return redirect(f"{reverse('translation:records_prepare')}?records={ids}")
+    elif action in ("summarize_now", "summarize_night"):  # 2.0.0 (lot 4)
+        if not request.user.can_edit:
+            raise PermissionDenied
+        from apps.translation.views.summaries import start
+
+        return start(request, records=[e.record for e in entries],
+                     mode="night" if action == "summarize_night" else "now", back=reverse("library:index"))
     elif action in ("translate_now", "translate_night"):  # 2.0.0 (lot 3)
         return _translate_quick(request, [e.record for e in entries], "night" if action == "translate_night" else "now")
     elif action == "iiif":  # 2.0.0 (lot 2) : vérification des manifestes IIIF de la sélection

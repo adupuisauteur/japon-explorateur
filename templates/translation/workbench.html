@@ -18,6 +18,11 @@
 </form>
 
 {% include "translation/_argos_invite.html" with invite=argos_invite place="atelier" %}
+{% if variety_suggestion and can_edit %}<div class="alert alert-warning small py-2" id="variete">
+  <strong>{{ variety_suggestion.label }} probable.</strong> Indices : {{ variety_suggestion.reasons|join:" ; " }}. Le document est marqué « japonais moderne » : la traduction et les résumés en tiennent compte.
+  <form method="post" action="{% url 'translation:document_variety' document.pk %}" class="d-inline">{% csrf_token %}<input type="hidden" name="variety" value="{{ variety_suggestion.variety }}"><button class="btn btn-sm btn-outline-secondary py-0">Marquer « {{ variety_suggestion.label }} »</button></form>
+  <span class="text-muted">ou laisser « japonais moderne ».</span></div>{% endif %}
+{% include "translation/_summaries.html" %}
 <form method="post" action="{% url 'translation:document_bulk' document.pk %}">{% csrf_token %}
 {% if can_edit %}
 <div class="d-flex flex-wrap gap-2 align-items-center mb-2 card-soft py-2">

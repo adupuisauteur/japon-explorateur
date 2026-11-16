@@ -26,7 +26,8 @@ def _table():
 
 def provider_key(engine_code, ai_provider=""):
     if engine_code == "ai":
-        return f"ai:{ai_provider}" if ai_provider else ""
+        # 2.0.0 (lot 4) : l'IA locale (Ollama) tourne sur l'ordinateur ; aucune condition de fournisseur à lire
+        return f"ai:{ai_provider}" if ai_provider and ai_provider != "ollama" else ""
     return engine_code if engine_code in ONLINE_ENGINES else ""
 
 

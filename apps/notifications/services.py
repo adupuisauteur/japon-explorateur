@@ -114,6 +114,16 @@ def translation_job_ended(job):
     link = reverse("translation:job_detail", args=[job.pk])
     label = job.scope_label or f"tâche n° {job.pk}"
     counts = f"{job.done_items} traduit(s), {job.failed_items} en échec, {job.skipped_items} ignoré(s)"
+    if job.kind == "summary":  # 2.0.0 (lot 4) : mêmes fenêtres, vocabulaire des résumés
+        counts = f"{job.done_items} résumé(s), {job.failed_items} en échec, {job.skipped_items} sans texte"
+        what = "Résumés"
+        if job.status == "done" and not job.failed_items:
+            return notify(job.user, "task_done", f"{what} prêts : {label}"[:200], body=counts, link=link,
+                          severity="success", group_key=f"translation:{job.pk}:end")
+        if job.status in ("failed", "done"):
+            return notify(job.user, "task_errors", f"{what} : erreurs — {label}"[:200],
+                          body=f"{counts}. {job.error_summary}".strip()[:600], link=link, severity="error",
+                          group_key=f"translation:{job.pk}:end")
     if job.status == "paused":  # 2.0.0 (lot 3) : plafond atteint (alerte) ; fin de plage de nuit (sans fenêtre)
         if job.pause_reason == "cap":
             return notify(job.user, "task_paused", f"Traduction en pause (plafond atteint) : {label}"[:200],

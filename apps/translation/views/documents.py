@@ -113,7 +113,11 @@ def document_workbench(request, pk):
         rows.append({"segment": seg, "shown": shown, "n_versions": len(versions),
                      "translatable": is_translatable(seg.source_text)})
     counts = {code: document.segments.filter(state=code).count() for code, _ in SEGMENT_STATES}
-    return render(request, "translation/workbench.html", {
+    from ..summaries import page_context
+
+    extra = page_context(request.user, document=document)  # 2.0.0 (lot 4) : résumés, japonais ancien probable
+    extra["can_summarize"] = extra["can_summarize"] and can_edit_project(request.user, project)
+    return render(request, "translation/workbench.html", {**extra,
         "document": document, "project": project, "rows": rows, "page": page, "states": SEGMENT_STATES,
         "state": state, "chapter": chapter, "chapters": document.chapters.order_by("order"), "counts": counts,
         "total": sum(counts.values()), "can_edit": can_edit_project(request.user, project),

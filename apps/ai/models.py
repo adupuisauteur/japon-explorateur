@@ -9,6 +9,8 @@ PROVIDERS = [
     ("anthropic", "Anthropic (Claude)"),
     ("gemini", "Google (Gemini)"),
     ("openai_compatible", "Compatible OpenAI (modèle local ou autre service)"),
+    # 2.0.0 (lot 4) : service Ollama facultatif de J-ed, sur l'ordinateur (gratuit, rien ne sort)
+    ("ollama", "IA locale (Ollama, sur cet ordinateur)"),
 ]
 
 MODES = [
@@ -152,3 +154,77 @@ class AITask(models.Model):
 
     def __str__(self):
         return f"{self.get_function_display()} ({self.get_status_display()})"
+
+
+# --------------------------------------------------------------------------- 2.0.0 (lot 4) : résumés
+
+SUMMARY_KINDS = [
+    ("court", "Résumé court"),
+    ("detaille", "Résumé détaillé"),
+    ("analyse", "Fiche d'analyse (thèmes, personnes, lieux, dates)"),
+]
+SUMMARY_LANGUAGES = [("fr", "Français"), ("en", "Anglais"), ("ja", "Japonais")]
+SUMMARY_SOURCES = [
+    ("record_original", "Notice (texte original)"),
+    ("document_original", "Document (texte original)"),
+    ("document_validated", "Document (traduction validée)"),
+    ("document_unvalidated", "Document (traduction non validée)"),
+]
+
+
+class Summary(models.Model):
+    """Résumé ou fiche d'analyse produit par une IA, toujours marqué « généré par IA ».
+
+    Rattaché à une notice, ou à un document d'un projet (au moins l'un des deux). Une nouvelle version garde
+    un lien vers la précédente (historique). N'entre ni dans la mémoire de traduction ni dans les exports de
+    traduction validée ; il n'apparaît dans un export de notices que si l'utilisateur le demande.
+    """
+
+    record = models.ForeignKey("catalog.Record", null=True, blank=True, related_name="ai_summaries",
+                               on_delete=models.CASCADE)
+    project = models.ForeignKey("translation.TranslationProject", null=True, blank=True, related_name="summaries",
+                                on_delete=models.CASCADE)
+    document = models.ForeignKey("translation.TranslationDocument", null=True, blank=True,
+                                 related_name="summaries", on_delete=models.CASCADE)
+    kind = models.CharField("Type", max_length=10, choices=SUMMARY_KINDS)
+    language = models.CharField("Langue", max_length=5, choices=SUMMARY_LANGUAGES, default="fr")
+    source_kind = models.CharField("Texte résumé", max_length=24, choices=SUMMARY_SOURCES)
+    source_sha256 = models.CharField(max_length=64, blank=True)
+    variety = models.CharField("Variété de langue du texte", max_length=12, blank=True)
+    content = models.TextField("Résumé")
+    data = models.JSONField("Analyse (thèmes, personnes, lieux, dates, limites)", default=dict, blank=True)
+    provider = models.CharField(max_length=30, choices=PROVIDERS)
+    model = models.CharField(max_length=120, blank=True)
+    calls = models.PositiveSmallIntegerField("Appels à l'IA", default=1)
+    job = models.ForeignKey("translation.TranslationJob", null=True, blank=True, related_name="summaries",
+                            on_delete=models.SET_NULL)
+    ai_task = models.ForeignKey(AITask, null=True, blank=True, related_name="summaries", on_delete=models.SET_NULL)
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, related_name="ai_summaries",
+                               on_delete=models.SET_NULL)
+    previous = models.OneToOneField("self", null=True, blank=True, related_name="next_version",
+                                    on_delete=models.SET_NULL)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "résumé IA"
+        constraints = [models.CheckConstraint(condition=models.Q(record__isnull=False) | models.Q(document__isnull=False),
+                                              name="ai_summary_has_target")]
+
+    def __str__(self):
+        return f"{self.get_kind_display()} ({self.get_language_display()})"
+
+    @property
+    def is_latest(self):
+        return not hasattr(self, "next_version") or self.next_version is None
+
+    @property
+    def unvalidated_source(self):
+        return self.source_kind == "document_unvalidated"
+
+    def history(self):
+        out, current = [], self.previous
+        while current is not None and len(out) < 50:
+            out.append(current)
+            current = current.previous
+        return out

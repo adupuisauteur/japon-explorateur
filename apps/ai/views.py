@@ -102,7 +102,8 @@ def profile_action(request, pk):
 def providers(request):
     credentials = {c.provider: c for c in AIProviderCredential.objects.filter(user=request.user)}
     return render(request, "ai/providers.html", {
-        "rows": [(code, label, credentials.get(code)) for code, label in PROVIDERS],
+        # 2.0.0 (lot 4) : l'IA locale n'a pas de clé ; elle se gère dans Traduction → Moteurs locaux
+        "rows": [(code, label, credentials.get(code)) for code, label in PROVIDERS if code != "ollama"],
         "encryption_ok": encryption_available(), "local_urls": sorted(allowed_local_urls()),
     })
 
@@ -110,7 +111,7 @@ def providers(request):
 @researcher_required
 @require_POST
 def provider_save(request, provider):
-    if provider not in dict(PROVIDERS):
+    if provider not in dict(PROVIDERS) or provider == "ollama":
         return redirect("ai:providers")
     cred, _ = AIProviderCredential.objects.get_or_create(user=request.user, provider=provider)
     action = request.POST.get("action", "save")
@@ -310,7 +311,18 @@ def _picker_context(request, data, *, error=""):
     if provider not in dict(PROVIDERS):
         ctx["provider"] = ""
         return ctx
-    cred = AIProviderCredential.objects.filter(user=request.user, provider=provider).first()
+    if provider == "ollama":  # 2.0.0 (lot 4) : modèles installés dans l'IA locale (aucune clé, aucun coût)
+        from django.utils import timezone
+
+        from .local import credential_for, installed
+
+        cred = credential_for(request.user)
+        state_models = installed()
+        if state_models != (cred.available_models or []):
+            cred.available_models, cred.last_tested_at = state_models, timezone.now()
+            cred.save(update_fields=["available_models", "last_tested_at"])
+    else:
+        cred = AIProviderCredential.objects.filter(user=request.user, provider=provider).first()
     ctx["credential"] = cred if cred and cred.is_configured else None
     if ctx["credential"] is None:
         return ctx

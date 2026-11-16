@@ -115,7 +115,7 @@ def _statuses(record):
     return {"statuses": detail, **flat, "availability_label": " · ".join(parts)}
 
 
-def _record_dict(record, *, include_ai, include_notes, user, collection_item=None):
+def _record_dict(record, *, include_ai, include_notes, user, collection_item=None, include_summaries=False):
     d = {f: getattr(record, f) for f in RECORD_SOURCE_FIELDS}
     d.update({
         "record_id": record.record_id,
@@ -155,6 +155,18 @@ def _record_dict(record, *, include_ai, include_notes, user, collection_item=Non
                                "status": ed.get_status_display(), "target_field": ed.target_field,
                                "ai_model": f"{ed.ai_task.provider}/{ed.ai_task.model}" if ed.ai_task_id else "",
                                "created_at": ed.created_at.isoformat()})
+    if include_summaries:  # 2.0.0 (lot 4) : résumés IA, seulement sur demande, toujours marqués « généré par IA »
+        from apps.translation.summaries import latest_for
+
+        for s in latest_for(record=record):
+            if s.document_id:
+                continue  # résumé d'un document de projet : il peut être confidentiel, il reste dans le projet
+            d["editorial"].append({
+                "kind": f"Résumé IA — {s.get_kind_display().lower()} ({s.get_language_display().lower()})",
+                "kind_code": "ai_summary", "content": s.content + (f"\n(Limites : {s.data['limits']})"
+                                                                 if s.data.get("limits") else ""),
+                "origin": "Généré par IA", "origin_code": "ai", "status": "Non vérifié", "target_field": "",
+                "ai_model": f"{s.provider}/{s.model}", "created_at": s.created_at.isoformat()})
     if include_notes:
         from apps.library.models import Annotation
 
@@ -224,10 +236,13 @@ def build_document(job):
     opts = job.options or {}
     include_ai = bool(opts.get("include_ai", True))
     include_notes = bool(opts.get("include_notes", True))
+    # 2.0.0 (lot 4) : décoché par défaut ; jamais si les contenus générés sont exclus
+    include_summaries = include_ai and bool(opts.get("include_summaries", False))
     sections_raw, counts, collection = resolve_records(job)
     sections, flat = [], []
     for title, description, items in sections_raw:
-        recs = [_record_dict(r, include_ai=include_ai, include_notes=include_notes, user=job.owner, collection_item=i)
+        recs = [_record_dict(r, include_ai=include_ai, include_notes=include_notes, user=job.owner, collection_item=i,
+                             include_summaries=include_summaries)
                 for r, i in items]
         sections.append({"title": title, "description": description, "records": recs})
         flat.extend(recs)
@@ -271,6 +286,7 @@ def build_document(job):
         "records": [{"record_id": r["record_id"], "version": r["record_version"]} for r in flat],
         "contains_ai_content": has_ai,
         "ai_content_included": include_ai,
+        "ai_summaries_included": include_summaries,
         "restrictions": restrictions,
         "header": job.header_text,
         "footer": job.footer_text,

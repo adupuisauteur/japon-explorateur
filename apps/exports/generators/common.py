@@ -116,5 +116,7 @@ def metadata_lines(doc):
         lines.append((f"Source : {s['name']}", f"{s['records']} notice(s), {when}{collected}{snap}"))
     lines.append(("Contenus générés (IA, traduction automatique)", "inclus et signalés" if m["contains_ai_content"] and m["ai_content_included"]
                   else ("exclus" if not m["ai_content_included"] else "aucun")))
+    if m.get("ai_summaries_included"):  # 2.0.0 (lot 4)
+        lines.append(("Résumés IA", "inclus, marqués « généré par IA », non vérifiés"))
     lines.append(("Application", f"{m['application']} {m['application_version']} — schéma {m['schema_version']}"))
     return [(k, v) for k, v in lines if v]
