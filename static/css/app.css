@@ -161,3 +161,13 @@ pre.json { background: #fff; border: 1px solid var(--line); border-radius: .5rem
 .jed-toast-error, .jed-toast-critical { border-left-color: #b3261e; }
 #notif-popups { z-index: 1090; }
 .notif-unread { border-left: 4px solid var(--bs-primary); }
+
+/* 2.0.0 (lot 6) : aide intégrée */
+.help-page { line-height: 1.6; }
+.help-page h2 { font-size: 1.35rem; margin-top: 1.8rem; }
+.help-page h3 { font-size: 1.1rem; margin-top: 1.3rem; }
+.help-page table { width: 100%; margin-bottom: 1rem; border-collapse: collapse; }
+.help-page th, .help-page td { border-bottom: 1px solid var(--line); padding: .35rem .5rem; vertical-align: top; }
+.help-page blockquote { border-left: 4px solid var(--bs-primary); padding: .4rem 1rem; background: #fff; border-radius: .4rem; }
+.help-page code { white-space: pre-wrap; }
+.help-page pre { background: #fff; border: 1px solid var(--line); border-radius: .5rem; padding: .7rem 1rem; }

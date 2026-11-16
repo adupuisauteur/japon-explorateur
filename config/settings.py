@@ -70,6 +70,7 @@ INSTALLED_APPS = [
     "apps.incidents",
     "apps.translation",
     "apps.notifications",
+    "apps.help",
 ]
 
 MIDDLEWARE = [
@@ -98,6 +99,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "apps.core.context_processors.app_context",
+                "apps.help.context_processors.help_link",
             ],
         },
     },

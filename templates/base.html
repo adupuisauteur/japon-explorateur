@@ -42,6 +42,8 @@
         <input class="form-control form-control-sm" type="search" name="q" placeholder="Recherche rapide… 書名, rōmaji" aria-label="Recherche rapide" required>
       </form>
       {% include "translation/_task_indicator.html" %}
+      {# 2.0.0 (lot 6) : aide de l'écran affiché (sinon l'index de l'aide) #}
+      <a class="btn btn-sm btn-light me-2 help-link" href="{% if help_slug %}{% url 'help:page' help_slug %}{% else %}{% url 'help:index' %}{% endif %}" title="Aide sur cet écran" aria-label="Aide sur cet écran"><i class="bi bi-question-circle" aria-hidden="true"></i></a>
       <div class="dropdown">
         <button class="btn btn-sm btn-light dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
           <i class="bi bi-person-circle"></i> {{ user }} {% include "notifications/_counter.html" with unread=notifications_unread %}
@@ -54,6 +56,7 @@
           {% if user.can_edit %}<li><a class="dropdown-item" href="{% url 'translation:job_list' %}"><i class="bi bi-hourglass-split"></i> Tâches</a></li>{% endif %}
           <li><a class="dropdown-item" href="{% url 'notifications:list' %}"><i class="bi bi-bell"></i> Notifications{% if notifications_unread %} <span class="badge rounded-pill text-bg-danger">{{ notifications_unread }}</span>{% endif %}</a></li>
           <li><a class="dropdown-item" href="{% url 'searching:history' %}"><i class="bi bi-clock-history"></i> Historique des recherches</a></li>
+          <li><a class="dropdown-item" href="{% url 'help:index' %}"><i class="bi bi-question-circle"></i> Aide</a></li>
           {% if user.is_admin_role %}
           <li><hr class="dropdown-divider"></li>
           <li><a class="dropdown-item" href="{% url 'core:admin_hub' %}"><i class="bi bi-gear"></i> Administration</a></li>
@@ -91,7 +94,7 @@
 {% endif %}
 <footer class="app-footer">
   <div class="container-xl d-flex flex-wrap justify-content-between gap-2 small">
-    <span>{% if user.is_authenticated %}{{ APP_NAME }} · v{{ APP_VERSION }} · <a href="{% url 'core:about' %}">À propos</a> · <a href="{% url 'incidents:report' %}?from={{ request.path|urlencode }}">Signaler un problème</a>{% if user.is_admin_role %} · <a href="{% url 'core:admin_hub' %}">Administration</a> · <a href="{% url 'incidents:list' %}">Dysfonctionnements</a>{% if incidents_new_count %} <span class="badge rounded-pill text-bg-danger" title="{{ incidents_new_count }} nouvel(s) incident(s) de gravité Erreur ou Critique">{{ incidents_new_count }}</span>{% endif %}{% endif %}{% else %}{{ APP_NAME }} · v{{ APP_VERSION }}{% endif %}</span>
+    <span>{% if user.is_authenticated %}{{ APP_NAME }} · v{{ APP_VERSION }} · <a href="{% url 'help:index' %}">Aide</a> · <a href="{% url 'help:page' 'quoi-de-neuf' %}">Quoi de neuf</a> · <a href="{% url 'core:about' %}">À propos</a> · <a href="{% url 'incidents:report' %}?from={{ request.path|urlencode }}">Signaler un problème</a>{% if user.is_admin_role %} · <a href="{% url 'core:admin_hub' %}">Administration</a> · <a href="{% url 'incidents:list' %}">Dysfonctionnements</a>{% if incidents_new_count %} <span class="badge rounded-pill text-bg-danger" title="{{ incidents_new_count }} nouvel(s) incident(s) de gravité Erreur ou Critique">{{ incidents_new_count }}</span>{% endif %}{% endif %}{% else %}{{ APP_NAME }} · v{{ APP_VERSION }}{% endif %}</span>
     <span>Les données restent la propriété de leurs institutions ; vérifiez les notices auprès des catalogues d'origine.</span>
   </div>
 </footer>

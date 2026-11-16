@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Historique des versions{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'core:admin_hub' %}">Administration</a></li><li class="breadcrumb-item active" aria-current="page">Historique des versions</li></ol></nav>{% endblock %}
+{% block content %}
+<article class="help-page" style="max-width:900px">
+  <h1>Historique des versions</h1>
+  <p class="text-muted">Évolutions et améliorations de {{ APP_NAME }}, version par version. Le détail technique (fichiers, migrations, corrections) est dans le fichier <code>CHANGELOG.md</code> livré avec l'archive.</p>
+  {{ html }}
+</article>
+{% endblock %}

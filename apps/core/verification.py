@@ -337,6 +337,9 @@ PAGES = [
     ("/notifications/", "Notifications"), ("/notifications/preferences/", "Préférences de notification"),
     ("/a-propos/", "À propos"), ("/sw.js", "Service worker"),
     ("/manifest.webmanifest", "Manifeste de l'application"),
+    # 2.0.0 (lot 6) : aide intégrée
+    ("/aide/", "Aide"), ("/aide/recherche/?q=nuit", "Recherche dans l'aide"), ("/aide/quoi-de-neuf/", "Quoi de neuf"),
+    ("/aide/historique-des-versions/", "Historique des versions"), ("/traduction/resumes/", "Résumés IA"),
 ]
 
 

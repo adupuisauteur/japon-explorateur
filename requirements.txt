@@ -16,3 +16,5 @@ cryptography>=43
 whitenoise>=6.7
 gunicorn>=22
 pypdf>=4.0
+# 2.0.0 (lot 6) : rendu de l'aide intégrée (docs/aide/*.md), licence BSD
+Markdown>=3.6

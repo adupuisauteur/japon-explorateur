@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ page.title }} — Aide{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'help:index' %}">Aide</a></li><li class="breadcrumb-item">{{ page.section }}</li><li class="breadcrumb-item active" aria-current="page">{{ page.title }}</li></ol></nav>{% endblock %}
+{% block content %}
+<div class="row g-4">
+  <article class="col-lg-8 help-page">
+    <h1>{{ page.title }}{% if page.audience == "admin" %} <span class="badge text-bg-secondary align-middle fs-6">administrateur</span>{% endif %}</h1>
+    {% if page.summary %}<p class="lead">{{ page.summary }}</p>{% endif %}
+    {{ html }}
+  </article>
+  <aside class="col-lg-4">
+    {% include "help/_search_form.html" %}
+    {% if page.headings|length > 1 %}<nav class="card-soft mb-3" aria-label="Sur cette page"><h2 class="h6">Sur cette page</h2><ul class="small mb-0">{% for id, name in page.headings %}<li><a href="#{{ id }}">{{ name }}</a></li>{% endfor %}</ul></nav>{% endif %}
+    <nav class="card-soft" aria-label="{{ page.section }}"><h2 class="h6">{{ page.section }}</h2><ul class="small mb-0">{% for p in siblings %}<li>{% if p.slug == page.slug %}<strong>{{ p.title }}</strong>{% else %}<a href="{% url 'help:page' p.slug %}">{{ p.title }}</a>{% endif %}</li>{% endfor %}</ul>
+      <p class="small mt-2 mb-0"><a href="{% url 'help:index' %}">Toutes les pages d'aide</a></p></nav>
+  </aside>
+</div>
+{% endblock %}
