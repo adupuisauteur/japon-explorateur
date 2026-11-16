@@ -708,3 +708,29 @@ class StoredFile(models.Model):
 
     def __str__(self):
         return self.original_name
+
+
+class RecordText(models.Model):
+    """2.0.0 (lot 10) : texte intégral d'une notice, téléchargé à la demande (Aozora Bunko). Gardé tel que reçu ;
+    un nouveau téléchargement ajoute une ligne, l'ancienne est conservée."""
+
+    FORMATS = [("zip", "Fichier texte compressé (zip)"), ("xhtml", "Page XHTML")]
+
+    record = models.ForeignKey(Record, related_name="texts", on_delete=models.CASCADE)
+    source_url = models.URLField("Fichier d'origine", max_length=600)
+    file_format = models.CharField("Format", max_length=10, choices=FORMATS)
+    encoding = models.CharField("Encodage", max_length=60, blank=True)
+    text = models.TextField("Texte reçu (décodé, notation de la source)")
+    sha256 = models.CharField(max_length=64)
+    size = models.PositiveIntegerField("Taille du fichier (octets)", default=0)
+    fetched_at = models.DateTimeField("Téléchargé le")
+    fetched_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name="+")
+
+    class Meta:
+        ordering = ["-fetched_at", "-pk"]
+        verbose_name = "texte intégral"
+        verbose_name_plural = "textes intégraux"
+
+    def __str__(self):
+        return f"Texte de {self.record_id} ({self.fetched_at:%d/%m/%Y})"

@@ -276,10 +276,31 @@ class Study:
         step = Step("aozora", "Aozora Bunko : liste de toutes les œuvres")
         allowed = self.allowed(AOZORA_LIST)
         step.facts.append(f"robots.txt : {'lecture permise' if allowed else 'lecture NON permise'} pour {AOZORA_LIST}")
-        if allowed:
-            response = self.get(AOZORA_LIST, stream_head=True)
-            step.facts.append(f"  HTTP {response.status_code} ; taille {response.headers.get('content-length')} ; "
-                              f"modifié {response.headers.get('last-modified')}")
+        if not allowed:
+            return step
+        response = self.get(AOZORA_LIST)  # quelques Mo, une fois : il faut l'en-tête exact des colonnes
+        step.facts.append(f"  HTTP {response.status_code} ; {len(response.content)} octets ; "
+                          f"modifié {response.headers.get('last-modified')}")
+        if response.status_code != 200:
+            return step
+        import csv
+        import io
+        import zipfile
+
+        with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+            names = archive.namelist()
+            step.facts.append(f"  fichiers : {names}")
+            with archive.open(names[0]) as handle:
+                text = io.TextIOWrapper(handle, encoding="utf-8-sig", newline="")
+                rows = csv.reader(text)
+                header = next(rows)
+                first = next(rows, [])
+                count = 1 + sum(1 for _ in rows) if first else 0
+        step.facts.append(f"  {count} ligne(s) ; {len(header)} colonnes :")
+        step.facts.append("  " + " | ".join(header))
+        step.data["header"] = header
+        if first:
+            step.facts.append("  première ligne : " + " | ".join(v[:40] for v in first))
         return step
 
     def ships(self):

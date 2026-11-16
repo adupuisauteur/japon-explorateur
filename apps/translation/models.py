@@ -119,6 +119,7 @@ DOCUMENT_SOURCES = [
     ("docx", "Fichier Word"),
     ("pdf", "Fichier PDF"),
     ("record", "Notice"),
+    ("aozora", "Texte d'Aozora Bunko"),  # 2.0.0 (lot 10)
 ]
 ENCODING_CONFIDENCE = [("sure", "Certaine"), ("probable", "Probable"), ("uncertain", "Incertaine")]
 

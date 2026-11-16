@@ -77,6 +77,18 @@ SOURCES = [
          access_method="API officielle de Japan Search filtrée sur la base « najda » (国立公文書館デジタルアーカイブ, "
                        "diffusion par API autorisée). Pas d'API publique propre identifiée ; consultation des images "
                        "sur le site de la Digital Archive.", min_interval_seconds=1.0),
+    # 2.0.0 (lot 10)
+    dict(code="aozora", name="Aozora Bunko", name_original="青空文庫", connector="aozora", status="available",
+         sort_order=55, base_url="https://www.aozora.gr.jp/", terms_url="https://www.aozora.gr.jp/guide/kijyunn.html",
+         role="Textes intégraux d'œuvres japonaises, surtout modernes (Meiji à Shōwa), dans le domaine public pour la "
+              "plupart.",
+         access_method="Liste de toutes les œuvres publiée par Aozora Bunko (CSV compressé, licence CC BY), importée "
+                       "par « Synchroniser » ; texte d'une œuvre téléchargé à la demande depuis sa fiche (fichier zip "
+                       "ou XHTML). Aucune page de navigation n'est lue.",
+         license_notes="Liste des œuvres : CC BY. Textes : domaine public, sauf œuvres signalées « protégées » "
+                       "(publiées avec l'accord des ayants droit). Garder la mention du texte source (底本) et "
+                       "d'Aozora Bunko.",
+         min_interval_seconds=2.0, timeout_seconds=60.0),
     dict(code="waseda", name="Waseda Kotenseki Sōgō Database", name_original="古典籍総合データベース",
          status="to_study", sort_order=60, base_url="https://www.wul.waseda.ac.jp/kotenseki/",
          role="Collections de textes anciens.",

@@ -176,3 +176,9 @@ pre.json { background: #fff; border: 1px solid var(--line); border-radius: .5rem
 /* 2.0.0 (lot 6) : en-tête de la fiche, titre et boutons côte à côte quel que soit la longueur du titre */
 .record-head-title { flex: 1 1 0; min-width: 280px; overflow-wrap: anywhere; }
 .record-head-actions { flex: 0 0 auto; width: 300px; max-width: 100%; }
+
+/* 2.0.0 (lot 10) : texte intégral (Aozora Bunko) */
+.aozora-text { font-size: 1.1rem; line-height: 2.1; max-width: 46em; overflow-wrap: anywhere; }
+.aozora-text rt { font-size: .55em; }
+.aozora-head, .aozora-colophon { white-space: pre-wrap; font-family: inherit; background: none; border: 0; padding: 0; }
+.aozora-gaiji { text-decoration: underline dotted; cursor: help; }

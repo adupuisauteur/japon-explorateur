@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Texte — {{ record.original_title|truncatechars:50 }}{% endblock %}
+{% block content %}
+<nav aria-label="Fil d'Ariane" class="small mb-2"><a href="{{ record.catalogue.get_absolute_url }}">{{ record.catalogue.name }}</a> › <a href="{{ record.get_absolute_url }}">{{ record.original_title|truncatechars:60 }}</a> › Texte intégral</nav>
+<div class="d-flex flex-wrap gap-3 justify-content-between align-items-start mb-3">
+  <div class="record-head-title">
+    <h1 class="h3 mb-1">{{ record.original_title }}</h1>
+    {% if record.creator_original %}<div class="text-muted ja">{{ record.creator_original }}</div>{% endif %}
+  </div>
+  <div class="d-flex flex-column gap-2 record-head-actions">
+    {% if user.can_edit and source_file %}
+    <form method="post" action="{% url 'catalog:record_text_fetch' record.record_id %}">{% csrf_token %}
+      <button class="btn btn-sm {% if current %}btn-outline-secondary{% else %}btn-primary{% endif %} w-100"><i class="bi bi-download"></i> {% if current %}Télécharger de nouveau{% else %}Télécharger le texte{% endif %}</button>
+      <div class="form-text">Depuis {{ record.catalogue.name }} ({% if source_kind == 'zip' %}fichier texte compressé{% else %}page XHTML{% endif %}).</div></form>
+    {% endif %}
+    {% if current and projects %}
+    <form method="post" action="{% url 'catalog:record_text_to_project' record.record_id %}" class="input-group input-group-sm">{% csrf_token %}
+      <select name="project" class="form-select" aria-label="Projet de traduction">{% for p in projects %}<option value="{{ p.pk }}">{{ p.title|truncatechars:40 }}</option>{% endfor %}</select>
+      <button class="btn btn-outline-primary">Envoyer au projet</button></form>
+    <div class="form-text">Texte seul, sans furigana ni notes de mise en forme ({{ chars }} caractères).</div>
+    {% elif current and user.can_edit %}
+    <a class="btn btn-sm btn-outline-primary" href="{% url 'translation:project_create' %}">Créer un projet de traduction</a>
+    {% endif %}
+    {% if record.digital_access_url %}<a class="btn btn-sm btn-outline-secondary" href="{{ record.digital_access_url }}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> Lire sur le site</a>{% endif %}
+  </div>
+</div>
+
+{% if record.rights_and_access %}<div class="alert alert-light border small"><strong>Droits :</strong> {{ record.rights_and_access }}</div>{% endif %}
+
+{% if current %}
+  <p class="small text-muted">Téléchargé le {{ current.fetched_at|date:"d/m/Y H:i" }} · {{ current.get_file_format_display }} · encodage {{ current.encoding }}{% if older %} · {{ older }} version(s) précédente(s) conservée(s){% endif %} · <a href="{{ current.source_url }}" target="_blank" rel="noopener">fichier d'origine</a></p>
+  {% if head %}<pre class="aozora-head ja">{{ head }}</pre>{% endif %}
+  <div class="aozora-text ja" lang="ja">{{ body_html }}</div>
+  {% if colophon %}<hr><pre class="aozora-colophon ja small">{{ colophon }}</pre>{% endif %}
+{% elif source_file %}
+  <div class="alert alert-info">Le texte n'est pas encore dans J-ed. {% if user.can_edit %}« Télécharger le texte » le récupère auprès de {{ record.catalogue.name }} (un seul fichier, quelques centaines de Ko au plus).{% else %}Un chercheur ou l'administrateur peut le télécharger.{% endif %}</div>
+{% else %}
+  <div class="alert alert-secondary">Aucun fichier texte connu pour cette notice.</div>
+{% endif %}
+{% endblock %}

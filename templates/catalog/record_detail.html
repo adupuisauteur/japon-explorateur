@@ -43,6 +43,7 @@
       {% if record.source_url %}<a class="btn btn-sm btn-outline-secondary flex-grow-1" href="{{ record.source_url }}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> Notice officielle</a>{% endif %}
       <button class="btn btn-sm btn-outline-secondary" data-cache-offline="{{ request.path }}" title="Conserver cette fiche pour une consultation hors ligne"><i class="bi bi-cloud-download"></i> Hors ligne</button>
     </div>
+    {% if record.catalogue.code == 'aozora' or record.texts.exists %}<a class="btn btn-sm btn-outline-primary" href="{% url 'catalog:record_text' record.record_id %}"><i class="bi bi-file-text"></i> Texte intégral</a>{% endif %}
     <a class="btn btn-sm btn-outline-secondary" href="{% url 'exports:prepare' %}?scope=selection&records={{ record.record_id }}"><i class="bi bi-box-arrow-up"></i> Exporter cette fiche</a>
     {% if user.can_edit %}
     {% if quick_job %}{% include "translation/_job_mini.html" with job=quick_job %}{% endif %}

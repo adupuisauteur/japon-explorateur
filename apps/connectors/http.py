@@ -176,6 +176,40 @@ class ConnectorHTTP:
             raise ConnectorError(f"Ressource injoignable : {exc.__class__.__name__}.", kind="unavailable",
                                  code="connect", diagnostic=diag) from exc
 
+    def get_bytes(self, url, *, max_bytes=50 * 1024 * 1024, accept="*/*"):
+        """2.0.0 (lot 10) : fichier binaire (archive zip d'Aozora Bunko). Une tentative, pas de cache, taille bornée."""
+        request_id = new_request_id()
+        started = time.monotonic()
+        self._throttle()
+        try:
+            with self._client() as client, client.stream("GET", url, headers={"Accept": accept}) as response:
+                status = response.status_code
+                if status >= 400:
+                    diag = self._diag(request_id, url, None, started, 1, http_status=status)
+                    kind = "unavailable" if status in (429, 502, 503, 504) or status >= 500 else "technical"
+                    raise ConnectorError(f"La source a répondu par une erreur (HTTP {status}).", kind=kind,
+                                         http_status=status, code=f"http_{status}", diagnostic=diag)
+                chunks, received = [], 0
+                for chunk in response.iter_bytes():
+                    received += len(chunk)
+                    if received > max_bytes:
+                        raise ConnectorError(f"Fichier trop volumineux (plus de {max_bytes // (1024 * 1024)} Mo).",
+                                             kind="technical", code="too_large")
+                    chunks.append(chunk)
+                self._diag(request_id, url, None, started, 1, http_status=status,
+                           content_type=response.headers.get("content-type", ""), bytes=received)
+                return {"content": b"".join(chunks), "status": status, "url": str(response.url),
+                        "content_type": response.headers.get("content-type", ""),
+                        "last_modified": response.headers.get("last-modified", "")}
+        except httpx.TimeoutException as exc:
+            diag = self._diag(request_id, url, None, started, 1, exception=exc.__class__.__name__)
+            raise ConnectorError(f"Délai d'attente dépassé ({self.timeout:.0f} s).", kind="unavailable",
+                                 code="timeout", diagnostic=diag) from exc
+        except httpx.HTTPError as exc:
+            diag = self._diag(request_id, url, None, started, 1, exception=exc.__class__.__name__)
+            raise ConnectorError(f"Source injoignable : {exc.__class__.__name__}.", kind="unavailable",
+                                 code="connect", diagnostic=diag) from exc
+
     def get_json(self, url, params=None, **kwargs):
         result = self.get(url, params, **kwargs)
         try:

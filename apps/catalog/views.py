@@ -254,3 +254,77 @@ def work_detail(request, pk):
     work = get_object_or_404(Work, pk=pk)
     return render(request, "catalog/work_detail.html",
                   {"work": work, "records": work.records.select_related("catalogue")})
+
+
+# --------------------------------------------------------------------------- 2.0.0 (lot 10) : texte intégral
+
+
+@login_required
+def record_text(request, record_id):
+    from apps.translation.models import TranslationProject
+    from apps.translation.permissions import can_edit_project
+
+    from . import texts
+
+    record = get_object_or_404(Record.objects.select_related("catalogue"), record_id=record_id)
+    current = record.texts.first()
+    url, kind = texts.text_url(record)
+    context = {"record": record, "current": current, "source_file": url, "source_kind": kind,
+               "older": record.texts.count() - 1 if current else 0}
+    if current:
+        head, body, colophon = texts.split(current.text)
+        context.update(head=head, body_html=texts.ruby_html(body), colophon=colophon, chars=len(texts.plain(body)))
+    if request.user.can_edit:
+        context["projects"] = [p for p in TranslationProject.objects.order_by("-updated_at")[:200]
+                               if can_edit_project(request.user, p)][:30]
+    return render(request, "catalog/record_text.html", context)
+
+
+@researcher_required
+@require_POST
+def record_text_fetch(request, record_id):
+    from . import texts
+
+    record = get_object_or_404(Record.objects.select_related("catalogue"), record_id=record_id)
+    try:
+        text = texts.fetch(record, request.user)
+    except texts.TextError as exc:
+        messages.error(request, str(exc))
+    else:
+        log_action(request, "record.text", record, f"Texte intégral téléchargé ({text.file_format}, {text.size} octets)")
+        messages.success(request, f"Texte téléchargé ({text.size // 1024 or 1} Ko, encodage {text.encoding}).")
+    return redirect("catalog:record_text", record_id=record.record_id)
+
+
+@researcher_required
+@require_POST
+def record_text_to_project(request, record_id):
+    from apps.translation import variety
+    from apps.translation.models import TranslationProject
+    from apps.translation.permissions import can_edit_project
+    from apps.translation.projects import ProjectError, create_document
+
+    from . import texts
+
+    record = get_object_or_404(Record, record_id=record_id)
+    current = record.texts.first()
+    project = get_object_or_404(TranslationProject, pk=request.POST.get("project") or 0)
+    if current is None:
+        messages.error(request, "Téléchargez d'abord le texte.")
+        return redirect("catalog:record_text", record_id=record.record_id)
+    if not can_edit_project(request.user, project):
+        raise PermissionDenied
+    head, body, colophon = texts.split(current.text)
+    plain = texts.plain(body)
+    try:
+        document = create_document(project, title=record.original_title, text=plain, source_kind="aozora",
+                                   filename=current.source_url.rsplit("/", 1)[-1], encoding=current.encoding,
+                                   confidence="sure", variety=variety.detect(plain)[0], record=record)
+    except ProjectError as exc:
+        messages.error(request, str(exc))
+        return redirect("catalog:record_text", record_id=record.record_id)
+    log_action(request, "translation.document", document, f"Texte d'Aozora Bunko ajouté au projet « {project} »")
+    messages.success(request, f"Texte ajouté au projet « {project} » ({document.segments.count()} segment(s)). "
+                              "Mention à garder : texte d'Aozora Bunko, d'après le texte source indiqué en fin de "
+                              "document.")
+    return redirect("translation:project_detail", pk=project.pk)
