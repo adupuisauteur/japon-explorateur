@@ -33,6 +33,9 @@ Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquet
     scripts retiennent désormais la dernière ligne (ils lisaient la première).
   - correctif du 16 novembre 2026 : l'indicateur de la barre de menu distingue les résumés des traductions
     (« 1 résumé en cours », « 1 traduction et 1 résumé en cours »).
+  - correctif du 16 novembre 2026 : l'IA locale est appelée par l'API native d'Ollama, raisonnement des modèles
+    Qwen3 désactivé, sortie JSON imposée et fenêtre de contexte de 8 192 jetons (`OLLAMA_NUM_CTX`) ; une réponse
+    illisible est expliquée avec son début (« Début de la réponse : … ») au lieu d'un simple « format attendu ».
 - **Lot 3 — tâches, file de nuit, « Traduire maintenant », travail en parallèle** (15 novembre 2026, rapport :
   `docs/evolution-2.0.0/rapport-lot-3.md`) :
   - lancement au choix à la confirmation : immédiat, programmé (date et heure) ou file de nuit ; le coût est

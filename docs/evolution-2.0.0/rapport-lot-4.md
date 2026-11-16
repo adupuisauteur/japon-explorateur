@@ -87,6 +87,20 @@ dernière ligne, comme Docker, et signalent toute variable présente plusieurs f
 L'indicateur dit maintenant « 1 résumé en cours », ou « 1 traduction et 1 résumé en cours » (test ajouté, 668 tests
 réussis). Archive : `japon-explorateur-2.0.0-lot4-correctif3.zip`, qui contient aussi les deux premiers correctifs.
 
+**Quatrième point du même jour** : premier résumé réel avec qwen3:4b (tâche n° 15) en échec, « La réponse de l'IA
+n'est pas au format JSON attendu ». La réponse reçue n'était pas conservée, la cause exacte n'est donc pas prouvée.
+Causes probables, toutes traitées :
+- le modèle Qwen3 raisonne avant de répondre ; l'API compatible OpenAI d'Ollama ne permet pas de le désactiver de façon
+  sûre, et ce raisonnement pouvait épuiser la limite de longueur (800 jetons pour un résumé court) avant la réponse ;
+- rien n'imposait une sortie JSON ;
+- la fenêtre de contexte par défaut d'Ollama peut tronquer sans avertissement un passage long et sa consigne.
+
+Correction : appel par l'API native (`/api/chat`) avec `think: false`, `format: "json"` et `num_ctx` 8 192
+(réglable par `OLLAMA_NUM_CTX`). Toute réponse illisible montre désormais son début dans l'erreur ; une réponse vide ou
+réduite au raisonnement est nommée comme telle. Trois tests ajoutés (671 tests réussis). Statut : testé en
+simulation ; test réel = « Relancer les échecs » sur la tâche n° 15. Archive : `japon-explorateur-2.0.0-lot4-correctif4.zip`,
+qui contient aussi les correctifs 1 à 3.
+
 ## 6. Livrables du lot
 
 - Archive `japon-explorateur-2.0.0-lot4.zip` et son empreinte `.sha256`.

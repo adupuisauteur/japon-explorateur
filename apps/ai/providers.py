@@ -256,22 +256,36 @@ class OllamaProvider(OpenAIProvider):
         root = (getattr(settings, "OLLAMA_URL", "") or "").rstrip("/")
         if not root:
             raise ProviderError("IA locale non configurée (OLLAMA_URL absent).", kind="unavailable")
-        self.base_url = f"{root}/v1"
+        self.root, self.base_url = root, f"{root}/v1"
         self.timeout = getattr(settings, "OLLAMA_TIMEOUT", 900)
 
     def _headers(self):
         return {}
 
     def complete(self, system, prompt, model, max_tokens=2000):
-        body = {"model": model, "messages": [{"role": "system", "content": system},
-                                             {"role": "user", "content": prompt}], "max_tokens": max_tokens}
-        data = self._request("POST", f"{self.base_url}/chat/completions", headers={}, json=body, timeout=self.timeout)
-        try:
-            text = data["choices"][0]["message"]["content"] or ""
-        except (KeyError, IndexError):
-            raise ProviderError("Réponse de l'IA locale sans contenu.", kind="unparsable") from None
-        usage = data.get("usage") or {}
-        return Completion(text, usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0), data.get("model", model))
+        """API native d'Ollama (/api/chat), et non l'API compatible OpenAI (16 novembre 2026, poste de
+        l'utilisateur : réponse sans JSON avec qwen3:4b). Trois réglages que l'API compatible ne permet pas :
+        - « think » désactivé : les modèles Qwen3 raisonnent sinon longuement avant de répondre, et ce raisonnement
+          épuisait la limite de longueur avant la réponse ;
+        - « format » JSON : la sortie est contrainte à un objet JSON valide (tous les appels de J-ed en attendent un) ;
+        - « num_ctx » : la fenêtre par défaut d'Ollama est trop petite pour un passage de 3 000 caractères japonais
+          et sa consigne, qui seraient tronqués sans avertissement.
+        """
+        from django.conf import settings
+
+        body = {"model": model, "stream": False, "think": False, "format": "json",
+                "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+                "options": {"num_predict": max_tokens, "num_ctx": getattr(settings, "OLLAMA_NUM_CTX", 8192)}}
+        data = self._request("POST", f"{self.root}/api/chat", headers={}, json=body, timeout=self.timeout)
+        message = data.get("message") or {}
+        text = message.get("content") or ""
+        if not text.strip():
+            reason = (" : la limite de longueur a été atteinte avant la réponse" if data.get("done_reason") == "length"
+                      else "")
+            raise ProviderError(f"Réponse vide de l'IA locale{reason}.", kind="unparsable")
+        if data.get("done_reason") == "length":
+            text += "\n[réponse coupée : limite de longueur atteinte]"
+        return Completion(text, data.get("prompt_eval_count", 0), data.get("eval_count", 0), data.get("model", model))
 
 
 PROVIDER_CLASSES = {cls.key: cls for cls in (OpenAIProvider, AnthropicProvider, GeminiProvider,

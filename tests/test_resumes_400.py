@@ -709,3 +709,61 @@ class IndicatorTests(SummaryCase):
         self.assertEqual(Q.running_label(self.user), "1 traduction et 1 résumé en cours")
         TranslationJob.objects.filter(pk__in=[job.pk, other.pk]).update(status="done")
         self.assertEqual(Q.running_label(self.user), "")
+
+
+class OllamaNativeCallTests(AppTestCase):
+    """16 novembre 2026, poste de l'utilisateur : qwen3:4b, « La réponse de l'IA n'est pas au format JSON attendu »."""
+
+    def setUp(self):
+        import httpx
+
+        from apps.ai.providers import OllamaProvider
+
+        super().setUp()
+        self.bodies, self.reply = [], {}
+
+        def handler(request):
+            self.bodies.append((request.url.path, json.loads(request.content)))
+            return httpx.Response(200, json=self.reply)
+
+        OllamaProvider.transport = httpx.MockTransport(handler)
+        self.addCleanup(setattr, OllamaProvider, "transport", None)
+        overrides = self.settings(OLLAMA_URL="http://ollama:11434")
+        overrides.enable()
+        self.addCleanup(overrides.disable)
+
+    def provider(self):
+        from apps.ai import local
+        from apps.ai.providers import get_provider
+
+        return get_provider(local.credential_for(self.researcher))
+
+    def test_native_api_without_thinking_with_json_and_context(self):
+        self.reply = {"model": "qwen3:4b", "message": {"role": "assistant", "content": '{"summary": "Fictif."}'},
+                      "done_reason": "stop", "prompt_eval_count": 210, "eval_count": 12}
+        completion = self.provider().complete("Système", "Consigne", "qwen3:4b", max_tokens=800)
+        path, body = self.bodies[0]
+        self.assertEqual(path, "/api/chat")
+        self.assertEqual((body["think"], body["format"], body["stream"]), (False, "json", False))
+        self.assertEqual(body["options"], {"num_predict": 800, "num_ctx": 8192})
+        self.assertEqual((completion.text, completion.tokens_in, completion.tokens_out), ('{"summary": "Fictif."}',
+                                                                                          210, 12))
+        self.assertEqual(S.parse(completion.text)["summary"], "Fictif.")
+
+    def test_empty_or_cut_replies_are_explained(self):
+        self.reply = {"message": {"content": ""}, "done_reason": "length"}
+        with self.assertRaisesMessage(ProviderError, "limite de longueur a été atteinte avant la réponse"):
+            self.provider().complete("S", "P", "qwen3:4b")
+        self.reply = {"message": {"content": '{"summary": "Début coup'}, "done_reason": "length"}
+        text = self.provider().complete("S", "P", "qwen3:4b").text
+        with self.assertRaisesMessage(ProviderError, "Début de la réponse : « {\"summary\": \"Début coup"):
+            S.parse(text)
+
+    def test_parse_shows_what_was_received(self):
+        with self.assertRaisesMessage(ProviderError, "Début de la réponse : « Voici le résumé demandé"):
+            S.parse("Voici le résumé demandé, sans JSON.")
+        with self.assertRaisesMessage(ProviderError, "ne contient que son raisonnement, sans résumé"):
+            S.parse("<think>raisonnement jamais refermé")
+        with self.assertRaisesMessage(ProviderError, "Réponse vide."):
+            S.parse("")
+        self.assertEqual(S.parse('<think>a</think>```json\n{"summary": "Oui."}\n```')["summary"], "Oui.")

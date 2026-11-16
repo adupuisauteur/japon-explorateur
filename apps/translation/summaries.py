@@ -317,20 +317,30 @@ def _build_prompt(job, text, *, step, index=0, count=1, partials=None, variety="
     return prompt
 
 
-THINK = re.compile(r"<think>.*?</think>", re.S)
+THINK = re.compile(r"<think>.*?(?:</think>|$)", re.S)  # bloc de raisonnement, même non refermé
+
+
+def _excerpt(text):
+    """Début d'une réponse illisible, sur une ligne : montré dans l'erreur, jamais masqué."""
+    flat = " ".join((text or "").split())
+    return f" Début de la réponse : « {flat[:160]}{'…' if len(flat) > 160 else ''} »" if flat else " Réponse vide."
 
 
 def parse(text):
-    text = THINK.sub("", text or "").strip()
+    raw = text or ""
+    text = THINK.sub("", raw).strip()
+    if raw.strip() and not text:
+        raise ProviderError("La réponse de l'IA ne contient que son raisonnement, sans résumé (limite de longueur "
+                            "probablement atteinte avant la réponse).", kind="unparsable")
     match = re.search(r"\{.*\}", text, re.S)
     if not match:
-        raise ProviderError("La réponse de l'IA n'est pas au format JSON attendu.", kind="unparsable")
+        raise ProviderError("La réponse de l'IA n'est pas au format JSON attendu." + _excerpt(raw), kind="unparsable")
     try:
         data = json.loads(match.group(0))
     except ValueError:
-        raise ProviderError("JSON invalide dans la réponse de l'IA.", kind="unparsable") from None
+        raise ProviderError("JSON invalide dans la réponse de l'IA." + _excerpt(raw), kind="unparsable") from None
     if not isinstance(data, dict) or not str(data.get("summary") or "").strip():
-        raise ProviderError("La réponse de l'IA ne contient pas de résumé.", kind="unparsable")
+        raise ProviderError("La réponse de l'IA ne contient pas de résumé." + _excerpt(raw), kind="unparsable")
     return data
 
 

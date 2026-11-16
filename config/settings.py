@@ -174,6 +174,8 @@ AI_ALLOWED_LOCAL_URLS = env.list("AI_ALLOWED_LOCAL_URLS", default=[])
 # 2.0.0 (lot 4) : IA locale (service Ollama facultatif, profil « ollama »). Adresse interne fixée ici, jamais depuis
 # l'interface ; délai d'un résumé (calcul sur le processeur) et d'un téléchargement de modèle.
 OLLAMA_URL = env.str("OLLAMA_URL", default="")
+# Fenêtre de contexte demandée à l'IA locale (jetons) : consigne + passage + réponse. Plus grand = plus de mémoire.
+OLLAMA_NUM_CTX = env.int("OLLAMA_NUM_CTX", default=8192)
 OLLAMA_TIMEOUT = env.int("OLLAMA_TIMEOUT", default=900)
 
 # Police japonaise pour les PDF (TrueType). Si absente, police CID intégrée à ReportLab.
