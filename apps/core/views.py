@@ -87,7 +87,9 @@ def about(request):
 
 _SHELL_FILES = ("css/app.css", "js/app.js", "vendor/bootstrap/bootstrap.min.css",
                 "vendor/bootstrap/bootstrap.bundle.min.js", "vendor/htmx/htmx.min.js",
-                "vendor/bootstrap-icons/bootstrap-icons.min.css")
+                "vendor/bootstrap-icons/bootstrap-icons.min.css",
+                # 2.0.0 (lot 6) : logo et icônes, mis en cache eux aussi
+                "icons/icon-192.png", "icons/favicon-32.png", "img/logo-j-ed.png")
 _shell_fingerprint = None
 
 

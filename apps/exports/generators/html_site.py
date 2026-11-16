@@ -10,7 +10,7 @@ import zipfile
 from html import escape
 from pathlib import Path
 
-from .common import citation, fiche_rows, metadata_lines, sha256_file, write_manifest
+from .common import citation, fiche_rows, logo_file, metadata_lines, sha256_file, write_manifest
 from .text import json_payload
 
 CSS = """
@@ -19,7 +19,7 @@ CSS = """
 body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Hiragino Sans","Yu Gothic","Noto Sans CJK JP",Meiryo,sans-serif;color:var(--ink);line-height:1.65;background:#fff}
 a{color:#1f4e79}a:hover{color:var(--accent)}
 header.top{position:sticky;top:0;z-index:5;background:var(--accent);color:#fff;padding:.7rem 1.2rem;display:flex;gap:1rem;align-items:center}
-header.top a{color:#fff;text-decoration:none;font-weight:600}header.top .meta{font-size:.78rem;opacity:.85;margin-left:auto;text-align:right}
+header.top a{color:#fff;text-decoration:none;font-weight:600}header.top a.brand{display:flex;align-items:center;gap:.6rem}header.top img.logo{height:32px;width:auto;background:#fff;border-radius:.35rem;padding:2px 4px}header.top .meta{font-size:.78rem;opacity:.85;margin-left:auto;text-align:right}
 #menu-toggle{display:none;background:none;border:1px solid #fff6;color:#fff;border-radius:6px;padding:.2rem .6rem}
 .layout{display:flex;min-height:calc(100vh - 56px)}
 nav.side{width:var(--side);flex:0 0 var(--side);border-right:1px solid var(--line);padding:1.2rem 1rem;background:var(--soft);position:sticky;top:56px;height:calc(100vh - 56px);overflow:auto}
@@ -93,7 +93,7 @@ class SiteBuilder:
 <meta name="generator" content="{_e(self.meta['application'])} {_e(self.meta['application_version'])}">
 <meta name="export-id" content="{_e(self.meta['export_id'])}"><meta name="dcterms.created" content="{_e(self.meta['generated_at'])}">
 <link rel="stylesheet" href="{up}assets/style.css"></head>
-<body><header class="top"><button id="menu-toggle" aria-label="Menu">☰</button><a href="{up}index.html">{_e(self.meta['title'])}</a>
+<body><header class="top"><button id="menu-toggle" aria-label="Menu">☰</button><a href="{up}index.html" class="brand">{self.logo_tag(up)}{_e(self.meta['title'])}</a>
 <div class="meta">{_e(self.meta.get('header') or '')}<br>{header_meta}</div></header>
 <div class="layout"><nav class="side" aria-label="Navigation">{nav}</nav>
 <main>{body}<footer class="page">{_e(self.meta.get('footer') or '')}<br>{_e(self.meta.get('production_line') or '')} — export {_e(self.meta['export_id'])}</footer></main></div>
@@ -101,6 +101,11 @@ class SiteBuilder:
         path = self.root / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(html, encoding="utf-8")
+
+    def logo_tag(self, up):
+        if not getattr(self, "has_logo", False):
+            return ""
+        return f'<img src="{up}assets/logo-j-ed.png" alt="J-ed" class="logo">'
 
     def _nav(self, up, active):
         def item(href, label, key):
@@ -138,6 +143,12 @@ class SiteBuilder:
         doc, meta = self.doc, self.meta
         (self.root / "assets").mkdir(parents=True, exist_ok=True)
         (self.root / "assets" / "style.css").write_text(CSS, encoding="utf-8")
+        logo = logo_file()  # 2.0.0 (lot 6) : logo de J-ed dans l'en-tête de chaque page
+        if logo is not None:
+            import shutil
+
+            shutil.copyfile(logo, self.root / "assets" / "logo-j-ed.png")
+        self.has_logo = logo is not None
         (self.root / "assets" / "search.js").write_text(SEARCH_JS, encoding="utf-8")
 
         stats = "".join(f"<tr><th>{_e(k)}</th><td>{_e(v)}</td></tr>" for k, v in metadata_lines(doc))

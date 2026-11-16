@@ -171,3 +171,4 @@ pre.json { background: #fff; border: 1px solid var(--line); border-radius: .5rem
 .help-page blockquote { border-left: 4px solid var(--bs-primary); padding: .4rem 1rem; background: #fff; border-radius: .4rem; }
 .help-page code { white-space: pre-wrap; }
 .help-page pre { background: #fff; border: 1px solid var(--line); border-radius: .5rem; padding: .7rem 1rem; }
+.brand-logo { height: 38px; width: auto; display: block; }

@@ -11,7 +11,9 @@ const SHELL_URLS = [
   "{{ static_prefix }}vendor/htmx/htmx.min.js",
   "{{ static_prefix }}vendor/bootstrap-icons/bootstrap-icons.min.css",
   "{{ static_prefix }}vendor/bootstrap-icons/fonts/bootstrap-icons.woff2",
-  "{{ static_prefix }}icons/icon-192.png"
+  "{{ static_prefix }}icons/icon-192.png",
+  "{{ static_prefix }}icons/favicon-32.png",
+  "{{ static_prefix }}img/logo-j-ed.png"
 ];
 
 self.addEventListener("install", (event) => {

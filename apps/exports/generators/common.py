@@ -35,6 +35,18 @@ ORIGIN_LABELS = {"ai": "traduction générée par IA", "user": "traduction de l'
                  "source": "fournie par la source"}
 
 
+#: 2.0.0 (lot 6) : logo de J-ed dans les en-têtes des exports (décision du 16 novembre 2026)
+LOGO_RATIO = 507 / 611  # hauteur / largeur du logo
+
+
+def logo_file():
+    """Chemin du logo (PNG), ou None s'il manque : un export ne doit jamais échouer pour un logo."""
+    from django.conf import settings
+
+    path = Path(settings.BASE_DIR) / "static" / "img" / "logo-j-ed-grand.png"
+    return path if path.is_file() else None
+
+
 def fiche_rows(rec):
     """Paires (libellé, valeur) non vides d'une fiche, avec signalement des contenus générés."""
     view = dict(rec)

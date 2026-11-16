@@ -1,8 +1,9 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% load static %}
 {% block title %}À propos{% endblock %}
 {% block content %}
 <div class="row justify-content-center"><div class="col-lg-9">
-<h1 class="brand-name">À propos de {{ APP_NAME }}</h1>
+<div class="d-flex align-items-center gap-3 mb-3"><img src="{% static 'img/logo-j-ed-grand.png' %}" alt="" height="110" width="133">
+<h1 class="brand-name mb-0">À propos de {{ APP_NAME }}</h1></div>
 <div class="card-soft mb-3">
   <dl class="row mb-0">
     <dt class="col-sm-4">Version</dt><dd class="col-sm-8">{{ APP_VERSION }}</dd>

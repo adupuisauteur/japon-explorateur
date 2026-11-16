@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#8a2b23">
   <title>J-ed ne répond pas</title>
-  <link rel="icon" href="{% static 'icons/icon-192.png' %}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{% static 'icons/favicon-32.png' %}">
   <link rel="stylesheet" href="{% static 'vendor/bootstrap/bootstrap.min.css' %}">
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
 </head>
@@ -14,6 +14,7 @@
 <main id="contenu" class="container py-5">
   <div class="row justify-content-center"><div class="col-lg-8">
     <div class="card-soft">
+      <img src="{% static 'img/logo-j-ed.png' %}" alt="J-ed" height="64" width="77" class="mb-2">
       <h1 class="h3 brand-name">J-ed ne répond pas</h1>
       <p>Le serveur de J-ed, qui fonctionne sur votre ordinateur, n'a pas répondu. Ce n'est pas un problème de
         connexion à Internet, et vos données ne sont pas touchées.</p>

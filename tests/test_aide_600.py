@@ -147,3 +147,62 @@ class HelpScreenTests(AppTestCase):
                 path.write_text("---\ntitre: Après\nresume: x\n---\nTexte.\n", encoding="utf-8")
                 os.utime(path, (path.stat().st_atime, path.stat().st_mtime + 5))
                 self.assertEqual(P.fresh_registry().pages["essai"].title, "Après")
+
+
+class LogoTests(AppTestCase):
+    """Logo de J-ed (16 novembre 2026) : barre de menu (logo seul), onglet, application installée, connexion,
+    « À propos », en-têtes des exports PDF, Word et site HTML."""
+
+    def export(self, fmt):
+        from django.conf import settings
+
+        from apps.exports.models import ExportJob
+
+        cat = Catalogue.objects.get(code="codh-pmjt")
+        record = Record.objects.create(catalogue=cat, source_id=f"logo-{fmt}", original_title="架空の書")
+        self.client.force_login(self.researcher)
+        self.client.post("/exports/preparer/", {"scope": "selection", "records": record.record_id,
+                                                "preset": "bibliography", "format": fmt, "title": "Essai du logo",
+                                                "column_profile": "bibliography", "csv_separator": "semicolon"})
+        job = ExportJob.objects.latest("pk")
+        self.assertEqual(job.status, "done", job.error)
+        return Path(settings.MEDIA_ROOT) / job.files.get(role="main").path
+
+    def test_pdf_has_the_logo_on_title_page_and_headers(self):
+        from pypdf import PdfReader
+
+        reader = PdfReader(str(self.export("pdf")))
+        self.assertGreaterEqual(len(reader.pages[0].images), 1)
+        self.assertGreaterEqual(len(reader.pages[-1].images), 1)
+
+    def test_word_has_the_logo(self):
+        import zipfile
+
+        with zipfile.ZipFile(self.export("docx")) as z:
+            media = [n for n in z.namelist() if n.startswith("word/media/")]
+            header = next(n for n in z.namelist() if n.startswith("word/header"))
+            self.assertTrue(media)
+            self.assertIn("<pic:pic", z.read(header).decode())
+
+    def test_html_site_has_the_logo(self):
+        import zipfile
+
+        with zipfile.ZipFile(self.export("html")) as z:
+            names = z.namelist()
+            self.assertTrue(any(n.endswith("assets/logo-j-ed.png") for n in names))
+            index = z.read(next(n for n in names if n.endswith("/index.html"))).decode()
+        self.assertIn('class="logo"', index)
+
+    def test_icons_and_pages(self):
+        from django.contrib.staticfiles import finders
+        from PIL import Image
+
+        for name, size in (("icons/icon-192.png", 192), ("icons/icon-512.png", 512),
+                           ("icons/icon-maskable-512.png", 512), ("icons/favicon-32.png", 32)):
+            with Image.open(finders.find(name)) as im:
+                self.assertEqual(im.size, (size, size), name)
+        self.client.logout()
+        self.assertIn("img/logo-j-ed.png", self.client.get("/comptes/connexion/").content.decode())
+        self.client.force_login(self.reader)
+        self.assertIn("img/logo-j-ed-grand.png", self.client.get("/a-propos/").content.decode())
+        self.assertIn("icons/favicon-32.png", self.client.get("/").content.decode())

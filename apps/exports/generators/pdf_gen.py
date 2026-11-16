@@ -17,7 +17,7 @@ from reportlab.platypus import (KeepTogether, PageBreak, Paragraph, SimpleDocTem
                                 TableStyle)
 from reportlab.platypus.tableofcontents import TableOfContents
 
-from .common import citation, fiche_rows, metadata_lines
+from .common import LOGO_RATIO, citation, fiche_rows, logo_file, metadata_lines
 
 logger = logging.getLogger(__name__)
 
@@ -178,7 +178,14 @@ def generate_pdf(doc, out_dir, basename):
     def link(url):
         return Paragraph(f'<a href="{escape(url)}" color="#1F4E79">{gm.markup(url)}</a>', s["cell"])
 
-    story = [Spacer(1, 5 * cm), para(meta["title"], "title")]
+    logo = logo_file()
+    if logo is not None:  # 2.0.0 (lot 6) : logo de J-ed sur la page de titre
+        from reportlab.platypus import Image as RLImage
+
+        story = [Spacer(1, 2 * cm), RLImage(str(logo), width=3.6 * cm, height=3.6 * cm * LOGO_RATIO),
+                 Spacer(1, 1.2 * cm), para(meta["title"], "title")]
+    else:
+        story = [Spacer(1, 5 * cm), para(meta["title"], "title")]
     if meta.get("subtitle"):
         story.append(para(meta["subtitle"], "subtitle"))
     if meta.get("subject"):
@@ -266,6 +273,9 @@ def generate_pdf(doc, out_dir, basename):
         canvas.setFont(font, 7.5)
         canvas.setFillColor(MUTED)
         gm.draw(canvas, A4[0] - 2 * cm, A4[1] - 1.2 * cm, (meta.get("header") or meta["title"])[:110], 7.5, "right")
+        if logo is not None:  # petit logo à gauche de l'en-tête
+            canvas.drawImage(str(logo), 2 * cm, A4[1] - 1.27 * cm, width=0.75 * cm, height=0.75 * cm * LOGO_RATIO,
+                             mask="auto")
         canvas.setStrokeColor(SOFT)
         canvas.line(2 * cm, A4[1] - 1.35 * cm, A4[0] - 2 * cm, A4[1] - 1.35 * cm)
         if meta.get("footer"):

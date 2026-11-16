@@ -41,7 +41,7 @@ class NameTests(AppTestCase):
     def test_pages_show_only_j_ed(self):
         page = self.client.get("/").content.decode()
         self.assertIn("<title>Accueil — J-ed</title>", page)
-        self.assertIn('<span class="brand-name">J-ed</span>', page)
+        self.assertIn('<img src="/static/img/logo-j-ed.png" alt="J-ed"', page)  # 2.0.0 (lot 6) : logo seul
         self.assertNotIn(OLD_NAME, page)
         self.client.logout()
         login = self.client.get("/comptes/connexion/").content.decode()
