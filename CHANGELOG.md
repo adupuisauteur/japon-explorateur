@@ -5,6 +5,27 @@
 Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquette `v1.3.0-rc3` (commit
 `d7296d4`). Audit et plan : `docs/evolution-2.0.0/01-audit.md`.
 
+- **Lot 6 — aide intégrée, historique des versions, logo** (16 novembre 2026, rapport :
+  `docs/evolution-2.0.0/rapport-lot-6.md`) :
+  - aide intégrée : 30 pages courtes orientées tâches dans `docs/aide/*.md` (une seule source), en six rubriques ;
+    pages réservées aux chercheurs ou à l'administrateur cachées aux autres ; rendu Markdown côté serveur
+    (bibliothèque Python-Markdown, licence BSD), HTML écrit dans les pages jamais interprété, liens internes
+    « aide: » et « ecran: » vérifiés par les tests ;
+  - bouton **?** dans la barre de menu : page d'aide de l'écran affiché (chaque écran principal en a une) ;
+    entrée « Aide » dans le menu à son nom, « Aide » et « Quoi de neuf » en bas de page ; recherche dans l'aide
+    (sans accents ni macrons) ;
+  - lexique, page « Japonais ancien : bonnes pratiques avec une IA » (texte fourni par l'utilisateur) ;
+  - « Quoi de neuf » et **Administration → Historique des versions** (demande U4) : évolutions et améliorations
+    version par version, sans les corrections, tirées d'une même page ;
+  - guide d'utilisation produit à partir de l'aide : `manage.py exporter_guide` (HTML autonome et Markdown,
+    `docs/guide-utilisation.*`) ; guide d'installation complété (étape 6 : IA locale, facultative) ;
+  - **logo de J-ed** : barre de menu (logo seul), icône d'onglet, application installée (icônes ordinaires et
+    « maskable »), connexion, premier démarrage, « À propos », page « J-ed ne répond pas », en-têtes des exports PDF,
+    Word et site HTML ; logo provisoire en PNG, en attendant le SVG ;
+  - libellés : la page d'une demande de résumés ne parle plus de traduction (« Demande de résumés », « 1 résumé(s) »,
+    « caractère(s) lu(s) par l'IA », élément « Résumé ») ;
+  - `verifier_fonctionnalites` ouvre aussi l'aide, sa recherche, « Quoi de neuf », l'historique et les résumés IA ;
+  - aucune migration.
 - **Lot 4 — résumés IA, IA locale, japonais ancien** (16 novembre 2026, rapport :
   `docs/evolution-2.0.0/rapport-lot-4.md`) :
   - trois types de résumé (court, détaillé, fiche d'analyse avec thèmes, personnes, lieux et dates), toujours

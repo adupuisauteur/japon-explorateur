@@ -365,6 +365,37 @@ quelques notices anciennes mal repérées (ou modernes repérées à tort) pour 
 Prépare une traduction d'une notice moderne et d'une notice ancienne. Attendu : « Tâche en deux parties,
 confirmées ensemble » avec le moteur de chaque partie ; « Confirmer » lance les deux.
 
+## Lot 6 — aide intégrée, historique des versions, logo
+
+Sur l'essai mis à jour avec l'archive du lot 6. Recharge une fois avec Ctrl + F5 (le logo et les icônes sont mis en
+cache par le navigateur).
+
+**V6-1 — Le bouton ?.** Sur plusieurs écrans (fiche d'une notice, Bibliothèque, Traduction → Tâches, Moteurs locaux,
+Administration → Sauvegardes), clique sur le bouton **?** à gauche du menu à ton nom. Attendu : la page d'aide de
+cet écran s'ouvre.
+
+**V6-2 — L'aide.** Menu à ton nom → **Aide**. Attendu : six rubriques ; les pages « administrateur » sont marquées.
+Ouvre deux ou trois pages : les liens vers d'autres pages fonctionnent. Dis-moi si un texte est faux, flou ou
+incomplet.
+
+**V6-3 — Recherche dans l'aide.** Cherche « file de nuit », puis « sorobun » (sans macron). Attendu : les pages
+« Tâches, file de nuit… » et « Le japonais ancien dans J-ed ».
+
+**V6-4 — Rôles.** Avec un compte chercheur, puis lecteur : les pages de l'administrateur n'apparaissent pas ; le
+lecteur ne voit pas non plus les pages de traduction.
+
+**V6-5 — Quoi de neuf et historique.** Bas de page → **Quoi de neuf** : la version 2.0.0 seulement. Administration →
+**Historique des versions** : 2.0.0, 1.3.0, 1.2.0, 1.1, sans aucune liste de corrections.
+
+**V6-6 — Logo.** Barre de menu (logo seul), onglet du navigateur, page de connexion, « À propos ». Si J-ed est
+installé comme application, l'icône peut ne changer qu'après l'avoir désinstallée puis réinstallée.
+
+**V6-7 — Logo dans les exports.** Exporte une notice en PDF, en Word et en site HTML. Attendu : le logo sur la page
+de titre et dans l'en-tête des pages (PDF, Word), et dans l'en-tête de chaque page du site HTML.
+
+**V6-8 — Guide d'utilisation.** Ouvre `docs/guide-utilisation.html` dans le navigateur : sommaire, toutes les pages
+de l'aide. Imprimer → Enregistrer au format PDF donne le guide en PDF.
+
 ## Grille de résultats
 
 | Vérification | Résultat | Remarque |
@@ -426,3 +457,11 @@ confirmées ensemble » avec le moteur de chaque partie ; « Confirmer » lance 
 | V4-7 Résumé avec l'IA locale | | |
 | V4-8 Japonais ancien | | |
 | V4-9 Moteur pour le japonais ancien | | |
+| V6-1 Le bouton ? | | |
+| V6-2 L'aide | | |
+| V6-3 Recherche dans l'aide | | |
+| V6-4 Rôles | | |
+| V6-5 Quoi de neuf et historique | | |
+| V6-6 Logo | | |
+| V6-7 Logo dans les exports | | |
+| V6-8 Guide d'utilisation | | |

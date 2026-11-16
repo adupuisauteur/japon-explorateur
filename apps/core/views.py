@@ -72,7 +72,9 @@ ABOUT_COMPONENTS = [
     ("Django", "cadre de l'application"), ("PostgreSQL", "base de données"),
     ("Celery et Redis", "tâches en arrière-plan"), ("HTMX", "interface, licence BSD zéro clause"),
     ("Bootstrap et Bootstrap Icons", "présentation, licence MIT"),
-    ("ReportLab et python-docx", "exports PDF et Word"), ("Argos Translate", "traduction hors ligne (facultative)"),
+    ("ReportLab et python-docx", "exports PDF et Word"), ("Argos Translate", "traduction hors ligne, licence MIT"),
+    ("Ollama", "IA locale facultative, licence MIT ; modèles Qwen3 sous licence Apache 2.0"),
+    ("Python-Markdown", "pages de l'aide intégrée, licence BSD"),
 ]
 
 
