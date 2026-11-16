@@ -15,12 +15,13 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--json", action="store_true", help="Sortie JSON.")
+        parser.add_argument("--premiere", action="store_true", help="Refaire la première étude (complète).")
         parser.add_argument("--pause", type=float, default=1.0, help="Secondes entre deux requêtes (défaut 1).")
 
     def handle(self, *args, **opts):
-        self.stderr.write("Étude des sources : une trentaine de requêtes espacées d'une seconde (1 à 2 minutes)…")
+        self.stderr.write("Étude des sources : une vingtaine de requêtes espacées d'une seconde (environ une minute)…")
         study = E.Study(pause=max(0.5, opts["pause"]))
-        steps = study.run(E.ndl_digital_ids())
+        steps = study.run(E.ndl_digital_ids(), plan=1 if opts["premiere"] else 2)
         report = E.text_report(steps, study.requests)
         try:
             REPORT.write_text(report, encoding="utf-8")

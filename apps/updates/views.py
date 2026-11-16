@@ -124,6 +124,18 @@ def incoming_decide(request):
 @require_POST
 def sync_apply(request, pk):
     job = get_object_or_404(SyncJob, pk=pk)
+    accepted = job.incoming.filter(decision="accept").count()
+    if accepted > services.APPLY_INLINE_MAX:  # 2.0.0 (lot 10) : trop long pour une page (délai de 180 s)
+        from .tasks import apply_sync_job
+
+        job.status = "running"
+        job.message = f"Intégration de {accepted} notice(s) en cours (tâche de fond)."
+        job.save(update_fields=["status", "message"])
+        log_action(request, "sync.apply", job.catalogue, "Intégration lancée en tâche de fond", accepted=accepted)
+        apply_sync_job.delay(job.pk, request.user.pk)
+        messages.info(request, f"Intégration de {accepted} notice(s) lancée en tâche de fond : rechargez la page "
+                               "pour suivre l'avancement. Une interruption n'efface rien ; relancez pour continuer.")
+        return redirect(job.get_absolute_url())
     stats = services.apply_sync(job, request.user)
     log_action(request, "sync.apply", job.catalogue, "Synchronisation intégrée", **stats)
     messages.success(request, f"Intégration : {stats['created']} créée(s), {stats['updated']} mise(s) à jour (historisées), "

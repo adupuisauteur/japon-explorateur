@@ -312,7 +312,12 @@ def _stage_sync_result(job, catalogue, res, counts):
                                   matched_record=existing, decision="accept" if status == "new" else "pending")
 
 
+APPLY_INLINE_MAX = 1000  # au-delà, l'intégration d'une synchronisation passe en tâche de fond
+
+
 def apply_sync(job, user):
+    if job.status == "running":
+        job.message = ""
     stats = apply_incoming(job.incoming.filter(decision="accept").select_related("sync_job__catalogue"), user,
                            origin="synchronisation")
     pending = job.incoming.filter(decision__in=["pending", "hold"]).count()

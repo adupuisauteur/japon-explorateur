@@ -73,22 +73,36 @@ class Study:
         root = f"{parts.scheme}://{parts.netloc}"
         if root not in self.robots:
             parser = RobotFileParser()
+            # Règle usuelle : 401/403 = tout interdit ; 404/410 = pas de règle ; autre réponse (5xx) ou site
+            # injoignable = on s'abstient (16/11/2026 : Waseda répondait 503, la page a été demandée à tort).
             try:
                 response = self.get(root + "/robots.txt")
-                parser.parse(response.text.splitlines() if response.status_code == 200 else [])
+                status = response.status_code
             except httpx.HTTPError:
+                status = None
+            if status == 200:
+                parser.parse(response.text.splitlines())
+            elif status in (404, 410):
                 parser.parse([])
+            else:
+                parser.disallow_all = True
             self.robots[root] = parser
         return self.robots[root].can_fetch(settings.CONNECTOR_USER_AGENT, url)
 
     # ------------------------------------------------------------------ étapes
 
-    def run(self, ndl_ids=()):
+    def run(self, ndl_ids=(), plan=2):
+        """Plan 2 (16/11/2026, après la première étude) : notices Kokusho de Japan Search (base nij16), contrôle
+        positif des numérisations NDL, liste Aozora avec ses colonnes. Plan 1 : première étude, complète."""
         steps = []
-        for method, args in ((self.robots_files, ()), (self.japan_search, ()), (self.japan_search_databases, ()),
-                             (self.kokusho, ()), (self.ndl_provider, ("waseda", "源氏物語")),
-                             (self.ndl_provider, ("aozora", "夏目漱石")), (self.waseda_page, ()),
-                             (self.ndl_access, (ndl_ids,)), (self.aozora, ()), (self.ships, ())):
+        first = ((self.robots_files, ()), (self.japan_search, ()), (self.japan_search_databases, ()),
+                 (self.kokusho, ()), (self.ndl_provider, ("waseda", "源氏物語")),
+                 (self.ndl_provider, ("aozora", "夏目漱石")), (self.waseda_page, ()),
+                 (self.ndl_access, (ndl_ids,)), (self.aozora, ()), (self.ships, ()))
+        second = ((self.jps_sample, ("nij16", "方丈記")), (self.jps_sample, ("nij16", "源氏物語")),
+                  (self.jps_sample, ("arc_books", "早稲田 源氏")), (self.ndl_access_v2, (ndl_ids,)),
+                  (self.aozora, ()))
+        for method, args in (first if plan == 1 else second):
             try:
                 steps.append(method(*args))
             except Exception as exc:  # noqa: BLE001 — une étape en échec n'arrête pas l'étude
@@ -272,6 +286,78 @@ class Study:
             step.facts.append(line)
         return step
 
+    def jps_sample(self, database, keyword):
+        """Structure exacte des notices d'une base Japan Search (champs, liens, identifiants)."""
+        step = Step(f"jps-{database}", f"Japan Search, base « {database} » : structure des notices")
+        response = self.get(JPSEARCH, {"keyword": keyword, "f-db": database, "size": 5})
+        step.facts.append(f"« {keyword} » → HTTP {response.status_code}")
+        if response.status_code != 200:
+            return step
+        payload = response.json()
+        items = payload.get("list") or []
+        step.facts.append(f"  total {payload.get('hit')} ; {len(items)} lus")
+        for n, item in enumerate(items[:2]):
+            text = json.dumps(item, ensure_ascii=False)
+            step.facts.append(f"  notice {n + 1} : id {item.get('id')} ; clés {sorted(item.keys())}")
+            step.facts.append(f"    common : {json.dumps(item.get('common') or {}, ensure_ascii=False)[:900]}")
+            own = {k: v for k, v in item.items() if k not in ("common", "id", "rdfindex")}
+            step.facts.append(f"    champs propres : {json.dumps(own, ensure_ascii=False)[:1500]}")
+            step.facts.append(f"    liens : {sorted(set(URL_RE.findall(text)))[:10]}")
+            step.data.setdefault("ids", []).append(item.get("id"))
+        return step
+
+    def ndl_access_v2(self, ndl_ids):
+        """Accès des numérisations NDL : contrôle positif (numérisations publiques citées par Japan Search, base
+        dignl) puis numérisations de la base, par quatre voies, pour savoir laquelle dit l'accès."""
+        step = Step("ndl-acces-2", "NDL : accès des numérisations (contrôle positif, puis celles de la base)")
+        control = []
+        response = self.get(JPSEARCH, {"keyword": "源氏物語", "f-db": "dignl", "size": 10})
+        if response.status_code == 200:
+            for pid in re.findall(r"dl\.ndl\.go\.jp/(?:info:ndljp/)?pid/(\d{5,})", response.text):
+                if pid not in control:
+                    control.append(pid)
+        step.facts.append(f"Contrôle positif (Japan Search, base dignl) : {control[:2] or 'aucune numérisation'}")
+        for label, pids in (("contrôle", control[:2]), ("base", list(ndl_ids)[:4])):
+            for pid in pids:
+                step.facts.append(f"{label} {pid} :")
+                for name, url in (("manifeste", f"https://dl.ndl.go.jp/api/iiif/{pid}/manifest.json"),
+                                  ("API notice", f"https://dl.ndl.go.jp/api/item/search/info:ndljp/pid/{pid}"),
+                                  ("page", f"https://dl.ndl.go.jp/pid/{pid}")):
+                    if not self.allowed(url):
+                        step.facts.append(f"  {name} : non lu (robots.txt)")
+                        continue
+                    try:
+                        r = self.get(url)
+                    except httpx.HTTPError as exc:
+                        step.facts.append(f"  {name} : {exc.__class__.__name__}")
+                        continue
+                    line = f"  {name} → HTTP {r.status_code} ({r.headers.get('content-type', '')[:30]})"
+                    body = r.text[:200000]
+                    marks = [m for m in ("インターネット公開", "図書館・個人送信", "個人送信", "図書館送信",
+                                         "国立国会図書館内", "館内限定", "publicationStatus", "accessRestriction",
+                                         "rights", "license") if m in body]
+                    if marks:
+                        line += f" ; mentions {marks}"
+                    if "json" in r.headers.get("content-type", "") and r.status_code == 200:
+                        try:
+                            data = r.json()
+                            line += f" ; clés {sorted(data.keys())[:15] if isinstance(data, dict) else type(data).__name__}"
+                            for key in ("license", "rights", "attribution", "publicationStatus", "accessRestrictions"):
+                                if isinstance(data, dict) and key in data:
+                                    line += f" ; {key} = {json.dumps(data[key], ensure_ascii=False)[:150]}"
+                        except ValueError:
+                            pass
+                    step.facts.append(line)
+                ndl = self.get(NDL_OPENSEARCH, {"any": pid, "dpid": "ndl-dl", "cnt": 1})
+                tags = sorted({etree.QName(e).localname for e in etree.fromstring(
+                    ndl.content, parser=etree.XMLParser(resolve_entities=False, no_network=True)).iter("*")}) \
+                    if ndl.status_code == 200 else []
+                access = [m.group(0)[:120] for m in re.finditer(r"<[^>]*(?:ccess|ights)[^>]*>[^<]*", ndl.text)]
+                step.facts.append(f"  NDL Search dpid=ndl-dl → HTTP {ndl.status_code} ; champs {tags[:40]}")
+                if access:
+                    step.facts.append(f"    accès/droits : {access[:4]}")
+        return step
+
     def aozora(self):
         step = Step("aozora", "Aozora Bunko : liste de toutes les œuvres")
         allowed = self.allowed(AOZORA_LIST)
@@ -365,7 +451,7 @@ def ndl_digital_ids(limit=8):
 
 
 def text_report(steps, requests):
-    lines = ["Étude des sources — J-ed 2.0.0 (lot 10)", f"{requests} requête(s), lecture seule ; rien n'est enregistré.", ""]
+    lines = ["Étude des sources (2) — J-ed 2.0.0 (lot 10)", f"{requests} requête(s), lecture seule ; rien n'est enregistré.", ""]
     marks = {"ok": "[OK]", "erreur": "[Erreur]", "non_permis": "[Non lu : robots.txt]"}
     for step in steps:
         lines.append(f"== {step.title} {marks.get(step.state, '')}")

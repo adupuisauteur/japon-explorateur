@@ -34,3 +34,18 @@ def stage_import_job(job_id, generate_ids=False):
 
     job = ImportJob.objects.get(pk=job_id)
     stage_import(job, generate_ids=generate_ids)
+
+
+@shared_task
+def apply_sync_job(job_id, user_id):
+    """2.0.0 (lot 10) : intégration en tâche de fond d'une grosse synchronisation (liste Aozora : ~17 000 notices,
+    plus que le délai d'une page). Chaque notice intégrée est marquée : une reprise continue là où l'on s'est arrêté."""
+    from apps.accounts.models import User
+
+    from .models import SyncJob
+    from .services import apply_sync
+
+    job = SyncJob.objects.filter(pk=job_id).first()
+    user = User.objects.filter(pk=user_id).first()
+    if job and user:
+        apply_sync(job, user)

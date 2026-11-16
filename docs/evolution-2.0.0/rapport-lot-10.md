@@ -1,6 +1,6 @@
 # Rapport du lot 10 — documents et nouvelles sources (2.0.0)
 
-*État : étape 1 livrée (étude des sources sur le poste).*
+*État : étapes 1 (étude des sources) et 2 (Aozora Bunko, registre des connecteurs, second passage de l'étude) livrées.*
 
 ## 1. Périmètre validé (16 novembre 2026)
 
@@ -55,7 +55,66 @@ enregistré dans la base.
 Une étape en échec n'arrête pas les autres. Une page que robots.txt n'autorise pas n'est pas lue. Rapport texte,
 copié hors du conteneur par `docker compose cp`. Trois tests en simulation.
 
-## 4. Livrables de l'étape 1
+## 4. Résultats de la première étude (poste de l'utilisateur, 16 novembre 2026, 22 h 05)
 
-- Archive `japon-explorateur-2.0.0-lot10-etape1.zip` et son empreinte `.sha256`.
-- Protocole : section « Lot 10 » (V10-1).
+| Source | Constat | Conséquence |
+| --- | --- | --- |
+| Kokusho | Les notices du Kokusho sont dans la base Japan Search `nij16` (« 日本古典籍総合目録 », nom d'avant la fusion de 2023), avec des liens vers `base1.nijl.ac.jp` et non vers `kokusho.nijl.ac.jp`. Des images Kokusho apparaissent aussi par d'autres bases (`THERS_da`), avec l'adresse du manifeste officiel. Le manifeste de la notice d'essai est en IIIF 2, licence « Public Domain Mark », 152 vues. | Cause de « aucune notice Kokusho reconnue » : J-ed cherchait des liens `kokusho.nijl.ac.jp`. Recherche Kokusho à filtrer sur `nij16`, une fois la structure de ses notices connue (second passage). |
+| Waseda | NDL Search `dpid=waseda` fonctionne : 223 notices pour 源氏物語, chacune avec l'adresse de sa page Waseda. Le site de Waseda répond 503 (robots.txt et page) et `archive.wul` 403 à une requête automatique. Japan Search en a une partie par la base `arc_books` (portail ARC), avec les adresses de la page de lecture, du PDF et des vignettes. | Connecteur Waseda par NDL Search ; aucune lecture du site de Waseda : liens seulement, avec la mention obligatoire. |
+| NDL (numérisations) | Les deux numérisations de la base renvoient 404 au manifeste IIIF. | Probablement des documents à accès réservé, à confirmer par un contrôle positif (second passage). |
+| SHIPS | Aucune API ni IIIF repérés ; recherche par un moteur Google intégré. | Pas de connecteur : lien vers le site. |
+| Aozora Bunko | robots.txt sans restriction pour J-ed ; liste de 2 Mo, mise à jour le 21 août 2026. Aussi présent dans NDL Search (`aozora`, CC BY) et Japan Search (`aozora`). | Source à part entière (étape 2). |
+
+Défaut de la commande corrigé : un robots.txt en 503 était lu comme « aucune règle », et la page Waseda a été
+demandée une fois. Désormais, 401/403 vaut refus total, et 5xx ou site injoignable vaut abstention.
+
+## 5. Étape 2
+
+### 5.1 Aozora Bunko
+
+- **Import.** La liste officielle (CSV compressé, CC BY) est importée par « Synchroniser ». Elle compte une ligne
+  par couple (œuvre, personne) ; J-ed les regroupe en une notice par œuvre, avec auteur(s), traducteur(s)
+  marqués 訳, texte source (底本), saisie et relecture, et droits (domaine public ou œuvre protégée publiée avec
+  accord). Les colonnes sont lues par leur nom. Si une colonne indispensable manque, l'import s'arrête et cite
+  les colonnes reçues. La liste du jour est gardée dans un fichier : une reprise ne la télécharge pas de nouveau.
+  La synchronisation suit le circuit habituel : rapport à valider, puis intégration.
+- **Intégration en tâche de fond.** Mesure ici : 3 000 œuvres en 9 s de préparation et 32 s d'intégration. Les
+  17 000 œuvres demanderaient environ 3 minutes, plus que le délai d'une page (180 s). Au-delà de 1 000 notices,
+  l'intégration part en tâche de fond. Chaque notice intégrée est marquée, et « Reprendre » continue après une
+  interruption.
+- **Recherche** dans les notices importées, sans appel au site.
+- **Texte intégral.** Il est téléchargé seulement au clic, depuis le fichier zip (Shift_JIS, notation 《》 et ［＃］),
+  ou à défaut depuis la page XHTML. Il est gardé tel que reçu dans une nouvelle table `RecordText` (migration
+  additive ; un nouveau téléchargement ajoute une ligne et garde l'ancienne). L'affichage montre les furigana
+  avec un HTML entièrement échappé : seules les lectures deviennent des balises `<ruby>`. Un caractère hors JIS
+  est marqué ※, avec sa description au survol. Le texte source (底本) est repris en bas de page.
+- **Vers un projet de traduction** : le texte seul, sans lectures ni notes, est envoyé avec la provenance « Texte
+  d'Aozora Bunko » et le lien vers la notice ; la variété (moderne, classique) est suggérée comme pour les autres
+  documents.
+- Statut : testé en simulation (liste, textes et page XHTML fictifs), test réel à confirmer (V10-3, V10-4).
+
+### 5.2 Registre des connecteurs : cause des tests instables
+
+Le registre ne chargeait les modules des connecteurs que s'il était vide. Or chaque module s'inscrit lui-même
+quand on l'importe. Un import isolé, par un test ou par une autre partie de l'application, remplissait donc le
+registre à moitié : dans ce processus, NDL, la base locale et les autres sources devenaient « sans connecteur ».
+Les nouveaux tests d'Aozora ont rendu l'échec systématique, et le diagnostic ajouté au lot 9 a montré ce message.
+Le registre retient désormais qu'il a été chargé, et inscrit lui-même les connecteurs de chaque module. Un test
+reproduit la situation. Quatre suites complètes, après redémarrage de PostgreSQL : toutes réussies.
+
+Le même défaut pouvait toucher l'application, si un processus important un connecteur seul avant toute
+recherche. Aucun signalement de l'utilisateur ne s'en approche, mais la correction vaut aussi pour lui.
+
+### 5.3 Second passage de l'étude
+
+`etudier_sources` (plan 2) : structure des notices Japan Search des bases `nij16` (Kokusho) et `arc_books`
+(Waseda). Pour les numérisations NDL : un contrôle positif (numérisations publiques citées par Japan Search, base
+`dignl`) puis celles de la base, par quatre voies (manifeste, API de notice, page, NDL Search). Colonnes exactes de
+la liste Aozora. L'ancienne étude reste disponible : `--premiere`.
+
+## 6. Livrables
+
+
+- Étape 1 : `japon-explorateur-2.0.0-lot10-etape1.zip` et son empreinte `.sha256`.
+- Étape 2 : `japon-explorateur-2.0.0-lot10-etape2.zip` et son empreinte `.sha256`.
+- Protocole : section « Lot 10 » (V10-1 à V10-4).

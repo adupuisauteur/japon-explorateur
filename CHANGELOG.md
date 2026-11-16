@@ -5,6 +5,21 @@
 Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquette `v1.3.0-rc3` (commit
 `d7296d4`). Audit et plan : `docs/evolution-2.0.0/01-audit.md`.
 
+- **Lot 10 — étape 2** (16 novembre 2026) :
+  - **Aozora Bunko**, source à part entière : liste officielle des œuvres (CSV compressé, CC BY) importée par
+    « Synchroniser », une notice par œuvre (auteurs, traducteurs, texte source, droits), colonnes lues par leur nom ;
+    recherche dans les notices importées, sans requête au site ; **texte intégral** téléchargé au clic depuis la
+    fiche (fichier zip Shift_JIS ou page XHTML), conservé (nouvelle table `RecordText`, migration additive),
+    affiché avec ses furigana, envoyé seul vers un projet de traduction (provenance « Texte d'Aozora Bunko ») ;
+    page d'aide ;
+  - synchronisations de plus de 1 000 notices : intégration en tâche de fond (le délai d'une page est de 180 s),
+    avec reprise après interruption ;
+  - **registre des connecteurs toujours complet** : il ne chargeait ses modules que s'il était vide ; un connecteur
+    importé seul ailleurs le remplissait à moitié et les autres sources devenaient « sans connecteur » dans ce
+    processus. C'était la cause des tests de recherche instables ; le défaut pouvait aussi toucher l'application ;
+  - étude des sources, second passage (`etudier_sources`) : notices Kokusho de Japan Search (base `nij16`),
+    contrôle positif des numérisations NDL, colonnes de la liste Aozora ; un robots.txt en 401/403 ou 5xx vaut
+    désormais refus.
 - **Lot 10 — documents et nouvelles sources, étape 1** (16 novembre 2026, rapport :
   `docs/evolution-2.0.0/rapport-lot-10.md`) : commande `manage.py etudier_sources`, à lancer sur le poste
   (l'environnement de développement ne joint pas ces sites). Lecture seule, une trentaine de requêtes espacées d'une

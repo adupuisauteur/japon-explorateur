@@ -437,6 +437,19 @@ Attendu : le doublon est proposé, comme avant.
 `docker compose cp web:/tmp/etude-sources.txt etude-sources.txt`. Attendu : 1 à 2 minutes, dix rubriques, aucune
 erreur Python. Joins le fichier `etude-sources.txt` à ta réponse.
 
+**V10-2 — Étude des sources, second passage (étape 2).** Même commande qu'en V10-1 :
+`docker compose exec web python manage.py etudier_sources`, puis
+`docker compose cp web:/tmp/etude-sources.txt etude-sources-2.txt`. Joins `etude-sources-2.txt`.
+
+**V10-3 — Aozora Bunko : import.** Mises à jour → Aozora Bunko → Synchronisation complète. Attendu : environ
+17 000 nouvelles notices à valider. « Intégrer les éléments acceptés » : message « tâche de fond » ; quelques
+minutes plus tard, la synchronisation est « Intégré ». Une recherche 羅生門 avec la source Aozora Bunko trouve
+l'œuvre d'Akutagawa.
+
+**V10-4 — Aozora Bunko : texte.** Fiche de 羅生門 → Texte intégral → Télécharger le texte. Attendu : texte avec
+furigana, bas de page « 底本： ». Envoyer au projet (un projet d'essai) : le document apparaît dans le projet,
+sans furigana.
+
 ## Grille de résultats
 
 | Vérification | Résultat | Remarque |
@@ -512,3 +525,6 @@ erreur Python. Joins le fichier `etude-sources.txt` à ta réponse.
 | V9-4 IA locale après mise à jour | | |
 | V9-5 Doublons | | |
 | V10-1 Étude des sources | | fichier joint |
+| V10-2 Étude des sources (2) | | fichier joint |
+| V10-3 Aozora : import | | |
+| V10-4 Aozora : texte | | |

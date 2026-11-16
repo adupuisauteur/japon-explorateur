@@ -74,6 +74,48 @@ class Router:
 
 
 class SourceStudyTests(AppTestCase):
+    def test_robots_answering_403_or_503_means_abstain(self):
+        def transport(request):
+            if request.url.path == "/robots.txt":
+                return httpx.Response(503 if request.url.host.startswith("www") else 403)
+            return httpx.Response(200, text="page")
+
+        study = E.Study(transport=httpx.MockTransport(transport), pause=0)
+        self.assertFalse(study.allowed("https://www.wul.waseda.ac.jp/kotenseki/html/x/"))
+        self.assertFalse(study.allowed("https://archive.wul.waseda.ac.jp/kosho/x.html"))
+
+    def test_second_study_plan(self):
+        dignl = {"hit": 1, "list": [{"id": "dignl-1", "common": {"linkUrl": "https://dl.ndl.go.jp/pid/2574385"}}]}
+        nij16 = {"hit": 11, "list": [{"id": "nij16-12345", "common": {"title": "方丈記",
+                                      "linkUrl": "https://base1.nijl.ac.jp/iview/x"}, "nij16-0-s": "書誌ID 12345"}]}
+
+        def transport(request):
+            url = str(request.url)
+            if url.endswith("/robots.txt"):
+                return httpx.Response(200, text="User-agent: *\nDisallow: /search\n")
+            if "jps-cross" in url:
+                return httpx.Response(200, json=dignl if "dignl" in url else nij16)
+            if "2574385/manifest.json" in url:
+                return httpx.Response(200, json={"license": "pdm", "@context": "x"})
+            if "manifest.json" in url:
+                return httpx.Response(404)
+            if "/pid/" in url and "api" not in url:
+                return httpx.Response(200, text="<html>図書館・個人送信</html>", headers={"content-type": "text/html"})
+            if "opensearch" in url:
+                return httpx.Response(200, text="<rss><channel><item><dcterms:accessRights xmlns:dcterms='x'>限定</dcterms:accessRights></item></channel></rss>")
+            return Router()(request)
+
+        study = E.Study(transport=httpx.MockTransport(transport), pause=0)
+        report = E.text_report(study.run(["11164407"]), study.requests)
+        self.assertIn("Étude des sources (2)", report)
+        self.assertIn("nij16-12345", report)
+        self.assertIn("書誌ID 12345", report)
+        self.assertIn("Contrôle positif (Japan Search, base dignl) : ['2574385']", report)
+        self.assertIn("manifeste → HTTP 200", report)
+        self.assertIn("manifeste → HTTP 404", report)
+        self.assertIn("図書館・個人送信", report)
+        self.assertIn("accessRights", report)
+
     def test_study_reports_structure_and_writes_nothing(self):
         cat = self.catalogue("ndl")
         upsert_record(cat, {"source_id": "N1", "original_title": "五輪書",
@@ -81,7 +123,7 @@ class SourceStudyTests(AppTestCase):
         before = Record.objects.count()
         router = Router()
         study = E.Study(transport=httpx.MockTransport(router), pause=0)
-        steps = study.run(E.ndl_digital_ids())
+        steps = study.run(E.ndl_digital_ids(), plan=1)
         report = E.text_report(steps, study.requests)
         self.assertEqual(Record.objects.count(), before)
         self.assertEqual(E.ndl_digital_ids(), ["1234567"])
@@ -99,7 +141,7 @@ class SourceStudyTests(AppTestCase):
     def test_robots_refusal_is_respected(self):
         router = Router(robots_block={"www.wul.waseda.ac.jp", "www.aozora.gr.jp"})
         study = E.Study(transport=httpx.MockTransport(router), pause=0)
-        steps = {s.key: s for s in study.run([])}
+        steps = {s.key: s for s in study.run([], plan=1)}
         self.assertEqual(steps["waseda-page"].state, "non_permis")
         self.assertFalse(any("/kotenseki/html/" in u for u in router.seen))
         self.assertFalse(any("index_pages" in u for u in router.seen))
@@ -112,7 +154,7 @@ class SourceStudyTests(AppTestCase):
             return Router()(request)
 
         study = E.Study(transport=httpx.MockTransport(transport), pause=0)
-        steps = study.run([])
+        steps = study.run([], plan=1)
         states = {s.title: s.state for s in steps}
         self.assertIn("erreur", states.values())
         self.assertGreaterEqual(len(steps), 9)
@@ -351,3 +393,30 @@ class RegistryTests(AppTestCase):
             registry._REGISTRY.clear()
             registry._REGISTRY.update(saved[0])
             registry._LOADED = saved[1]
+
+
+class LargeSyncApplyTests(AozoraTests):
+    def test_large_apply_runs_in_background_and_resumes(self):
+        from apps.updates import services
+        from apps.updates.models import SyncJob
+        from apps.updates.services import run_sync
+
+        self.list_bytes = aozora_list(extra_rows=12)
+        job = run_sync(SyncJob.objects.create(catalogue=self.aozora, kind="full"))
+        with mock.patch.object(services, "APPLY_INLINE_MAX", 5), \
+                mock.patch("apps.updates.tasks.apply_sync_job.delay") as delay:
+            self.client.post(f"/mises-a-jour/synchro/{job.pk}/integrer/")
+            job.refresh_from_db()
+            self.assertEqual(job.status, "running")
+            self.assertIn("tâche de fond", job.message)
+            delay.assert_called_once_with(job.pk, self.admin.pk)
+            page = self.client.get(job.get_absolute_url()).content.decode()
+            self.assertIn("Reprendre", page)
+        # interruption après 4 notices, puis reprise : rien n'est intégré deux fois
+        first = list(job.incoming.filter(decision="accept")[:4])
+        services.apply_incoming(first, self.admin, origin="synchronisation")
+        from apps.updates.tasks import apply_sync_job
+        apply_sync_job(job.pk, self.admin.pk)
+        job.refresh_from_db()
+        self.assertEqual(job.status, "applied")
+        self.assertEqual(Record.objects.filter(catalogue=self.aozora).count(), 14)
