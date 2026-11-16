@@ -144,7 +144,7 @@ class NightTests(PipelineTestCase):
         report = self.tick(at(1, 7, 1))
         self.assertEqual(report["night_reports"], 1)
         notification = Notification.objects.get(recipient=self.user, title="Compte rendu de la nuit")
-        self.assertIn("2 tâche(s) : 2 élément(s) traduit(s), 0 restant(s), 0 en échec", notification.body)
+        self.assertIn("2 tâche(s) : 2 élément(s) terminé(s), 0 restant(s), 0 en échec", notification.body)
 
     def test_late_window_asks_for_confirmation(self):
         (job,) = self.queue_jobs(1)

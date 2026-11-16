@@ -79,7 +79,7 @@
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
       <div><strong>{% if stale %}Interrompue (aucun signe d'activité){% else %}{{ job.status_label }}{% endif %}</strong>
         <span class="small text-muted">· {{ job.get_launch_display }}{% if job.launch == 'scheduled' and job.scheduled_for %} le {{ job.scheduled_for|date:"d/m/Y à H:i" }}{% elif job.launch == 'night' and night_window %} ({{ night_window }}){% endif %}</span>
-        <span class="text-muted small">· {{ job.done_items }} traduit(s) / {{ job.total_items }}{% if job.skipped_items %} · {{ job.skipped_items }} non envoyé(s){% endif %}{% if job.failed_items %} · <span class="text-danger">{{ job.failed_items }} échec(s)</span>{% endif %} · {{ job.chars_sent }} caractère(s) envoyé(s)</span></div>
+        <span class="text-muted small">· {{ job.done_items }} {{ job.done_word }} / {{ job.total_items }}{% if job.skipped_items %} · {{ job.skipped_items }} non envoyé(s){% endif %}{% if job.failed_items %} · <span class="text-danger">{{ job.failed_items }} échec(s)</span>{% endif %} · {{ job.chars_sent }} {{ job.sent_word }}</span></div>
       <form method="post" action="{% url 'translation:job_action' job.pk %}" class="d-flex flex-wrap gap-1">{% csrf_token %}
         {% if job.status == 'confirmed' or job.status == 'running' or job.status == 'scheduled' %}{% if not stale %}<button class="btn btn-sm btn-outline-secondary" name="action" value="pause" title="Après le paquet en cours ; rien n'est renvoyé à la reprise">Mettre en pause</button>{% endif %}{% endif %}
         {% if stale or job.status == 'failed' or job.status == 'interrupted' or job.status == 'paused' or job.status == 'late' %}<button class="btn btn-sm btn-primary" name="action" value="resume">{% if job.status == 'late' %}Lancer maintenant{% else %}Reprendre maintenant{% endif %}</button>{% endif %}
@@ -100,8 +100,8 @@
   </section>
   {% if report %}
   <section class="card-soft mb-3"><h2 class="h6">Compte rendu</h2>
-    <p class="small mb-1">{{ report.done }} traduit(s) · {{ report.failed }} en échec · {{ report.pending }} restant(s){% if report.skipped %} · {{ report.skipped }} non envoyé(s) (déjà validés ou repris de la mémoire){% endif %}.
-      Coût : {% if report.cost.amount is not None %}{% if report.cost.amount %}{{ report.cost.amount|floatformat:4 }} {{ report.cost.currency }} <span class="text-muted">(estimation sur {{ job.chars_sent }} caractère(s) envoyé(s) ; la facture du fournisseur fait foi)</span>{% else %}aucun{% endif %}{% else %}<span class="text-muted">non disponible — {{ report.cost.basis }}</span>{% endif %}.</p>
+    <p class="small mb-1">{{ report.done }} {{ job.done_word }} · {{ report.failed }} en échec · {{ report.pending }} restant(s){% if report.skipped %} · {{ report.skipped }} non envoyé(s) (déjà validés ou repris de la mémoire){% endif %}.
+      Coût : {% if report.cost.amount is not None %}{% if report.cost.amount %}{{ report.cost.amount|floatformat:4 }} {{ report.cost.currency }} <span class="text-muted">(estimation sur {{ job.chars_sent }} {{ job.sent_word }} ; la facture du fournisseur fait foi)</span>{% else %}aucun{% endif %}{% else %}<span class="text-muted">non disponible — {{ report.cost.basis }}</span>{% endif %}.</p>
     {% if report.errors %}<p class="small mb-1"><strong>Erreurs :</strong></p><ul class="small mb-1">{% for message, n in report.errors %}<li>{{ message }}{% if n > 1 %} ({{ n }} éléments){% endif %}</li>{% endfor %}</ul>{% endif %}
     {% if report.links %}<p class="small mb-0"><strong>Résultats :</strong> {% for label, url in report.links %}<a href="{{ url }}">{{ label|truncatechars:40 }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}</p>{% endif %}
   </section>{% endif %}
@@ -116,7 +116,7 @@
 {% for item in items %}<tr>
   <td class="text-muted small">{{ item.position }}</td>
   <td class="small">{% if item.segment %}Segment {{ item.segment.position }}{% elif item.record %}<a href="{{ item.record.get_absolute_url }}">{{ item.record.original_title|truncatechars:40 }}</a> — {{ item.record_field }}{% else %}<span class="text-muted">élément supprimé</span>{% endif %}</td>
-  <td class="small">{% if item.status == 'skipped' %}{% if item.skip_reason == 'memory' %}Mémoire{% else %}Déjà validé{% endif %}{% else %}{{ item.get_status_display }}{% endif %}</td>
+  <td class="small">{% if item.status == 'skipped' %}{% if item.skip_reason == 'memory' %}Mémoire{% else %}Déjà validé{% endif %}{% elif item.status == 'done' and job.kind == 'summary' %}Résumé{% elif item.status == 'done' and job.kind == 'package' %}Installé{% else %}{{ item.get_status_display }}{% endif %}</td>
   <td class="small">{% if item.version %}{% if item.version.simulated %}<span class="chip chip-warn">Simulation</span> {% endif %}{{ item.version.text|truncatechars:120 }}{% for a in item.version.alerts %}<div class="text-warning">⚠ {{ a }}</div>{% endfor %}
     {% elif item.editorial %}{% if item.editorial.data.simulated %}<span class="chip chip-warn">Simulation</span> {% endif %}{{ item.editorial.content|truncatechars:120 }}{% for a in item.editorial.data.alerts %}<div class="text-warning">⚠ {{ a }}</div>{% endfor %}
     {% elif item.error_message %}<span class="text-danger">{{ item.error_message }}</span>{% endif %}</td>

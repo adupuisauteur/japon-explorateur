@@ -113,7 +113,7 @@ def translation_job_ended(job):
         return None
     link = reverse("translation:job_detail", args=[job.pk])
     label = job.scope_label or f"tâche n° {job.pk}"
-    counts = f"{job.done_items} traduit(s), {job.failed_items} en échec, {job.skipped_items} ignoré(s)"
+    counts = f"{job.done_items} {job.done_word}, {job.failed_items} en échec, {job.skipped_items} ignoré(s)"
     if job.kind == "summary":  # 2.0.0 (lot 4) : mêmes fenêtres, vocabulaire des résumés
         counts = f"{job.done_items} résumé(s), {job.failed_items} en échec, {job.skipped_items} sans texte"
         what = "Résumés"

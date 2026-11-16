@@ -258,7 +258,7 @@ def _morning_report(pref, now):
             cost += Decimal(str(c["amount"]))
             currency = c.get("currency") or currency
     interrupted = sum(1 for j in jobs if j.status == "interrupted")
-    body = f"{len(jobs)} tâche(s) : {done} élément(s) traduit(s), {remaining} restant(s), {failed} en échec"
+    body = f"{len(jobs)} tâche(s) : {done} élément(s) terminé(s), {remaining} restant(s), {failed} en échec"
     body += f" ; coût estimé {cost:.4f} {currency or 'USD'}." if cost else " ; aucun coût."
     if interrupted:
         body += f" {interrupted} tâche(s) interrompue(s) pendant la nuit (ordinateur en veille, Docker arrêté ?)."

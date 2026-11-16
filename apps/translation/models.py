@@ -473,6 +473,26 @@ class TranslationJob(models.Model):
         return f"{self.get_kind_display()} — {self.get_engine_display()} ({self.get_status_display()})"
 
     @property
+    def title_label(self):
+        """Titre de la page d'une tâche (2.0.0, lot 6 : un résumé n'est pas une traduction)."""
+        if self.kind == "summary":
+            return "Demande de résumés"
+        if self.kind == "package":
+            return "Installation"
+        return "Tâche de traduction"
+
+    @property
+    def done_word(self):
+        """« traduit(s) », « résumé(s) » ou « installé(s) » selon la nature de la tâche."""
+        return {"summary": "résumé(s)", "package": "installé(s)"}.get(self.kind, "traduit(s)")
+
+    @property
+    def sent_word(self):
+        if self.kind == "summary":
+            return "caractère(s) lu(s) par l'IA"
+        return "caractère(s) envoyé(s)"
+
+    @property
     def status_label(self):
         """État affiché : « Terminée avec erreurs » quand des éléments ont échoué (2.0.0, lot 3)."""
         if self.status == "done" and self.failed_items:

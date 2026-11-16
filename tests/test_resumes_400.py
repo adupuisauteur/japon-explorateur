@@ -767,3 +767,18 @@ class OllamaNativeCallTests(AppTestCase):
         with self.assertRaisesMessage(ProviderError, "Réponse vide."):
             S.parse("")
         self.assertEqual(S.parse('<think>a</think>```json\n{"summary": "Oui."}\n```')["summary"], "Oui.")
+
+
+class WordingTests(SummaryCase):
+    """16 novembre 2026, tâche n° 15 sur le poste de l'utilisateur : « Tâche de traduction », « 1 traduit(s) »,
+    « Traduit » pour un résumé."""
+
+    def test_summary_job_page_speaks_of_summaries(self):
+        (job,) = self.run_summary(records=[self.record])
+        page = self.client.get(f"/traduction/taches/{job.pk}/").content.decode()
+        self.assertIn("<h1>Demande de résumés n° ", page)
+        self.assertIn("1 résumé(s) / 1", page)
+        self.assertIn("caractère(s) lu(s) par l&#x27;IA", page)
+        self.assertIn('<td class="small">Résumé</td>', page)
+        self.assertNotIn("Tâche de traduction", page)
+        self.assertNotIn("traduit(s)", page)

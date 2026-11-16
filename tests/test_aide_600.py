@@ -206,3 +206,25 @@ class LogoTests(AppTestCase):
         self.client.force_login(self.reader)
         self.assertIn("img/logo-j-ed-grand.png", self.client.get("/a-propos/").content.decode())
         self.assertIn("icons/favicon-32.png", self.client.get("/").content.decode())
+
+
+class GuideTests(AppTestCase):
+    """Le guide d'utilisation est tiré de l'aide (une seule source) : HTML autonome et Markdown."""
+
+    def test_guide_contains_every_page_and_no_broken_link(self):
+        import re
+
+        from django.core.management import call_command
+
+        with tempfile.TemporaryDirectory() as tmp:
+            call_command("exporter_guide", dossier=tmp, stdout=open("/dev/null", "w"))
+            html = Path(tmp, "guide-utilisation.html").read_text(encoding="utf-8")
+            md = Path(tmp, "guide-utilisation.md").read_text(encoding="utf-8")
+        reg = P.registry().load()
+        for page in reg.pages.values():
+            self.assertIn(f"<section id='{page.slug}'>", html)
+            self.assertIn(f"## {page.title}", md)
+        ids = set(re.findall(r"id=['\"]([^'\"]+)['\"]", html))
+        self.assertEqual(set(re.findall(r"href=['\"]#([^'\"]+)['\"]", html)) - ids, set())
+        self.assertNotIn("](aide:", md)
+        self.assertNotIn('href="/', html)  # aucun lien vers l'application : le guide se lit sans elle
