@@ -227,15 +227,20 @@ def run_selftest(user, model):
 
     from .providers import ProviderError, get_provider
 
+    from types import SimpleNamespace
+
+    from apps.translation import summaries
+
     try:
         provider = get_provider(credential_for(user))
-        completion = provider.complete(
-            "Réponds uniquement par un objet JSON valide.",
-            "Résume en français, en une phrase, ce texte japonais fictif. Format : {\"summary\": \"…\"}\n"
-            + TEST_TEXT + ("\n/no_think" if model.startswith("qwen3") else ""), model, max_tokens=300)
-        from apps.translation.summaries import parse
-
-        text = parse(completion.text)["summary"]
+        # 16 novembre 2026 : l'ancienne consigne d'essai, plus courte que celle des vrais résumés, n'annonçait pas
+        # le texte ; qwen3:4b répondait {"error": "No input text provided"}. L'essai reprend désormais exactement la
+        # consigne d'un vrai résumé court (même système, même mise en forme, texte annoncé par « TEXTE : »).
+        job = SimpleNamespace(options={"kind": "court", "language": "fr"}, ai_model=model, ai_provider=PROVIDER)
+        prompt = summaries._build_prompt(job, TEST_TEXT, step="final")
+        completion = provider.complete(summaries.SYSTEM, prompt, model,
+                                       max_tokens=summaries.OUT_TOKENS["court"] * 2)
+        text = summaries.parse(completion.text)["summary"]
     except (ProviderError, RuntimeError) as exc:
         return ServiceCheck.record(CHECK_NAME, False, f"Essai de résumé en échec : {exc}", model=model)
     return ServiceCheck.record(CHECK_NAME, True, f"IA locale prête — {model}.", model=model, summary=text[:400])

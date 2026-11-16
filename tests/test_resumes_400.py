@@ -820,3 +820,20 @@ class LocalAutoSelftestTests(AppTestCase):
         self.assertEqual(local.auto_selftest(), "inutile")
         with mock.patch.dict(os.environ, {"COMPOSE_PROFILES": "argos"}):
             self.assertEqual(local.auto_selftest(), "inutile")
+
+
+class SelftestPromptTests(AppTestCase):
+    """16 novembre 2026, 18 h 59 : qwen3:4b répondait {"error": "No input text provided..."} à l'ancienne consigne."""
+
+    def test_selftest_uses_the_real_summary_prompt(self):
+        from apps.ai import local
+
+        stub = StubProvider()
+        with mock.patch("apps.ai.providers.get_provider", return_value=stub), \
+                mock.patch("apps.ai.local.get_provider", create=True, return_value=stub):
+            check = local.run_selftest(self.admin, "qwen3:4b")
+        self.assertTrue(check.ok)
+        prompt = stub.prompts[0]
+        self.assertIn("Rédige en français un résumé court", prompt)
+        self.assertIn("TEXTE :\n" + local.TEST_TEXT, prompt)
+        self.assertTrue(prompt.endswith("/no_think"))

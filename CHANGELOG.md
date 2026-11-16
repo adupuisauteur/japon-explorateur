@@ -39,6 +39,8 @@ Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquet
   - correctif du 16 novembre 2026 (`-AvecSources`) : une source sans interrogation en ligne (import de fichiers,
     « à étudier ») n'est plus comptée comme une source qui ne répond pas ; une source reliée à Japan Search sans
     identifiant de base est refusée avec un message clair (elle renvoyait tout le portail).
+  - correctif du 16 novembre 2026 : le résumé d'essai de l'IA locale reprend exactement la consigne d'un vrai résumé
+    (qwen3:4b répondait « No input text provided » à l'ancienne consigne d'essai, plus courte).
 - **Lot 4 — résumés IA, IA locale, japonais ancien** (16 novembre 2026, rapport :
   `docs/evolution-2.0.0/rapport-lot-4.md`) :
   - trois types de résumé (court, détaillé, fiche d'analyse avec thèmes, personnes, lieux et dates), toujours

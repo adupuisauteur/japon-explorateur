@@ -105,6 +105,14 @@ relancer à la main. Deux tests ajoutés.
 
 Deux tests ajoutés (694 tests réussis). Archive : `japon-explorateur-2.0.0-lot6-correctif2.zip`.
 
+**Correctif 3 (essai automatique de 18 h 59, sur ton poste).** L'essai automatique a bien été relancé après la
+mise à jour, mais il a échoué de nouveau. Le message, désormais complet, donne la cause : qwen3:4b a répondu
+`{"error": "No input text provided. Please provide the text to summarize."}`. La consigne d'essai, plus courte que
+celle des vrais résumés, collait le texte japonais à l'exemple de format sans l'annoncer. Le modèle ne l'a pas
+reconnu comme le texte à résumer. Les vrais résumés, eux, annoncent le texte par « TEXTE : » ; c'est pourquoi la
+tâche n° 15 a réussi. L'essai reprend maintenant exactement la consigne d'un vrai résumé court. Un test ajouté
+(695 tests réussis). Archive : `japon-explorateur-2.0.0-lot6-correctif3.zip`.
+
 ## 5. Livrables du lot
 
 - Archive `japon-explorateur-2.0.0-lot6.zip` et son empreinte `.sha256`.
