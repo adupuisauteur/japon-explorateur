@@ -55,7 +55,7 @@ Les nouveautés de la dernière version.
 Voici ce qui change dans la dernière version. Les versions précédentes sont décrites dans
 l'**Historique des versions** (Administration).
 
-### Version 2.0.0 (en préparation)
+### Version 2.0.0 (version candidate rc1 du 17 novembre 2026)
 
 Une version de consolidation : J-ed devient plus sûr, travaille seul la nuit, résume, et s'explique lui-même.
 
@@ -79,6 +79,8 @@ Une version de consolidation : J-ed devient plus sûr, travaille seul la nuit, r
   dans J-ed avec ses furigana et s'envoie vers un projet de traduction ; **Waseda** par le catalogue de la NDL ;
   **Kokusho** interrogé dans sa vraie base ; bouton **« Ouvrir le document »** vers la visionneuse de la source ;
   **visionneuse intégrée** facultative ; pour la NDL, J-ed dit si un document numérisé est en accès libre.
+- **Jeu d'essai fictif** et procédure « Essayer J-ed », pour découvrir l'application ou vérifier une nouvelle
+  version (Administration → Jeu d'essai).
 - **Rapidité mesurée** sur l'ordinateur (commande `mesurer_performances`) ; doublons trouvés aussi dans une
   grande base.
 - **Aide intégrée** : une page d'aide par écran (bouton **?**), une recherche, un lexique, cet historique, et une
@@ -1028,6 +1030,8 @@ powershell -ExecutionPolicy Bypass -File .\mettre-a-jour.ps1 -Archive .\japon-ex
 1. Ouvrez J-ed et rechargez la page avec **Ctrl + F5**.
 2. Vérifiez l'installation : voir [Vérifier l'installation](#verifier-l-installation).
 3. En cas de souci : [Dépannage après une mise à jour](#depannage-apres-mise-a-jour).
+4. Pour essayer les nouveautés sans toucher à vos données : [Essayer J-ed](#essayer-j-ed), avec le jeu
+   d'essai.
 
 Gardez l'ancien dossier quelques semaines : il permet de revenir en arrière. La procédure de retour est dans le
 guide de mise à jour.
@@ -1130,6 +1134,92 @@ jour est dans votre dossier de sauvegardes.
 Joignez le rapport de `verifier-j-ed.ps1` et le texte de **Copier le diagnostic** (page « État »). Aucun des deux ne
 contient de données personnelles ni de texte de recherche.
 
+## Essayer J-ed (jeu d'essai et procédure de test)
+
+Un jeu de données fictives et une procédure pas à pas, pour découvrir J-ed ou vérifier une nouvelle version.
+
+Cette procédure sert dans deux cas :
+
+- **vous découvrez J-ed** : elle fait le tour des fonctions principales en une demi-heure environ ;
+- **vous venez d'installer ou de mettre à jour J-ed** : elle vérifie que tout fonctionne, sans toucher à vos vraies
+  données.
+
+Elle s'appuie sur un **jeu d'essai** : des notices, un dossier et un projet de traduction **entièrement
+inventés**. Vous les retirez en un clic à la fin.
+
+> Pour une installation d'essai à côté de votre installation principale, utilisez un autre dossier, un autre nom
+> d'installation (`COMPOSE_PROJECT_NAME`) et un autre port (`WEB_PORT`) dans le fichier `.env` : voir le guide
+> d'installation, étape 3.1.
+
+### Avant de commencer
+
+1. Lancez la vérification automatique : dans PowerShell, depuis le dossier de J-ed, `.\verifier-j-ed.ps1`.
+   Attendu : un rapport dont le bilan indique **0 problème** (voir [Vérifier l'installation](#verifier-l-installation)).
+2. Ouvrez **Administration → Jeu d'essai** → **Charger le jeu d'essai**.
+   Attendu : le message « Jeu d'essai chargé : 38 notices fictives… ».
+
+### Partie A — sans Internet (20 minutes)
+
+Chaque étape indique entre crochets le **résultat attendu**. Une étape qui ne donne pas ce résultat est à signaler,
+avec une capture d'écran si possible.
+
+1. **Recherche locale.** Rechercher → tapez `架空`, source **Base locale** cochée.
+   [Une quinzaine de notices au moins, dont 架空物語集 et 架空絵巻, chacune une seule fois.]
+2. **Lecture et rōmaji.** Tapez `kakuu` (en lettres latines).
+   [Les mêmes notices : J-ed cherche aussi par la lecture.]
+3. **Fiche et trois statuts.** Ouvrez la notice 架空旅日記 (cote 架-009).
+   [Trois pastilles : Notice, Document, IIIF. Document indique un lien vers une numérisation (adresse fictive
+   `example.org`, à ne pas ouvrir).]
+4. **Doublons.** Ouvrez la notice 架空國史略 → bloc « Doublons et notices liées » → **Chercher des doublons
+   (règles)**.
+   [架空国史略 est proposé : même œuvre, en graphie ancienne et moderne. J-ed ne fusionne jamais tout seul.]
+5. **Bibliothèque et dossier.** Ma bibliothèque, puis Dossiers → « [Essai] Dossier fictif ».
+   [8 notices dans la bibliothèque et dans le dossier.]
+6. **Export.** Dans le dossier : Exporter → Word, puis PDF.
+   [Deux fichiers téléchargés ; le PDF affiche correctement les caractères japonais.]
+7. **Projet de traduction.** Traduction → Projets → « [Essai] Projet de traduction fictif ».
+   [Deux documents. Le texte classique est repéré comme langue classique (bungo).]
+8. **Traduction hors ligne.** Ouvrez le texte moderne → **Traduire…** → moteur **Argos**.
+   [Une traduction française proposée pour chaque segment, sans connexion ; à valider avant publication.]
+9. **Tâches et file de nuit.** Sur le texte classique : **Ajouter à la file de nuit**, puis Traduction → Tâches.
+   [La tâche apparaît « dans la file de nuit » ; vous pouvez l'annuler.]
+10. **Notifications.** Cloche en haut à droite.
+    [Les fins de tâche y apparaissent ; « Vu » les marque comme lues.]
+11. **Sauvegarde.** Administration → Sauvegardes → **Sauvegarder maintenant**, puis vérifiez son intégrité.
+    [Sauvegarde terminée, intégrité vérifiée.]
+12. **Aide.** Le bouton **?** de chaque page ouvre l'aide correspondante.
+
+### Partie B — avec Internet (facultatif, 15 minutes)
+
+Ces recherches interrogent les vraies sources. Les résultats peuvent varier légèrement avec le temps.
+
+1. **Kokusho.** Rechercher, source **Kokusho** seule : `方丈記`.
+   [Une centaine de notices du 日本古典籍総合目録, avec auteur, date, imprimé (刊) ou manuscrit (写).]
+2. **Document à images.** Source Kokusho : `10.20730/200015559` (歌仙繪) → ajoutez-le à la bibliothèque, ouvrez sa
+   fiche → **Ouvrir dans le Kokusho**.
+   [La visionneuse du NIJL s'ouvre. Si la visionneuse intégrée est activée dans Administration → Paramètres :
+   **Voir les images dans J-ed** montre 152 vues.]
+3. **NDL.** Source **NDL Search** : `2586959` → fiche → **Vérifier le manifeste IIIF**, puis rechargez la page.
+   [Document : « oui », consultable librement sur Internet.]
+4. **Aozora Bunko.** Si la liste n'est pas encore importée : Mises à jour → Aozora Bunko → synchronisation
+   complète, puis intégration (quelques minutes, voir [Aozora Bunko](#aozora-bunko)). Rechercher `羅生門`,
+   source Aozora Bunko → fiche → **Texte intégral** → **Télécharger le texte**.
+   [Le texte s'affiche avec ses furigana ; le texte source (底本) est indiqué en bas de page.]
+5. **Waseda.** Source **Waseda** : `源氏物語`.
+   [Environ deux cents notices ; « Ouvrir sur le site de Waseda » mène à la page de l'ouvrage.]
+6. **Vérification des sources.** `.\verifier-j-ed.ps1 -AvecSources`.
+   [Chaque source en ligne répond, ou figure dans la liste « sans recherche en ligne ».]
+
+### Pour finir
+
+1. **Administration → Jeu d'essai → Retirer le jeu d'essai.**
+   [« Jeu d'essai retiré : 38 notice(s), 1 dossier(s), 1 projet(s) ». Vos données ne sont pas touchées.]
+2. Si vous avez fait la partie B, les notices réelles ajoutées à la bibliothèque y restent : retirez-les si vous le
+   souhaitez.
+
+Le jeu d'essai se charge aussi en ligne de commande, depuis le dossier de J-ed :
+`docker compose exec web python manage.py jeu_essai --charger` (et `--retirer`).
+
 # Référence
 
 ## Lexique
@@ -1174,7 +1264,7 @@ Les mots de J-ed, en une phrase chacun.
 
 Évolutions et améliorations de J-ed, version par version.
 
-### Version 2.0.0 (en préparation)
+### Version 2.0.0 (version candidate rc1 du 17 novembre 2026)
 
 Une version de consolidation : J-ed devient plus sûr, travaille seul la nuit, résume, et s'explique lui-même.
 
@@ -1198,6 +1288,8 @@ Une version de consolidation : J-ed devient plus sûr, travaille seul la nuit, r
   dans J-ed avec ses furigana et s'envoie vers un projet de traduction ; **Waseda** par le catalogue de la NDL ;
   **Kokusho** interrogé dans sa vraie base ; bouton **« Ouvrir le document »** vers la visionneuse de la source ;
   **visionneuse intégrée** facultative ; pour la NDL, J-ed dit si un document numérisé est en accès libre.
+- **Jeu d'essai fictif** et procédure « Essayer J-ed », pour découvrir l'application ou vérifier une nouvelle
+  version (Administration → Jeu d'essai).
 - **Rapidité mesurée** sur l'ordinateur (commande `mesurer_performances`) ; doublons trouvés aussi dans une
   grande base.
 - **Aide intégrée** : une page d'aide par écran (bouton **?**), une recherche, un lexique, cet historique, et une

@@ -1,4 +1,4 @@
-# J-ed 2.0.0 — Demandes de l'utilisateur en cours de développement
+# J-ed 2.0.0 — Demandes de l'utilisateur pendant le développement
 
 Demandes faites pendant le développement, en plus du cahier des charges. Chacune indique le lot où elle est
 traitée et son état.
@@ -15,6 +15,8 @@ traitée et son état.
 | U8 | 15/11/2026 | IA locale gratuite (comme Argos) pour les résumés | 4 | Fait (lot 4) ; choix du modèle après l'essai réel (V4-6, V4-7) |
 | U9 | 15/11/2026 | Résumer directement après la traduction (file d'attente ou de nuit), ou après l'ensemble des traductions | 4 | Fait (lot 4) |
 | U10 | 15/11/2026 | Repérer les textes anciens et utiliser une autre IA pour les traduire et les résumer | 4 | Fait (lot 4) ; repérage « testé en simulation », à régler sur tes notices |
+| U11 | 17/11/2026 | Jeu de données de base pour les essais d'une nouvelle version, fourni avec la procédure de tests, aussi pour les nouveaux utilisateurs | rc1 | Fait : Administration → Jeu d'essai ; aide « Essayer J-ed » |
+| U12 | 17/11/2026 | Traduction du japonais ancien en trois étapes (現代語訳, puis traduction, avec les doutes) | après la 2.0.0 | Reportée, décision du 16/11/2026 |
 
 ## U2 — Pied de page des exports
 

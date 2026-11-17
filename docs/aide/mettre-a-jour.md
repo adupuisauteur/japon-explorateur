@@ -46,6 +46,8 @@ powershell -ExecutionPolicy Bypass -File .\mettre-a-jour.ps1 -Archive .\japon-ex
 1. Ouvrez J-ed et rechargez la page avec **Ctrl + F5**.
 2. Vérifiez l'installation : voir [Vérifier l'installation](aide:verifier-l-installation).
 3. En cas de souci : [Dépannage après une mise à jour](aide:depannage-apres-mise-a-jour).
+4. Pour essayer les nouveautés sans toucher à vos données : [Essayer J-ed](aide:essayer-j-ed), avec le jeu
+   d'essai.
 
 Gardez l'ancien dossier quelques semaines : il permet de revenir en arrière. La procédure de retour est dans le
 guide de mise à jour.

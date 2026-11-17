@@ -5,10 +5,6 @@
   <p>Traduction des notices et des documents, avec choix du moteur, glossaires, versions et validation humaine.
   Aucun texte n'est envoyé à un service en ligne sans votre confirmation.</p></div></div>
 
-<div class="alert alert-info" role="status">
-  Version {{ APP_VERSION }} en cours de développement : les rubriques ci-dessous s'activent au fil des lots.
-</div>
-
 <div class="row g-3 mb-4">
   {% for icon, name, text, lot, url_name in sections %}
   <div class="col-md-6 col-lg-4">{% if url_name %}<a class="card-soft d-block text-decoration-none text-reset h-100" href="{% url url_name %}">{% else %}<div class="card-soft h-100">{% endif %}

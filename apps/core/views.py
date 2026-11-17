@@ -224,3 +224,27 @@ def audit_log(request):
         qs = qs.filter(action__startswith=request.GET["action"])
     page = Paginator(qs, 50).get_page(request.GET.get("page"))
     return render(request, "core/audit_log.html", {"page": page})
+
+
+@admin_required
+def demo_dataset(request):
+    """2.0.0 (rc1) : jeu d'essai fictif, chargé ou retiré sur demande de l'administrateur."""
+    from . import jeu_essai
+
+    if request.method == "POST":
+        if request.POST.get("action") == "charger":
+            summary = jeu_essai.load(request.user)
+            log_action(request, "demo.load", None, "Jeu d'essai chargé", **{k: v for k, v in summary.items()
+                                                                            if k in ("notices", "créées")})
+            messages.success(request, f"Jeu d'essai chargé : {summary['notices']} notices fictives, le dossier "
+                                      f"« {summary['dossier']} » et le projet « {summary['projet']} ».")
+        elif request.POST.get("action") == "retirer":
+            summary = jeu_essai.remove()
+            log_action(request, "demo.remove", None, "Jeu d'essai retiré", notices=summary["notices"])
+            text = (f"Jeu d'essai retiré : {summary['notices']} notice(s), {summary['dossiers']} dossier(s), "
+                    f"{summary['projets']} projet(s).")
+            if summary["gardées"]:
+                text += " Gardé(s), car encore utilisé(s) : " + " ; ".join(summary["gardées"]) + "."
+            messages.success(request, text)
+        return redirect("core:demo_dataset")
+    return render(request, "core/demo_dataset.html", {"present": jeu_essai.present()})

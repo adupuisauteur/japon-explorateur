@@ -7,6 +7,7 @@ import difflib
 from django.conf import settings
 
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from apps.core import japanese as jp
@@ -316,8 +317,16 @@ def duplicate_candidates(record, limit=10):
     key = _title_key(record.original_title)
     if len(key) >= 2:
         prefix = key[: max(2, min(6, len(key)))]
-        qs = (Record.objects.exclude(pk=record.pk).exclude(record_status="deleted")
-              .filter(search_text__contains=jp.search_normalize(record.original_title)[:max(2, len(prefix))]))
+        # 2.0.0 (rc1, jeu d'essai) : la présélection portait sur la graphie exacte ; 架空國史略 et 架空国史略 ne se
+        # rencontraient jamais, alors que la comparaison des titres ramène les deux à la graphie moderne. Le début du
+        # titre est cherché sous sa forme reçue, moderne (shinjitai) et ancienne (kyūjitai).
+        size = max(2, len(prefix))
+        forms = {jp.search_normalize(f(record.original_title))[:size]
+                 for f in (lambda t: t, jp.to_shinjitai, jp.to_kyujitai)}
+        condition = Q()
+        for form in forms:
+            condition |= Q(search_text__contains=form)
+        qs = Record.objects.exclude(pk=record.pk).exclude(record_status="deleted").filter(condition)
         if settings.IS_POSTGRES:
             # 2.0.0 (lot 9) : les 200 notices examinées étaient prises au hasard parmi celles qui partagent le début
             # du titre ; à 50 000 notices, les vrais doublons n'y figuraient pas. Les plus proches d'abord (pg_trgm).

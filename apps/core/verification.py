@@ -345,6 +345,8 @@ PAGES = [
     # 2.0.0 (lot 6) : aide intégrée
     ("/aide/", "Aide"), ("/aide/recherche/?q=nuit", "Recherche dans l'aide"), ("/aide/quoi-de-neuf/", "Quoi de neuf"),
     ("/aide/historique-des-versions/", "Historique des versions"), ("/traduction/resumes/", "Résumés IA"),
+    # 2.0.0 (rc1) : jeu d'essai et procédure de test
+    ("/administration/jeu-essai/", "Jeu d'essai"), ("/aide/essayer-j-ed/", "Essayer J-ed"),
 ]
 
 

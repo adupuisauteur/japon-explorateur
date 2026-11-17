@@ -138,13 +138,14 @@ class MeasureCommandTests(TransactionTestCase):
     def test_full_command_drops_its_temporary_database(self):
         from apps.catalog.models import Record
         before = Record.objects.count()
+        existing = set(self._temporary_databases())  # bases d'autres essais déjà présentes : hors sujet
         out, err = io.StringIO(), io.StringIO()
         call_command("mesurer_performances", "--notices", "100", "--essais", "1", "--json", stdout=out, stderr=err)
         data = _json.loads(out.getvalue())
         self.assertEqual(data["notices_fictives"], 100)
         self.assertIn("page_fiche", [m["cle"] for m in data["mesures"]])
         self.assertIn("supprimée", err.getvalue())
-        self.assertEqual(self._temporary_databases(), [])
+        self.assertEqual(set(self._temporary_databases()) - existing, set())
         self.assertEqual(Record.objects.count(), before)
 
 
@@ -174,3 +175,17 @@ class DuplicatesAtVolumeTests(TestCase):
         original = Record.objects.get(source_id="d1000")
         found = [r.source_id for r, _score, _reasons in duplicate_candidates(original)]
         self.assertIn("d1001", found)
+
+
+class DuplicatesAcrossKanjiFormsTests(TestCase):
+    """rc1 (jeu d'essai) : même œuvre en graphie ancienne et moderne, dans un sens comme dans l'autre."""
+
+    def test_old_and_new_forms_meet(self):
+        from apps.catalog.models import Catalogue
+        from apps.catalog.services import duplicate_candidates, upsert_record
+
+        cat = Catalogue.objects.create(code="fictif-graphies", name="Fictif")
+        old, _ = upsert_record(cat, {"source_id": "A", "original_title": "架空國史略", "creator_original": "試験一郎"})
+        new, _ = upsert_record(cat, {"source_id": "B", "original_title": "架空国史略", "creator_original": "試験一郎"})
+        self.assertIn(new.pk, [r.pk for r, _s, _r in duplicate_candidates(old)])
+        self.assertIn(old.pk, [r.pk for r, _s, _r in duplicate_candidates(new)])

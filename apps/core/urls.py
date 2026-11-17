@@ -14,5 +14,6 @@ urlpatterns = [
     path("administration/etat/test-argos/", views.argos_selftest, name="argos_selftest"),
     path("administration/etat/memoire/", views.machine_memory, name="machine_memory"),
     path("administration/parametres/", views.app_settings, name="settings"),
+    path("administration/jeu-essai/", views.demo_dataset, name="demo_dataset"),
     path("administration/journal/", views.audit_log, name="audit_log"),
 ]

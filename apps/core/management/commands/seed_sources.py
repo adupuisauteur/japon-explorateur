@@ -108,11 +108,14 @@ SOURCES = [
     dict(code="utokyo-hi", name="University of Tokyo HI / SHIPS", name_original="東京大学史料編纂所",
          status="to_study", sort_order=80, base_url="https://www.hi.u-tokyo.ac.jp/",
          role="Catalogues et bases d'histoire japonaise.",
-         access_method="Bases SHIPS consultables en ligne ; aucune API publique documentée identifiée : consultation "
-                       "externe uniquement dans la 1.2.0."),
+         access_method="Étude du 16/11/2026 sur le poste (2.0.0, lot 10) : aucune API, aucun IIIF ni OpenSearch ; la "
+                       "recherche du site passe par un moteur Google intégré. Consultation sur le site seulement."),
     dict(code="nijl-specialized", name="NIJL et bases spécialisées", status="to_study", sort_order=90,
          role="Répertoires et bases de recherche sur les textes anciens.",
-         access_method="Étude par base, sans présumer d'une API uniforme."),
+         access_method="Bases du NIJL diffusées par Japan Search (nij01 à nij22 : 吾妻鏡, 二十一代集, 絵入源氏物語…) : "
+                       "à ajouter par « Trouver une base Japan Search ». Le 日本古典籍総合目録 (nij16) est interrogé "
+                       "par la source Kokusho. Le 日本古典文学大系本文データベース n'est plus publié depuis le "
+                       "31/03/2023."),
     dict(code="others", name="Nichibunken, Tōyō Bunko, Iwase Bunko, Ritsumeikan ARC…", status="to_study",
          sort_order=99, role="Sources spécialisées complémentaires.",
          access_method="Ajout au cas par cas : d'abord via « Trouver une base Japan Search » (日文研, 東洋文庫, "

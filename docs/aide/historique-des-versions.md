@@ -5,7 +5,7 @@ ordre: 20
 public: admin
 resume: Évolutions et améliorations de J-ed, version par version.
 ---
-## Version 2.0.0 (en préparation)
+## Version 2.0.0 (version candidate rc1 du 17 novembre 2026)
 
 Une version de consolidation : J-ed devient plus sûr, travaille seul la nuit, résume, et s'explique lui-même.
 
@@ -29,6 +29,8 @@ Une version de consolidation : J-ed devient plus sûr, travaille seul la nuit, r
   dans J-ed avec ses furigana et s'envoie vers un projet de traduction ; **Waseda** par le catalogue de la NDL ;
   **Kokusho** interrogé dans sa vraie base ; bouton **« Ouvrir le document »** vers la visionneuse de la source ;
   **visionneuse intégrée** facultative ; pour la NDL, J-ed dit si un document numérisé est en accès libre.
+- **Jeu d'essai fictif** et procédure « Essayer J-ed », pour découvrir l'application ou vérifier une nouvelle
+  version (Administration → Jeu d'essai).
 - **Rapidité mesurée** sur l'ordinateur (commande `mesurer_performances`) ; doublons trouvés aussi dans une
   grande base.
 - **Aide intégrée** : une page d'aide par écran (bouton **?**), une recherche, un lexique, cet historique, et une

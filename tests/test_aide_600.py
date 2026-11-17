@@ -63,7 +63,8 @@ class HelpContentTests(AppTestCase):
 
     def test_installation_section_for_the_administrator(self):
         pages = {p.slug: p for p in self.reg.pages.values() if p.section == "Installation et mises à jour"}
-        self.assertEqual(set(pages), {"mettre-a-jour", "verifier-l-installation", "depannage-apres-mise-a-jour"})
+        self.assertEqual(set(pages), {"mettre-a-jour", "verifier-l-installation", "depannage-apres-mise-a-jour",
+                                      "essayer-j-ed"})  # rc1 : procédure de test et jeu d'essai
         self.assertTrue(all(p.audience == "admin" for p in pages.values()))
         self.assertIn("mettre-a-jour.ps1", pages["mettre-a-jour"].body)
 

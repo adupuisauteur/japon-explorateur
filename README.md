@@ -4,7 +4,9 @@ Anciennement « Japon — Explorateur documentaire ». Les noms techniques (dép
 
 Application web progressive (PWA) de recherche, de gestion et d'exploitation de ressources documentaires japonaises, développée d'après le cahier des charges v1.2 du 12 novembre 2026.
 
-**Version 2.0.0 — en cours de développement** (fichier `VERSION`), renommée **J-ed**, à partir de la 1.3.0-rc3 (étiquette `v1.3.0-rc3`, commit `d7296d4`) : version de consolidation. Audit et plan : `docs/evolution-2.0.0/01-audit.md` ; avancement : `CHANGELOG.md`.
+**Version 2.0.0 — version candidate rc1 du 17 novembre 2026** (fichier `VERSION`), renommée **J-ed**, à partir de la 1.3.0-rc3 (étiquette `v1.3.0-rc3`, commit `d7296d4`). Détail des évolutions : `CHANGELOG.md` ; synthèse technique : `docs/evolution-2.0.0/rapport-technique-2.0.0.md` ; recette : `docs/evolution-2.0.0/06-recette.md`.
+
+**Nouveautés de la 2.0.0.** Trois statuts par notice (notice, document, IIIF), notifications, tâches et file de nuit, plafonds de dépense, Argos installé d'office, résumés par IA (en ligne ou locale avec Ollama), repérage du japonais ancien, aide intégrée, mise à jour et vérification par script, Aozora Bunko (texte intégral), Waseda, Kokusho dans sa vraie base, « Ouvrir le document », visionneuse IIIF facultative, accès des documents numérisés de la NDL, mesure des performances.
 
 > **Nom et port de l'installation (2.0.0) :** `COMPOSE_PROJECT_NAME` est **obligatoire** dans `.env` (plus de nom par défaut) ; pour mettre à jour une installation, gardez exactement le nom de son `.env` actuel, et utilisez de préférence `mettre-a-jour.ps1` (sauvegarde, empreinte, reprise du `.env`, contrôle final). Les noms `japon-explorateur` et `japon-explorateur-essai` restent protégés (`AUTORISER_NOM_PROJET`). Port par défaut : 8000 (`WEB_PORT`).
 
@@ -34,7 +36,14 @@ docker compose up -d --build
 
 Au premier accès, un **assistant de première configuration** crée le compte administrateur, enregistre le mode d'enregistrement par défaut (« Sélectif » recommandé), active la sauvegarde quotidienne et répertorie toutes les sources du §5.1. Il ouvre ensuite l'assistant d'import.
 
-Services lancés : `web` (Gunicorn), `worker` (Celery : synchronisations, exports, IA), `beat` (planification : actualisations, purge des sessions temporaires, sauvegarde quotidienne), `db` (PostgreSQL, non exposé), `redis`.
+Services lancés : `web` (Gunicorn), `worker` (Celery : synchronisations, exports, IA), `worker-maintenant` (tâches lancées « maintenant »), `worker-traduction` (traductions et résumés), `beat` (planification : actualisations, file de nuit, purge des sessions temporaires, sauvegarde quotidienne), `db` (PostgreSQL, non exposé), `redis`. Profils facultatifs (`COMPOSE_PROFILES` dans `.env`) : `argos` (traduction hors ligne, activé par défaut) et `ollama` (IA locale pour les résumés).
+
+### Windows : scripts fournis
+- `mettre-a-jour.ps1` : met à jour une installation existante (sauvegarde, empreinte de l'archive, reprise du `.env`, contrôle final). Il prévient si la copie lancée est plus ancienne que celle de l'archive.
+- `verifier-j-ed.ps1` : produit un rapport de vérification (dossier, conteneurs, adresse, fonctions de l'application sur données fictives) ; options `-AvecTests` et `-AvecSources`.
+- `reinitialiser-essai.ps1` : remet à zéro une installation **d'essai** seulement.
+
+Le guide d'installation et le guide de mise à jour pas à pas sont dans l'aide intégrée (rubrique « Installation et mises à jour ») et dans `docs/guide-utilisation.html`.
 
 > **Sécurité au démarrage :** hors mode développement (`DJANGO_DEBUG=false`), l'application **refuse de démarrer** si `DJANGO_SECRET_KEY` est absente, trop courte ou laissée à sa valeur d'exemple, ou si le mot de passe PostgreSQL d'un serveur distant est faible. Avec `SECURE_HTTPS=true`, `SETUP_TOKEN` est exigé : l'assistant de première configuration le demande avant de créer le compte administrateur.
 
@@ -69,24 +78,27 @@ Des fichiers d'exemple **fictifs** (illustratifs, non bibliographiques) se trouv
 
 ## 3. Sources et connecteurs
 
-| Source | État (inchangé depuis la 1.2.0) | Méthode |
+| Source | État en 2.0.0 | Méthode |
 |---|---|---|
 | Base locale | Opérationnel | Recherche PostgreSQL (index trigrammes) sur les champs normalisés |
-| **NDL Search** | Développé et testé en simulation — **test réel à confirmer** | API OpenSearch officielle ; lien vers le document numérisé (dl.ndl.go.jp) |
-| **Japan Search** | Développé et testé en simulation — **test réel à confirmer** | API web simple officielle (variantes en OU, période, personne) |
-| **Archives nationales** | Développé et testé en simulation — **test réel à confirmer** | Japan Search, base `najda` |
-| **CiNii Research** et **CiNii bibliothèques universitaires** | Développé et testé en simulation — **test réel à confirmer** | API OpenSearch officielle ; identifiant gratuit `CINII_APPID` dans `.env` |
-| **Kokusho Database** (国書データベース) | Partiel — **test réel à confirmer** | Manifeste IIIF officiel + Japan Search filtré sur le fonds Kokusho |
+| **NDL Search** | Testé en simulation ; utilisé sur le poste | API OpenSearch officielle ; accès des numérisations vérifiable (manifeste IIIF) |
+| **Japan Search** | Testé en simulation ; utilisé sur le poste | API officielle (variantes en OU, période, personne) |
+| **Archives nationales** | Testé en simulation | Japan Search, base `najda` |
+| **CiNii Research** et **CiNii bibliothèques universitaires** | Testé en simulation | API OpenSearch officielle ; identifiant gratuit `CINII_APPID` dans `.env` |
+| **Kokusho Database** (国書データベース) | Testé en simulation ; structure relevée sur le poste | Manifeste IIIF officiel par notice ; recherche dans Japan Search, base `nij16` (日本古典籍総合目録) |
+| **Aozora Bunko** (青空文庫) | Testé en simulation ; liste importée sur le poste | Liste officielle des œuvres (CSV, CC BY) ; texte intégral à la demande |
+| **Waseda Kotenseki** (古典籍総合データベース) | Testé en simulation | NDL Search, fournisseur `waseda` ; lien vers la page de l'ouvrage, avec la mention exigée |
+| Historiographical Institute (SHIPS) | Consultation externe | Aucune interface automatique (étude du 16/11/2026) |
 | CODH PMJT, classeur | Import | Fichiers fournis, instantané historique signalé |
-| Autres archives, universités, musées | Via « Trouver une base Japan Search » si l'institution y diffuse sa base, sinon consultation externe | Voir `docs/evolution-1.2.0/02-etude-sources.md` |
+| Autres archives, universités, musées | Via « Trouver une base Japan Search » si l'institution y diffuse sa base, sinon consultation externe | Voir `docs/evolution-1.2.0/02-etude-sources.md` et `docs/evolution-2.0.0/rapport-lot-10.md` |
 
-Chaque source affiche dans une session : résultats, *aucun résultat* (ce n'est pas une erreur), *source indisponible*, *erreur technique* ou *réponse impossible à interpréter*. Les échecs sont enregistrés dans le **journal des dysfonctionnements** (menu « Dysfonctionnements »).
+Chaque source affiche dans une session : résultats, *aucun résultat* (ce n'est pas une erreur), *source indisponible*, *erreur technique* ou *réponse impossible à interpréter*. Les échecs sont enregistrés dans le **journal des dysfonctionnements**.
 
-Kokusho ne publie pas, à ma connaissance, d'API de recherche documentée. Le connecteur n'aspire donc aucune page HTML : il utilise le manifeste IIIF officiel de chaque notice et l'agrégateur national Japan Search. **À vérifier lors de la première mise en service**, car ces services n'étaient pas joignables depuis l'environnement de développement : l'adresse et les noms de paramètres de l'API Japan Search (modifiables dans *Sources → Japan Search / Kokusho → Paramètres du connecteur*), ainsi que les libellés de métadonnées des manifestes IIIF Kokusho. Le code de lecture est tolérant (IIIF v2 et v3, libellés japonais et anglais), et les tests le valident sur des réponses simulées.
+J-ed n'aspire aucune page HTML de navigation : il passe par les API officielles, les manifestes IIIF et les fichiers publiés par les sources, respecte leur fichier robots.txt et espace ses requêtes. Tant qu'aucun test réel n'a réussi, chaque connecteur porte le badge **« Non vérifié en conditions réelles »** ; le badge disparaît après un « Tester le connecteur » réussi.
 
-Tant qu'aucun test réel n'a réussi, chaque connecteur porte le badge **« Non vérifié en conditions réelles »** (fiche de la source, formulaire de recherche, état des sources d'une session). Le badge disparaît après un « Tester le connecteur » réussi ; la date est conservée.
+Sur les fiches et dans les résultats, **« Ouvrir le document »** mène au document lui-même (visionneuse du Kokusho, NDL Digital Collections, page de Waseda, lecture Aozora). La **visionneuse IIIF intégrée** est facultative et désactivée par défaut (*Administration → Paramètres*). Une fois activée, le navigateur charge les images des seuls sites autorisés, et seulement sur la page de la visionneuse.
 
-**Ajouter un connecteur** : créer une classe dérivée de `apps/connectors/base.py:BaseConnector` (méthodes `search`, `fetch_record`, éventuellement `harvest`), la décorer par `@register`, puis l'ajouter à `registry._load()`. Le reste de l'application (recherche, sessions, mises à jour, exports) n'a pas à être modifié.
+**Ajouter un connecteur** : créer une classe dérivée de `apps/connectors/base.py:BaseConnector` (méthodes `search`, `fetch_record`, éventuellement `harvest`), la décorer par `@register`, puis ajouter son module à `registry._load()`. Le reste de l'application (recherche, sessions, mises à jour, exports) n'a pas à être modifié.
 
 ---
 
@@ -99,6 +111,12 @@ Tant qu'aucun test réel n'a réussi, chaque connecteur porte le badge **« Non 
 - Les productions de l'IA vont dans la couche éditoriale, étiquetées « IA » avec le fournisseur, le modèle et la date. Vous pouvez les valider, les rejeter, les adopter ou les supprimer. Les doublons proposés par l'IA ne sont **jamais fusionnés**.
 - Confidentialité : par défaut, le contenu transmis n'est **pas conservé** (`store_inputs` désactivé) ; il est effacé après exécution, annulation ou blocage, et les brouillons non confirmés sont purgés après 24 h. Le rôle Lecteur n'a pas accès aux fonctions IA.
 - Coûts : les jetons déclarés par le fournisseur sont multipliés par les tarifs saisis par l'administrateur (*Administration → IA : tarifs*). Le résultat est toujours présenté comme une estimation.
+
+### Traduction et résumés (1.3.0, complétés en 2.0.0)
+- Moteurs : DeepL, Google Traduction, Argos Translate (hors ligne, installé d'office), IA en ligne ; résumés par IA en ligne ou par **IA locale** (Ollama, profil `ollama`, modèle `qwen3:4b` conseillé, essai automatique au démarrage).
+- Chaque traduction ou résumé est une **tâche** : maintenant, programmée ou dans la **file de nuit** ; pause, reprise sans rien renvoyer, compte rendu du matin. Un **plafond** atteint met la tâche en pause ; J-ed ne change jamais de moteur de lui-même.
+- **Projets de traduction** : découpage en segments, mémoire, glossaire, export bilingue ; un texte d'Aozora Bunko s'y ajoute en un clic.
+- **Japonais ancien** : repérage du bungo, du kanbun et du sōrōbun ; moteur adapté proposé ; page d'aide « Bonnes pratiques ».
 
 ---
 
@@ -120,32 +138,56 @@ Voir `docs/deploiement.md` : serveur Linux, mêmes images Docker, reverse proxy 
 
 ---
 
-## 7. Tests
+## 7. Commandes utiles
 
-```bash
-python manage.py test tests            # 130 tests ; PostgreSQL recommandé (DATABASE_URL)
-```
-Ils couvrent les critères d'acceptation AT-01 à AT-20 et AT-IA-01 à AT-IA-12 (correspondance détaillée dans `docs/conformite.md`). Les connecteurs et fournisseurs d'IA y sont testés sur des réponses simulées, sans appel réseau. `tests/test_audit_corrections.py` reproduit chacune des anomalies relevées par l'audit et vérifie qu'elle ne se produit plus. `tests/test_evolution_120.py` couvre la 1.2.0 sur des réponses enregistrées (`tests/fixtures/reponses/`) : réponse normale, aucun résultat, indisponibilité, réponse mal formée, journal, export, conservation des données.
+Dans le dossier de J-ed : `docker compose exec web python manage.py <commande>`.
+
+| Commande | Rôle |
+|---|---|
+| `backup --verify` / `restore_backup <fichier>` | Sauvegarde vérifiée / restauration (sauvegarde de sécurité d'abord) |
+| `etat_installation` | État de l'installation (même contenu que la page) |
+| `verifier_fonctionnalites` | Vérification des fonctions sur données fictives (utilisée par `verifier-j-ed.ps1`) |
+| `mesurer_performances [--notices N]` | Mesure de la rapidité dans une base temporaire de notices fictives, supprimée ensuite |
+| `etudier_sources [--plan 1\|2\|3]` | Étude des sources en lecture seule (structure des réponses des sites) |
+| `exporter_guide` | Régénère `docs/guide-utilisation.html` et `.md` à partir de l'aide |
+| `generate_secrets` | Produit les secrets à recopier dans `.env` |
+| `seed_sources` | Répertorie les sources prévues (n'écrase jamais une source existante) |
+| `purge_sessions` | Purge des sessions de recherche temporaires expirées |
 
 ---
 
-## 8. Organisation du code
+## 8. Tests
+
+```bash
+python manage.py test tests --parallel 4     # 750 tests environ ; PostgreSQL requis (DATABASE_URL)
+```
+Ils couvrent les critères d'acceptation AT-01 à AT-20 et AT-IA-01 à AT-IA-12 (correspondance détaillée dans `docs/conformite.md`), puis chaque évolution des versions 1.2.0, 1.3.0 et 2.0.0 (`tests/test_*_<lot>.py`). Les connecteurs et fournisseurs d'IA sont testés sur des réponses simulées, sans appel réseau ; pour la 2.0.0, les simulations reprennent les structures réelles relevées sur le poste de l'utilisateur. `tests/test_audit_corrections.py` reproduit chacune des anomalies relevées par l'audit et vérifie qu'elle ne se produit plus. Les scripts PowerShell sont testés avec PowerShell 7 (`tests/test_mise_a_jour_ps1.py`, `tests/test_verification_200.py`).
+
+---
+
+## 9. Organisation du code
 
 ```
-config/            réglages, URLs, Celery
-apps/core          accueil, PWA, permissions, journal, normalisation japonaise (japanese.py)
-apps/accounts      comptes, rôles, premier démarrage
-apps/catalog       modèle documentaire (œuvre / édition / exemplaire / notice / versions / couche éditoriale)
-apps/connectors    contrat commun + connecteurs (local, kokusho, ndl, japansearch)
-apps/searching     sessions, résultats, décisions, recherches enregistrées, comparaison
-apps/updates       imports (CSV/TSV/XLSX/JSON/XML/MARCXML/DC), synchronisations, zone de validation
-apps/library       bibliothèque, dossiers, annotations, partage, corrections
-apps/exports       modèle documentaire d'export + générateurs DOCX/PDF/TXT/JSON/CSV/HTML/ZIP
-apps/ai            fournisseurs, clés chiffrées, préférences, tâches tracées
-apps/backups       sauvegarde, vérification, restauration
-templates/ static/ interface (Bootstrap, HTMX, icônes et polices servis localement)
-docs/              conformité, déploiement, schéma JSON, exemples
-tests/             tests d'acceptation
+config/              réglages, URLs, Celery
+apps/core            accueil, PWA, permissions, journal, paramètres, état et vérification de l'installation,
+                     mesure des performances, étude des sources, normalisation japonaise (japanese.py)
+apps/accounts        comptes, rôles, premier démarrage
+apps/catalog         modèle documentaire (œuvre / édition / exemplaire / notice / versions / couche éditoriale),
+                     trois statuts, IIIF et visionneuse, textes intégraux, « Ouvrir le document »
+apps/connectors      contrat commun + connecteurs (local, ndl, japansearch, cinii, kokusho, aozora, waseda)
+apps/searching       sessions, résultats, décisions, recherches enregistrées, comparaison
+apps/updates         imports (CSV/TSV/XLSX/JSON/XML/MARCXML/DC), synchronisations, zone de validation
+apps/library         bibliothèque, dossiers, annotations, partage, corrections
+apps/exports         modèle documentaire d'export + générateurs DOCX/PDF/TXT/JSON/CSV/HTML/ZIP
+apps/ai              fournisseurs, clés chiffrées, préférences, tâches tracées, IA locale (Ollama)
+apps/translation     moteurs, tâches, file de nuit, plafonds, projets, mémoire, glossaire, résumés
+apps/notifications   fenêtre, compteur, préférences
+apps/incidents       journal des dysfonctionnements, rapports de diagnostic
+apps/help            aide intégrée (docs/aide/*.md), recherche, guide exporté
+apps/backups         sauvegarde, vérification, restauration
+templates/ static/   interface (Bootstrap, HTMX, icônes et polices servis localement)
+docs/                aide, conformité, déploiement, schéma JSON, exemples, dossiers d'évolution
+tests/               tests d'acceptation et de non-régression
 ```
 
-Licences des composants front embarqués : Bootstrap, Bootstrap Icons et htmx (MIT) ; fichiers `LICENSE` dans `static/vendor/`.
+Licences des composants front embarqués : Bootstrap, Bootstrap Icons et htmx (MIT) ; fichiers `LICENSE` dans `static/vendor/`. Liste complète des composants et de leurs licences : page « À propos » de l'application.

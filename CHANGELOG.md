@@ -1,9 +1,25 @@
 # Historique des versions
 
-## 2.0.0 — en cours de développement
+## 2.0.0-rc1 — 17 novembre 2026 (version candidate)
 
 Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquette `v1.3.0-rc3` (commit
-`d7296d4`). Audit et plan : `docs/evolution-2.0.0/01-audit.md`.
+`d7296d4`). Audit et plan : `docs/evolution-2.0.0/01-audit.md` ; synthèse technique :
+`docs/evolution-2.0.0/rapport-technique-2.0.0.md` ; recette : `docs/evolution-2.0.0/06-recette.md`. La version
+devient définitive (2.0.0) une fois la recette faite sur le poste de l'utilisateur.
+
+- **Version candidate rc1** (17 novembre 2026) :
+  - **jeu d'essai fictif** : 38 notices inventées (dont un doublon volontaire en graphie ancienne et moderne), un
+    dossier et un projet de traduction de deux textes inventés ; chargé ou retiré depuis Administration → Jeu
+    d'essai ou par `manage.py jeu_essai --charger|--retirer` ; le retrait ne touche que ses éléments et garde une
+    notice encore utilisée ailleurs ; page d'aide **« Essayer J-ed »** : procédure pas à pas avec le résultat
+    attendu de chaque étape, sans Internet puis avec ;
+  - **doublons en graphie ancienne et moderne** (révélé par le jeu d'essai) : la présélection portait sur la
+    graphie exacte du début du titre ; 架空國史略 et 架空国史略 ne se rencontraient jamais. Elle cherche maintenant
+    la forme reçue, moderne (shinjitai) et ancienne (kyūjitai) ;
+  - documentation : README réécrit pour la 2.0.0 ; rapport technique 2.0.0 ; grille de recette ; guides
+    d'installation (installation d'essai à côté de la principale, jeu d'essai, Aozora) et de mise à jour (retour à
+    la 1.3.0 pour la 2.0.0 complète, séquence essayée) ; descriptions des sources SHIPS et NIJL mises à jour ;
+    bandeau « en cours de développement » retiré de l'accueil Traduction.
 
 - **Lot 10 — étape 4, fin du lot** (16 novembre 2026, d'après le troisième passage de l'étude) : **accès des
   documents numérisés de la NDL** (reporté du lot 3). L'adresse du manifeste est construite à partir du numéro de
