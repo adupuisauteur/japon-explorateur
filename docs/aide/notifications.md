@@ -13,7 +13,8 @@ se met en pause. L'administrateur est aussi prévenu des dysfonctionnements.
 
 - Une **fenêtre** s'affiche en bas à droite de l'écran, une seule fois.
 - Le **compteur rouge** sur le menu à votre nom indique les notifications non lues.
-- Menu à votre nom → **Notifications** : la liste complète. « Vu » marque une notification comme lue.
+- Menu à votre nom → **Notifications** : la liste complète ; **Marquer comme lue** (ou « Vu » dans la petite
+  fenêtre qui s'affiche à l'arrivée d'une notification) la marque comme lue.
 
 ## Choisir ce qui vous est signalé
 

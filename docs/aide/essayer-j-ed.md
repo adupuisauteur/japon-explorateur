@@ -33,14 +33,18 @@ Chaque étape indique entre crochets le **résultat attendu**. Une étape qui ne
 avec une capture d'écran si possible.
 
 1. **Recherche locale.** Rechercher → tapez `架空`, source **Base locale** cochée.
-   [Une quinzaine de notices au moins, dont 架空物語集 et 架空絵巻, chacune une seule fois.]
+   [23 notices du jeu d'essai (titre, auteur 架空太郎 ou fonds 架空文庫), dont 架空物語集 et 架空絵巻, chacune une
+   seule fois ; « 4 déjà enregistré(s) » : celles qui sont déjà dans la bibliothèque. Vos propres notices contenant
+   架空 s'y ajoutent, le cas échéant.]
 2. **Lecture et rōmaji.** Tapez `kakuu` (en lettres latines).
-   [Les mêmes notices : J-ed cherche aussi par la lecture.]
+   [17 notices du jeu d'essai : J-ed cherche aussi par la lecture du titre et de l'auteur. Les six notices
+   trouvées à l'étape 1 seulement par leur fonds 架空文庫 n'y sont pas, car un fonds n'a pas de lecture. Vos
+   propres notices dont la lecture contient « kakuu » s'y ajoutent, le cas échéant.]
 3. **Fiche et trois statuts.** Ouvrez la notice 架空旅日記 (cote 架-009).
    [Trois pastilles : Notice, Document, IIIF. Document indique un lien vers une numérisation (adresse fictive
    `example.org`, à ne pas ouvrir).]
-4. **Doublons.** Ouvrez la notice 架空國史略 → bloc « Doublons et notices liées » → **Chercher des doublons
-   (règles)**.
+4. **Doublons.** Ouvrez la notice 架空國史略 → bloc « Doublons et notices liées » (colonne de droite, sous
+   « Dossiers » ; sur un écran étroit, en bas de la page) → **Chercher des doublons (règles)**.
    [架空国史略 est proposé : même œuvre, en graphie ancienne et moderne. J-ed ne fusionne jamais tout seul.]
 5. **Bibliothèque et dossier.** Ma bibliothèque, puis Dossiers → « [Essai] Dossier fictif ».
    [8 notices dans la bibliothèque et dans le dossier.]
@@ -52,8 +56,10 @@ avec une capture d'écran si possible.
    [Une traduction française proposée pour chaque segment, sans connexion ; à valider avant publication.]
 9. **Tâches et file de nuit.** Sur le texte classique : **Ajouter à la file de nuit**, puis Traduction → Tâches.
    [La tâche apparaît « dans la file de nuit » ; vous pouvez l'annuler.]
-10. **Notifications.** Cloche en haut à droite.
-    [Les fins de tâche y apparaissent ; « Vu » les marque comme lues.]
+10. **Notifications.** Menu à votre nom (en haut à droite, avec le compteur rouge des non lues) → **Notifications**.
+    [Les fins de tâche et les exports y apparaissent ; **Marquer comme lue** fait baisser le compteur. Une
+    notification qui arrive pendant que vous travaillez s'affiche aussi dans une petite fenêtre en bas de l'écran,
+    avec un bouton **Vu**.]
 11. **Sauvegarde.** Administration → Sauvegardes → **Sauvegarder maintenant**, puis vérifiez son intégrité.
     [Sauvegarde terminée, intégrité vérifiée.]
 12. **Aide.** Le bouton **?** de chaque page ouvre l'aide correspondante.
