@@ -407,7 +407,7 @@ def check_sources(ctx):
     details, failures, tested, offline = [], 0, 0, []
     for catalogue in Catalogue.objects.filter(enabled_for_search=True).exclude(code="local").order_by("name"):
         try:
-            ok, message, _data = get_connector(catalogue).test()
+            ok, message, _data = get_connector(catalogue).live_test()
         except ConnectorNotConfigured as exc:
             # 16 novembre 2026 : une source sans connecteur en ligne (import de fichiers, « à étudier ») n'est pas
             # une source qui ne répond pas ; elle est citée à part, sans compter comme échec. Une source mal réglée
@@ -417,13 +417,14 @@ def check_sources(ctx):
             else:
                 tested += 1
                 failures += 1
-                details.append(f"{catalogue.name} : À RÉGLER — {str(exc)[:220]}")
+                details.append(f"{catalogue.name} : À RÉGLER — {str(exc)[:600]}")
             continue
         except Exception as exc:  # noqa: BLE001 — affiché tel quel
             ok, message = False, f"{exc.__class__.__name__} : {exc}"
         tested += 1
         failures += 0 if ok else 1
-        details.append(f"{catalogue.name} : {'répond' if ok else 'ÉCHEC'} — {str(message)[:150]}")
+        # Recette rc1 : un échec garde son explication entière (le remède était coupé à 150 caractères).
+        details.append(f"{catalogue.name} : {'répond' if ok else 'ÉCHEC'} — {str(message)[:150 if ok else 600]}")
     if offline:
         details.append("Sans interrogation en ligne (import de fichiers ou source à étudier) : " + ", ".join(offline))
     if not tested:

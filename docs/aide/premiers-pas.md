@@ -40,6 +40,12 @@ action de votre part, et J-ed affiche le coût estimé avant de vous demander co
 
 Les notices restent la propriété de leurs institutions. Vérifiez-les auprès des catalogues d'origine.
 
+## Découvrir J-ed sans vos données
+
+L'administrateur peut charger un **jeu d'essai** : une quarantaine de notices fictives, un dossier et un projet de
+traduction, à retirer d'un clic ensuite. La page [Essayer J-ed](aide:essayer-j-ed) propose un parcours pas à
+pas, avec le résultat attendu à chaque étape.
+
 ## Pour aller plus loin
 
 - [Quoi de neuf dans J-ed](aide:quoi-de-neuf)

@@ -5,6 +5,7 @@ alimente un « contexte de diagnostic » (adresse expurgée, code HTTP, durée,
 nombre de tentatives) que le journal des dysfonctionnements récupère en cas
 d'échec. Aucun identifiant n'est transmis à la source distante.
 """
+import contextlib
 import contextvars
 import hashlib
 import json
@@ -28,6 +29,21 @@ _lock = threading.Lock()
 
 #: Dernier échange HTTP de l'opération en cours (lu par le journal des dysfonctionnements).
 last_exchange = contextvars.ContextVar("last_exchange", default=None)
+
+#: 2.0.0 (recette rc1, 17 novembre 2026) : un essai de disponibilité (« Tester », vérification -AvecSources)
+#: interroge la source elle-même. Lu dans le cache, il affichait « répond (0 ms) » sans aucun appel, et pouvait
+#: marquer « test réel réussi » une source injoignable depuis. Le résultat frais reste mis en cache.
+bypass_cache = contextvars.ContextVar("bypass_cache", default=False)
+
+
+@contextlib.contextmanager
+def live_requests():
+    """Toutes les requêtes faites dans ce bloc partent vers la source, sans lecture du cache."""
+    token = bypass_cache.set(True)
+    try:
+        yield
+    finally:
+        bypass_cache.reset(token)
 
 _DNS_MARKERS = ("name or service not known", "getaddrinfo failed", "temporary failure in name resolution",
                 "nodename nor servname", "no address associated", "name resolution")
@@ -83,7 +99,7 @@ class ConnectorHTTP:
         key = "conn:" + hashlib.sha256(json.dumps([url, params], sort_keys=True, default=str).encode()).hexdigest()
         request_id = new_request_id()
         started = time.monotonic()
-        if use_cache:
+        if use_cache and not bypass_cache.get():
             hit = cache.get(key)
             if hit is not None:
                 self._diag(request_id, url, params, started, 0, cached=True, http_status=hit.get("status"))

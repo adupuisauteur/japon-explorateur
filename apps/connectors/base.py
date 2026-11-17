@@ -147,6 +147,14 @@ class BaseConnector:
     def harvest(self, since=None, cursor=None) -> Iterator[HarvestBatch]:
         raise ConnectorError("Ce connecteur ne permet pas de moisson complète ou incrémentale.")
 
+    def live_test(self):
+        """2.0.0 (recette rc1) : essai de disponibilité réel, sans lecture du cache HTTP. À utiliser partout où
+        le résultat est affiché ou enregistré comme essai (bouton « Tester », vérification, real_test_ok_at)."""
+        from .http import live_requests
+
+        with live_requests():
+            return self.test()
+
     def test(self):
         """Vérifie la disponibilité. Retourne (ok: bool, message: str, details: dict)."""
         try:

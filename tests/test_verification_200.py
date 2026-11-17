@@ -65,7 +65,7 @@ class FeatureCheckTests(TransactionTestCase):
         ok_source = Catalogue.objects.filter(code="ndl").first()
         Catalogue.objects.filter(pk=ok_source.pk).update(enabled_for_search=True)
         fake = mock.Mock()
-        fake.test.return_value = (True, "La source répond (fictif).", {})
+        fake.live_test.return_value = (True, "La source répond (fictif).", {})
         from apps.connectors import registry
 
         real = registry.get_connector
@@ -309,6 +309,43 @@ class JapanSearchWithoutDatabaseTests(TransactionTestCase):
         waseda.save()
         ok, message, _ = get_connector(waseda).test()
         self.assertFalse(ok)
+        # Recette rc1 : pour Waseda, le remède proposé est le connecteur dédié.
+        self.assertIn("Waseda Kotenseki (via NDL Search)", message)
+        other = Catalogue.objects.create(code="essai-jps", name="Essai Japan Search", connector="japansearch",
+                                         config={})
+        ok, message, _ = get_connector(other).test()
+        self.assertFalse(ok)
         self.assertIn("passe par Japan Search sans identifiant de base", message)
         archives = Catalogue.objects.filter(connector="japansearch").exclude(code__in=["japansearch", "waseda"]).first()
         self.assertTrue(archives.config.get("database"))  # Archives nationales : base « najda », non concernée
+
+
+
+class LiveTestBypassesCacheTests(TransactionTestCase):
+    """Recette rc1 (17 novembre 2026) : « répond (0 ms) » — l'essai -AvecSources lisait le cache HTTP."""
+
+    def test_live_test_ignores_cached_response(self):
+        import httpx
+        from django.core.cache import cache
+
+        from apps.catalog.models import Catalogue
+        from apps.connectors import http as H
+
+        catalogue = Catalogue.objects.create(code="essai-cache", name="Essai cache", connector="ndl")
+        client = H.ConnectorHTTP(catalogue)
+        url, params = "https://exemple.invalid/api", {"q": "x"}
+        cache.clear()
+        cache.set(H.cache_key(url, params) if hasattr(H, "cache_key") else
+                  "conn:" + __import__("hashlib").sha256(json.dumps([url, params], sort_keys=True,
+                                                                     default=str).encode()).hexdigest(),
+                  {"status": 200, "text": "{}"}, 60)
+        failing = mock.patch.object(httpx.Client, "get", side_effect=httpx.ConnectError("injoignable (fictif)"))
+        with failing as sent:
+            # Lecture ordinaire : le cache répond, aucun appel réseau.
+            self.assertEqual(client.get(url, params, retries=0)["status"], 200)
+            self.assertEqual(sent.call_count, 0)
+            # Essai réel : la source est interrogée, et son échec n'est pas masqué par le cache.
+            with H.live_requests(), self.assertRaises(H.ConnectorError):
+                client.get(url, params, retries=0)
+            self.assertEqual(sent.call_count, 1)
+        self.assertFalse(H.bypass_cache.get())

@@ -214,7 +214,7 @@ def run_sync(job):
     try:
         connector = get_connector(catalogue)
         if job.kind == "test":
-            ok, message, details = connector.test()
+            ok, message, details = connector.live_test()
             job.status = "done" if ok else "failed"
             job.message = message
             job.report = {"details": details}

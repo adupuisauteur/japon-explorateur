@@ -43,7 +43,7 @@ Notez « OK », ou ce qui s'est passé, avec une capture si possible.
 | N° | Essai | Attendu | Résultat |
 |---|---|---|---|
 | R1 | `mettre-a-jour.ps1` avec `japon-explorateur-2.0.0-rc1.zip` | « Mise à jour terminée : J-ed 2.0.0 » | |
-| R2 | `.\verifier-j-ed.ps1 -AvecTests -AvecSources` | Aucune ligne « Problème » ; environ 758 tests réussis | |
+| R2 | `powershell -ExecutionPolicy Bypass -File .\verifier-j-ed.ps1 -AvecTests -AvecSources` | Aucune ligne « Problème » ; environ 758 tests réussis | |
 | R3 | Aide → Essayer J-ed, partie A (jeu d'essai) | Chaque étape donne le résultat indiqué | |
 | R4 | Aide → Essayer J-ed, partie B (Internet) | Idem ; correspond aux essais V10-4 à V10-8 et V10-11 du protocole | |
 | R5 | Retirer le jeu d'essai | « 38 notice(s), 1 dossier(s), 1 projet(s) » ; tes données intactes | |
@@ -59,7 +59,7 @@ Suivre le guide d'installation dans un dossier séparé, sous un nom et un port 
 | R7 | Étape 5 : Argos | « Argos prêt » | |
 | R8 | Étape 6 : IA locale (facultatif) | « IA locale prête » | |
 | R9 | Étape 7 : jeu d'essai et procédure « Essayer J-ed » | Comme R3 à R5 | |
-| R10 | `verifier-j-ed.ps1` dans ce dossier | Aucune ligne « Problème » | |
+| R10 | `powershell -ExecutionPolicy Bypass -File .\verifier-j-ed.ps1` dans ce dossier | Aucune ligne « Problème » | |
 | R11 | L'installation d'essai (port 8001) fonctionne toujours | Ses données sont intactes | |
 
 ### C. Décision

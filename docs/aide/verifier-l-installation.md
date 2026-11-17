@@ -32,6 +32,11 @@ Il contrôle tout depuis Windows, dans le dossier de l'installation :
 
 ```
 cd C:\J-ed\japon-explorateur-2.0.0
+```
+
+Puis :
+
+```
 powershell -ExecutionPolicy Bypass -File .\verifier-j-ed.ps1
 ```
 

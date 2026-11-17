@@ -198,7 +198,41 @@ def measure_real(repetitions):
         with transaction.atomic():
             count = Record.objects.count()
             result = measure_searches(repetitions, prefix="reel_")
+            result += _measure_real_extra(repetitions)
             raise _Rollback
     except _Rollback:
         pass
     return count, result
+
+
+def _measure_real_extra(repetitions):
+    """Recette rc1 (17 novembre 2026) : la base d'essai compte ~21 400 notices, dont la liste d'Aozora Bunko.
+    Ajoute, toujours en lecture seule, une recherche par auteur moderne, une recherche en rōmaji et la détection
+    des doublons sur des notices réelles (la plus lente de cinq notices réparties dans la base)."""
+    from apps.catalog.models import Record
+    from apps.catalog.search import local_search
+    from apps.catalog.services import duplicate_candidates
+    from apps.connectors.base import SearchQuery
+
+    out = []
+    for key, label, query in [("reel_auteur_moderne", "Critère Auteur (夏目漱石)", SearchQuery(creator="夏目漱石")),
+                              ("reel_romaji", "Recherche libre en rōmaji (genji)", SearchQuery(text="genji"))]:
+        def run(q=query):
+            qs = local_search(q)
+            return qs.count(), list(qs[:20])
+
+        ms, queries, (total, _first) = timed(run, repetitions)
+        out.append(Measure(key, label, ms, queries, f"{total} réponse(s)"))
+    ids = list(Record.objects.exclude(record_status="deleted").order_by("pk").values_list("pk", flat=True))
+    if ids:
+        step = max(1, len(ids) // 5)
+        worst = None
+        for pk in ids[::step][:5]:
+            record = Record.objects.get(pk=pk)
+            ms, queries, found = timed(lambda r=record: duplicate_candidates(r), repetitions)
+            if worst is None or ms > worst[0]:
+                worst = (ms, queries, len(found))
+        out.append(Measure("reel_doublons", "Doublons (la plus lente de 5 notices)",
+                           worst[0], worst[1], f"{worst[2]} candidat(s)"))
+    return out
+

@@ -177,6 +177,13 @@ class JapanSearchConnector(BaseConnector):
         if database is None and self.catalogue.code != "japansearch":
             # 16 novembre 2026 (-AvecSources sur le poste de l'utilisateur) : « Waseda » relié à Japan Search sans
             # identifiant de base renvoyait tout le portail (87 797 résultats, les mêmes que Japan Search).
+            if self.catalogue.code == "waseda":
+                # Recette rc1 (17 novembre 2026) : la source Waseda créée avant le lot 10 garde ce connecteur ; le
+                # remède est le connecteur dédié, pas une base Japan Search.
+                raise ConnectorNotConfigured(
+                    f"« {self.catalogue.name} » passe encore par Japan Search, sans base. Choisissez le connecteur "
+                    "dédié : Sources → cette source → Configuration → Connecteur « Waseda Kotenseki (via NDL "
+                    "Search) », puis Enregistrer et « Tester le connecteur ».")
             raise ConnectorNotConfigured(
                 f"« {self.catalogue.name} » passe par Japan Search sans identifiant de base : elle renverrait tout le "
                 "portail. Choisissez sa base (Sources → Japan Search → « Trouver une base Japan Search »), "

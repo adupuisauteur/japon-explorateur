@@ -21,7 +21,8 @@ inventés**. Vous les retirez en un clic à la fin.
 
 ## Avant de commencer
 
-1. Lancez la vérification automatique : dans PowerShell, depuis le dossier de J-ed, `.\verifier-j-ed.ps1`.
+1. Lancez la vérification automatique : dans PowerShell, depuis le dossier de J-ed,
+   `powershell -ExecutionPolicy Bypass -File .\verifier-j-ed.ps1`.
    Attendu : un rapport dont le bilan indique **0 problème** (voir [Vérifier l'installation](aide:verifier-l-installation)).
 2. Ouvrez **Administration → Jeu d'essai** → **Charger le jeu d'essai**.
    Attendu : le message « Jeu d'essai chargé : 38 notices fictives… ».
@@ -74,8 +75,9 @@ Ces recherches interrogent les vraies sources. Les résultats peuvent varier lé
    source Aozora Bunko → fiche → **Texte intégral** → **Télécharger le texte**.
    [Le texte s'affiche avec ses furigana ; le texte source (底本) est indiqué en bas de page.]
 5. **Waseda.** Source **Waseda** : `源氏物語`.
-   [Environ deux cents notices ; « Ouvrir sur le site de Waseda » mène à la page de l'ouvrage.]
-6. **Vérification des sources.** `.\verifier-j-ed.ps1 -AvecSources`.
+   [Environ deux cents notices ; « Ouvrir sur le site de Waseda » mène à la page de l'ouvrage. Sur une installation
+   mise à jour depuis une version antérieure, choisissez d'abord le connecteur dédié : voir [Les sources](aide:sources).]
+6. **Vérification des sources.** `powershell -ExecutionPolicy Bypass -File .\verifier-j-ed.ps1 -AvecSources`.
    [Chaque source en ligne répond, ou figure dans la liste « sans recherche en ligne ».]
 
 ## Pour finir

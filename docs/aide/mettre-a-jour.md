@@ -32,6 +32,11 @@ Dans PowerShell (clic droit sur Démarrer → Terminal), en adaptant les chemins
 
 ```
 cd C:\J-ed
+```
+
+Puis :
+
+```
 powershell -ExecutionPolicy Bypass -File .\mettre-a-jour.ps1 -Archive .\japon-explorateur-2.0.0.zip -Actuel C:\J-ed\japon-explorateur-1.3.0 -DossierSauvegardes C:\J-ed\sauvegardes
 ```
 
