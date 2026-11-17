@@ -234,17 +234,19 @@ def demo_dataset(request):
     if request.method == "POST":
         if request.POST.get("action") == "charger":
             summary = jeu_essai.load(request.user)
-            log_action(request, "demo.load", None, "Jeu d'essai chargé", **{k: v for k, v in summary.items()
-                                                                            if k in ("notices", "créées")})
+            # Recette rc1 : les nombres figurent dans le résumé du journal, pas seulement dans le message.
+            log_action(request, "demo.load", None,
+                       f"Jeu d'essai chargé : {summary['notices']} notice(s), dont {summary['créées']} nouvelle(s)",
+                       **{k: v for k, v in summary.items() if k in ("notices", "créées")})
             messages.success(request, f"Jeu d'essai chargé : {summary['notices']} notices fictives, le dossier "
                                       f"« {summary['dossier']} » et le projet « {summary['projet']} ».")
         elif request.POST.get("action") == "retirer":
             summary = jeu_essai.remove()
-            log_action(request, "demo.remove", None, "Jeu d'essai retiré", notices=summary["notices"])
             text = (f"Jeu d'essai retiré : {summary['notices']} notice(s), {summary['dossiers']} dossier(s), "
                     f"{summary['projets']} projet(s).")
             if summary["gardées"]:
                 text += " Gardé(s), car encore utilisé(s) : " + " ; ".join(summary["gardées"]) + "."
+            log_action(request, "demo.remove", None, text[:250], notices=summary["notices"])
             messages.success(request, text)
         return redirect("core:demo_dataset")
     return render(request, "core/demo_dataset.html", {"present": jeu_essai.present()})
