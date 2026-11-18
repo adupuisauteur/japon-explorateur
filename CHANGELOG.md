@@ -1,11 +1,37 @@
 # Historique des versions
 
-## 2.0.0-rc1 — 17 novembre 2026 (version candidate)
+## 2.0.0-rc2 — 18 novembre 2026 (version candidate)
 
 Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquette `v1.3.0-rc3` (commit
 `d7296d4`). Audit et plan : `docs/evolution-2.0.0/01-audit.md` ; synthèse technique :
 `docs/evolution-2.0.0/rapport-technique-2.0.0.md` ; recette : `docs/evolution-2.0.0/06-recette.md`. La version
 devient définitive (2.0.0) une fois la recette faite sur le poste de l'utilisateur.
+
+- **Version candidate rc2** (18 novembre 2026), corrections issues de la recette de la rc1 sur le poste de
+  l'utilisateur (mise à jour de l'installation d'essai, procédure « Essayer J-ed », installation complète) :
+  - **essai des sources sans cache** : « Tester le connecteur », la vérification `-AvecSources` et l'essai réel
+    enregistré pour une source interrogent toujours la source elle-même ; ils lisaient la réponse gardée en
+    mémoire (« répond, 0 ms ») et pouvaient déclarer joignable une source qui ne l'était plus ;
+  - **Waseda** : une source Waseda installée avant la 2.0.0 et encore reliée à Japan Search reçoit un message qui
+    propose le connecteur dédié (Waseda Kotenseki, via NDL Search) ; l'explication d'un échec n'est plus coupée
+    dans le rapport de vérification ;
+  - **jeu d'essai** : la procédure « Essayer J-ed » s'ouvre dans un nouvel onglet (lien, et bouton une fois le jeu
+    chargé) ; le journal des actions donne les nombres de notices, dossiers et projets chargés ou retirés ;
+  - **traduction** : pour Argos, « caractère(s) traité(s) sur cet ordinateur » au lieu de « envoyé(s) » ;
+  - **mesure des performances** : sur les données réelles, aussi une recherche par auteur moderne, une recherche
+    en rōmaji et la détection des doublons (lecture seule) ;
+  - **aide** : une commande par cadre, sous la forme `powershell -ExecutionPolicy Bypass -File …` ; sources
+    complétées (Archives nationales, Waseda, Aozora, institutions « à étudier ») ; jeu d'essai dans « Bien
+    démarrer » ; « Essayer J-ed » : résultats attendus exacts (23 et 17 notices, 50 premières notices Kokusho sur
+    une centaine), fiches ouvertes par « Fiche locale », emplacement du bloc Doublons, notifications dans le menu à
+    votre nom, visionneuse intégrée à activer avant l'essai du document à images ;
+  - **`verifier-migration.ps1`** (nouveau, lecture seule) : après le passage de J-ed sur un autre ordinateur,
+    inventaire des installations présentes dans Docker (volumes, conteneurs, dossier et `.env`, sauvegardes,
+    nombres de notices, de dossiers et de projets, dernières migrations, adresse), à comparer avec l'ancien
+    ordinateur ;
+  - guides en ligne (installation, mise à jour) corrigés en même temps : une commande par cadre, restauration
+    d'une sauvegarde sur une installation neuve (copie dans `/data/`), IA locale après une mise à jour, message
+    « IA locale prête ».
 
 - **Version candidate rc1** (17 novembre 2026) :
   - **jeu d'essai fictif** : 38 notices inventées (dont un doublon volontaire en graphie ancienne et moderne), un

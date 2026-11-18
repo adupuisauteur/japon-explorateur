@@ -491,6 +491,9 @@ class TranslationJob(models.Model):
     def sent_word(self):
         if self.kind == "summary":
             return "caractère(s) lu(s) par l'IA"
+        if self.engine == "argos":
+            # Recette rc1 (17/11) : Argos tourne sur l'ordinateur ; rien n'est « envoyé ».
+            return "caractère(s) traité(s) sur cet ordinateur"
         return "caractère(s) envoyé(s)"
 
     @property

@@ -1,8 +1,9 @@
-# J-ed 2.0.0 — Recette de la version candidate rc1
+# J-ed 2.0.0 — Recette des versions candidates (rc1, rc2)
 
-*17 novembre 2026. La 2.0.0 devient définitive quand les essais ci-dessous sont faits sur le poste de
-l'utilisateur. Le code est alors envoyé sur GitHub (branche `evolution-2.0.0`, puis fusion dans `main` sans
-réécriture de l'historique), selon la décision du 17 novembre 2026.*
+*17 et 18 novembre 2026. La recette de la rc1 a été faite sur le poste de l'utilisateur ; ses remarques ont
+donné la rc2 (décision du 18 novembre : rc2, puis recette courte). La 2.0.0 devient définitive après la recette
+courte de la rc2 (section 4) ; le code est alors fusionné dans `main` sans réécriture de l'historique. La branche
+`evolution-2.0.0` est sur GitHub depuis le 17 novembre.*
 
 ## 1. Dernière série de tests (environnement de développement)
 
@@ -10,6 +11,7 @@ réécriture de l'historique), selon la décision du 17 novembre 2026.*
 |---|---|
 | Suite complète, en parallèle, ordre aléatoire (`test --parallel 4 --shuffle`), cinq passages | 758 tests, tous réussis (deux passages ont d'abord révélé deux défauts de l'aide et un défaut du jeu d'essai, corrigés avant les passages retenus) |
 | Suite complète en série (`test`) | 758 tests réussis |
+| **rc2 (18/11)** : suite complète, cinq passages en parallèle et ordre aléatoire, puis un passage en série | 759 tests, tous réussis à chaque passage |
 | Migrations : base 1.3.0-rc3 avec données fictives, créée par le code 1.3.0 (20 notices, bibliothèque, dossier, projet de traduction), puis passage à la 2.0.0 | 14 migrations appliquées ; données intactes ; statuts des notices calculés ; sources Aozora et Waseda ajoutées, source Waseda existante non modifiée |
 | Sur cette base passée en 2.0.0 : `etat_installation`, `verifier_fonctionnalites`, jeu d'essai chargé puis retiré | Aucun problème ; 12 fonctions OK, les autres « non vérifiées » faute de Redis, Argos et sauvegarde hors Docker ; retrait complet, les 20 notices d'origine gardées |
 | Retour à la 1.3.0 (séquence du guide de mise à jour), puis réapplication | Réussis |
@@ -42,11 +44,11 @@ Notez « OK », ou ce qui s'est passé, avec une capture si possible.
 
 | N° | Essai | Attendu | Résultat |
 |---|---|---|---|
-| R1 | `mettre-a-jour.ps1` avec `japon-explorateur-2.0.0-rc1.zip` | « Mise à jour terminée : J-ed 2.0.0 » | |
-| R2 | `powershell -ExecutionPolicy Bypass -File .\verifier-j-ed.ps1 -AvecTests -AvecSources` | Aucune ligne « Problème » ; environ 758 tests réussis | |
-| R3 | Aide → Essayer J-ed, partie A (jeu d'essai) | Chaque étape donne le résultat indiqué | |
-| R4 | Aide → Essayer J-ed, partie B (Internet) | Idem ; correspond aux essais V10-4 à V10-8 et V10-11 du protocole | |
-| R5 | Retirer le jeu d'essai | « 38 notice(s), 1 dossier(s), 1 projet(s) » ; tes données intactes | |
+| R1 | `powershell -ExecutionPolicy Bypass -File .\mettre-a-jour.ps1` avec `japon-explorateur-2.0.0-rc1.zip` | « Mise à jour terminée : J-ed 2.0.0 » | OK (17/11) |
+| R2 | `powershell -ExecutionPolicy Bypass -File .\verifier-j-ed.ps1 -AvecTests -AvecSources` | Aucune ligne « Problème » ; environ 758 tests réussis | OK (17/11 : 758 tests, 28 pages, 21 399 notices intactes ; Waseda à régler par le connecteur dédié, puis 31 OK) |
+| R3 | Aide → Essayer J-ed, partie A (jeu d'essai) | Chaque étape donne le résultat indiqué | OK (17/11) ; résultats attendus de l'aide corrigés (rc2) |
+| R4 | Aide → Essayer J-ed, partie B (Internet) | Idem ; correspond aux essais V10-4 à V10-8 et V10-11 du protocole | OK (18/11, nouvelle installation) ; aide corrigée (Kokusho : 50 premières notices ; visionneuse à activer) |
+| R5 | Retirer le jeu d'essai | « 38 notice(s), 1 dossier(s), 1 projet(s) » ; tes données intactes | OK (17/11 : 21 399 notices) |
 
 ### B. Installation complète, à côté de l'installation d'essai
 
@@ -55,20 +57,37 @@ Suivre le guide d'installation dans un dossier séparé, sous un nom et un port 
 
 | N° | Essai | Attendu | Résultat |
 |---|---|---|---|
-| R6 | Étapes 1 à 4 du guide (Docker déjà présent : étape 1 sautée) | Assistant de première configuration, puis compte administrateur créé | |
-| R7 | Étape 5 : Argos | « Argos prêt » | |
-| R8 | Étape 6 : IA locale (facultatif) | « IA locale prête » | |
-| R9 | Étape 7 : jeu d'essai et procédure « Essayer J-ed » | Comme R3 à R5 | |
-| R10 | `powershell -ExecutionPolicy Bypass -File .\verifier-j-ed.ps1` dans ce dossier | Aucune ligne « Problème » | |
-| R11 | L'installation d'essai (port 8001) fonctionne toujours | Ses données sont intactes | |
+| R6 | Étapes 1 à 4 du guide | Assistant de première configuration, puis compte administrateur créé | OK (18/11, PC sans proxy, Docker installé par l'étape 1) ; un premier essai derrière un proxy a échoué (Docker Hub injoignable) : section proxy reportée à la 2.0.1 |
+| R7 | Étape 5 : Argos | « Argos prêt » | OK (18/11) |
+| R8 | Étape 6 : IA locale (facultatif) | « IA locale prête » | OK (18/11) ; le guide précise où s'affiche le message |
+| R9 | Étape 7 : jeu d'essai et procédure « Essayer J-ed » | Comme R3 à R5 | OK (18/11) |
+| R10 | `powershell -ExecutionPolicy Bypass -File .\verifier-j-ed.ps1` dans ce dossier | Aucune ligne « Problème » | OK (18/11, selon l'utilisateur) |
+| R11 | L'installation d'essai (port 8001) fonctionne toujours | Ses données sont intactes | OK : installation d'essai passée le 18/11 sur un autre ordinateur (images et volumes Argos et IA locale repris de l'exportation, base restaurée depuis la sauvegarde J-ed du 18/11 à 6 h 31), contrôlée par `verifier-migration.ps1` |
 
-### C. Décision
+### C. Décision (18 novembre 2026)
 
 | | |
 |---|---|
-| Recette faite le | |
-| Points à corriger avant la 2.0.0 | |
-| Décision | 2.0.0 définitive / rc2 nécessaire |
+| Recette faite les | 17 et 18 novembre 2026 |
+| Points corrigés avant la 2.0.0 | Voir l'entrée « rc2 » du CHANGELOG (aide, messages, essai des sources sans cache, jeu d'essai) |
+| Décision | rc2, puis recette courte (section 4) |
 
-Une fois la 2.0.0 validée : envoi sur GitHub (branche, puis fusion dans `main`), puis mise à jour de
-l'installation principale, d'abord essayée sur l'installation d'essai.
+### D. Mesure des performances (17/11, installation d'essai)
+
+`mesurer_performances` : 50 000 notices fictives, toutes les mesures ≤ 199 ms ; doublons d'une notice 44 ms et
+10 candidats ; sur les 21 399 notices réelles, recherches de 4 à 83 ms. Aucune lenteur.
+
+## 4. Recette courte de la rc2
+
+Sur l'installation d'essai (port 8001), à jour avec `japon-explorateur-2.0.0-rc2.zip`.
+
+| N° | Essai | Attendu | Résultat |
+|---|---|---|---|
+| S1 | `powershell -ExecutionPolicy Bypass -File .\mettre-a-jour.ps1 -Archive .\japon-explorateur-2.0.0-rc2.zip …` | « Mise à jour terminée : J-ed 2.0.0 » | |
+| S2 | `powershell -ExecutionPolicy Bypass -File .\verifier-j-ed.ps1 -AvecTests -AvecSources` | Aucune ligne « Problème » ; environ 760 tests ; temps de réponse des sources réels (plus de « 0 ms ») | |
+| S3 | Administration → Jeu d'essai → Charger | Bouton « Ouvrir la procédure « Essayer J-ed » » ; l'aide s'ouvre dans un nouvel onglet ; journal : « Jeu d'essai chargé : 38 notice(s)… » | |
+| S4 | Une traduction Argos (étape 8 de la partie A) | « caractère(s) traité(s) sur cet ordinateur » | |
+| S5 | Retirer le jeu d'essai | Journal : « Jeu d'essai retiré : 38 notice(s), 1 dossier(s), 1 projet(s). » ; données intactes | |
+
+Ensuite : 2.0.0 définitive, fusion dans `main`, puis passage de l'installation principale (1.x) vers la 2.0,
+d'abord essayé sur une copie ; puis 2.0.1 (Linux, accès en réseau local, section proxy).

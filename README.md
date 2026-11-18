@@ -42,6 +42,7 @@ Services lancés : `web` (Gunicorn), `worker` (Celery : synchronisations, export
 - `mettre-a-jour.ps1` : met à jour une installation existante (sauvegarde, empreinte de l'archive, reprise du `.env`, contrôle final). Il prévient si la copie lancée est plus ancienne que celle de l'archive.
 - `verifier-j-ed.ps1` : produit un rapport de vérification (dossier, conteneurs, adresse, fonctions de l'application sur données fictives) ; options `-AvecTests` et `-AvecSources`.
 - `reinitialiser-essai.ps1` : remet à zéro une installation **d'essai** seulement.
+- `verifier-migration.ps1` : après le passage sur un autre ordinateur, inventaire en lecture seule des installations présentes dans Docker (volumes, conteneurs, `.env`, sauvegardes, nombres de notices et de dossiers) ; option `-Dossiers` pour indiquer un dossier d'installation déplacé.
 
 Le guide d'installation et le guide de mise à jour pas à pas sont dans l'aide intégrée (rubrique « Installation et mises à jour ») et dans `docs/guide-utilisation.html`.
 
