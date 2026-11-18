@@ -40,10 +40,12 @@ avec une capture d'écran si possible.
    [17 notices du jeu d'essai : J-ed cherche aussi par la lecture du titre et de l'auteur. Les six notices
    trouvées à l'étape 1 seulement par leur fonds 架空文庫 n'y sont pas, car un fonds n'a pas de lecture. Vos
    propres notices dont la lecture contient « kakuu » s'y ajoutent, le cas échéant.]
-3. **Fiche et trois statuts.** Ouvrez la notice 架空旅日記 (cote 架-009).
+3. **Fiche et trois statuts.** Dans les résultats de l'étape 1, sur la ligne de 架空旅日記 (cote 架-009), cliquez
+   sur **Fiche locale** : la fiche s'ouvre dans un nouvel onglet.
    [Trois pastilles : Notice, Document, IIIF. Document indique un lien vers une numérisation (adresse fictive
    `example.org`, à ne pas ouvrir).]
-4. **Doublons.** Ouvrez la notice 架空國史略 → bloc « Doublons et notices liées » (colonne de droite, sous
+4. **Doublons.** Même chose pour 架空國史略 (avec 國, caractère ancien) : **Fiche locale** sur sa ligne → bloc
+   « Doublons et notices liées » (colonne de droite, sous
    « Dossiers » ; sur un écran étroit, en bas de la page) → **Chercher des doublons (règles)**.
    [架空国史略 est proposé : même œuvre, en graphie ancienne et moderne. J-ed ne fusionne jamais tout seul.]
 5. **Bibliothèque et dossier.** Ma bibliothèque, puis Dossiers → « [Essai] Dossier fictif ».
