@@ -84,6 +84,11 @@ function Existe([string]$Chemin) {
     try { return [bool](Test-Path -LiteralPath $Chemin -ErrorAction Stop) } catch { return $false }
 }
 
+function Etiquette([string]$Etiquettes, [string]$Cle) {
+    if ($Etiquettes -match ("(?:^|,)" + [regex]::Escape($Cle) + "=([^,]*)")) { return $Matches[1].Trim() }
+    return ''
+}
+
 function Taille([double]$Octets) {
     if ($Octets -ge 1GB) { return '{0:N1} Go' -f ($Octets / 1GB) }
     if ($Octets -ge 1MB) { return '{0:N1} Mo' -f ($Octets / 1MB) }
@@ -116,18 +121,30 @@ if ($niveauMemoire -eq 'warning') {
 # ---------------------------------------------------------------------------------------------------------
 # Inventaire : volumes, conteneurs, dossiers donnés en paramètre.
 $volumes = @{}
-$v = Docker-Ici @('volume', 'ls', '--format', '{{.Name}}|{{.Label "com.docker.compose.project"}}')
+# Pas de guillemets doubles dans les arguments : Windows PowerShell 5.1 les retire en appelant docker
+# ({{.Label "…"}} devenait {{.Label …}}, refusé ; constaté le 18 novembre 2026). Les étiquettes sont lues
+# dans {{.Labels}} (« clé=valeur,clé=valeur »).
+$v = Docker-Ici @('volume', 'ls', '--format', '{{.Name}}|{{.Labels}}')
+if ($v.Code -ne 0) {
+    Noter 'error' 'Liste des volumes' 'docker volume ls a échoué' @($v.Texte -split "`n" | Select-Object -First 3)
+}
 foreach ($ligne in ($v.Texte -split "`n")) {
-    if (-not $ligne.Trim()) { continue }
-    $morceaux = $ligne.Split('|')
-    $volumes[$morceaux[0].Trim()] = $morceaux[1].Trim()
+    if ($v.Code -ne 0 -or $ligne -notmatch '\|') { continue }
+    $morceaux = $ligne.Split('|', 2)
+    $volumes[$morceaux[0].Trim()] = Etiquette $morceaux[1] 'com.docker.compose.project'
 }
 $conteneurs = @()
-$c = Docker-Ici @('ps', '-a', '--format', '{{.Label "com.docker.compose.project"}}|{{.Label "com.docker.compose.service"}}|{{.State}}|{{.Names}}|{{.Label "com.docker.compose.project.working_dir"}}|{{.Ports}}')
+$c = Docker-Ici @('ps', '-a', '--format', '{{.State}}|{{.Names}}|{{.Ports}}|{{.Labels}}')
+if ($c.Code -ne 0) {
+    Noter 'error' 'Liste des conteneurs' 'docker ps a échoué' @($c.Texte -split "`n" | Select-Object -First 3)
+}
 foreach ($ligne in ($c.Texte -split "`n")) {
-    if (-not $ligne.Trim()) { continue }
-    $m = $ligne.Split('|')
-    $conteneurs += [pscustomobject]@{ Projet = $m[0]; Service = $m[1]; Etat = $m[2]; Nom = $m[3]; Dossier = $m[4]; Ports = $m[5] }
+    if ($c.Code -ne 0 -or $ligne -notmatch '\|') { continue }
+    $m = $ligne.Split('|', 4)
+    $conteneurs += [pscustomobject]@{
+        Projet = Etiquette $m[3] 'com.docker.compose.project'; Service = Etiquette $m[3] 'com.docker.compose.service'
+        Etat = $m[0]; Nom = $m[1]; Ports = $m[2]; Dossier = Etiquette $m[3] 'com.docker.compose.project.working_dir'
+    }
 }
 $dossiersEnv = @{}
 foreach ($d in $Dossiers) {
@@ -348,7 +365,9 @@ foreach ($projet in $projets) {
 Titre '3. Images Docker de J-ed'
 $i = Docker-Ici @('images', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}')
 $images = @($i.Texte -split "`n" | Where-Object { $_ -match '^(japon-explorateur|postgres|redis|ollama/ollama)' })
-if ($images.Count -eq 0) {
+if ($i.Code -ne 0) {
+    Noter 'error' 'Images' 'docker images a échoué' @($i.Texte -split "`n" | Select-Object -First 3)
+} elseif ($images.Count -eq 0) {
     Noter 'warning' 'Images' 'aucune image de J-ed : elles seront reconstruites ou téléchargées au premier démarrage (Internet nécessaire)'
 } else {
     Noter 'ok' 'Images' "$($images.Count) image(s)" @($images | ForEach-Object { $_.Replace('|', ' — ') })
