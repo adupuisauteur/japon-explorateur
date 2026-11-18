@@ -73,10 +73,13 @@ Ces recherches interrogent les vraies sources. Les résultats peuvent varier lé
 1. **Kokusho.** Rechercher, source **Kokusho** seule : `方丈記`.
    [Les 50 premières notices du 日本古典籍総合目録, avec auteur, date, imprimé (刊) ou manuscrit (写). L'état de
    la source indique « 50 résultat(s) sur … » : un peu plus d'une centaine en tout (112 en novembre 2026).]
-2. **Document à images.** Source Kokusho : `10.20730/200015559` (歌仙繪) → ajoutez-le à la bibliothèque, ouvrez sa
-   fiche → **Ouvrir dans le Kokusho**.
-   [La visionneuse du NIJL s'ouvre. Si la visionneuse intégrée est activée dans Administration → Paramètres :
-   **Voir les images dans J-ed** montre 152 vues.]
+2. **Document à images.** Pour voir aussi les images dans J-ed, activez d'abord la visionneuse intégrée (elle est
+   désactivée par défaut) : Administration → **Paramètres** → cochez **Visionneuse d'images intégrée** → Enregistrer.
+   La liste des sites d'images autorisés, déjà remplie, peut rester telle quelle.
+   Puis source Kokusho : `10.20730/200015559` (歌仙繪) → ajoutez-le à la bibliothèque, ouvrez sa fiche (**Fiche
+   locale**) → **Ouvrir dans le Kokusho**, puis **Voir les images dans J-ed**.
+   [La visionneuse du NIJL s'ouvre sur son site ; dans J-ed, la visionneuse intégrée montre 152 vues. Sans
+   l'activation, seul le premier bouton est proposé.]
 3. **NDL.** Source **NDL Search** : `2586959` → fiche → **Vérifier le manifeste IIIF**, puis rechargez la page.
    [Document : « oui », consultable librement sur Internet.]
 4. **Aozora Bunko.** Si la liste n'est pas encore importée : Mises à jour → Aozora Bunko → synchronisation
