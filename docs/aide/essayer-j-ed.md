@@ -71,7 +71,8 @@ avec une capture d'écran si possible.
 Ces recherches interrogent les vraies sources. Les résultats peuvent varier légèrement avec le temps.
 
 1. **Kokusho.** Rechercher, source **Kokusho** seule : `方丈記`.
-   [Une centaine de notices du 日本古典籍総合目録, avec auteur, date, imprimé (刊) ou manuscrit (写).]
+   [Les 50 premières notices du 日本古典籍総合目録, avec auteur, date, imprimé (刊) ou manuscrit (写). L'état de
+   la source indique « 50 résultat(s) sur … » : un peu plus d'une centaine en tout (112 en novembre 2026).]
 2. **Document à images.** Source Kokusho : `10.20730/200015559` (歌仙繪) → ajoutez-le à la bibliothèque, ouvrez sa
    fiche → **Ouvrir dans le Kokusho**.
    [La visionneuse du NIJL s'ouvre. Si la visionneuse intégrée est activée dans Administration → Paramètres :
