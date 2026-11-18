@@ -70,7 +70,10 @@ class DemoDatasetTests(AppTestCase):
         self.assertContains(page, "Charger le jeu d'essai")
         self.client.post("/administration/jeu-essai/", {"action": "charger"})
         self.assertEqual(J.present(), 38)
-        self.assertContains(self.client.get("/administration/jeu-essai/"), "Retirer le jeu d'essai")
+        loaded = self.client.get("/administration/jeu-essai/")
+        self.assertContains(loaded, "Retirer le jeu d'essai")
+        # Recette rc1 (18 novembre 2026) : la procédure s'ouvre dans un nouvel onglet, pour la suivre à côté.
+        self.assertContains(loaded, 'href="/aide/essayer-j-ed/" target="_blank" rel="noopener"')
         self.client.force_login(self.reader)
         self.assertEqual(self.client.post("/administration/jeu-essai/", {"action": "retirer"}).status_code, 403)
         self.assertEqual(J.present(), 38)

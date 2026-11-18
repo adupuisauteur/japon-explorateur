@@ -10,10 +10,13 @@
   <li>un dossier « [Essai] Dossier fictif » de 8 notices, ajoutées à votre Bibliothèque ;</li>
   <li>un projet de traduction « [Essai] Projet de traduction fictif », avec deux textes inventés, l'un en japonais moderne, l'autre en langue classique (bungo).</li>
 </ul>
-<p>Aucune requête n'est envoyée sur Internet. La procédure de test qui l'utilise est dans l'aide : <a href="{% url 'help:page' 'essayer-j-ed' %}">Essayer J-ed</a>.</p>
+<p>Aucune requête n'est envoyée sur Internet. La procédure de test qui l'utilise est dans l'aide :
+  <a href="{% url 'help:page' 'essayer-j-ed' %}" target="_blank" rel="noopener">Essayer J-ed <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i><span class="visually-hidden"> (s'ouvre dans un nouvel onglet)</span></a>
+  — dans un nouvel onglet, pour la suivre pas à pas pendant que vous essayez J-ed dans celui-ci.</p>
 <div class="card-soft">
   {% if present %}
-  <p class="mb-2">Le jeu d'essai est chargé ({{ present }} notice(s)).</p>
+  <p class="mb-2">Le jeu d'essai est chargé ({{ present }} notice(s)).
+    <a class="btn btn-sm btn-primary ms-2" href="{% url 'help:page' 'essayer-j-ed' %}" target="_blank" rel="noopener"><i class="bi bi-journal-check" aria-hidden="true"></i> Ouvrir la procédure « Essayer J-ed »<span class="visually-hidden"> (nouvel onglet)</span></a></p>
   <form method="post" class="d-inline">{% csrf_token %}<input type="hidden" name="action" value="charger"><button class="btn btn-outline-secondary">Compléter</button></form>
   <form method="post" class="d-inline">{% csrf_token %}<input type="hidden" name="action" value="retirer"><button class="btn btn-outline-danger" data-confirm="Retirer le jeu d'essai ? Seuls ses notices fictives, son dossier et son projet sont supprimés ; vos données ne sont pas touchées.">Retirer le jeu d'essai</button></form>
   <div class="form-text">Le retrait ne supprime que les éléments du jeu d'essai. Une notice d'essai encore utilisée ailleurs (par une tâche de traduction, par exemple) est gardée et signalée.</div>
