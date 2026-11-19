@@ -1,0 +1,19 @@
+#!/bin/sh
+# Faux « docker » pour tester verifier-j-ed.ps1 sans Docker (2.0.0). Journalise chaque appel.
+echo "$(pwd) | $*" >> "$FAKE_DOCKER_LOG"
+case "$*" in
+  "info --format {{.MemTotal}}|{{.NCPU}}|{{.ServerVersion}}")
+    [ "${FAKE_DOCKER_INFO:-0}" = 0 ] || exit 1
+    echo "${FAKE_MEM:-8346968064}|4|29.0.1"; exit 0 ;;
+  "compose ps --services --status running")
+    printf 'db\nredis\nweb\nworker\nworker-traduction\nworker-maintenant\n'; [ "${FAKE_BEAT_DOWN:-0}" = 1 ] || echo beat
+    [ "${FAKE_ARGOS:-0}" = 1 ] && echo argos; [ "${FAKE_OLLAMA:-0}" = 1 ] && echo ollama; exit 0 ;;
+  "compose port web 8000") echo "127.0.0.1:${FAKE_PORT}"; exit 0 ;;
+  "volume ls --format {{.Name}}") printf 'jed-essai_db-data\njed-essai_app-data\nautre_db-data\n'; exit 0 ;;
+  "compose exec -T web python manage.py verifier_fonctionnalites --json"*)
+    cat "$FAKE_VERIF_JSON"; [ "${FAKE_VERIF_ERROR:-0}" = 1 ] && { echo "CommandError: Problème : exemple" >&2; exit 1; }; exit 0 ;;
+  "compose exec -T web python manage.py test tests --noinput")
+    echo "Ran 440 tests in 100.0s" >&2; echo "OK" >&2; exit 0 ;;
+esac
+echo "faux docker : appel non prévu : $*" >&2
+exit 99

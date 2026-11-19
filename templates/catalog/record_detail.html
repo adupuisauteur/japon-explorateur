@@ -4,7 +4,8 @@
 <nav aria-label="Fil d'Ariane" class="small mb-2"><a href="{% url 'library:index' %}">Bibliothèque</a> › <a href="{{ record.catalogue.get_absolute_url }}">{{ record.catalogue.name }}</a></nav>
 
 <div class="d-flex flex-wrap gap-3 justify-content-between align-items-start mb-3">
-  <div class="flex-grow-1" style="min-width:280px">
+  {# 2.0.0 (lot 6, 16/11/2026) : un titre long passait toute la largeur et rejetait les boutons dessous, à gauche #}
+  <div class="record-head-title">
     <div class="big-title">{{ record.original_title }}</div>
     {% if record.reading %}<div class="text-muted fs-5 ja">{{ record.reading }}</div>{% endif %}
     {% if record.title_romaji %}<div class="text-muted small">{{ record.title_romaji }} <span class="chip" title="Lecture automatique non vérifiée">rōmaji automatique</span></div>{% endif %}
@@ -14,12 +15,13 @@
       {% if record.period %}<span class="chip">{{ record.get_period_display }}</span>{% endif %}
       {% if record.document_type %}<span class="chip">{{ record.get_document_type_display }}</span>{% endif %}
       {% if record.material_type %}<span class="chip">{{ record.get_material_type_display }}</span>{% endif %}
-      {% if record.digital_access %}<span class="chip {% if record.digital_access == 'image' or record.digital_access == 'fulltext' %}chip-ok{% endif %}">{{ record.get_digital_access_display }}</span>{% endif %}
       {% if record.record_status != 'active' %}<span class="chip chip-warn">{{ record.get_record_status_display }}</span>{% endif %}
       {% if record.catalogue.is_snapshot %}<span class="chip chip-warn" title="Jeu de données historique">instantané {{ record.catalogue.snapshot_date|date:"Y" }}</span>{% endif %}
     </div>
+    <div class="mt-2">{% status_pills statuses %} <a class="small ms-1" href="#disponibilite">Détail</a></div>
+    <div class="mt-2">{% include "translation/_variety.html" %}</div>
   </div>
-  <div class="d-flex flex-column gap-2" style="min-width:240px">
+  <div class="d-flex flex-column gap-2 record-head-actions">
     {% if user.can_edit %}
       {% if entry %}
         <form method="post" action="{% url 'library:entry_update' entry.pk %}" class="d-flex gap-2">{% csrf_token %}
@@ -41,7 +43,19 @@
       {% if record.source_url %}<a class="btn btn-sm btn-outline-secondary flex-grow-1" href="{{ record.source_url }}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> Notice officielle</a>{% endif %}
       <button class="btn btn-sm btn-outline-secondary" data-cache-offline="{{ request.path }}" title="Conserver cette fiche pour une consultation hors ligne"><i class="bi bi-cloud-download"></i> Hors ligne</button>
     </div>
+    {% with doc=record|document_link %}{% viewer_enabled as viewer_on %}{# 2.0.0 (lot 10) #}
+    {% if doc %}<a class="btn btn-sm btn-primary" href="{{ doc.url }}" target="_blank" rel="noopener"{% if doc.mention %} title="{{ doc.mention }}"{% endif %}><i class="bi bi-book"></i> {{ doc.label }}</a>{% endif %}
+    {% if viewer_on and statuses.iiif.url and statuses.iiif.value != 'absent' and statuses.iiif.value != 'echec' %}<a class="btn btn-sm btn-outline-primary" href="{% url 'catalog:record_viewer' record.record_id %}"><i class="bi bi-images"></i> Voir les images dans J-ed</a>{% endif %}
+    {% if doc.mention %}<div class="form-text">Lien vers : {{ doc.mention }}</div>{% endif %}{% endwith %}
+    {% if record.catalogue.code == 'aozora' or record.texts.exists %}<a class="btn btn-sm btn-outline-primary" href="{% url 'catalog:record_text' record.record_id %}"><i class="bi bi-file-text"></i> Texte intégral</a>{% endif %}
     <a class="btn btn-sm btn-outline-secondary" href="{% url 'exports:prepare' %}?scope=selection&records={{ record.record_id }}"><i class="bi bi-box-arrow-up"></i> Exporter cette fiche</a>
+    {% if user.can_edit %}
+    {% if quick_job %}{% include "translation/_job_mini.html" with job=quick_job %}{% endif %}
+    <form method="post" action="{% url 'translation:translate_now' %}" class="d-flex gap-2">{% csrf_token %}
+      <input type="hidden" name="records" value="{{ record.record_id }}"><input type="hidden" name="next" value="{{ request.path }}">
+      <button class="btn btn-sm btn-primary flex-grow-1" name="mode" value="now" title="Titre et description, avec votre moteur par défaut"><i class="bi bi-translate"></i> Traduire maintenant</button>
+      <button class="btn btn-sm btn-outline-secondary" name="mode" value="night" title="Ajouter à la file de nuit"><i class="bi bi-moon-stars"></i><span class="visually-hidden">Ajouter à la file de nuit</span></button></form>
+    <a class="btn btn-sm btn-outline-primary" href="{% url 'translation:record_translations' record.record_id %}"><i class="bi bi-translate"></i> Traduire… (choix des champs)</a>{% endif %}
     {% if ai_ui_enabled %}
     <div class="dropdown">
       <button class="btn btn-sm btn-outline-primary dropdown-toggle w-100" data-bs-toggle="dropdown"><i class="bi bi-stars"></i> Fonctions IA (à la demande)</button>
@@ -49,8 +63,7 @@
         <p class="small text-muted mb-2">Rien n'est envoyé avant votre confirmation sur l'écran suivant.</p>
         <form method="post" action="{% url 'ai:launch' %}" class="d-grid gap-1">{% csrf_token %}
           <input type="hidden" name="record_ids" value="{{ record.record_id }}"><input type="hidden" name="next" value="{{ request.path }}">
-          {% if ai_profile.translation_enabled %}<button class="btn btn-sm btn-light text-start" name="function" value="translation">Traduire titre et description</button>{% endif %}
-          {% if ai_profile.summary_enabled %}<button class="btn btn-sm btn-light text-start" name="function" value="summary">Résumé documentaire</button>{% endif %}
+          {# 1.3.0 : la traduction passe par le module de traduction (bouton « Traduire… »). #}
           {% if ai_profile.classification_enabled %}<button class="btn btn-sm btn-light text-start" name="function" value="classification">Proposer une classification</button>{% endif %}
           {% if ai_profile.extraction_enabled %}<button class="btn btn-sm btn-light text-start" name="function" value="extraction">Extraire les entités</button>{% endif %}
         </form>
@@ -59,6 +72,8 @@
     {% endif %}
   </div>
 </div>
+
+{% include "catalog/_statuses.html" %}
 
 <div class="row g-4">
   <div class="col-lg-8">
@@ -118,6 +133,8 @@
       {% endif %}
     </section>
 
+    {% include "translation/_summaries.html" %}
+
     <section class="layer layer-editorial" id="editoriale" aria-labelledby="h-edit">
       <h2 id="h-edit">Couche éditoriale</h2>
       {% if user.can_edit %}
@@ -131,12 +148,20 @@
         <span class="small text-muted ms-2">Le texte source n'est jamais modifié.{% if not user.is_admin_role %} Votre proposition sera validée par un administrateur.{% endif %}</span>
       </form>
       {% endif %}
+      {% if user.is_admin_role and bulk %}
+      <form method="post" action="{% url 'translation:record_validate_all' record.record_id %}" class="card-soft mb-3 d-flex flex-wrap gap-2 align-items-center">{% csrf_token %}
+        <input type="hidden" name="next" value="{{ record.get_absolute_url }}#editoriale">
+        <div class="me-auto small"><strong>{{ bulk|length }} traduction{{ bulk|length|pluralize }} proposée{{ bulk|length|pluralize }}</strong> à valider (la plus récente de chaque champ){% if bulk_skipped %} · {{ bulk_skipped|length }} écartée{{ bulk_skipped|length|pluralize }}{% endif %}.</div>
+        <button class="btn btn-sm btn-success" data-confirm="Valider et adopter {{ bulk|length }} traduction{{ bulk|length|pluralize }} dans la fiche ?">Tout valider et adopter</button>
+      </form>{% endif %}
       {% for ed in editorial %}
-      <div class="editorial-box {% if ed.origin == 'ai' %}ai{% endif %}">
+      <div class="editorial-box {% if ed.origin == 'ai' or ed.origin == 'mt' %}ai{% endif %}">
         <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
           <strong>{{ ed.get_kind_display }}</strong> {% origin_chip ed.origin %}
           <span class="chip">{{ ed.get_status_display }}</span>
-          {% if ed.ai_task %}<span class="small text-muted">{{ ed.ai_task.get_provider_display }} · {{ ed.ai_task.model }} · {{ ed.created_at|date:"d/m/Y" }}</span>{% endif %}
+          {% if ed.ai_task %}<span class="small text-muted">{{ ed.ai_task.get_provider_display }} · {{ ed.ai_task.model }} · {{ ed.created_at|date:"d/m/Y" }}</span>
+          {% elif ed.data.engine %}<span class="small text-muted">{{ ed.data.model|default:ed.data.engine }} · {{ ed.created_at|date:"d/m/Y" }}</span>{% endif %}
+          {% if ed.data.simulated %}<span class="chip chip-warn">Simulation</span>{% endif %}
           {% if ed.target_field %}<span class="small text-muted">champ : {{ ed.target_field }}</span>{% endif %}
         </div>
         <div style="white-space:pre-line">{{ ed.content }}</div>
@@ -147,9 +172,8 @@
         {% if user.is_admin_role or ed.author == user %}
         <form method="post" action="{% url 'catalog:editorial_decide' ed.pk %}" class="d-flex gap-1 mt-2">{% csrf_token %}
           {% if user.is_admin_role %}
-          {% if ed.status != 'validated' %}<button class="btn btn-sm btn-outline-success" name="action" value="validate">Valider</button>{% endif %}
+          {% if ed.status != 'validated' %}{% if ed.kind == 'translation' %}<button class="btn btn-sm btn-outline-success" name="action" value="validate" title="Recopie la traduction dans la fiche, avec son origine ; la traduction validée précédente redevient proposée">Valider et adopter</button>{% else %}<button class="btn btn-sm btn-outline-success" name="action" value="validate">Valider</button>{% endif %}{% endif %}
           {% if ed.status != 'rejected' %}<button class="btn btn-sm btn-outline-secondary" name="action" value="reject">Rejeter</button>{% endif %}
-          {% if ed.kind == 'translation' %}<button class="btn btn-sm btn-outline-primary" name="action" value="adopt" title="Recopier dans le titre/description traduits, avec l'origine IA">Adopter</button>{% endif %}
           {% endif %}
           <button class="btn btn-sm btn-link text-danger" name="action" value="delete" data-confirm="Supprimer ce contenu ?">Supprimer</button>
         </form>

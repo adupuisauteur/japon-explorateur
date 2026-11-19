@@ -2,6 +2,7 @@
 from .base import ConnectorNotConfigured
 
 _REGISTRY = {}
+_LOADED = False
 
 
 def register(cls):
@@ -30,6 +31,18 @@ def connector_class(key):
 
 
 def _load():
-    if _REGISTRY:
+    """2.0.0 (lot 10) : le test « registre vide » laissait le registre incomplet quand un module de connecteur avait
+    déjà été importé ailleurs (il s'enregistre alors seul) : les autres sources n'étaient jamais chargées. Cause des
+    tests de recherche instables depuis la 1.x, selon l'ordre des tests."""
+    global _LOADED
+    if _LOADED:
         return
-    from . import japansearch, kokusho, local, ndl  # noqa: F401
+    from . import aozora, cinii, japansearch, kokusho, local, ndl, waseda
+    from .base import BaseConnector
+
+    for module in (aozora, cinii, japansearch, kokusho, local, ndl, waseda):  # sans dépendre de l'ordre des imports
+        for value in vars(module).values():
+            if isinstance(value, type) and issubclass(value, BaseConnector) and value is not BaseConnector \
+                    and value.__module__ == module.__name__:
+                _REGISTRY.setdefault(value.key, value)
+    _LOADED = True

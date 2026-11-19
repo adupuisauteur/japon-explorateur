@@ -1,0 +1,13 @@
+{"hit": 2, "from": 0, "list": [
+  {"id": "najda-F0000000000000000001",
+   "common": {"id": "najda-F0000000000000000001", "title": "架空文書 望月家由緒書", "titleYomi": "モチヅキケユイショガキ",
+              "contributor": ["望月某（架空）"], "temporal": ["江戸時代"], "location": ["信濃国"],
+              "description": "試験用の架空の記述。", "linkUrl": "https://www.digital.archives.go.jp/file/0000001",
+              "iiifUrl": "https://www.digital.archives.go.jp/api/iiif/0000001/manifest.json",
+              "thumbnailUrl": ["https://www.digital.archives.go.jp/thumb/0000001.jpg"],
+              "provider": "国立公文書館", "ownerOrg": "naj", "database": "najda",
+              "contentsRightsType": "pdm", "category": ["document"]}},
+  {"id": "najda-F0000000000000000002",
+   "common": {"id": "najda-F0000000000000000002", "title": "架空文書 甲斐国絵図控",
+              "contributor": [], "temporal": ["1700"], "provider": "国立公文書館", "database": "najda"}}
+], "facets": []}

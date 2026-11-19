@@ -38,6 +38,10 @@ def sync_launch(request, code):
     from .tasks import run_sync_job
 
     catalogue = get_object_or_404(Catalogue, code=code)
+    if not catalogue.can_refresh:
+        messages.warning(request, f"« {catalogue.name} » sert aux recherches et ne propose pas d'actualisation. "
+                                  "Les notices déjà intégrées sont comparées à chaque nouvelle recherche.")
+        return redirect(catalogue.get_absolute_url())
     kind = request.POST.get("kind", "incremental")
     if kind not in dict(SyncJob.KINDS):
         kind = "incremental"
@@ -57,7 +61,7 @@ def sync_all(request):
     n = 0
     for c in Catalogue.objects.exclude(connector="").exclude(code="local").exclude(status__in=["disabled", "to_study",
                                                                                                 "not_configured"]):
-        if c.sync_paused:
+        if c.sync_paused or not c.can_refresh:
             continue
         job = SyncJob.objects.create(catalogue=c, kind="incremental", triggered_by=request.user)
         run_sync_job.delay(job.pk)
@@ -93,6 +97,10 @@ def sync_detail(request, pk):
     return render(request, "updates/sync_detail.html", {
         "job": job, "page": _incoming_page(request, job.incoming.all()),
         "summary": job.incoming.values("comparison", "decision").annotate(n=Count("pk")),
+        # 2.0.0 (lot 10) : « Reprendre » seulement si aucune intégration ne tourne encore
+        "apply_busy": job.status == "running" and services.apply_running(job.catalogue_id),
+        "applied_count": job.incoming.filter(decision="applied").count() if job.status == "running" else 0,
+        "accepted_count": job.incoming.filter(decision="accept").count() if job.status == "running" else 0,
     })
 
 
@@ -120,7 +128,27 @@ def incoming_decide(request):
 @require_POST
 def sync_apply(request, pk):
     job = get_object_or_404(SyncJob, pk=pk)
-    stats = services.apply_sync(job, request.user)
+    if services.apply_running(job.catalogue_id):  # 2.0.0 (lot 10) : double clic, « Reprendre » trop tôt…
+        messages.info(request, f"Une intégration est déjà en cours pour « {job.catalogue.name} » : rien n'a été "
+                               "relancé. Rechargez la page pour suivre l'avancement.")
+        return redirect(job.get_absolute_url())
+    accepted = job.incoming.filter(decision="accept").count()
+    if accepted > services.APPLY_INLINE_MAX:  # 2.0.0 (lot 10) : trop long pour une page (délai de 180 s)
+        from .tasks import apply_sync_job
+
+        job.status = "running"
+        job.message = f"Intégration de {accepted} notice(s) en cours (tâche de fond)."
+        job.save(update_fields=["status", "message"])
+        log_action(request, "sync.apply", job.catalogue, "Intégration lancée en tâche de fond", accepted=accepted)
+        apply_sync_job.delay(job.pk, request.user.pk)
+        messages.info(request, f"Intégration de {accepted} notice(s) lancée en tâche de fond : rechargez la page "
+                               "pour suivre l'avancement. Une interruption n'efface rien ; relancez pour continuer.")
+        return redirect(job.get_absolute_url())
+    try:
+        stats = services.apply_sync(job, request.user)
+    except services.ApplyBusy as exc:
+        messages.info(request, f"{exc} Rien n'a été relancé.")
+        return redirect(job.get_absolute_url())
     log_action(request, "sync.apply", job.catalogue, "Synchronisation intégrée", **stats)
     messages.success(request, f"Intégration : {stats['created']} créée(s), {stats['updated']} mise(s) à jour (historisées), "
                               f"{stats['marked_unavailable']} marquée(s) indisponible(s), {stats['errors']} erreur(s).")
@@ -167,9 +195,15 @@ def import_new(request):
         try:
             services.analyze_import(job)
         except Exception as exc:
+            from apps.incidents.services import record_exception
+
             job.status = "failed"
             job.errors = [{"row": None, "error": f"Lecture impossible : {exc}"}]
             job.save()
+            record_exception(exc, module="importation", operation=f"Lecture du fichier d'import n°{job.pk}",
+                             source_code=job.catalogue.code if job.catalogue_id else "", category="erreur_traitement",
+                             severity="warning", origin="traitement",
+                             extra={"format": job.format, "preset": job.preset, "taille_octets": upload.size})
             messages.error(request, f"Le fichier n'a pas pu être lu : {exc}")
         log_action(request, "import.upload", job, upload.name)
         return redirect(job.get_absolute_url())
@@ -217,7 +251,11 @@ def import_detail(request, pk):
             else:
                 messages.success(request, "Correspondance enregistrée.")
         elif action == "apply" and job.status == "review":
-            stats = services.apply_import(job, request.user)
+            try:
+                stats = services.apply_import(job, request.user)
+            except services.ApplyBusy as exc:
+                messages.info(request, f"{exc} Rien n'a été relancé ; réessayez quand elle sera terminée.")
+                return redirect(job.get_absolute_url())
             log_action(request, "import.apply", job, job.file_name, **stats)
             messages.success(request, f"Import intégré : {stats['created']} notice(s) créée(s), {stats['updated']} mise(s) à "
                                       f"jour avec historique, {stats['errors']} erreur(s).")

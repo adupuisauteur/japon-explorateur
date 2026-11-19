@@ -87,6 +87,7 @@ def first_run(request):
         settings_obj = AppSettings.get()
         settings_obj.default_search_mode = form.cleaned_data["default_search_mode"]
         settings_obj.backup_enabled = form.cleaned_data["backup_enabled"]
+        settings_obj.computer_memory_gb = form.cleaned_data.get("computer_memory_gb")
         settings_obj.setup_completed = True
         settings_obj.save()
         from django.core.management import call_command
@@ -99,8 +100,27 @@ def first_run(request):
         log_action(request, "setup.completed", user, "Première configuration effectuée")
         messages.success(request, "Bienvenue ! Les sources ont été répertoriées. Étape suivante conseillée : "
                                   "importer l'inventaire CODH et votre classeur documentaire.")
+        if form.cleaned_data.get("install_argos"):
+            _first_run_argos(request, user)
         return redirect("updates:import_new")
     return render(request, "accounts/first_run.html", {"form": form})
+
+
+def _first_run_argos(request, user):
+    """2.0.0 (lot 7) : installation de la traduction japonais → français choisie dans l'assistant."""
+    from apps.translation import argos_packages as A
+
+    try:
+        job = A.prepare_ja_fr(user)
+    except A.PackageError as exc:
+        messages.warning(request, f"Traduction hors ligne non installée pour l'instant : {exc} Vous pourrez "
+                                  "l'installer plus tard dans Traduction → Moteurs locaux.")
+        return
+    if job is not None:
+        log_action(request, "translation.argos_download", job, job.scope_label)
+        transaction.on_commit(lambda: A.dispatch(job))
+        messages.info(request, "Installation de la traduction japonais → français lancée en arrière-plan : une "
+                               "fenêtre vous préviendra à la fin (suivi dans Traduction → Moteurs locaux).")
 
 
 @login_required
@@ -165,21 +185,41 @@ def user_anonymize(request, pk):
         messages.error(request, "Impossible d'anonymiser votre propre compte.")
         return redirect("accounts:users")
     if request.method == "POST":
-        target.username = f"compte-supprime-{get_random_string(8).lower()}"
-        target.display_name = "Compte supprimé"
-        target.email = target.first_name = target.last_name = ""
-        target.is_active = False
-        target.set_unusable_password()
-        target.save()
-        target.ai_credentials.all().delete()
-        target.collections.filter(visibility="private").delete()
-        target.annotations.filter(visibility="private").delete()
-        target.library.all().delete()
-        target.search_sessions.all().delete()
-        log_action(request, "user.anonymized", target, "Compte anonymisé, données privées supprimées")
-        messages.success(request, "Compte anonymisé ; ses données privées ont été supprimées.")
+        # 1.3.0 : projets et glossaires de traduction confiés à l'administrateur qui anonymise ; réglages et clés
+        # de moteurs effacés.
+        # Refusé, sans aucune modification, s'il n'existe aucun autre administrateur actif.
+        from apps.translation.ownership import TransferImpossible, release_user_translation_data
+
+        try:
+            with transaction.atomic():
+                recipient, n_projects, n_glossaries = release_user_translation_data(target, recipient=request.user)
+                _anonymize(target)
+        except TransferImpossible as exc:
+            messages.error(request, str(exc))
+            return redirect("accounts:user_edit", pk=target.pk)
+        log_action(request, "user.anonymized", target, "Compte anonymisé, données privées supprimées"
+                   + (f" ; {n_projects} projet(s) et {n_glossaries} glossaire(s) de traduction confiés à {recipient}"
+                      if recipient else ""))
+        messages.success(request, "Compte anonymisé ; ses données privées ont été supprimées."
+                         + (f" Ses {n_projects} projet(s) et {n_glossaries} glossaire(s) de traduction ont été "
+                            f"confiés à {recipient}." if recipient else ""))
         return redirect("accounts:users")
     return render(request, "accounts/user_anonymize.html", {"target": target})
+
+
+def _anonymize(target):
+    """Effacement des données personnelles (traitement inchangé depuis la 1.2.0)."""
+    target.username = f"compte-supprime-{get_random_string(8).lower()}"
+    target.display_name = "Compte supprimé"
+    target.email = target.first_name = target.last_name = ""
+    target.is_active = False
+    target.set_unusable_password()
+    target.save()
+    target.ai_credentials.all().delete()
+    target.collections.filter(visibility="private").delete()
+    target.annotations.filter(visibility="private").delete()
+    target.library.all().delete()
+    target.search_sessions.all().delete()
 
 
 class StyledPasswordForm(BootstrapMixin, PasswordChangeForm):

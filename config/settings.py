@@ -1,5 +1,5 @@
 """
-Configuration de « Japon — Explorateur documentaire ».
+Configuration de J-ed (anciennement « Japon — Explorateur documentaire »).
 
 Toute la configuration sensible passe par des variables d'environnement
 (fichier .env en local, secrets du serveur en production). Aucun secret
@@ -17,7 +17,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 env = environ.Env()
 environ.Env.read_env(BASE_DIR / ".env", overwrite=False)
 
-APP_VERSION = "1.0.0"
+# Numéro de version unique : fichier VERSION à la racine (application, rapports, archive livrée).
+APP_VERSION = (BASE_DIR / "VERSION").read_text(encoding="utf-8").strip()
+# 2.0.0 : nom affiché de l'application. Les noms techniques (projet Docker, images, volumes, dépôt) ne changent pas.
+APP_NAME = "J-ed"
 DATA_SCHEMA_VERSION = "1.0"
 
 TESTING = len(sys.argv) > 1 and sys.argv[1] == "test"
@@ -64,6 +67,10 @@ INSTALLED_APPS = [
     "apps.exports",
     "apps.ai",
     "apps.backups",
+    "apps.incidents",
+    "apps.translation",
+    "apps.notifications",
+    "apps.help",
 ]
 
 MIDDLEWARE = [
@@ -92,6 +99,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "apps.core.context_processors.app_context",
+                "apps.help.context_processors.help_link",
             ],
         },
     },
@@ -150,6 +158,8 @@ MEDIA_ROOT = env("MEDIA_ROOT", default=str(DATA_DIR / "files"))
 MEDIA_URL = "/fichiers/"
 BACKUP_DIR = Path(env("BACKUP_DIR", default=str(DATA_DIR / "backups")))
 BACKUP_EXTERNAL_DIR = env("BACKUP_EXTERNAL_DIR", default="")
+# 2.0.0 : chemin du même dossier vu depuis l'ordinateur (DOSSIER_SAUVEGARDES de .env), pour l'affichage seulement.
+BACKUP_EXTERNAL_HOST_DIR = env("DOSSIER_SAUVEGARDES", default="")
 
 # Limites d'import (exigence de sécurité §14).
 IMPORT_MAX_FILE_SIZE_MB = env.int("IMPORT_MAX_FILE_SIZE_MB", default=50)
@@ -163,6 +173,12 @@ AI_KEYS_ENCRYPTION_KEY = env("AI_KEYS_ENCRYPTION_KEY", default="")
 # Adresses de modèles locaux autorisées malgré le contrôle anti-SSRF (ex. http://host.docker.internal:11434/v1).
 # Réglées uniquement par l'exploitant dans .env, jamais depuis l'interface.
 AI_ALLOWED_LOCAL_URLS = env.list("AI_ALLOWED_LOCAL_URLS", default=[])
+# 2.0.0 (lot 4) : IA locale (service Ollama facultatif, profil « ollama »). Adresse interne fixée ici, jamais depuis
+# l'interface ; délai d'un résumé (calcul sur le processeur) et d'un téléchargement de modèle.
+OLLAMA_URL = env.str("OLLAMA_URL", default="")
+# Fenêtre de contexte demandée à l'IA locale (jetons) : consigne + passage + réponse. Plus grand = plus de mémoire.
+OLLAMA_NUM_CTX = env.int("OLLAMA_NUM_CTX", default=8192)
+OLLAMA_TIMEOUT = env.int("OLLAMA_TIMEOUT", default=900)
 
 # Police japonaise pour les PDF (TrueType). Si absente, police CID intégrée à ReportLab.
 PDF_JAPANESE_FONT = env("PDF_JAPANESE_FONT", default="")
@@ -189,12 +205,41 @@ PDF_FALLBACK_FONTS = env.list("PDF_FALLBACK_FONTS", default=[]) + [
 ]
 
 # Connecteurs externes
+# Identifiant d'application CiNii (gratuit, nominatif) : uniquement dans .env, jamais en base ni dans les journaux.
+CINII_APPID = env("CINII_APPID", default="")
 CONNECTOR_USER_AGENT = env(
     "CONNECTOR_USER_AGENT",
-    default=f"JaponExplorateurDocumentaire/{APP_VERSION} (usage de recherche personnel)",
+    default=f"J-ed/{APP_VERSION} (usage de recherche personnel)",  # décision D9 (2.0.0)
 )
 CONNECTOR_DEFAULT_TIMEOUT = env.float("CONNECTOR_DEFAULT_TIMEOUT", default=20.0)
 CONNECTOR_CACHE_SECONDS = env.int("CONNECTOR_CACHE_SECONDS", default=3600)
+
+# Module de traduction (1.3.0)
+TRANSLATION_DEFAULT_TIMEOUT = env.float("TRANSLATION_DEFAULT_TIMEOUT", default=60.0)
+TRANSLATION_TIMEOUTS = {
+    "deepl": env.float("TRANSLATION_TIMEOUT_DEEPL", default=60.0),
+    "google_basic": env.float("TRANSLATION_TIMEOUT_GOOGLE", default=60.0),
+    "argos": env.float("TRANSLATION_TIMEOUT_ARGOS", default=180.0),
+}
+# Adresse interne du service Argos (démarré avec J-ed depuis la 2.0.0 : COMPOSE_PROFILES=argos). Vide = non activé.
+TRANSLATION_ARGOS_URL = env("TRANSLATION_ARGOS_URL", default="")
+# Dossier partagé avec le service Argos (volume « argos-depot ») pour installer un paquet depuis un fichier.
+TRANSLATION_ARGOS_DEPOT_DIR = Path(env("TRANSLATION_ARGOS_DEPOT_DIR", default=str(DATA_DIR / "argos-depot")))
+TRANSLATION_ARGOS_INSTALL_TIMEOUT = env.float("TRANSLATION_ARGOS_INSTALL_TIMEOUT", default=1800.0)
+# 2.0.0 (lot 7) : une tâche Argos d'au plus ce nombre d'éléments est « prioritaire » dans le service : elle passe
+# avant les paquets d'un long document en attente (elle attend au plus la fin du paquet en cours).
+TRANSLATION_ARGOS_NOW_MAX_ITEMS = env.int("TRANSLATION_ARGOS_NOW_MAX_ITEMS", default=20)
+# 2.0.0 (lot 3) : délai de l'essai automatique d'Argos après le démarrage (secondes), et entre deux tentatives.
+ARGOS_AUTO_SELFTEST_DELAY = env.int("ARGOS_AUTO_SELFTEST_DELAY", default=120)
+# 2.0.0 (lot 3) : durée de conservation des notifications LUES (les non lues sont toujours gardées).
+NOTIFICATIONS_RETENTION_DAYS = env.int("NOTIFICATIONS_RETENTION_DAYS", default=90)
+TRANSLATION_ARGOS_MAX_UPLOAD = env.int("TRANSLATION_ARGOS_MAX_UPLOAD", default=1024 * 1024 * 1024)
+# Tâche sans signe d'activité au-delà de ce délai (minutes) : présentée comme interrompue, reprise possible.
+TRANSLATION_STALE_MINUTES = env.int("TRANSLATION_STALE_MINUTES", default=10)
+# Alerte « contient encore du japonais » au-delà de cette part de caractères japonais dans la traduction.
+TRANSLATION_JAPANESE_ALERT_SHARE = env.float("TRANSLATION_JAPANESE_ALERT_SHARE", default=0.3)
+# Pendant les tests, tout appel réseau réel d'un moteur de traduction est refusé (réponses enregistrées seulement).
+TRANSLATION_BLOCK_NETWORK = env.bool("TRANSLATION_BLOCK_NETWORK", default=len(sys.argv) > 1 and sys.argv[1] == "test")
 
 # Cache partagé : indispensable pour que la limitation des connexions vaille pour tous les processus gunicorn.
 if env("CACHE_URL", default=""):
@@ -218,6 +263,22 @@ CELERY_RESULT_BACKEND = None
 CELERY_TASK_ALWAYS_EAGER = env.bool("CELERY_EAGER", default=not bool(CELERY_BROKER_URL))
 CELERY_TASK_EAGER_PROPAGATES = False
 CELERY_TIMEZONE = TIME_ZONE
+# 2.0.0 (lot 3) : profil de machine calculé au démarrage (config/profil_machine.py ; JED_PROFIL dans .env)
+from config.profil_machine import current as _machine_profile  # noqa: E402
+
+MACHINE_PROFILE = _machine_profile()
+CELERY_WORKER_CONCURRENCY = MACHINE_PROFILE["courts"]
+# 1.3.0 : file dédiée aux traductions (le worker écoute « celery » et « traduction », docker-compose.yml)
+# 2.0.0 (lot 3) : trois files, trois workers. « celery » : travaux courts (exports, synchronisations, sauvegardes,
+# horloge) ; « traduction » : travaux longs et file de nuit ; « maintenant » : demandes depuis une fiche et petites
+# tâches (la file est choisie par la tâche elle-même, voir apps/translation/queue.py). Les noms exacts passent
+# avant le motif.
+CELERY_TASK_ROUTES = {
+    "apps.translation.tasks.clock": {"queue": "celery"},
+    "apps.translation.tasks.auto_argos_selftest": {"queue": "celery"},
+    "apps.translation.tasks.run_argos_selftest": {"queue": "celery"},
+    "apps.translation.tasks.*": {"queue": "traduction"},
+}
 CELERY_BEAT_SCHEDULE = {
     "synchronisations-planifiees": {
         "task": "apps.updates.tasks.run_due_syncs",
@@ -235,7 +296,31 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.backups.tasks.scheduled_backup",
         "schedule": crontab(hour=2, minute=23),
     },
+    # 2.0.0 (lot 3) : nettoyage des notifications lues de plus de NOTIFICATIONS_RETENTION_DAYS jours.
+    "notifications-anciennes": {
+        "task": "apps.notifications.tasks.purge_old_notifications",
+        "schedule": crontab(hour=3, minute=53),
+    },
+    # 2.0.0 (lot 3) : horloge des tâches de traduction (programmées, file de nuit, compte rendu du matin).
+    "horloge-taches": {
+        "task": "apps.translation.tasks.clock",
+        "schedule": crontab(minute="*"),
+    },
+    # 2.0.0 : signe de vie du planificateur et d'un worker (page « État de l'installation »).
+    "signe-de-vie": {
+        "task": "apps.core.tasks.heartbeat",
+        "schedule": crontab(minute="*/5"),
+    },
+    # 2.0.0 (lot 2) : reprise des vérifications IIIF demandées et interrompues (arrêt de Docker, du worker).
+    "verification-iiif-reprise": {
+        "task": "apps.catalog.tasks.verify_iiif_pending",
+        "schedule": crontab(minute="3-59/10"),
+    },
 }
+#: 2.0.0 (lot 2) : délai entre deux vérifications de manifeste IIIF (respect des sites interrogés).
+IIIF_CHECK_DELAY_SECONDS = env.float("IIIF_CHECK_DELAY_SECONDS", default=2.0)
+#: 2.0.0 : au-delà de ce délai sans signe de vie, le planificateur ou les workers sont signalés arrêtés.
+HEARTBEAT_STALE_MINUTES = env.int("HEARTBEAT_STALE_MINUTES", default=15)
 
 # Sécurité : HTTPS obligatoire hors boucle locale (§14).
 SECURE_HTTPS = env.bool("SECURE_HTTPS", default=False)
@@ -267,3 +352,27 @@ LOGGING = {
     "root": {"handlers": ["console"], "level": "CRITICAL" if TESTING else env("LOG_LEVEL", default="INFO")},
     "loggers": {"httpx": {"level": "WARNING"}, "httpcore": {"level": "WARNING"}},
 }
+
+# 2.0.0 : les tests ne touchent jamais aux dossiers, à la file de tâches ni aux services de l'installation où
+# ils sont lancés (« verifier-j-ed.ps1 -AvecTests » les exécute dans le conteneur web). Constat du 15 novembre
+# 2026 : sans cette isolation, des sauvegardes fictives étaient copiées dans le dossier Windows des sauvegardes
+# et des tâches d'essai envoyées à la file Redis de l'installation.
+if TESTING:
+    import atexit
+    import shutil
+    import tempfile
+
+    DATA_DIR = Path(tempfile.mkdtemp(prefix="jed-tests-donnees-"))
+    atexit.register(shutil.rmtree, DATA_DIR, ignore_errors=True)
+    MEDIA_ROOT = str(DATA_DIR / "files")
+    BACKUP_DIR = DATA_DIR / "backups"
+    BACKUP_EXTERNAL_DIR = ""
+    BACKUP_EXTERNAL_HOST_DIR = ""
+    TRANSLATION_ARGOS_DEPOT_DIR = DATA_DIR / "argos-depot"
+    TRANSLATION_ARGOS_URL = ""
+    AI_ALLOWED_LOCAL_URLS = []
+    OLLAMA_URL = ""
+    CINII_APPID = ""
+    CELERY_BROKER_URL = ""
+    CELERY_TASK_ALWAYS_EAGER = True
+    CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}

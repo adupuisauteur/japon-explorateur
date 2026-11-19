@@ -1,0 +1,12 @@
+{# 2.0.0 (lot 4, U10) : variété de langue d'une notice — suggestion à confirmer ou corriger. #}
+{% if variety_info and variety_info.variety != 'modern' or variety_info.origin == 'user' %}
+<div class="small mb-2" id="variete">
+  <span class="badge {% if variety_info.origin == 'user' %}text-bg-secondary{% else %}text-bg-warning{% endif %}">{{ variety_info.label }}{% if variety_info.origin != 'user' %} — probable{% endif %}</span>
+  {% if variety_info.reasons %}<span class="text-muted">Indices : {{ variety_info.reasons|join:" ; " }}.</span>{% endif %}
+  {% if user.can_edit %}<form method="post" action="{% url 'translation:record_variety' record.record_id %}" class="d-inline-flex gap-1 align-items-center">{% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <label class="visually-hidden" for="variety-choice">Variété de langue</label>
+    <select name="variety" id="variety-choice" class="form-select form-select-sm py-0" style="width:auto">{% for v, l in varieties %}<option value="{{ v }}"{% if v == variety_info.variety %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+    <button class="btn btn-sm btn-outline-secondary py-0">{% if variety_info.origin == 'user' %}Corriger{% else %}Confirmer{% endif %}</button></form>{% endif %}
+</div>
+{% endif %}

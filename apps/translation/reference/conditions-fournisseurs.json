@@ -1,0 +1,82 @@
+{
+  "version": "2026-11-14",
+  "note": "Résumé des conditions d'utilisation des textes envoyés aux fournisseurs en ligne (cahier des charges § 13), vérifié sur les pages officielles le 14 novembre 2026. Ce résumé ne remplace pas les conditions officielles, qui font foi. Quand un fournisseur est revérifié, mettez à jour « verified_on » : chaque utilisateur devra reprendre connaissance du résumé avant le prochain envoi à ce fournisseur.",
+  "providers": {
+    "deepl": {
+      "name": "DeepL API",
+      "verified_on": "2026-11-14",
+      "points": [
+        "Offre payante (DeepL API Pro) : les textes ne sont conservés que le temps de produire et transmettre la traduction, puis supprimés ; ils ne servent pas à améliorer les services de DeepL.",
+        "Offre gratuite (DeepL API Free) : la politique de confidentialité renvoie au régime de la version gratuite, où les textes envoyés et leurs traductions sont traités pendant une durée limitée pour entraîner et améliorer les réseaux de neurones de DeepL. N'envoyez pas de texte confidentiel avec l'offre gratuite.",
+        "Le traitement de données personnelles avec DeepL Pro suppose un accord de traitement des données avec DeepL.",
+        "Les glossaires envoyés à DeepL sont conservés sur votre compte DeepL jusqu'à leur suppression (Traduction → Glossaires)."
+      ],
+      "sources": [
+        {"label": "Politique de confidentialité de DeepL (dernière mise à jour : octobre 2026)", "url": "https://www.deepl.com/en/privacy"}
+      ]
+    },
+    "google_basic": {
+      "name": "Google Cloud Translation (Basic)",
+      "verified_on": "2026-11-14",
+      "points": [
+        "Google n'utilise le contenu envoyé que pour fournir le service de traduction ; il ne le rend pas public et ne le partage pas avec des tiers.",
+        "Google n'utilise pas les textes envoyés pour entraîner ou améliorer ses fonctions de traduction.",
+        "Le texte n'est conservé que brièvement, le temps de la traduction ; la page ne précise pas de durée.",
+        "Le service relève de l'avenant sur le traitement des données de Google Cloud (Cloud Data Processing Addendum)."
+      ],
+      "sources": [
+        {"label": "Cloud Translation — utilisation des données (page mise à jour le 10 novembre 2026)", "url": "https://docs.cloud.google.com/translate/data-usage"}
+      ]
+    },
+    "ai:openai": {
+      "name": "OpenAI (API)",
+      "verified_on": "2026-11-14",
+      "points": [
+        "Par défaut, les données envoyées par l'API ne servent pas à entraîner les modèles d'OpenAI, sauf si vous l'acceptez expressément.",
+        "Les entrées et réponses peuvent être conservées jusqu'à 30 jours dans des journaux de lutte contre les abus (plus longtemps si la loi l'impose).",
+        "Une conservation nulle (Zero Data Retention) est possible pour certains clients, sur accord préalable d'OpenAI.",
+        "Ces règles concernent l'API (votre clé) ; elles ne s'appliquent pas à ChatGPT grand public."
+      ],
+      "sources": [
+        {"label": "OpenAI — Your data (documentation de l'API)", "url": "https://developers.openai.com/api/docs/guides/your-data"}
+      ]
+    },
+    "ai:anthropic": {
+      "name": "Anthropic (API Claude)",
+      "verified_on": "2026-11-14",
+      "points": [
+        "Les conditions commerciales interdisent à Anthropic d'entraîner ses modèles sur le contenu envoyé par l'API (entrées et réponses).",
+        "Les entrées et réponses de l'API sont supprimées automatiquement dans les 30 jours, sauf accord de conservation nulle, nécessité de faire respecter la politique d'utilisation, ou obligation légale.",
+        "Ces règles concernent l'API (votre clé) ; les offres grand public de Claude ont leurs propres règles."
+      ],
+      "sources": [
+        {"label": "Anthropic — Conditions commerciales (en vigueur depuis le 17 juin 2025)", "url": "https://www.anthropic.com/legal/commercial-terms"},
+        {"label": "Anthropic — Durée de conservation des données de l'API", "url": "https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-commercial-api-data"}
+      ]
+    },
+    "ai:gemini": {
+      "name": "Google Gemini (API)",
+      "verified_on": "2026-11-14",
+      "points": [
+        "Quota gratuit (service non payant) : Google peut utiliser les textes envoyés et les réponses pour améliorer ses produits, et des relecteurs humains peuvent les lire. Google demande de ne pas y envoyer d'informations sensibles, confidentielles ou personnelles.",
+        "Service payant : Google n'utilise pas les textes ni les réponses pour améliorer ses produits ; il les conserve pour une durée limitée afin de détecter les abus et de répondre aux obligations légales.",
+        "Utilisateurs de l'Espace économique européen, de la Suisse et du Royaume-Uni : les règles du service payant s'appliquent à tous les services, y compris le quota gratuit.",
+        "Version consultée : conditions en vigueur au 20 novembre 2025 (archive officielle) ; la page actuelle n'a pas pu être ouverte lors de la vérification. À revérifier."
+      ],
+      "sources": [
+        {"label": "Gemini API — Conditions additionnelles (version du 20 novembre 2025)", "url": "https://ai.google.dev/gemini-api/terms-archive/terms_11_20_25"},
+        {"label": "Gemini API — Conditions additionnelles (page actuelle)", "url": "https://ai.google.dev/gemini-api/terms"}
+      ]
+    },
+    "ai:openai_compatible": {
+      "name": "Service compatible OpenAI",
+      "verified_on": "2026-11-14",
+      "points": [
+        "Les conditions dépendent entièrement du service que vous avez configuré : l'application ne peut pas les vérifier pour vous.",
+        "Modèle installé sur votre ordinateur ou votre réseau : les textes ne le quittent pas.",
+        "Service en ligne : lisez ses conditions (conservation des textes, utilisation pour l'entraînement) avant d'envoyer des textes."
+      ],
+      "sources": []
+    }
+  }
+}

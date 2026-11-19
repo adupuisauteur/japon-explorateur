@@ -34,7 +34,11 @@ ORIGIN = [
     ("rule", "Règle automatique"),
     ("user", "Utilisateur"),
     ("ai", "Intelligence artificielle"),
+    ("mt", "Traduction automatique"),  # 1.3.0 : DeepL, Google, Argos (module de traduction)
 ]
+
+#: Origines produites par une machine (IA ou traduction automatique), signalées et excluables dans les exports (1.3.0).
+GENERATED_ORIGINS = ("ai", "mt")
 
 PERIODS = [
     ("", "—"),
@@ -209,6 +213,19 @@ class Catalogue(models.Model):
     def needs_real_verification(self):
         """Connecteur externe jamais vérifié avec succès sur le service réel (audit, point particulier 4)."""
         return bool(self.connector) and self.connector != "local" and self.real_test_ok_at is None
+
+    @property
+    def can_refresh(self):
+        """Le connecteur sait-il actualiser des notices (moisson ou relecture par identifiant) ? (1.2.0)
+
+        NDL Search, Japan Search et CiNii servent aux recherches : ils ne proposent pas d'actualisation.
+        """
+        if not self.connector or self.connector == "local":
+            return False
+        from apps.connectors.registry import connector_class
+
+        cls = connector_class(self.connector)
+        return bool(cls and (cls.supports_harvest or cls.supports_fetch))
 
     @property
     def is_searchable(self):
@@ -464,6 +481,10 @@ class Record(models.Model, HistoricalDateMixin):
 
         normalize_record(self)
         super().save(*args, **kwargs)
+        # 2.0.0 (lot 2) : trois statuts recalculés depuis les métadonnées enregistrées, sans appel réseau.
+        from .statuses import refresh
+
+        refresh(self, using=kwargs.get("using"))
 
     def get_absolute_url(self):
         return reverse("catalog:record_detail", args=[self.record_id])
@@ -478,6 +499,13 @@ class Record(models.Model, HistoricalDateMixin):
     def copy_display(self):
         return self.format_date(self.copy_date_text, self.copy_year_start,
                                 self.copy_year_end, self.copy_date_precision)
+
+    @property
+    def status_map(self):
+        """2.0.0 (lot 2) : les trois statuts {kind: RecordStatus}, calculés à la volée s'ils manquent."""
+        from .statuses import statuses_for
+
+        return statuses_for(self)
 
     @property
     def institution_display(self):
@@ -495,6 +523,54 @@ class Record(models.Model, HistoricalDateMixin):
     def compute_hash(self):
         payload = json.dumps(self.source_snapshot(), sort_keys=True, ensure_ascii=False, default=str)
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+# --------------------------------------------------------------------------- statuts (2.0.0, lot 2)
+
+STATUS_KINDS = [
+    ("notice", "Notice disponible"),
+    ("document", "Document consultable"),
+    ("iiif", "IIIF"),
+]
+AVAILABILITY_VALUES = [("oui", "Oui"), ("non", "Non"), ("non_verifie", "Non vérifié")]
+IIIF_VALUES = [("absent", "Absent"), ("identifie", "Identifié"), ("verifie", "Vérifié"),
+               ("echec", "Vérification en échec"), ("non_verifie", "Non vérifié")]
+STATUS_VALUES = AVAILABILITY_VALUES + [v for v in IIIF_VALUES if v[0] != "non_verifie"]
+STATUS_ORIGINS = [
+    ("source", "Déclaré par la source"),
+    ("jed", "Vérifié par J-ed"),
+    ("deduit", "Déduit par J-ed"),  # adresse construite par J-ed (décision D5)
+]
+
+
+class RecordStatus(models.Model):
+    """Un des trois statuts indépendants d'une notice (cahier 2.0.0, § 5). Aucun ne se déduit d'un autre.
+
+    Les lignes sont recalculées à partir des métadonnées enregistrées, sans appel réseau ; une vérification
+    faite par J-ed (manifeste IIIF) n'est jamais écrasée tant que l'adresse vérifiée ne change pas.
+    """
+
+    record = models.ForeignKey(Record, related_name="statuses", on_delete=models.CASCADE)
+    kind = models.CharField("Statut", max_length=10, choices=STATUS_KINDS)
+    value = models.CharField("Valeur", max_length=12, choices=STATUS_VALUES, default="non_verifie")
+    origin = models.CharField("Origine", max_length=10, choices=STATUS_ORIGINS, blank=True)
+    checked_at = models.DateTimeField("Date", null=True, blank=True)
+    url = models.URLField("Adresse concernée", max_length=600, blank=True)
+    detail = models.CharField("Détail", max_length=500, blank=True)
+    # Suivi de la vérification du manifeste IIIF : demandée et pas encore traitée (reprise après un arrêt).
+    check_requested_at = models.DateTimeField("Vérification demandée le", null=True, blank=True)
+    check_requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, related_name="+",
+                                           on_delete=models.SET_NULL)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "statut de notice"
+        verbose_name_plural = "statuts de notice"
+        constraints = [models.UniqueConstraint(fields=["record", "kind"], name="unique_record_status_kind")]
+        indexes = [models.Index(fields=["kind", "value"]), models.Index(fields=["check_requested_at"])]
+
+    def __str__(self):
+        return f"{self.record_id} — {self.get_kind_display()} : {self.get_value_display()}"
 
 
 class RecordVersion(models.Model):
@@ -632,3 +708,29 @@ class StoredFile(models.Model):
 
     def __str__(self):
         return self.original_name
+
+
+class RecordText(models.Model):
+    """2.0.0 (lot 10) : texte intégral d'une notice, téléchargé à la demande (Aozora Bunko). Gardé tel que reçu ;
+    un nouveau téléchargement ajoute une ligne, l'ancienne est conservée."""
+
+    FORMATS = [("zip", "Fichier texte compressé (zip)"), ("xhtml", "Page XHTML")]
+
+    record = models.ForeignKey(Record, related_name="texts", on_delete=models.CASCADE)
+    source_url = models.URLField("Fichier d'origine", max_length=600)
+    file_format = models.CharField("Format", max_length=10, choices=FORMATS)
+    encoding = models.CharField("Encodage", max_length=60, blank=True)
+    text = models.TextField("Texte reçu (décodé, notation de la source)")
+    sha256 = models.CharField(max_length=64)
+    size = models.PositiveIntegerField("Taille du fichier (octets)", default=0)
+    fetched_at = models.DateTimeField("Téléchargé le")
+    fetched_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name="+")
+
+    class Meta:
+        ordering = ["-fetched_at", "-pk"]
+        verbose_name = "texte intégral"
+        verbose_name_plural = "textes intégraux"
+
+    def __str__(self):
+        return f"Texte de {self.record_id} ({self.fetched_at:%d/%m/%Y})"

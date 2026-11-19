@@ -10,16 +10,56 @@ from dataclasses import dataclass, field
 from typing import Iterator, Optional
 
 
-class ConnectorError(Exception):
-    """Erreur explicite et présentable à l'utilisateur."""
+#: Nature d'un échec de connecteur (§2.7 et §3.4 du cahier des charges 1.2.0).
+#: Une absence de résultat n'est jamais une erreur : elle n'a pas de « kind ».
+ERROR_KINDS = {
+    "unavailable": "Source indisponible",          # délai dépassé, serveur injoignable, HTTP 429/5xx
+    "technical": "Erreur technique",               # requête refusée (HTTP 4xx), réponse inattendue du serveur
+    "unparsable": "Réponse impossible à interpréter",  # JSON/XML invalide, structure modifiée
+    "processing": "Erreur de traitement",          # conversion des métadonnées en échec
+    "config": "Configuration incomplète",          # paramètre ou identifiant d'accès manquant
+    "query": "Requête non transmise",              # critères vides ou non pris en charge : pas un dysfonctionnement
+    "unsupported": "Opération non proposée par ce connecteur",  # pas un dysfonctionnement
+}
 
-    def __init__(self, message, *, temporary=False):
+#: Natures d'échec qui ne sont jamais enregistrées dans le journal des dysfonctionnements.
+NOT_AN_INCIDENT = ("query", "unsupported")
+
+
+class ConnectorError(Exception):
+    """Erreur explicite et présentable à l'utilisateur.
+
+    `kind` classe l'échec (voir ERROR_KINDS) ; `diagnostic` porte le contexte
+    technique destiné au journal des dysfonctionnements (adresse expurgée,
+    code HTTP, identifiant de requête, durée, extrait de réponse…).
+    """
+
+    def __init__(self, message, *, temporary=False, kind=None, http_status=None, code="", diagnostic=None):
         super().__init__(message)
-        self.temporary = temporary
+        self.temporary = temporary or kind == "unavailable"
+        self.kind = kind or ("unavailable" if temporary else "technical")
+        self.http_status = http_status
+        self.code = code
+        self.diagnostic = dict(diagnostic or {})
+
+    @property
+    def kind_label(self):
+        return ERROR_KINDS.get(self.kind, "Erreur")
 
 
 class ConnectorNotConfigured(ConnectorError):
-    pass
+    def __init__(self, message, **kwargs):
+        kwargs.setdefault("kind", "config")
+        kwargs.setdefault("code", "not_configured")
+        super().__init__(message, **kwargs)
+
+
+class ResponseFormatError(ConnectorError):
+    """Réponse reçue mais impossible à interpréter (format modifié, encodage, structure)."""
+
+    def __init__(self, message, **kwargs):
+        kwargs.setdefault("kind", "unparsable")
+        super().__init__(message, **kwargs)
 
 
 @dataclass
@@ -107,6 +147,14 @@ class BaseConnector:
     def harvest(self, since=None, cursor=None) -> Iterator[HarvestBatch]:
         raise ConnectorError("Ce connecteur ne permet pas de moisson complète ou incrémentale.")
 
+    def live_test(self):
+        """2.0.0 (recette rc1) : essai de disponibilité réel, sans lecture du cache HTTP. À utiliser partout où
+        le résultat est affiché ou enregistré comme essai (bouton « Tester », vérification, real_test_ok_at)."""
+        from .http import live_requests
+
+        with live_requests():
+            return self.test()
+
     def test(self):
         """Vérifie la disponibilité. Retourne (ok: bool, message: str, details: dict)."""
         try:
@@ -115,7 +163,7 @@ class BaseConnector:
             ms = int((time.monotonic() - started) * 1000)
             return True, f"La source répond ({ms} ms, {response.total if response.total is not None else '?'} résultats).", {}
         except ConnectorError as exc:
-            return False, str(exc), {}
+            return False, str(exc), {"error_kind": exc.kind, "error_code": exc.code}
 
     # -- description -----------------------------------------------------------
     @classmethod

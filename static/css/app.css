@@ -1,4 +1,4 @@
-/* Japon — Explorateur documentaire : charte sobre, lumineuse et lisible (§3.1) */
+/* J-ed : charte sobre, lumineuse et lisible (§3.1) */
 :root {
   --accent: #8a2b23;          /* laque */
   --accent-soft: #f6e9e6;
@@ -27,6 +27,7 @@ h3, .h3 { font-size: 1.08rem; font-weight: 600; }
 .app-nav { background: #fff; border-bottom: 1px solid var(--line); box-shadow: 0 1px 0 rgba(0,0,0,.02); }
 .app-nav .nav-link { color: var(--ink); padding: .5rem .65rem !important; border-radius: .5rem; display: flex; align-items: center; gap: .35rem; white-space: nowrap; }
 .app-nav .nav-link.active, .app-nav .nav-link:hover { color: var(--accent); background: var(--accent-soft); }
+.brand-name { font-weight: 700; letter-spacing: .01em; }
 .brand-ja { color: var(--accent); font-family: var(--font-ja); font-weight: 700; margin-right: .2rem; }
 .navbar-brand { font-weight: 600; font-size: 1.05rem; }
 .nav-search input { min-width: 200px; }
@@ -67,6 +68,10 @@ h3, .h3 { font-size: 1.08rem; font-weight: 600; }
 .chip-warn { background: #fff4dc; border-color: #ecd39b; color: var(--warn); }
 .chip-new { background: #e7f0fb; border-color: #b5cde9; color: #1f4e79; }
 .chip-source { background: #fff; }
+/* 2.0.0, lot 2 : trois statuts */
+.chip-muted { background: #f4f2ee; border-color: #ddd6cc; color: var(--muted); }
+.status-pills { display: inline-flex; flex-wrap: wrap; gap: .25rem; }
+.status-pills .chip-status { white-space: nowrap; }
 
 /* Filtres */
 .filters { background: #fff; border: 1px solid var(--line); border-radius: .8rem; padding: 1rem; }
@@ -127,3 +132,59 @@ pre.json { background: #fff; border: 1px solid var(--line); border-radius: .5rem
   .result-card { padding: .85rem; }
   .btn-touch { padding: .55rem .9rem; }
 }
+
+/* 1.2.0 — états de recherche détaillés et journal des dysfonctionnements */
+.source-status.empty .dot { background: #8c97a3; }
+.source-status.unavailable .dot { background: #d79b00; }
+.source-status.unparsable .dot { background: #b02a1d; }
+.chip-sev-info { background: #e7f0fb; border-color: #b5cde9; color: #1f4e79; }
+.chip-sev-warning { background: #fff4dc; border-color: #ecd39b; color: var(--warn); }
+.chip-sev-error { background: #fbeaea; border-color: #e9b8b3; color: #8f1f15; }
+.chip-sev-critical { background: #8f1f15; border-color: #8f1f15; color: #fff; font-weight: 600; }
+.chip-st-nouveau, .chip-st-a_analyser { background: #fff; border-color: #c9c2b8; color: #3b3530; }
+.chip-st-en_cours { background: #e7f0fb; border-color: #b5cde9; color: #1f4e79; }
+.chip-st-corrige, .chip-st-a_verifier { background: #e9f4ec; border-color: #b9d8c1; color: var(--ok); }
+.chip-st-cloture { background: #eef0f3; color: var(--muted); }
+.incident-row { border-left: 4px solid var(--line); }
+.incident-row.sev-warning { border-left-color: #d79b00; }
+.incident-row.sev-error { border-left-color: #b02a1d; }
+.incident-row.sev-critical { border-left-color: #5c0f08; background: #fff7f6; }
+.incident-row.sev-info { border-left-color: #8aa4c4; }
+.diag-pre { white-space: pre-wrap; word-break: break-word; max-height: 32rem; overflow: auto; font-size: .82rem;
+  background: #fbfaf8; border: 1px solid var(--line); border-radius: .5rem; padding: .8rem; }
+.nav-badge { font-size: .65rem; vertical-align: top; }
+
+/* 2.0.0, lot 5 : fenêtres de notification */
+.jed-toast { border-left: 4px solid var(--muted); }
+.jed-toast-success { border-left-color: #2e7d4f; }
+.jed-toast-warning { border-left-color: #b26a00; }
+.jed-toast-error, .jed-toast-critical { border-left-color: #b3261e; }
+#notif-popups { z-index: 1090; }
+.notif-unread { border-left: 4px solid var(--bs-primary); }
+
+/* 2.0.0 (lot 6) : aide intégrée */
+.help-page { line-height: 1.6; }
+.help-page h2 { font-size: 1.35rem; margin-top: 1.8rem; }
+.help-page h3 { font-size: 1.1rem; margin-top: 1.3rem; }
+.help-page table { width: 100%; margin-bottom: 1rem; border-collapse: collapse; }
+.help-page th, .help-page td { border-bottom: 1px solid var(--line); padding: .35rem .5rem; vertical-align: top; }
+.help-page blockquote { border-left: 4px solid var(--bs-primary); padding: .4rem 1rem; background: #fff; border-radius: .4rem; }
+.help-page code { white-space: pre-wrap; }
+.help-page pre { background: #fff; border: 1px solid var(--line); border-radius: .5rem; padding: .7rem 1rem; }
+.brand-logo { height: 38px; width: auto; display: block; }
+
+/* 2.0.0 (lot 6) : en-tête de la fiche, titre et boutons côte à côte quel que soit la longueur du titre */
+.record-head-title { flex: 1 1 0; min-width: 280px; overflow-wrap: anywhere; }
+.record-head-actions { flex: 0 0 auto; width: 300px; max-width: 100%; }
+
+/* 2.0.0 (lot 10) : texte intégral (Aozora Bunko) */
+.aozora-text { font-size: 1.1rem; line-height: 2.1; max-width: 46em; overflow-wrap: anywhere; }
+.aozora-text rt { font-size: .55em; }
+.aozora-head, .aozora-colophon { white-space: pre-wrap; font-family: inherit; background: none; border: 0; padding: 0; }
+.aozora-gaiji { text-decoration: underline dotted; cursor: help; }
+
+/* 2.0.0 (lot 10) : visionneuse intégrée */
+.viewer-page { width: 5em; }
+.viewer-stage { background: #222; text-align: center; overflow: auto; max-height: 80vh; border-radius: .25rem; }
+.viewer-stage img { max-width: 100%; max-height: 80vh; }
+.viewer-zoomed .viewer-stage img { max-width: none; max-height: none; }

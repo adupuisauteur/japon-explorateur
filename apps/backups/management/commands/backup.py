@@ -1,8 +1,8 @@
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 
 class Command(BaseCommand):
-    help = "Crée une sauvegarde (base + fichiers par défaut)."
+    help = "Crée une sauvegarde (base + fichiers par défaut). Code de sortie 1 en cas d'échec."
 
     def add_arguments(self, parser):
         parser.add_argument("--kind", choices=["full", "db", "files"], default="full")
@@ -12,7 +12,15 @@ class Command(BaseCommand):
         from apps.backups.services import create_backup, verify_backup
 
         job = create_backup(options["kind"])
-        self.stdout.write(f"{job.get_status_display()} : {job.path} ({job.size} octets) — {job.message}")
-        if options["verify"] and job.status == "done":
+        if job.status != "done":
+            # 2.0.0 : un échec se termine par un code d'erreur (jamais « Échec » avec un code 0).
+            raise CommandError(f"Sauvegarde en échec : {job.message}")
+        self.stdout.write(self.style.SUCCESS(f"{job.get_status_display()} : {job.path} ({job.size} octets) — "
+                                             f"{job.message}"))
+        if job.external_copy:
+            self.stdout.write(f"Copie externe : {job.external_copy}")
+        if options["verify"]:
             ok, msg = verify_backup(job)
-            self.stdout.write(msg)
+            if not ok:
+                raise CommandError(f"Vérification de la sauvegarde en échec : {msg}")
+            self.stdout.write(self.style.SUCCESS(msg))

@@ -11,8 +11,8 @@
     {% if parameters.query %}<input type="hidden" name="q" value="{{ parameters.query }}">{% endif %}
     {% if parameters.question %}<input type="hidden" name="question" value="{{ parameters.question }}">{% endif %}
     <p>Souhaitez-vous utiliser un autre fournisseur configuré pour cette opération ?</p>
-    <div class="row g-2"><div class="col-md-5"><select name="provider" class="form-select" aria-label="Fournisseur">{% for a in alternatives %}<option value="{{ a }}">{% for k, v in provider_labels.items %}{% if k == a %}{{ v }}{% endif %}{% endfor %}</option>{% endfor %}</select></div>
-      <div class="col-md-4"><input name="model" class="form-control" placeholder="modèle" required aria-label="Modèle"></div>
+    <div class="row g-2"><div class="col-md-5"><select name="provider" id="alt-provider" class="form-select" aria-label="Fournisseur">{% for a in alternatives %}<option value="{{ a }}">{% for k, v in provider_labels.items %}{% if k == a %}{{ v }}{% endif %}{% endfor %}</option>{% endfor %}</select></div>
+      <div class="col-md-4"><input name="model" id="alt-model" class="form-control" placeholder="modèle" aria-label="Modèle">{% include "partials/model_picker.html" with provider_id="alt-provider" provider_name="provider" model_id="alt-model" model_name="model" %}</div>
       <div class="col-md-3"><button class="btn btn-primary w-100">Préparer</button></div></div>
   </form>{% endif %}
   <div class="mt-3 d-flex gap-2"><a class="btn btn-outline-secondary" href="{% url 'ai:providers' %}">Configurer les fournisseurs</a>

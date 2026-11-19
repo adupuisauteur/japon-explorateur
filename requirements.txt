@@ -3,6 +3,9 @@ psycopg[binary]>=3.2
 django-environ>=0.11
 celery>=5.4
 redis>=5.0
+# Requis par kombu 5.7 (transport Redis de Celery) mais non déclaré par ce paquet : sans lui, toute tâche
+# envoyée au worker (comparaison d'import, synchronisation, export…) provoque une erreur 500.
+packaging>=23.0
 httpx>=0.27
 python-docx>=1.1
 reportlab>=4.2
@@ -12,3 +15,6 @@ pykakasi>=2.3
 cryptography>=43
 whitenoise>=6.7
 gunicorn>=22
+pypdf>=4.0
+# 2.0.0 (lot 6) : rendu de l'aide intégrée (docs/aide/*.md), licence BSD
+Markdown>=3.6

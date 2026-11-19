@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Projet confidentiel{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item"><a href="{% url 'translation:project_list' %}">Projets</a></li><li class="breadcrumb-item active">Projet confidentiel</li></ol></nav>{% endblock %}
+{% block content %}
+<h1><i class="bi bi-lock-fill"></i> {{ project.title }}</h1>
+<div class="card-soft" style="max-width:700px">
+  <p>Ce projet est <strong>confidentiel</strong> : son contenu n'est visible que par son propriétaire.</p>
+  <dl class="row mb-0"><dt class="col-sm-4">Propriétaire</dt><dd class="col-sm-8">{{ project.owner }}</dd>
+    <dt class="col-sm-4">Documents</dt><dd class="col-sm-8">{{ project.n_docs }}</dd>
+    <dt class="col-sm-4">Segments</dt><dd class="col-sm-8">{{ project.n_segments }} (dont {{ project.n_validated }} validés)</dd>
+    <dt class="col-sm-4">Mis à jour</dt><dd class="col-sm-8">{{ project.updated_at|date:"d/m/Y H:i" }}</dd></dl>
+</div>
+{% endblock %}

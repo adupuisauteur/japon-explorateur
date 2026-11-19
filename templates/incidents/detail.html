@@ -1,0 +1,98 @@
+{% extends "base.html" %}{% load app_tags %}
+{% block title %}{{ incident.uid }}{% endblock %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'incidents:list' %}">Journal des dysfonctionnements</a> › {{ incident.uid }}</nav>
+<div class="page-head">
+  <div>
+    <h1 class="h3">{{ incident.title }}</h1>
+    <p class="d-flex flex-wrap gap-1 align-items-center"><code class="me-2">{{ incident.uid }}</code>{% severity_chip incident %} {% incident_status_chip incident %}
+      {% if incident.is_manual %}<span class="chip chip-new"><i class="bi bi-person"></i> signalement manuel</span>{% endif %}
+      {% if incident.reappeared_count %}<span class="chip chip-warn">réapparu ×{{ incident.reappeared_count }} après correction</span>{% endif %}</p>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-primary" href="{% url 'incidents:export' incident.uid %}"><i class="bi bi-file-earmark-arrow-down"></i> Exporter le diagnostic</a>
+    {% if incident.source_code %}<a class="btn btn-outline-secondary" href="{% url 'incidents:list' %}?source={{ incident.source_code }}">Historique de la source</a>{% endif %}
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="alert alert-light border">
+      <div class="fw-semibold mb-1"><i class="bi bi-lightbulb"></i> Origine probable : {{ incident.get_origin_display }}</div>
+      <div class="small">{{ incident.origin_help }}</div>
+    </div>
+    <div class="card-soft mb-3">
+      <dl class="fields">
+        <dt>Module</dt><dd>{{ incident.get_module_display }}</dd>
+        {% if incident.source_code %}<dt>Source documentaire</dt><dd>{{ incident.source_code }}</dd>{% endif %}
+        <dt>Catégorie</dt><dd>{{ incident.get_category_display }}</dd>
+        <dt>Opération en cours</dt><dd class="ja">{{ incident.operation|default:"—" }}</dd>
+        <dt>Message</dt><dd class="ja">{{ incident.message|default:"—"|linebreaksbr }}</dd>
+        {% if incident.technical_code %}<dt>Code technique</dt><dd><code>{{ incident.technical_code }}</code></dd>{% endif %}
+        {% if incident.http_status %}<dt>Code HTTP</dt><dd><code>{{ incident.http_status }}</code></dd>{% endif %}
+        {% if incident.last_request_id %}<dt>Identifiant de requête</dt><dd><code>{{ incident.last_request_id }}</code></dd>{% endif %}
+        <dt>Première occurrence</dt><dd>{{ incident.first_seen_at|date:"d/m/Y H:i:s" }} (version {{ incident.first_seen_version }})</dd>
+        <dt>Dernière occurrence</dt><dd>{{ incident.last_seen_at|date:"d/m/Y H:i:s" }} (version {{ incident.last_seen_version }})</dd>
+        <dt>Nombre d'occurrences</dt><dd>{{ incident.occurrence_count }}</dd>
+        {% if incident.fixed_in_version %}<dt>Corrigé dans la version</dt><dd>{{ incident.fixed_in_version }}{% if incident.fixed_at %} (le {{ incident.fixed_at|date:"d/m/Y" }}){% endif %}</dd>{% endif %}
+        {% if incident.is_manual %}
+        <dt>Opérations réalisées</dt><dd>{{ incident.steps|default:"—"|linebreaksbr }}</dd>
+        <dt>Résultat attendu</dt><dd>{{ incident.expected|default:"—"|linebreaksbr }}</dd>
+        <dt>Résultat obtenu</dt><dd>{{ incident.obtained|default:"—"|linebreaksbr }}</dd>
+        {% if incident.screenshot %}<dt>Capture d'écran</dt><dd><a href="{% url 'incidents:screenshot' incident.uid %}" target="_blank">Ouvrir la capture</a></dd>{% endif %}
+        {% endif %}
+      </dl>
+    </div>
+
+    {% if comparison %}
+    <div class="card-soft mb-3">
+      <h2 class="h6">Avant / après correction</h2>
+      <p class="small mb-0">Corrigé le {{ comparison.fixed_at|date:"d/m/Y H:i" }}{% if comparison.fixed_in_version %} (version {{ comparison.fixed_in_version }}){% endif %} :
+        <strong>{{ comparison.before }}</strong> occurrence(s) avant{% if comparison.last_before %}, la dernière le {{ comparison.last_before.occurred_at|date:"d/m/Y H:i" }}{% endif %} ;
+        <strong>{{ comparison.after }}</strong> après{% if comparison.first_after %}, la première le {{ comparison.first_after.occurred_at|date:"d/m/Y H:i" }} (version {{ comparison.first_after.app_version }}){% endif %}.
+        {% if comparison.after == 0 %}<span class="text-success">Aucune réapparition depuis la correction.</span>{% endif %}</p>
+    </div>
+    {% endif %}
+
+    <details class="card-soft mb-3">
+      <summary class="fw-semibold">Détail technique (contexte expurgé)</summary>
+      <pre class="diag-pre mt-2 mb-0">{{ incident.context|pretty_json }}</pre>
+    </details>
+
+    <div class="card-soft">
+      <h2 class="h6">Occurrences récentes</h2>
+      <div class="table-responsive"><table class="table table-sm small mb-0">
+        <thead><tr><th>Date</th><th>Version</th><th>Requête</th><th>HTTP</th><th>Opération</th></tr></thead>
+        <tbody>{% for o in occurrences %}
+          <tr><td class="text-nowrap">{{ o.occurred_at|date:"d/m/Y H:i:s" }}</td><td>{{ o.app_version }}</td><td><code>{{ o.request_id|default:"—" }}</code></td><td>{{ o.http_status|default:"" }}</td><td class="ja">{{ o.operation|truncatechars:80 }}</td></tr>
+        {% endfor %}</tbody></table></div>
+      {% if incident.occurrence_count > occurrences|length %}<p class="small text-muted mt-2 mb-0">{{ occurrences|length }} affichée(s) sur {{ incident.occurrence_count }}.</p>{% endif %}
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    {% if status_form %}
+    <form method="post" action="{% url 'incidents:status' incident.uid %}" class="card-soft mb-3">{% csrf_token %}
+      <h2 class="h6">Suivi de la correction</h2>
+      {% for field in status_form %}<div class="mb-2"><label class="form-label small" for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}</div>{% endfor %}
+      <button class="btn btn-sm btn-primary">Enregistrer</button>
+    </form>
+    {% endif %}
+    <div class="card-soft mb-3">
+      <h2 class="h6">Historique</h2>
+      <ul class="list-unstyled small mb-0">{% for e in events %}
+        <li class="mb-2"><span class="text-muted">{{ e.at|date:"d/m/Y H:i" }}</span> · <strong>{{ e.get_kind_display }}</strong>
+          {% if e.from_status or e.to_status %}({% if e.from_status %}{{ e.get_from_status_display }} → {% endif %}{{ e.get_to_status_display }}){% endif %}
+          {% if e.app_version %}<span class="text-muted">· v{{ e.app_version }}</span>{% endif %}
+          {% if e.comment %}<div>{{ e.comment|linebreaksbr }}</div>{% endif %}</li>
+      {% endfor %}</ul>
+    </div>
+    {% if similar %}
+    <div class="card-soft">
+      <h2 class="h6">Autres incidents de même nature pour cette source</h2>
+      <ul class="small mb-0">{% for s in similar %}<li><a href="{{ s.get_absolute_url }}">{{ s.uid }}</a> — {{ s.title|truncatechars:70 }} ({{ s.get_status_display|lower }})</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

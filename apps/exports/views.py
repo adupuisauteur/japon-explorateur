@@ -28,6 +28,8 @@ class ExportForm(BootstrapMixin, forms.Form):
     author = forms.CharField(label="Auteur / préparateur", max_length=200, required=False)
     header_text = forms.CharField(label="En-tête", max_length=300, required=False)
     footer_text = forms.CharField(label="Pied de page", max_length=300, required=False)
+    hide_user = forms.BooleanField(
+        label="Ne pas indiquer mon identifiant en bas de page (export destiné à être diffusé)", required=False)
     column_profile = forms.ChoiceField(label="Profil de colonnes (CSV)", choices=[
         ("bibliography", "Bibliographie"), ("inventory", "Inventaire complet"), ("historical", "Recherche historique"),
         ("generic", "Import générique (réimportable)")], required=False)
@@ -37,9 +39,12 @@ class ExportForm(BootstrapMixin, forms.Form):
     csv_neutralize = forms.BooleanField(
         label="Neutraliser les formules (CSV) : préfixe ' devant les cellules commençant par = + - @",
         required=False, initial=True)
-    include_ai = forms.BooleanField(label="Inclure traductions et contenus IA (signalés comme tels)", required=False,
+    include_ai = forms.BooleanField(label="Inclure traductions automatiques et contenus IA (signalés comme tels)",
+                                    required=False,
                                     initial=True)
     include_notes = forms.BooleanField(label="Inclure les notes et annotations", required=False, initial=True)
+    include_summaries = forms.BooleanField(label="Inclure les résumés IA des notices (marqués « généré par IA »)",
+                                           required=False, initial=False)
     include_images = forms.BooleanField(label="Inclure les liens vers images (uniquement si droits connus)",
                                         required=False)
     pagination = forms.BooleanField(label="Pagination (DOCX/PDF)", required=False, initial=True)
@@ -48,8 +53,9 @@ class ExportForm(BootstrapMixin, forms.Form):
                                        initial=True)
     save_profile_as = forms.CharField(label="Enregistrer ces réglages comme profil (nom)", required=False)
 
-    OPTION_FIELDS = ["column_profile", "csv_separator", "csv_bom", "csv_neutralize", "include_ai", "include_notes", "include_images",
-                     "pagination", "toc"]
+    OPTION_FIELDS = ["column_profile", "csv_separator", "csv_bom", "csv_neutralize", "include_ai", "include_notes",
+                     "include_summaries", "include_images",
+                     "pagination", "toc", "hide_user"]
 
 
 def _scope_from_request(request):

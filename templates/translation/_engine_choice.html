@@ -1,0 +1,8 @@
+{% if engines %}
+<fieldset class="mb-3"><legend class="h6">Moteur</legend>
+{% for e in engines %}<div class="form-check"><input class="form-check-input" type="radio" name="engine" value="{{ e.value }}" id="engine-{{ e.value }}" {% if forloop.first %}checked{% endif %} {% if not e.status.usable %}disabled{% endif %}>
+  <label class="form-check-label" for="engine-{{ e.value }}">{{ e.label }} : <strong>{{ e.name }}</strong> — <span class="text-{{ e.status.level }}">{{ e.status.label }}</span>
+  {% if e.status.simulated %}<span class="chip chip-warn">Simulation</span>{% endif %}
+  <span class="small text-muted">· {% if e.online %}en ligne : le texte sera envoyé au fournisseur{% else %}local : aucun texte ne quitte votre ordinateur{% endif %}</span></label></div>{% endfor %}
+</fieldset>
+{% else %}<div class="alert alert-warning">Aucun moteur n'est choisi : <a href="{% url 'translation:engines' %}">Traduction → Moteurs</a>.</div>{% endif %}

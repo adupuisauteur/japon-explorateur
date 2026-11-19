@@ -15,5 +15,10 @@ urlpatterns = [
     path("<str:record_id>/traduction/", views.translation_edit, name="translation_edit"),
     path("<str:record_id>/doublons/", views.compute_duplicates, name="compute_duplicates"),
     path("<str:record_id>/statut/", views.record_status, name="record_status"),
+    path("<str:record_id>/verifier-iiif/", views.verify_iiif, name="verify_iiif"),
     path("<str:record_id>/oeuvre/", views.attach_work, name="attach_work"),
+    path("<str:record_id>/texte/", views.record_text, name="record_text"),
+    path("<str:record_id>/visionneuse/", views.record_viewer, name="record_viewer"),
+    path("<str:record_id>/texte/telecharger/", views.record_text_fetch, name="record_text_fetch"),
+    path("<str:record_id>/texte/projet/", views.record_text_to_project, name="record_text_to_project"),
 ]

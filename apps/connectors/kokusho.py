@@ -5,9 +5,9 @@ Méthodes d'accès retenues après étude (aucune API de recherche publique docu
   1. Notice par identifiant : manifeste IIIF officiel publié pour chaque notice
      (https://kokusho.nijl.ac.jp/biblio/{id}/manifest), identifiant également
      accessible par DOI (10.20730/{id}).
-  2. Recherche plein texte : via l'API publique de Japan Search, où le fonds
-     du NIJL est agrégé, filtrée sur la base Kokusho (identifiant de base à
-     configurer ; à défaut, filtrage approximatif sur les liens kokusho.nijl.ac.jp).
+  2. Recherche plein texte : via l'API publique de Japan Search, base « nij16 » par défaut (日本古典籍総合目録,
+     catalogue du NIJL sans images, instantané de 2021 ; constaté sur le poste le 16/11/2026), ou la base réglée
+     dans « japansearch_db ».
   3. Import de fichiers (listes exportées, CSV fournis par l'utilisateur).
 
 Aucune page HTML n'est aspirée. Conditions d'utilisation :
@@ -17,7 +17,7 @@ import re
 import time
 
 from .base import BaseConnector, ConnectorError, ConnectorResult, SearchResponse
-from .http import ConnectorHTTP
+from .http import ConnectorHTTP, format_error
 from .japansearch import jpsearch_query, parse_item
 from .registry import register
 
@@ -111,6 +111,60 @@ def parse_manifest(kokusho_id, manifest):
     return ConnectorResult(source_id=kokusho_id, data=data, raw=manifest, raw_format="iiif-manifest")
 
 
+DEFAULT_JPS_DB = "nij16"  # 2.0.0 (lot 10) : base Japan Search des notices du NIJL, constatée sur le poste (16/11/2026)
+
+
+def _fes(item):
+    root = item.get(f"{DEFAULT_JPS_DB}-NihuRoot") or {}
+    return ((root.get("nihuDC") or {}).get("FesData") or {}) if isinstance(root, dict) else {}
+
+
+def _values(fes, key):
+    value = fes.get(key) or []
+    return [str(v).strip() for v in (value if isinstance(value, list) else [value]) if str(v).strip()]
+
+
+def parse_nij16(item):
+    """Notice du 日本古典籍総合目録 (NIJL) telle que Japan Search la diffuse (base nij16, instantané de 2021).
+
+    Catalogue sans images : titre(s), auteur, sujet, date, édition ou copie (刊/写), format, établissement et cote
+    tels que saisis dans la description. Identifiant : celui de Japan Search (« nij16-… »), distinct des numéros de
+    notices à images du Kokusho tant que leur correspondance n'est pas vérifiée."""
+    if not isinstance(item, dict):
+        raise ValueError("élément de résultat non structuré")
+    common = item.get("common") or {}
+    fes = _fes(item)
+    titles = _values(fes, "Title-s") or [str(common.get("title") or "")]
+    other_titles = [t for t in dict.fromkeys(titles[1:]) if t != titles[0]]
+    description = _values(fes, "Description-s")
+    publisher = _values(fes, "Publisher-s")
+    extra = []
+    if other_titles:
+        extra.append("Autres titres : " + " ; ".join(other_titles))
+    if publisher:
+        extra.append("Éditeur : " + " ; ".join(publisher))
+    extra += [f"Format : {f}" for f in _values(fes, "Format-s")]
+    info_id = (_values(fes, "Identifier-s") or [""])[0]
+    source_id = str(item.get("id") or common.get("id") or (f"{DEFAULT_JPS_DB}-{info_id}" if info_id else ""))
+    data = {
+        "source_id": source_id,
+        "source_url": str(common.get("linkUrl") or ""),
+        "original_title": titles[0] or "(sans titre)",
+        "creator_original": " ; ".join(_values(fes, "Creator-s")),
+        "subjects_original": " ; ".join(_values(fes, "Subject-s")),
+        "copy_date_text": " ; ".join(_values(fes, "Date-s")),
+        "material_type_original": " ; ".join(_values(fes, "Type-s")),
+        "description_original": " ; ".join(description + extra),
+        "rights_and_access": "Notice du 日本古典籍総合目録 (NIJL), diffusée par Japan Search (instantané de 2021) ; "
+                             "pas d'image dans cette base.",
+        "digital_access": "record_only",
+        "language": "ja",
+    }
+    if info_id:
+        data["shelfmark"] = ""
+    return ConnectorResult(source_id=source_id, data=data, raw=item, raw_format="jpsearch-nij16")
+
+
 @register
 class KokushoConnector(BaseConnector):
     key = "kokusho"
@@ -127,9 +181,17 @@ class KokushoConnector(BaseConnector):
     def fetch_record(self, source_id):
         kokusho_id = extract_kokusho_id(source_id)
         if not kokusho_id:
-            raise ConnectorError("Identifiant Kokusho non reconnu (attendu : numéro, DOI 10.20730/… ou URL /biblio/…).")
+            raise ConnectorError("Identifiant Kokusho non reconnu (attendu : numéro, DOI 10.20730/… ou URL /biblio/…).",
+                                 kind="query", code="bad_identifier")
         manifest = ConnectorHTTP(self.catalogue).get_json(MANIFEST_URL.format(id=kokusho_id))
-        return parse_manifest(kokusho_id, manifest)
+        if not isinstance(manifest, dict):
+            raise format_error("Manifeste IIIF Kokusho inattendu (objet JSON attendu).", str(manifest)[:300],
+                               code="unexpected_structure")
+        try:
+            return parse_manifest(kokusho_id, manifest)
+        except (AttributeError, TypeError, KeyError) as exc:
+            raise format_error(f"Manifeste IIIF Kokusho illisible ({exc.__class__.__name__}) : "
+                               "son format a peut-être changé.", str(manifest)[:300], code="manifest_structure") from exc
 
     def search(self, query):
         started = time.monotonic()
@@ -139,27 +201,30 @@ class KokushoConnector(BaseConnector):
             return SearchResponse(results=[result], total=1, elapsed_ms=int((time.monotonic() - started) * 1000))
 
         http = ConnectorHTTP(self.catalogue)
-        database = self.config.get("japansearch_db")
+        # 2.0.0 (lot 10) : sans réglage, la base nij16 (constatée sur le poste) ; l'ancien filtrage approximatif sur
+        # les liens kokusho.nijl.ac.jp ne trouvait rien, ces notices n'ayant pas de tels liens dans Japan Search.
+        database = self.config.get("japansearch_db") or DEFAULT_JPS_DB
         warnings = []
-        if not database:
-            warnings.append("Identifiant de base Japan Search non configuré : filtrage approximatif sur les liens "
-                            "Kokusho. Lancez « Tester le connecteur » dans Sources pour le détecter.")
-            query.page_size = max(query.page_size, 50)
         payload = jpsearch_query(http, self.config, query, database=database)
         items = payload.get("list") or payload.get("items") or []
         results = []
         for item in items:
-            parsed = parse_item(item, prefer_kokusho_id=True)
-            link = parsed.data.get("source_url", "")
-            if not database and "kokusho.nijl.ac.jp" not in link and "10.20730" not in link:
+            try:
+                parsed = (parse_nij16(item) if f"{DEFAULT_JPS_DB}-NihuRoot" in item
+                          else parse_item(item, prefer_kokusho_id=True))
+            except (ValueError, TypeError, AttributeError) as exc:
+                warnings.append(f"Un résultat illisible a été ignoré ({exc}).")
+                continue
+            if parsed.raw_format == "jpsearch-nij16":
+                results.append(parsed)
                 continue
             parsed.data.setdefault("image_url", "")
-            if parsed.source_id.isdigit():
+            if re.fullmatch(r"\d{9}", parsed.source_id):
                 parsed.data["image_url"] = MANIFEST_URL.format(id=parsed.source_id)
-                if not parsed.data.get("source_url"):
+                if "kokusho.nijl.ac.jp" not in parsed.data.get("source_url", ""):
                     parsed.data["source_url"] = BIBLIO_URL.format(id=parsed.source_id)
             results.append(parsed)
-        total = payload.get("hit") if (database and isinstance(payload.get("hit"), int)) else None
+        total = payload.get("hit") if isinstance(payload.get("hit"), int) else None
         return SearchResponse(results=results, total=total if total is not None else len(results), page=query.page,
                               has_more=bool(total and query.page * query.page_size < total), warnings=warnings,
                               elapsed_ms=int((time.monotonic() - started) * 1000))
@@ -173,25 +238,17 @@ class KokushoConnector(BaseConnector):
             messages.append(f"IIIF officiel : OK (notice d'essai « {sample.title} »).")
         except ConnectorError as exc:
             ok = False
+            details.update(error_kind=exc.kind, error_code=exc.code)
             messages.append(f"IIIF officiel : échec ({exc}).")
         try:
             from .base import SearchQuery
 
-            http = ConnectorHTTP(self.catalogue)
-            payload = jpsearch_query(http, self.config, SearchQuery(text="方丈記", page_size=50))
-            dbs = {}
-            for item in payload.get("list") or []:
-                link = str((item.get("common") or {}).get("linkUrl") or "")
-                if "kokusho.nijl.ac.jp" in link or "10.20730" in link:
-                    db = item.get("database") or (item.get("common") or {}).get("database")
-                    if db:
-                        dbs[str(db)] = dbs.get(str(db), 0) + 1
-            if dbs:
-                detected = max(dbs, key=dbs.get)
-                details["detected_japansearch_db"] = detected
-                messages.append(f"Japan Search : OK, base Kokusho détectée « {detected} ».")
-            else:
-                messages.append("Japan Search : OK, mais aucune notice Kokusho reconnue dans l'échantillon.")
+            database = self.config.get("japansearch_db") or DEFAULT_JPS_DB
+            payload = jpsearch_query(ConnectorHTTP(self.catalogue), self.config,
+                                     SearchQuery(text="方丈記", page_size=5), database=database)
+            hits = payload.get("hit")
+            details["japansearch_db"] = database
+            messages.append(f"Japan Search (base {database}) : OK, {hits} notice(s) pour 方丈記.")
         except ConnectorError as exc:
             messages.append(f"Japan Search : échec ({exc}). La recherche par identifiant reste possible.")
         return ok, " ".join(messages), details

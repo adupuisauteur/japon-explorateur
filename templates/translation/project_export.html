@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Exporter — {{ project.title }}{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item"><a href="{% url 'translation:exports' %}">Exports</a></li><li class="breadcrumb-item"><a href="{% url 'translation:project_detail' project.pk %}">{{ project.title }}</a></li><li class="breadcrumb-item active">Exporter</li></ol></nav>{% endblock %}
+{% block content %}
+<h1>Exporter « {{ project.title }} »</h1>
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+{% if project.confidential %}<div class="alert alert-secondary small"><i class="bi bi-lock-fill"></i> Projet confidentiel : le fichier exporté contient le texte en clair et l'indique dans son en-tête. Maîtrisez sa diffusion.</div>{% endif %}
+{% if preview %}{% with v=preview.fallback %}<p class="small">Projet entier : {{ v.translatable|length }} segment(s) à traduire — {{ v.count_validated }} validé(s), {{ v.count_proposed }} avec une proposition seulement, {{ v.count_untranslated }} sans traduction{% if v.simulated_count %} ; <span class="text-warning">{{ v.simulated_count }} traduction(s) simulée(s)</span>{% endif %}.</p>{% endwith %}{% endif %}
+<form method="get" class="card-soft" style="max-width:900px">
+  <div class="mb-3"><label class="form-label" for="document">Contenu</label>
+    <select id="document" name="document" class="form-select"><option value="">Tout le projet ({{ documents|length }} document(s))</option>
+      {% for d in documents %}<option value="{{ d.pk }}" {% if request.GET.document == d.pk|stringformat:"d" %}selected{% endif %}>{{ d.title }}</option>{% endfor %}</select></div>
+  <fieldset class="mb-3"><legend class="form-label fs-6">Format</legend>
+    {% for code, f in formats.items %}<div class="form-check"><input class="form-check-input" type="radio" name="format" id="f-{{ code }}" value="{{ code }}" {% if forloop.first %}checked{% endif %}>
+      <label class="form-check-label" for="f-{{ code }}">{{ f.0 }}</label></div>{% endfor %}</fieldset>
+  <fieldset class="mb-3"><legend class="form-label fs-6">Traductions exportées</legend>
+    {% for code, label in modes.items %}<div class="form-check"><input class="form-check-input" type="radio" name="mode" id="m-{{ code }}" value="{{ code }}" {% if forloop.first %}checked{% endif %}>
+      <label class="form-check-label" for="m-{{ code }}">{{ label }}</label></div>{% endfor %}</fieldset>
+  <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="sans_identifiant" id="sans-identifiant" value="1" {% if request.GET.sans_identifiant %}checked{% endif %}>
+    <label class="form-check-label" for="sans-identifiant">Ne pas indiquer mon identifiant (export destiné à être diffusé)</label>
+    <div class="form-text">Chaque export indique la date et l'heure de production, {{ APP_NAME }} et sa version, et votre identifiant de connexion : en bas de chaque page pour Word, en fin de fichier pour le texte et le Markdown.</div></div>
+  <button class="btn btn-primary"><i class="bi bi-download"></i> Télécharger</button>
+</form>
+<p class="small text-muted mt-3">Chaque fichier indique en en-tête les moteurs utilisés et la proportion de segments validés. Une traduction produite par un moteur simulé porte la mention « Simulation ». L'original exporté est le texte importé, jamais modifié.</p>
+{% endblock %}

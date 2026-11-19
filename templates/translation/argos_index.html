@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Index Argos — Moteurs locaux{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item"><a href="{% url 'translation:local_engines' %}">Moteurs locaux</a></li><li class="breadcrumb-item active">Index Argos</li></ol></nav>{% endblock %}
+{% block content %}
+<h1>Paquets proposés par l'index Argos</h1>
+<p class="small text-muted">Langues du module seulement (japonais, anglais, français). Les paquets utiles aux paires de la 1.3.0 sont présélectionnés s'ils ne sont pas installés.</p>
+<form method="post" action="{% url 'translation:argos_install' %}" class="card-soft" style="max-width:900px">{% csrf_token %}
+<table class="table table-sm align-middle"><thead><tr><th></th><th>Paquet</th><th>Version</th><th>Taille</th><th>État</th></tr></thead><tbody>
+{% for r in rows %}<tr><td><input class="form-check-input" type="checkbox" name="packages" value="{{ r.code }}" id="p-{{ forloop.counter }}" {% if r.needed and not r.installed %}checked{% endif %}></td>
+  <td><label for="p-{{ forloop.counter }}">{{ r.code }}{% if r.name %} <span class="small text-muted">({{ r.name }})</span>{% endif %}</label>{% if r.needed %} <span class="badge text-bg-info">utile</span>{% endif %}</td>
+  <td>{{ r.version }}</td><td class="small">{% if r.size %}{{ r.size|filesizeformat }}{% else %}non indiquée{% endif %}</td>
+  <td class="small">{% if r.installed %}installé (v{{ r.installed.version }}){% else %}—{% endif %}</td></tr>
+{% empty %}<tr><td colspan="5" class="text-muted">L'index ne propose aucun paquet pour ces langues.</td></tr>{% endfor %}
+</tbody></table>
+{% if rows %}<div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="confirm" value="1" id="confirm">
+  <label class="form-check-label" for="confirm">Je choisis de télécharger les paquets cochés depuis Internet (index Argos Open Technologies). Un paquet pèse de quelques dizaines à quelques centaines de Mo ; l'installation peut durer plusieurs minutes. Aucun texte à traduire n'est envoyé.</label></div>
+<button class="btn btn-primary">Télécharger et installer</button>{% endif %}
+<a class="btn btn-link" href="{% url 'translation:local_engines' %}">Annuler</a>
+</form>
+{% endblock %}

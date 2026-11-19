@@ -1,0 +1,6 @@
+{"hit": 2, "list": [
+  {"id": "najda", "apiType": "ok", "name": {"ja": "国立公文書館デジタルアーカイブ", "en": "NATIONAL ARCHIVES OF JAPAN DIGITAL ARCHIVE"},
+   "recordCount": 4189647, "url": "https://www.digital.archives.go.jp/"},
+  {"id": "fictive_pref_archives", "apiType": "ng", "name": {"ja": "架空県公文書館（試験用）"},
+   "provider": "架空県", "recordCount": 1200, "url": "https://example.org/"}
+]}

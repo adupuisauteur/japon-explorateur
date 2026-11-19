@@ -1,6 +1,7 @@
 from django import forms
 
-from apps.catalog.models import DIGITAL_ACCESS, DOCUMENT_TYPES, LANGUAGES, MATERIAL_TYPES, PERIODS, Catalogue
+from apps.catalog.models import (AVAILABILITY_VALUES, DOCUMENT_TYPES, IIIF_VALUES, LANGUAGES, MATERIAL_TYPES,
+                                 PERIODS, Catalogue)
 from apps.core.forms import BootstrapMixin
 
 from .models import MODES
@@ -28,8 +29,13 @@ class SearchForm(BootstrapMixin, forms.Form):
                                               choices=_choices(DOCUMENT_TYPES), widget=forms.CheckboxSelectMultiple)
     material_type = forms.MultipleChoiceField(label="Support", required=False, choices=_choices(MATERIAL_TYPES),
                                               widget=forms.CheckboxSelectMultiple)
-    digital_access = forms.MultipleChoiceField(label="Accès numérique", required=False,
-                                               choices=_choices(DIGITAL_ACCESS), widget=forms.CheckboxSelectMultiple)
+    # 2.0.0 (lot 2) : trois statuts indépendants à la place de « Accès numérique ».
+    status_notice = forms.MultipleChoiceField(label="Notice disponible", required=False, choices=AVAILABILITY_VALUES,
+                                              widget=forms.CheckboxSelectMultiple)
+    status_document = forms.MultipleChoiceField(label="Document consultable", required=False,
+                                                choices=AVAILABILITY_VALUES, widget=forms.CheckboxSelectMultiple)
+    status_iiif = forms.MultipleChoiceField(label="IIIF", required=False, choices=IIIF_VALUES,
+                                            widget=forms.CheckboxSelectMultiple)
     language = forms.MultipleChoiceField(label="Langue", required=False, choices=_choices(LANGUAGES),
                                          widget=forms.CheckboxSelectMultiple)
     sources = forms.MultipleChoiceField(label="Catalogues interrogés", required=True,

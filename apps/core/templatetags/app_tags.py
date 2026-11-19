@@ -7,8 +7,9 @@ from django.utils.safestring import mark_safe
 register = template.Library()
 
 SESSION_STATUS = {"ok": "Réponse reçue", "warning": "Réponse avec avertissement", "error": "Erreur",
-                  "pending": "En attente", "running": "Interrogation…"}
-ORIGIN_CHIPS = {"ai": ("chip-ai", "IA"), "user": ("", "utilisateur"), "rule": ("", "règle automatique"),
+                  "pending": "En attente", "running": "Interrogation…", "empty": "Aucun résultat",
+                  "unavailable": "Source indisponible", "unparsable": "Réponse illisible"}
+ORIGIN_CHIPS = {"ai": ("chip-ai", "IA"), "mt": ("chip-ai", "traduction automatique"), "user": ("", "utilisateur"), "rule": ("", "règle automatique"),
                 "source": ("", "source")}
 COMPARISON_CHIPS = {"new": ("chip-new", "Nouveau"), "known": ("", "Déjà connu"), "modified": ("chip-warn", "Modifié"),
                     "unavailable": ("chip-warn", "Indisponible"), "not_comparable": ("", "Non comparable"),
@@ -111,3 +112,96 @@ def visible_fields(data):
     order = list(FIELD_LABELS) + list(_EXTRA_LABELS)
     items = [(k, v) for k, v in (data or {}).items() if v not in (None, "") and k not in _HIDDEN]
     return sorted(items, key=lambda kv: order.index(kv[0]) if kv[0] in order else 999)
+
+
+# --------------------------------------------------------------------------- journal des dysfonctionnements (1.2.0)
+
+SEVERITY_ICONS = {"info": "bi-info-circle", "warning": "bi-exclamation-triangle", "error": "bi-x-octagon",
+                  "critical": "bi-exclamation-octagon-fill"}
+
+
+@register.simple_tag
+def severity_chip(incident_or_code, label=None):
+    code = getattr(incident_or_code, "severity", incident_or_code)
+    if label is None:
+        label = incident_or_code.get_severity_display() if hasattr(incident_or_code, "get_severity_display") else code
+    return format_html('<span class="chip chip-sev-{}"><i class="bi {}" aria-hidden="true"></i> {}</span>',
+                       code, SEVERITY_ICONS.get(code, "bi-circle"), label)
+
+
+@register.simple_tag
+def incident_status_chip(incident):
+    return format_html('<span class="chip chip-st-{}">{}</span>', incident.status, incident.get_status_display())
+
+
+# --------------------------------------------------------------------------- 2.0.0, lot 2 : trois statuts
+
+STATUS_CHIP_CLASS = {"oui": "chip-ok", "verifie": "chip-ok", "identifie": "chip-new", "non": "chip-warn",
+                     "echec": "chip-warn", "absent": "chip-muted", "non_verifie": "chip-muted"}
+STATUS_ICONS = {"notice": "bi-card-text", "document": "bi-book", "iiif": "bi-images"}
+
+
+def _status_part(status, key):
+    if status is None:
+        return ""
+    if isinstance(status, dict):
+        return status.get(key) or ""
+    return getattr(status, key, "") or ""
+
+
+def status_title(kind, status):
+    from django.utils import timezone
+
+    from apps.catalog.statuses import LABELS, ORIGIN_LABELS
+    from apps.catalog.models import STATUS_KINDS
+
+    value = _status_part(status, "value") or "non_verifie"
+    parts = [f"{dict(STATUS_KINDS)[kind]} : {LABELS.get(value, value)}"]
+    origin = _status_part(status, "origin")
+    if origin:
+        parts.append(ORIGIN_LABELS.get(origin, origin))
+    when = _status_part(status, "checked_at")
+    if when:
+        if isinstance(when, str):
+            from django.utils.dateparse import parse_datetime
+
+            when = parse_datetime(when)
+        if when:
+            parts.append(timezone.localtime(when).strftime("%d/%m/%Y"))
+    detail = _status_part(status, "detail")
+    if detail:
+        parts.append(detail)
+    return " — ".join(parts)
+
+
+@register.simple_tag
+def status_pills(statuses):
+    """Trois pastilles distinctes : notice disponible, document consultable, IIIF (cahier 2.0.0, § 5)."""
+    from apps.catalog.statuses import KIND_LABELS, KINDS, LABELS
+
+    statuses = statuses or {}
+    chips = []
+    for kind in KINDS:
+        status = statuses.get(kind) if hasattr(statuses, "get") else None
+        value = _status_part(status, "value") or "non_verifie"
+        chips.append(format_html(
+            '<span class="chip chip-status {}" title="{}"><i class="bi {}" aria-hidden="true"></i> {} : {}</span>',
+            STATUS_CHIP_CLASS.get(value, "chip-muted"), status_title(kind, status), STATUS_ICONS[kind],
+            KIND_LABELS[kind], LABELS.get(value, value)))
+    return format_html('<span class="status-pills">{}</span>', mark_safe("".join(chips)))
+
+
+@register.filter
+def document_link(obj):
+    """2.0.0 (lot 10) : {"url", "label", "mention"} du meilleur lien vers le document, ou None."""
+    from apps.catalog.documents import document_link as _link
+
+    return _link(obj)
+
+
+@register.simple_tag
+def viewer_enabled():
+    """2.0.0 (lot 10) : la visionneuse intégrée est-elle activée (Administration → Paramètres) ?"""
+    from apps.core.models import AppSettings
+
+    return AppSettings.get().iiif_viewer_enabled

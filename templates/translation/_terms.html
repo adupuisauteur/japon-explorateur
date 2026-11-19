@@ -1,0 +1,4 @@
+{% comment %}Résumé des conditions d'un fournisseur avant le premier envoi (cahier des charges § 13). Variable : t.{% endcomment %}
+<div class="alert alert-info small mb-2"><strong>Avant le premier envoi à {{ t.name }} : ce que deviennent vos textes</strong>
+  <ul class="mb-1 mt-1">{% for p in t.points %}<li>{{ p }}</li>{% endfor %}</ul>
+  <div>{% if t.verified_on %}Résumé vérifié le {{ t.verified_on }}{% endif %}{% for s in t.sources %} · <a href="{{ s.url }}" target="_blank" rel="noopener noreferrer">{{ s.label }}</a>{% endfor %}. Les conditions officielles font foi.</div></div>

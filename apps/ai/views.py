@@ -16,7 +16,7 @@ from . import services
 from .crypto import encrypt_secret, encryption_available
 from .models import FUNCTIONS, PROVIDERS, AIModelPrice, AIPreferenceProfile, AIProviderCredential, AITask
 from .preferences import activate_profile, active_profile
-from .providers import ProviderError, get_provider
+from .providers import MAX_STORED_MODELS, ProviderError, get_provider, text_models
 from .urlsafety import UnsafeProviderURL, allowed_local_urls, check_provider_url
 
 OVERRIDABLE = ["translation", "summary", "classification", "duplicates", "query_extension", "extraction", "rag",
@@ -43,6 +43,12 @@ def preferences(request):
         obj = form.save(commit=False)
         overrides = {}
         for fn in OVERRIDABLE:
+            if fn == "translation" and f"ov_{fn}_provider" not in request.POST:
+                # 1.3.0 : choix déplacé dans Traduction → Moteurs ; l'ancienne valeur est conservée telle quelle.
+                previous = (profile.function_overrides or {}).get(fn)
+                if previous:
+                    overrides[fn] = previous
+                continue
             prov = request.POST.get(f"ov_{fn}_provider", "")
             if prov in dict(PROVIDERS):
                 overrides[fn] = {"provider": prov, "model": request.POST.get(f"ov_{fn}_model", "").strip()}
@@ -55,7 +61,8 @@ def preferences(request):
     credentials = {c.provider: c for c in AIProviderCredential.objects.filter(user=request.user)}
     return render(request, "ai/preferences.html", {
         "form": form, "profile": profile, "profiles": AIPreferenceProfile.objects.filter(user=request.user),
-        "functions": [(code, label) for code, label in FUNCTIONS if code in OVERRIDABLE],
+        # 1.3.0 : le moteur de traduction se choisit dans Traduction → Moteurs (ligne retirée de l'affichage).
+        "functions": [(code, label) for code, label in FUNCTIONS if code in OVERRIDABLE and code != "translation"],
         "providers": PROVIDERS, "credentials": credentials,
         "spend": services.monthly_spend(request.user),
     })
@@ -95,7 +102,8 @@ def profile_action(request, pk):
 def providers(request):
     credentials = {c.provider: c for c in AIProviderCredential.objects.filter(user=request.user)}
     return render(request, "ai/providers.html", {
-        "rows": [(code, label, credentials.get(code)) for code, label in PROVIDERS],
+        # 2.0.0 (lot 4) : l'IA locale n'a pas de clé ; elle se gère dans Traduction → Moteurs locaux
+        "rows": [(code, label, credentials.get(code)) for code, label in PROVIDERS if code != "ollama"],
         "encryption_ok": encryption_available(), "local_urls": sorted(allowed_local_urls()),
     })
 
@@ -103,7 +111,7 @@ def providers(request):
 @researcher_required
 @require_POST
 def provider_save(request, provider):
-    if provider not in dict(PROVIDERS):
+    if provider not in dict(PROVIDERS) or provider == "ollama":
         return redirect("ai:providers")
     cred, _ = AIProviderCredential.objects.get_or_create(user=request.user, provider=provider)
     action = request.POST.get("action", "save")
@@ -117,11 +125,11 @@ def provider_save(request, provider):
         return redirect("ai:providers")
     if action == "test":
         try:
-            models = get_provider(cred).list_models()
+            models = text_models(provider, get_provider(cred).list_models())
             cred.status = "ok"
-            cred.available_models = models[:300]
+            cred.available_models = models[:MAX_STORED_MODELS]
             cred.last_error = ""
-            messages.success(request, f"Connexion réussie : {len(models)} modèle(s) disponible(s).")
+            messages.success(request, f"Connexion réussie : {len(models)} modèle(s) de texte disponible(s).")
         except (ProviderError, ImproperlyConfigured) as exc:
             cred.status = "error"
             cred.last_error = str(exc)[:500]
@@ -274,3 +282,88 @@ def prices(request):
                 messages.error(request, f"Saisie invalide : {exc}")
         return redirect("ai:prices")
     return render(request, "ai/prices.html", {"prices": AIModelPrice.objects.all(), "providers": PROVIDERS})
+
+
+# --------------------------------------------------------------------------- 2.0.0, lot 8 : choix du modèle
+
+
+def _price_labels(provider):
+    prices = list(AIModelPrice.objects.filter(provider=provider))
+
+    def label(model_id):
+        candidates = [p for p in prices if model_id.startswith(p.model_prefix)]
+        if not candidates:
+            return ""
+        p = max(candidates, key=lambda c: len(c.model_prefix))
+        return (f"≈ {p.input_per_million.normalize():f} $ / {p.output_per_million.normalize():f} $ "
+                "par million de jetons")
+    return label
+
+
+def _picker_context(request, data, *, error="", refreshed=False):
+    provider_field = data.get("provider_field", "")
+    model_field = data.get("model_field", "")
+    provider = data.get(provider_field, "") if provider_field else ""
+    current = (data.get(model_field, "") if model_field else "").strip()
+    ctx = {"provider": provider, "current": current, "error": error, "model_id": data.get("model_id", ""),
+           "provider_id": data.get("provider_id", ""), "provider_field": provider_field, "model_field": model_field,
+           "provider_label": dict(PROVIDERS).get(provider, "")}
+    if provider not in dict(PROVIDERS):
+        ctx["provider"] = ""
+        return ctx
+    if provider == "ollama":  # 2.0.0 (lot 4) : modèles installés dans l'IA locale (aucune clé, aucun coût)
+        from django.utils import timezone
+
+        from .local import credential_for, health, installed
+
+        cred = credential_for(request.user)
+        state, problem = health()
+        state_models = installed(state) if state else []
+        if refreshed or state_models != (cred.available_models or []):
+            cred.available_models, cred.last_tested_at = state_models, timezone.now()
+            cred.save(update_fields=["available_models", "last_tested_at"])
+        # État du service toujours affiché : sans lui, « Actualiser la liste » semblait ne rien faire
+        ctx["local_problem"] = problem or ("" if state_models else
+                                           "L'IA locale est en service, mais aucun modèle n'est installé.")
+    else:
+        cred = AIProviderCredential.objects.filter(user=request.user, provider=provider).first()
+    ctx["credential"] = cred if cred and cred.is_configured else None
+    if ctx["credential"] is None:
+        return ctx
+    label = (lambda model_id: "gratuit, sur cet ordinateur") if provider == "ollama" else _price_labels(provider)
+    ids = text_models(provider, cred.available_models)
+    ctx["models"] = [{"id": m, "price": label(m)} for m in ids]
+    ctx["listed"] = current in ids
+    ctx["missing"] = bool(current) and bool(ids) and current not in ids
+    ctx["truncated"] = len(cred.available_models or []) >= MAX_STORED_MODELS
+    return ctx
+
+
+@researcher_required
+def model_picker(request):
+    """Liste déroulante des modèles du fournisseur choisi (fragment HTMX, sans appel au fournisseur)."""
+    return render(request, "ai/_model_picker.html", _picker_context(request, request.GET))
+
+
+@researcher_required
+@require_POST
+def model_refresh(request):
+    """« Actualiser la liste » : interroge le fournisseur avec la clé de l'utilisateur, sur son action seulement."""
+    provider = request.POST.get(request.POST.get("provider_field", ""), "")
+    error = ""
+    if provider == "ollama":  # 2.0.0 (lot 4) : la liste vient du service local (relue par _picker_context)
+        return render(request, "ai/_model_picker.html", _picker_context(request, request.POST, refreshed=True))
+    cred = AIProviderCredential.objects.filter(user=request.user, provider=provider).first()
+    if cred is not None and cred.is_configured:
+        try:
+            models = text_models(provider, get_provider(cred).list_models())
+            cred.status, cred.last_error = "ok", ""
+            cred.available_models = models[:MAX_STORED_MODELS]
+        except (ProviderError, ImproperlyConfigured) as exc:
+            # La liste précédente est conservée ; l'erreur est affichée, jamais masquée.
+            cred.status, cred.last_error = "error", str(exc)[:500]
+            error = f"Actualisation impossible : {exc}"
+        cred.last_tested_at = timezone.now()
+        cred.save()
+        log_action(request, "ai.models_refreshed", cred, cred.get_provider_display())
+    return render(request, "ai/_model_picker.html", _picker_context(request, request.POST, error=error))

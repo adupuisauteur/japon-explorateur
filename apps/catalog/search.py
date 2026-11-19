@@ -3,7 +3,7 @@ from django.db.models import Case, IntegerField, Q, Value, When
 
 from apps.core import japanese as jp
 
-from .models import Record
+from .models import Record, RecordStatus
 
 SORTS = {
     "relevance": "Pertinence",
@@ -50,10 +50,16 @@ def local_search(query, base_qs=None, sort="relevance"):
     if query.place:
         qs = qs.filter(Q(place_original__icontains=query.place) | Q(holding_institution_text__icontains=query.place))
 
+    # « digital_access » : recherches enregistrées avant la 2.0.0 (le formulaire ne le propose plus).
     for key in ("period", "document_type", "material_type", "digital_access", "language"):
         values = [v for v in (filters.get(key) or []) if v]
         if values:
             qs = qs.filter(**{f"{key}__in": values})
+    # 2.0.0 (lot 2) : trois statuts indépendants ; un filtre par statut (jointure distincte).
+    for kind in ("notice", "document", "iiif"):
+        values = [v for v in (filters.get(f"status_{kind}") or []) if v]
+        if values:
+            qs = qs.filter(pk__in=RecordStatus.objects.filter(kind=kind, value__in=values).values("record_id"))
     catalogues = [c for c in (filters.get("catalogues") or []) if c]
     if catalogues:
         qs = qs.filter(catalogue__code__in=catalogues)
@@ -116,6 +122,11 @@ def suggest_variants(text):
     nf = jp.nfkc(text)
     add(nf, "Normalisation Unicode (NFKC)", "équivalence technique")
     if jp.has_kanji(text):
+        # Noms propres (1.2.0) : formes sans suffixe d'usage (女, 女房, 尼, 丸, 御前…), fréquentes dans les sources anciennes.
+        for suffix in NAME_SUFFIXES:
+            if text.endswith(suffix) and len(text) - len(suffix) >= 2:
+                add(text[: -len(suffix)], f"Nom sans le suffixe « {suffix} »", "variante de nom courante, à vérifier")
+                break
         add(jp.to_shinjitai(text), "Forme nouvelle des kanji (shinjitai)", "correspondance de table, à vérifier")
         add(jp.to_kyujitai(text), "Forme ancienne des kanji (kyūjitai)", "correspondance de table, à vérifier")
         reading = jp.to_hiragana_reading(text)
@@ -132,4 +143,36 @@ def suggest_variants(text):
         if any(c in text for c in "ōū"):
             add(text.replace("ō", "ou").replace("ū", "uu"), "Rōmaji (voyelles longues doublées)", "équivalence de graphie")
             add(text.replace("ō", "oh").replace("ū", "u"), "Rōmaji (voyelles longues en -oh)", "équivalence de graphie")
+    for value, kind, verification in attested_name_variants(text):
+        add(value, kind, verification)
     return out
+
+
+#: Suffixes de noms propres fréquents dans les sources anciennes (du plus long au plus court).
+NAME_SUFFIXES = ("女房", "御前", "女", "尼", "丸", "殿", "姫")
+
+
+def attested_name_variants(text, limit=12):
+    """Variantes enregistrées dans le référentiel des noms (Creator / CreatorVariant), jamais devinées.
+
+    Ex. si 望月千代女 a pour variantes 望月千代 et 千代女房 dans le référentiel, elles sont proposées
+    (avec leur statut « attestée » ou « non vérifiée »).
+    """
+    from .models import Creator, CreatorVariant
+
+    text = (text or "").strip()
+    if len(text) < 2:
+        return []
+    creator_ids = set(Creator.objects.filter(Q(name_original=text) | Q(name_reading=text) | Q(name_romaji__iexact=text))
+                      .values_list("pk", flat=True)[:5])
+    creator_ids |= set(CreatorVariant.objects.filter(form=text).values_list("creator_id", flat=True)[:5])
+    out = []
+    for creator in Creator.objects.filter(pk__in=creator_ids).prefetch_related("variants"):
+        for value in (creator.name_original, creator.name_reading, creator.name_romaji):
+            if value and value != text:
+                out.append((value, "Forme du référentiel des noms", "attestée (référentiel)"))
+        for v in creator.variants.all():
+            if v.form != text:
+                out.append((v.form, f"Variante du référentiel ({v.get_script_display()})",
+                            "attestée" if v.verified else "non vérifiée"))
+    return out[:limit]

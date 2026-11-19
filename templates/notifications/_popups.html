@@ -1,0 +1,20 @@
+{% include "notifications/_counter.html" with oob=True %}
+{% include "translation/_task_indicator.html" with oob=True %}
+{% for n in popups %}
+<div class="toast jed-toast jed-toast-{{ n.severity }}" role="{% if n.severity == 'error' or n.severity == 'critical' %}alert{% else %}status{% endif %}" aria-atomic="true" data-jed-toast data-autohide="{% if n.severity == 'success' or n.severity == 'info' %}true{% else %}false{% endif %}">
+  <div class="toast-header">
+    <i class="bi {% if n.event_type == 'incident' %}bi-exclamation-octagon{% elif n.severity == 'error' or n.severity == 'critical' %}bi-x-circle{% elif n.severity == 'warning' %}bi-pause-circle{% else %}bi-check-circle{% endif %} me-2" aria-hidden="true"></i>
+    <strong class="me-auto">{{ n.get_event_type_display }}</strong>
+    <small class="text-muted">{{ n.created_at|date:"d/m H:i" }}</small>
+    <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Fermer (la notification reste non lue)"></button>
+  </div>
+  <div class="toast-body">
+    <div class="fw-semibold">{{ n.title }}</div>
+    {% if n.body %}<div class="small mt-1">{{ n.body }}</div>{% endif %}
+    <div class="mt-2 d-flex gap-2">
+      {% if n.link %}<a class="btn btn-sm btn-primary" href="{% url 'notifications:open' n.pk %}">{% if n.event_type == 'incident' %}Voir le dysfonctionnement{% else %}Voir le compte rendu{% endif %}</a>{% endif %}
+      <button type="button" class="btn btn-sm btn-outline-secondary" hx-post="{% url 'notifications:mark_read' n.pk %}" hx-swap="none" data-bs-dismiss="toast">Vu</button>
+    </div>
+  </div>
+</div>
+{% endfor %}

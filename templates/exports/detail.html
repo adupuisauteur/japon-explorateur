@@ -5,7 +5,7 @@
 <div class="page-head"><div><h1>{{ job.title }}</h1><p><code>{{ job.export_uid }}</code> · {{ job.get_format_display }} · {{ job.get_scope_display }} · {{ job.get_status_display }}</p></div>
   <form method="post" action="{% url 'exports:regenerate' job.pk %}">{% csrf_token %}<button class="btn btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Régénérer</button></form></div>
 {% if job.status == 'pending' or job.status == 'running' %}
-<div class="alert alert-info" hx-get="{{ request.path }}" hx-trigger="every 2s" hx-select="main" hx-target="main" hx-swap="outerHTML">Génération en cours…</div>{% endif %}
+<div class="alert alert-info" hx-get="{{ request.path }}" hx-trigger="every 2s" hx-select="main" data-pause-hidden hx-target="main" hx-swap="outerHTML">Génération en cours…</div>{% endif %}
 {% for w in job.metadata.warnings %}<div class="alert alert-warning"><i class="bi bi-exclamation-triangle"></i> {{ w }}</div>{% endfor %}
 {% if job.status == 'failed' %}<div class="alert alert-danger">Échec de la génération : {{ job.error }}</div>{% endif %}
 {% if changed %}<div class="alert alert-warning">Les données ont changé depuis cet export (notices modifiées, ajoutées ou retirées). Régénérez pour obtenir une version à jour.</div>

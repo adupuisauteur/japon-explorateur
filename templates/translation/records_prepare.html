@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Traduire des notices{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item active">Notices</li></ol></nav>{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1><i class="bi bi-translate"></i> Traduire {{ records|length }} notice(s)</h1>
+  <p>Étape 1 sur 2 : préparation. Rien n'est envoyé avant votre confirmation sur l'écran suivant. Les traductions sont
+  <strong>proposées</strong> ; elles n'entrent dans la fiche qu'une fois validées par un administrateur.</p></div></div>
+{% if records %}
+{% include "translation/_argos_invite.html" with invite=argos_invite place="choix" %}
+<form method="post" class="card-soft mb-3">{% csrf_token %}<input type="hidden" name="records" value="{{ ids }}">
+  <fieldset class="mb-3"><legend class="h6">Champs à traduire</legend>
+  {% for code, label in fields.items %}<div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="fields" value="{{ code }}" id="f-{{ code }}" {% if code in selected %}checked{% endif %}>
+    <label class="form-check-label" for="f-{{ code }}">{{ label }}</label></div>{% endfor %}
+  </fieldset>
+  {% include "translation/_engine_choice.html" %}
+  {% if kanbun %}<div class="alert alert-info small">{{ kanbun|length }} notice(s) en chinois classique (kanbun) : elles seront marquées comme telles.
+    Les moteurs automatiques y sont peu fiables ; les IA reçoivent une consigne adaptée.</div>{% endif %}
+  <button class="btn btn-primary" {% if not engines %}disabled{% endif %}>Préparer la traduction</button>
+</form>
+<table class="table table-sm"><thead><tr><th>Notice</th><th>Titre</th><th>Langue</th></tr></thead><tbody>
+{% for r in records %}<tr><td class="small"><a href="{% url 'translation:record_translations' r.record_id %}">{{ r.record_id }}</a></td><td>{{ r.original_title }}</td><td class="small">{{ r.get_language_display|default:"—" }}</td></tr>{% endfor %}
+</tbody></table>
+{% else %}<p class="text-muted">Aucune notice sélectionnée.</p>{% endif %}
+{% endblock %}

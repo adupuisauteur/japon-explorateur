@@ -6,6 +6,10 @@
   <p>{{ job.get_status_display }} · lancée le {{ job.started_at|date:"d/m/Y H:i"|default:"—" }}{% if job.finished_at %} · terminée le {{ job.finished_at|date:"d/m/Y H:i" }}{% endif %}{% if job.triggered_by %} par {{ job.triggered_by }}{% elif job.scheduled %} (planifiée){% endif %}</p></div>
   {% if job.status == 'review' or job.status == 'partially_applied' %}
   <form method="post" action="{% url 'updates:sync_apply' job.pk %}">{% csrf_token %}<button class="btn btn-primary" data-confirm="Intégrer les éléments marqués « À intégrer » ? Les versions antérieures sont conservées.">Intégrer les éléments acceptés</button></form>{% endif %}
+  {% if job.status == 'running' and job.message|slice:":11" == "Intégration" %}{# 2.0.0 (lot 10) #}
+  <div class="alert alert-info mt-2 mb-0">{{ job.message }} {{ applied_count }} intégrée(s), {{ accepted_count }} restante(s).
+    {% if apply_busy %}L'intégration avance : rechargez la page pour suivre.{% else %}L'intégration ne tourne plus (ordinateur éteint, redémarrage) :
+    <form method="post" action="{% url 'updates:sync_apply' job.pk %}" class="d-inline">{% csrf_token %}<button class="btn btn-sm btn-outline-secondary ms-2">Reprendre</button></form> continue là où elle s'était arrêtée.{% endif %}</div>{% endif %}
 </div>
 {% if job.message %}<div class="alert {% if job.status == 'failed' %}alert-danger{% else %}alert-info{% endif %}">{{ job.message }}</div>{% endif %}
 <div class="row g-3 mb-3">

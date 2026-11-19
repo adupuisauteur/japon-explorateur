@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Résumé IA{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1><i class="bi bi-card-text"></i> {{ summary.get_kind_display }} <span class="badge text-bg-secondary fw-normal fs-6">généré par IA</span></h1>
+  <p>{% if summary.record %}Notice <a href="{{ summary.record.get_absolute_url }}">{{ summary.record.original_title|default:summary.record.record_id }}</a>{% endif %}
+  {% if summary.document %}{% if summary.record %} · {% endif %}Document <a href="{% url 'translation:document_workbench' summary.document_id %}">{{ summary.document.title }}</a> ({{ summary.document.project.title }}){% endif %}</p></div></div>
+<section class="card-soft mb-3">
+  <div class="small text-muted mb-1">{{ summary.get_language_display }} · texte lu : {{ summary.get_source_kind_display|lower }}{% if summary.variety and summary.variety != 'modern' %} ({{ summary.variety }}){% endif %} · {{ summary.get_provider_display }}{% if summary.model %} ({{ summary.model }}){% endif %} · {{ summary.calls }} appel(s) · {{ summary.created_at|date:"d/m/Y H:i" }}{% if summary.job %} · <a href="{% url 'translation:job_detail' summary.job_id %}">tâche n° {{ summary.job_id }}</a>{% endif %}</div>
+  {% if summary.unvalidated_source %}<span class="chip chip-warn">Fait sur une traduction non validée</span>{% endif %}
+  <p>{{ summary.content|linebreaksbr }}</p>
+  {% if summary.data.themes %}<p class="small mb-1"><strong>Thèmes :</strong> {{ summary.data.themes|join:" · " }}</p>{% endif %}
+  {% if summary.data.persons %}<p class="small mb-1"><strong>Personnes :</strong> {% for p in summary.data.persons %}{{ p.name|default:p }}{% if p.note %} ({{ p.note }}){% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}</p>{% endif %}
+  {% if summary.data.places %}<p class="small mb-1"><strong>Lieux :</strong> {% for p in summary.data.places %}{{ p.name|default:p }}{% if p.note %} ({{ p.note }}){% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}</p>{% endif %}
+  {% if summary.data.dates %}<p class="small mb-1"><strong>Dates :</strong> {% for p in summary.data.dates %}{{ p.date|default:p }}{% if p.note %} ({{ p.note }}){% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}</p>{% endif %}
+  {% if summary.data.limits %}<p class="small text-muted mb-0"><strong>Limites :</strong> {{ summary.data.limits }}</p>{% endif %}
+</section>
+<h2 class="h5">Versions précédentes</h2>
+{% for s in history %}<details class="card-soft mb-2"><summary class="small">{{ s.created_at|date:"d/m/Y H:i" }} · {{ s.get_provider_display }}{% if s.model %} ({{ s.model }}){% endif %}</summary><p class="mb-0 mt-2">{{ s.content|linebreaksbr }}</p></details>
+{% empty %}<p class="small text-muted">Aucune.</p>{% endfor %}
+<p class="small text-muted mt-3">Un résumé IA peut contenir des erreurs : vérifiez-le sur le texte. Il n'entre ni dans la mémoire de traduction ni dans les exports de traduction ; il n'apparaît dans un export de notices que si vous cochez « Inclure les résumés IA ».</p>
+{% endblock %}

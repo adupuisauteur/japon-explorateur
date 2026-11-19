@@ -29,7 +29,7 @@
 </div>
 {% else %}
 <p class="text-muted">{{ task.get_status_display }} · {{ task.get_provider_display }} · {{ task.model }} · préparée le {{ task.created_at|date:"d/m/Y H:i" }}{% if task.confirmed_at %} · confirmée le {{ task.confirmed_at|date:"d/m/Y H:i" }}{% endif %}</p>
-{% if task.status == 'confirmed' or task.status == 'running' %}<div class="alert alert-info" hx-get="{{ request.path }}" hx-trigger="every 2s" hx-select="main" hx-target="main" hx-swap="outerHTML">Traitement en cours…</div>{% endif %}
+{% if task.status == 'confirmed' or task.status == 'running' %}<div class="alert alert-info" hx-get="{{ request.path }}" hx-trigger="every 2s" hx-select="main" data-pause-hidden hx-target="main" hx-swap="outerHTML">Traitement en cours…</div>{% endif %}
 {% if task.error %}<div class="alert alert-danger">{{ task.error }}</div>{% endif %}
 {% if task.status == 'done' %}
 <div class="alert alert-success">Résultats enregistrés comme <strong>productions IA non validées</strong>, séparées des données de catalogue.

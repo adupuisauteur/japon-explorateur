@@ -1,0 +1,5 @@
+<form method="get" action="{% url 'help:search' %}" class="d-flex gap-2 mb-3" role="search" style="max-width:560px">
+  <label for="help-q" class="visually-hidden">Chercher dans l'aide</label>
+  <input type="search" name="q" id="help-q" value="{{ query }}" class="form-control" placeholder="Chercher dans l'aide : file de nuit, IIIF, glossaire…">
+  <button class="btn btn-outline-secondary text-nowrap"><i class="bi bi-search" aria-hidden="true"></i> Chercher</button>
+</form>

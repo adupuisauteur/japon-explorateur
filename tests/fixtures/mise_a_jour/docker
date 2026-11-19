@@ -1,0 +1,36 @@
+#!/bin/sh
+# Faux « docker » pour tester mettre-a-jour.ps1 sans Docker (2.0.0). Journalise chaque appel.
+echo "$(pwd) | $*" >> "$FAKE_DOCKER_LOG"
+env_value() { sed -n "s/^$1=//p" .env 2>/dev/null | head -n 1; }
+case "$*" in
+  "info") exit "${FAKE_DOCKER_INFO:-0}" ;;
+  "compose ps --services --status running")
+    printf 'db\nredis\nweb\nworker\nbeat\n'; [ "${FAKE_ARGOS:-0}" = 1 ] && echo argos; exit 0 ;;
+  "compose exec -T web python manage.py backup --verify")
+    # Réponses telles que les lit Windows PowerShell 5.1 avec la page de code 850 (constat du 15 novembre 2026)
+    if [ "${FAKE_BACKUP:-ok}" = "accents-abimes" ]; then
+      echo "Termin├®e : /data/backups/sauvegarde-20261114-220000-full.tar (3829760 octets) ÔÇö Sauvegarde termin├®e."
+      echo "Int├®grit├® v├®rifi├®e."; exit 0
+    fi
+    if [ "${FAKE_BACKUP:-ok}" = "echec-accents-abimes" ]; then
+      echo "├ëchec :  (0 octets) ÔÇö ├ëchec : OSError : disque plein"; exit 0
+    fi
+    if [ "${FAKE_BACKUP:-ok}" = "echec-130" ]; then
+      echo "Échec :  (0 octets) — Échec : OSError : disque plein"; exit 0
+    fi
+    echo "Terminée : /data/backups/sauvegarde-20261114-220000-full.tar (14 octets) — Sauvegarde terminée."
+    echo "Intégrité vérifiée."; exit 0 ;;
+  "compose cp web:"*)
+    dest=$(echo "$*" | awk '{print $4}'); printf 'contenu-fictif' > "$dest"; exit 0 ;;
+  "compose exec -T web sha256sum "*)
+    echo "$(printf 'contenu-fictif' | sha256sum | cut -d' ' -f1)  /data/backups/x.tar"; exit 0 ;;
+  "compose config --format json")
+    echo "{\"name\": \"$(env_value COMPOSE_PROJECT_NAME)\"}"; exit 0 ;;
+  "compose down") exit 0 ;;
+  "compose up -d --build"|"compose --profile hors-ligne up -d --build") exit "${FAKE_UP:-0}" ;;
+  "compose exec -T web python manage.py etat_installation --json")
+    echo "{\"version\": \"$(cat VERSION)\", \"etat\": \"warning\", \"controles\": [{\"cle\": \"base\", \"libelle\": \"Base de données et migrations\", \"niveau\": \"ok\", \"resume\": \"À jour\", \"details\": []}]}"
+    echo "CommandError: exemple de texte après le JSON" >&2; exit 0 ;;
+esac
+echo "faux docker : appel non prévu : $*" >&2
+exit 99

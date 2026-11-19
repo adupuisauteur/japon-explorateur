@@ -2,13 +2,14 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Case, IntegerField, Q, Value, When
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from apps.catalog.models import DOCUMENT_TYPES, PERIODS, Catalogue
 from apps.catalog.search import suggest_variants
+from apps.catalog.statuses import KINDS, SORT_ORDER
 from apps.core import japanese as jp
 from apps.core.audit import log_action
 from apps.core.permissions import researcher_required
@@ -67,6 +68,13 @@ def quick(request):
 @require_POST
 def launch(request):
     chosen_variants = request.POST.getlist("variants")
+    # Variantes saisies librement (1.2.0) : graphies anciennes ou attestées que les règles ne devinent pas.
+    import re as _re
+
+    for v in _re.split(r"[;；、\n]+", request.POST.get("custom_variants", ""))[:10]:
+        v = v.strip()[:100]
+        if v and v not in chosen_variants:
+            chosen_variants.append(v)
     form = SearchForm(request.POST, user=request.user, extra_variants=chosen_variants)
     if not form.is_valid():
         return render(request, "searching/form.html", {"form": form, "unverified": _unverified_codes()}, status=400)
@@ -87,7 +95,8 @@ def launch(request):
     session = services.create_session(
         request.user, query=d["q"], variants=chosen_variants, variant_details=details,
         fields={k: d[k] for k in ("title", "creator", "subject", "place", "date_from", "date_to") if d.get(k)},
-        filters={k: d[k] for k in ("period", "document_type", "material_type", "digital_access", "language", "date_kind")
+        filters={k: d[k] for k in ("period", "document_type", "material_type", "status_notice", "status_document",
+                                   "status_iiif", "language", "date_kind")
                  if d.get(k)},
         sources=d["sources"], mode=d["mode"], target_collection=collection,
     )
@@ -146,7 +155,25 @@ def _filtered_results(session, params):
         qs = qs.filter(Q(data__original_title__icontains=needle) | Q(data__creator_original__icontains=needle)
                        | Q(data__reading__icontains=needle))
     sort = params.get("sort") or "relevance"
+    status_filters = {kind: params.get(f"status_{kind}") for kind in KINDS}
+    if params.get("digital") == "1" and not status_filters["document"]:  # adresse de la 1.2.0
+        status_filters["document"] = "oui"
+    for kind, value in status_filters.items():
+        if value:
+            field = f"data__norm__statuses__{kind}__value"
+            condition = Q(**{field: value})
+            if value == "non_verifie":  # résultats antérieurs à la 2.0.0 : statut non calculé
+                condition |= Q(**{f"{field}__isnull": True})
+            qs = qs.filter(condition)
+    if sort.startswith("status_") and sort[7:] in KINDS:
+        kind = sort[7:]
+        rank = Case(*[When(**{f"data__norm__statuses__{kind}__value": v}, then=Value(i))
+                      for i, v in enumerate(SORT_ORDER[kind])], default=Value(len(SORT_ORDER[kind])),
+                    output_field=IntegerField())
+        return qs.annotate(status_rank=rank).order_by("status_rank", "rank")
     order = {"title": ["data__original_title"], "source": ["catalogue__name", "rank"],
+             "author": ["data__creator_original", "rank"],
+             "institution": ["data__holding_institution_text", "catalogue__name", "rank"],
              "date": ["data__norm__composition_year_start", "data__norm__copy_year_start", "rank"],
              "collected": ["-collected_at"]}.get(sort, ["rank"])
     return qs.order_by(*order)

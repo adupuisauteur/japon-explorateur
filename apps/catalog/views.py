@@ -11,16 +11,38 @@ from apps.core.redirects import safe_next
 from apps.core.permissions import admin_required, researcher_required
 
 from .models import EditorialContent, Record, RecordLink, RecordVersion, Work
-from .services import propose_duplicate_links, record_editorial_change, set_record_status
+from .services import (adopt_translation, propose_duplicate_links, record_editorial_change, set_record_status,
+                       validate_translation)
+
+
+def _status_rows(statuses):
+    from .models import STATUS_KINDS
+    from .statuses import LABELS, ORIGIN_LABELS
+
+    rows = []
+    for kind, label in STATUS_KINDS:
+        s = statuses.get(kind)
+        rows.append({"label": label, "value_label": LABELS.get(s.value, s.value).capitalize(),
+                     "origin_label": ORIGIN_LABELS.get(s.origin, ""), "checked_at": s.checked_at, "url": s.url,
+                     "detail": s.detail, "pending": getattr(s, "check_requested_at", None)})
+    return rows
 
 
 def _record_context(request, record):
     from apps.ai.preferences import active_profile
     from apps.library.models import Annotation, Collection, CorrectionProposal, LibraryEntry
 
+    from .services import plan_bulk_validation
+
     profile = active_profile(request.user)
-    return {
-        "record": record,
+    bulk, bulk_skipped = (plan_bulk_validation(list(record.editorial.filter(kind="translation", status="proposed")))
+                          if request.user.is_admin_role else ([], []))
+    statuses = record.status_map
+    context = {
+        "record": record, "bulk": bulk, "bulk_skipped": bulk_skipped,
+        "statuses": statuses, "status_rows": _status_rows(statuses),
+        "can_check_iiif": request.user.can_edit and getattr(statuses.get("iiif"), "url", "")
+        and getattr(statuses.get("iiif"), "value", "") in ("identifie", "verifie", "echec"),
         "versions": record.versions.select_related("created_by")[:20],
         "editorial": record.editorial.select_related("ai_task", "author"),
         "links": RecordLink.objects.filter(Q(record_a=record) | Q(record_b=record))
@@ -33,7 +55,27 @@ def _record_context(request, record):
         "corrections": CorrectionProposal.objects.filter(record=record).select_related("author")[:10],
         "ai_profile": profile,
         "correction_fields": CorrectionProposal.FIELDS,
+        "quick_job": _quick_job(request.user, record),
     }
+    from apps.translation.summaries import page_context
+
+    context.update(page_context(request.user, record=record))  # 2.0.0 (lot 4) : résumés IA, variété de langue
+    return context
+
+
+def _quick_job(user, record):
+    """2.0.0 (lot 3) : dernière traduction « maintenant » de cette fiche par l'utilisateur (dernière heure)."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from apps.translation.models import TranslationJob
+
+    if not user.can_edit:
+        return None
+    return (TranslationJob.objects.filter(user=user, launch="now", items__record=record,
+                                          created_at__gte=timezone.now() - timedelta(hours=1))
+            .exclude(status__in=("draft", "cancelled")).order_by("-created_at").distinct().first())
 
 
 @login_required
@@ -44,6 +86,25 @@ def record_detail(request, record_id):
         messages.warning(request, "Cette notice est dans la corbeille.")
         return redirect("library:index")
     return render(request, "catalog/record_detail.html", _record_context(request, record))
+
+
+@researcher_required
+@require_POST
+def verify_iiif(request, record_id):
+    """2.0.0 (lot 2) : vérification du manifeste IIIF d'une notice, sur demande explicite."""
+    from .iiif import request_checks
+    from .tasks import verify_iiif_pending
+
+    record = get_object_or_404(Record, record_id=record_id)
+    queued, _ = request_checks([record], request.user)
+    if queued:
+        verify_iiif_pending.delay()
+        log_action(request, "iiif.check", record, "Vérification du manifeste IIIF demandée")
+        messages.info(request, "Vérification du manifeste IIIF lancée : rechargez la page dans quelques secondes "
+                               "pour voir le résultat.")
+    else:
+        messages.warning(request, "Aucun manifeste IIIF connu pour cette notice : rien à vérifier.")
+    return redirect(f"{record.get_absolute_url()}#disponibilite")
 
 
 @login_required
@@ -102,21 +163,16 @@ def editorial_decide(request, pk):
     action = request.POST.get("action")
     if action in ("validate", "reject", "adopt") and not request.user.is_admin_role:
         raise PermissionDenied("Validation et adoption réservées à l'administrateur.")
-    if action in ("validate", "reject"):
+    if action == "validate" and ed.kind == "translation":
+        # 1.3.0 : valider une traduction de notice = l'adopter dans la notice (une seule validée par champ).
+        validate_translation(ed, request.user)
+        log_action(request, "editorial.validate", ed, ed.get_kind_display())
+    elif action in ("validate", "reject"):
         ed.status = "validated" if action == "validate" else "rejected"
         ed.save(update_fields=["status", "updated_at"])
         log_action(request, f"editorial.{action}", ed, ed.get_kind_display())
     elif action == "adopt" and ed.kind == "translation":
-        record = ed.record
-        field = {"original_title": "translated_title", "description_original": "description_translation"}.get(ed.target_field)
-        if field:
-            old = getattr(record, field)
-            setattr(record, field, ed.content)
-            setattr(record, f"{field}_origin", ed.origin)
-            record_editorial_change(record, field, old, ed.content, request.user,
-                                    note=f"Traduction adoptée ({ed.get_origin_display()})")
-            ed.status = "validated"
-            ed.save(update_fields=["status", "updated_at"])
+        adopt_translation(ed, request.user)
     elif action == "delete" and (ed.author_id == request.user.pk or request.user.is_admin_role):
         ed.delete()
         messages.info(request, "Contenu éditorial supprimé.")
@@ -198,3 +254,128 @@ def work_detail(request, pk):
     work = get_object_or_404(Work, pk=pk)
     return render(request, "catalog/work_detail.html",
                   {"work": work, "records": work.records.select_related("catalogue")})
+
+
+# --------------------------------------------------------------------------- 2.0.0 (lot 10) : texte intégral
+
+
+@login_required
+def record_text(request, record_id):
+    from apps.translation.models import TranslationProject
+    from apps.translation.permissions import can_edit_project
+
+    from . import texts
+
+    record = get_object_or_404(Record.objects.select_related("catalogue"), record_id=record_id)
+    current = record.texts.first()
+    url, kind = texts.text_url(record)
+    context = {"record": record, "current": current, "source_file": url, "source_kind": kind,
+               "older": record.texts.count() - 1 if current else 0}
+    if current:
+        head, body, colophon = texts.split(current.text)
+        context.update(head=head, body_html=texts.ruby_html(body), colophon=colophon, chars=len(texts.plain(body)))
+    if request.user.can_edit:
+        context["projects"] = [p for p in TranslationProject.objects.order_by("-updated_at")[:200]
+                               if can_edit_project(request.user, p)][:30]
+    return render(request, "catalog/record_text.html", context)
+
+
+@researcher_required
+@require_POST
+def record_text_fetch(request, record_id):
+    from . import texts
+
+    record = get_object_or_404(Record.objects.select_related("catalogue"), record_id=record_id)
+    try:
+        text = texts.fetch(record, request.user)
+    except texts.TextError as exc:
+        messages.error(request, str(exc))
+    else:
+        log_action(request, "record.text", record, f"Texte intégral téléchargé ({text.file_format}, {text.size} octets)")
+        messages.success(request, f"Texte téléchargé ({text.size // 1024 or 1} Ko, encodage {text.encoding}).")
+    return redirect("catalog:record_text", record_id=record.record_id)
+
+
+@researcher_required
+@require_POST
+def record_text_to_project(request, record_id):
+    from apps.translation import variety
+    from apps.translation.models import TranslationProject
+    from apps.translation.permissions import can_edit_project
+    from apps.translation.projects import ProjectError, create_document
+
+    from . import texts
+
+    record = get_object_or_404(Record, record_id=record_id)
+    current = record.texts.first()
+    project = get_object_or_404(TranslationProject, pk=request.POST.get("project") or 0)
+    if current is None:
+        messages.error(request, "Téléchargez d'abord le texte.")
+        return redirect("catalog:record_text", record_id=record.record_id)
+    if not can_edit_project(request.user, project):
+        raise PermissionDenied
+    head, body, colophon = texts.split(current.text)
+    plain = texts.plain(body)
+    try:
+        document = create_document(project, title=record.original_title, text=plain, source_kind="aozora",
+                                   filename=current.source_url.rsplit("/", 1)[-1], encoding=current.encoding,
+                                   confidence="sure", variety=variety.detect(plain)[0], record=record)
+    except ProjectError as exc:
+        messages.error(request, str(exc))
+        return redirect("catalog:record_text", record_id=record.record_id)
+    log_action(request, "translation.document", document, f"Texte d'Aozora Bunko ajouté au projet « {project} »")
+    messages.success(request, f"Texte ajouté au projet « {project} » ({document.segments.count()} segment(s)). "
+                              "Mention à garder : texte d'Aozora Bunko, d'après le texte source indiqué en fin de "
+                              "document.")
+    return redirect("translation:project_detail", pk=project.pk)
+
+
+@login_required
+def record_viewer(request, record_id):
+    """2.0.0 (lot 10) : visionneuse intégrée (facultative). Le manifeste est lu à l'ouverture (clic de l'utilisateur) ;
+    le navigateur charge les images des seuls sites autorisés, et sur cette seule page (en-tête CSP propre)."""
+    from urllib.parse import urlparse
+
+    from apps.connectors.base import ConnectorError
+    from apps.core.middleware import CONTENT_SECURITY_POLICY
+    from apps.core.models import AppSettings
+
+    from . import iiif
+    from .documents import document_link
+
+    record = get_object_or_404(Record.objects.select_related("catalogue"), record_id=record_id)
+    link = document_link(record)
+    app_settings = AppSettings.get()
+    if not app_settings.iiif_viewer_enabled:
+        messages.info(request, "La visionneuse intégrée est désactivée (Administration → Paramètres).")
+        return redirect(link["url"] if link else record.get_absolute_url())
+    from .statuses import statuses_for
+
+    iiif_row = statuses_for(record).get("iiif")
+    manifest_url = record.image_url or (iiif_row.url if iiif_row and iiif_row.value in ("identifie", "verifie")
+                                        else "")
+    if not (manifest_url or "").startswith("http"):
+        messages.warning(request, "Aucun manifeste IIIF connu pour cette notice.")
+        return redirect(record.get_absolute_url())
+    allowed = app_settings.viewer_hosts()
+    error, views, rights = "", [], []
+    try:
+        data = iiif.load_manifest(manifest_url, record.catalogue)
+        views = iiif.views_of(data)
+        rights = iiif.rights_of(data)
+    except (iiif.ManifestError, ConnectorError) as exc:
+        error = str(exc)
+    hosts = sorted({urlparse(v["image"]).netloc.lower() for v in views})
+    refused = [h for h in hosts if h not in allowed]
+    if refused and not error:
+        error = (f"Images servies par {', '.join(refused)}, site absent de la liste autorisée (Administration → "
+                 "Paramètres → Sites d'images autorisés).")
+    if error:
+        views = []
+    response = render(request, "catalog/record_viewer.html", {
+        "record": record, "views": views, "rights": rights, "error": error, "link": link})
+    if views:
+        sources = " ".join(f"https://{h}" for h in hosts)
+        response["Content-Security-Policy"] = CONTENT_SECURITY_POLICY.replace(
+            "img-src 'self' data:", f"img-src 'self' data: {sources}")
+    return response

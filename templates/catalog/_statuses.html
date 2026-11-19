@@ -1,0 +1,31 @@
+{% load app_tags %}
+{# 2.0.0, lot 2 : trois statuts indépendants, avec origine, date et adresse ; vérification du manifeste IIIF. #}
+<section class="card-soft mb-4" id="disponibilite" aria-labelledby="h-dispo">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+    <h2 id="h-dispo" class="h5 mb-0">Disponibilité</h2>
+    {% status_pills statuses %}
+  </div>
+  <table class="table table-sm align-middle mb-2 small">
+    <thead><tr><th scope="col">Statut</th><th scope="col">Valeur</th><th scope="col">Origine</th><th scope="col">Date</th><th scope="col">Adresse et détail</th></tr></thead>
+    <tbody>
+    {% for row in status_rows %}
+      <tr>
+        <th scope="row">{{ row.label }}</th>
+        <td>{{ row.value_label }}</td>
+        <td>{{ row.origin_label|default:"—" }}</td>
+        <td>{% if row.checked_at %}{{ row.checked_at|date:"d/m/Y H:i" }}{% else %}—{% endif %}</td>
+        <td>{% if row.url %}<a href="{{ row.url }}" target="_blank" rel="noopener" class="text-break">{{ row.url|truncatechars:80 }}</a>{% endif %}
+          {% if row.detail %}<div class="text-muted">{{ row.detail }}</div>{% endif %}
+          {% if row.pending %}<div class="text-warning-emphasis"><i class="bi bi-hourglass-split"></i> Vérification demandée le {{ row.pending|date:"d/m/Y H:i" }}, en attente</div>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div class="d-flex flex-wrap gap-2 align-items-center">
+    {% if can_check_iiif %}
+    <form method="post" action="{% url 'catalog:verify_iiif' record.record_id %}">{% csrf_token %}
+      <button class="btn btn-sm btn-outline-primary"><i class="bi bi-images"></i> Vérifier le manifeste IIIF</button></form>
+    {% endif %}
+    <span class="small text-muted">Les trois statuts sont indépendants : un manifeste IIIF ne garantit pas que le document est consultable par tous. « Non vérifié » : la source ne permet pas de le savoir.</span>
+  </div>
+</section>

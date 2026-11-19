@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Tâches{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item active">Tâches</li></ol></nav>{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1><i class="bi bi-hourglass-split"></i> Tâches</h1>
+  <p>Chaque traduction, même d'un seul champ, et chaque demande de résumés IA est une tâche : confirmation, suivi, pause, reprise après interruption, compte rendu.</p></div>
+  {% if user.is_admin_role %}<div>{% if show_all %}<a class="btn btn-sm btn-outline-secondary" href="?">Mes tâches</a>{% else %}<a class="btn btn-sm btn-outline-secondary" href="?tous=1">Toutes les tâches</a>{% endif %}</div>{% endif %}</div>
+
+<p class="small">{% if night_window %}<i class="bi bi-moon-stars" aria-hidden="true"></i> File de nuit : {{ night_window }}{% if next_night %} — prochaine plage le {{ next_night|date:"d/m à H:i" }}{% endif %}. L'ordinateur doit rester allumé, sans mise en veille, avec Docker Desktop démarré.{% else %}<span class="text-muted">File de nuit non configurée.</span>{% endif %}
+  <a href="{% url 'translation:engines' %}#file-de-nuit">Régler la plage</a></p>
+
+{% if show_all %}<p class="small text-muted">Vue administrateur : tâches de tous les comptes. Le contenu des tâches des autres reste visible seulement par leur auteur ; le titre d'un projet confidentiel est masqué.</p>{% endif %}
+
+
+<h2 class="h5 mt-3">En cours</h2>
+{% include "translation/_job_rows.html" with rows=running empty="Aucune tâche en cours." %}
+
+<h2 class="h5 mt-3">File de nuit</h2>
+{% include "translation/_job_rows.html" with rows=night empty="Aucune tâche dans la file de nuit." order=True %}
+
+<h2 class="h5 mt-3">Programmées</h2>
+{% include "translation/_job_rows.html" with rows=scheduled empty="Aucune tâche programmée." %}
+
+<h2 class="h5 mt-3">À décider</h2>
+<p class="small text-muted mb-1">En pause, en retard (heure passée pendant un arrêt de J-ed), interrompues ou préparées sans être confirmées.</p>
+{% include "translation/_job_rows.html" with rows=waiting empty="Rien à décider." %}
+
+<h2 class="h5 mt-3">Terminées</h2>
+{% include "translation/_job_rows.html" with rows=finished empty="Aucune tâche terminée." %}
+{% endblock %}

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/"
+     xmlns:dcndl="http://ndl.go.jp/dcndl/terms/" xmlns:openSearch="http://a9.com/-/spec/opensearchrss/1.0/"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+     xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <channel>
+    <title>望月千代女 - 国立国会図書館サーチ OpenSearch</title>
+    <openSearch:totalResults>2</openSearch:totalResults>
+    <openSearch:startIndex>1</openSearch:startIndex>
+    <openSearch:itemsPerPage>2</openSearch:itemsPerPage>
+    <item>
+      <title>架空資料 甲州歩き巫女考</title>
+      <link>https://ndlsearch.ndl.go.jp/books/R100000002-I900000001</link>
+      <dc:title>架空資料 甲州歩き巫女考</dc:title>
+      <dcndl:titleTranscription>カクウシリョウ コウシュウアルキミココウ</dcndl:titleTranscription>
+      <dc:creator>試験 太郎 著</dc:creator>
+      <dcterms:issued>1902</dcterms:issued>
+      <dcndl:materialType>図書</dcndl:materialType>
+      <dc:identifier xsi:type="dcndl:NDLBibID">900000001</dc:identifier>
+      <rdfs:seeAlso rdf:resource="https://dl.ndl.go.jp/pid/9900001"/>
+      <rdfs:seeAlso rdf:resource="http://id.ndl.go.jp/bib/900000001"/>
+    </item>
+    <item>
+      <title>架空資料 信濃の女性たち</title>
+      <link>https://ndlsearch.ndl.go.jp/books/R100000002-I900000002</link>
+      <dc:title>架空資料 信濃の女性たち</dc:title>
+      <dc:creator>試験 花子</dc:creator>
+      <dcterms:issued>1935</dcterms:issued>
+      <dc:identifier xsi:type="dcndl:NDLBibID">900000002</dc:identifier>
+    </item>
+  </channel>
+</rss>

@@ -2,8 +2,8 @@
 {% block title %}Connexion{% endblock %}
 {% block content %}
 <div class="row justify-content-center my-4"><div class="col-md-6 col-lg-5">
-  <div class="text-center mb-4"><img src="{% static 'icons/icon-192.png' %}" alt="" width="72" class="rounded mb-3">
-    <h1 class="h3"><span class="brand-ja">日本</span> Explorateur documentaire</h1>
+  <div class="text-center mb-4"><img src="{% static 'img/logo-j-ed.png' %}" alt="" height="120" width="145" class="mb-3">
+    <h1 class="h3 brand-name">{{ APP_NAME }}</h1>
     <p class="text-muted">Recherche et gestion de ressources documentaires japonaises</p></div>
   <div class="card-soft">
     <form method="post">{% csrf_token %}

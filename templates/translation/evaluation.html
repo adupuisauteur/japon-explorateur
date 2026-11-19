@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Traduction — Évaluation{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item active">Évaluation</li></ol></nav>{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1><i class="bi bi-clipboard-check"></i> Évaluation des moteurs</h1>
+  <p>Traduisez un corpus de référence avec plusieurs moteurs, puis notez vous-même chaque traduction. L'appréciation est humaine : l'application ne calcule aucun score de qualité. Les résultats sont datés et conservés pour les comparaisons futures.</p></div></div>
+<div class="card-soft small mb-3">Un corpus de référence est un de vos projets coché « Corpus de référence » (création ou modification du projet). Il ne doit contenir <strong>aucun texte confidentiel</strong> : japonais contemporain, phrases complexes, noms propres, vocabulaire historique, expressions littéraires, termes administratifs anciens, ambiguïtés, quelques segments de japonais classique. Chaque moteur traduit tous les segments, même déjà validés : la comparaison porte sur les mêmes textes. Rien n'est envoyé avant que vous ayez confirmé le coût estimé.</div>
+{% for project, comparisons, n_segments in corpora %}
+<section class="card-soft mb-4"><h2 class="h5"><a href="{% url 'translation:project_detail' project.pk %}">{{ project.title }}</a> <span class="badge text-bg-info">corpus</span>{% if project.confidential %} <span class="badge text-bg-dark">confidentiel : moteurs locaux seulement</span>{% endif %}</h2>
+  <p class="small text-muted">{{ n_segments }} segment(s) à traduire · {{ project.get_source_lang_display }} → {{ project.get_target_lang_display }}</p>
+  <form method="post" action="{% url 'translation:comparison_prepare' project.pk %}">{% csrf_token %}
+    <div class="d-flex flex-wrap gap-3 mb-2">{% for code, label in engines %}<div class="form-check"><input class="form-check-input" type="checkbox" name="engines" value="{{ code }}" id="e-{{ project.pk }}-{{ code }}"><label class="form-check-label" for="e-{{ project.pk }}-{{ code }}">{{ label }}</label></div>{% endfor %}</div>
+    {% for i in "12" %}<div class="row g-2 mb-2" style="max-width:700px"><div class="col-md-5"><select name="ai_provider_{{ i }}" id="ai-provider-{{ project.pk }}-{{ i }}" class="form-select form-select-sm" aria-label="Fournisseur IA {{ i }}"><option value="">— IA {{ i }} (facultatif) —</option>{% for code, label in ai_providers %}<option value="{{ code }}" {% if i == "1" and pref.default_engine == "ai" and pref.default_ai_provider == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+      <div class="col-md-7"><input name="ai_model_{{ i }}" id="ai-model-{{ project.pk }}-{{ i }}" class="form-control form-control-sm" placeholder="Modèle" aria-label="Modèle IA {{ i }}" {% if i == "1" and pref.default_engine == "ai" %}value="{{ pref.default_ai_model }}"{% endif %}>
+        {% with pk=project.pk|stringformat:"s" %}{% with pid="ai-provider-"|add:pk|add:"-"|add:i mid="ai-model-"|add:pk|add:"-"|add:i pname="ai_provider_"|add:i mname="ai_model_"|add:i %}{% include "partials/model_picker.html" with provider_id=pid provider_name=pname model_id=mid model_name=mname %}{% endwith %}{% endwith %}</div></div>{% endfor %}
+    <button class="btn btn-sm btn-primary">Préparer la comparaison</button> <span class="small text-muted">Rien n'est envoyé à cette étape.</span>
+  </form>
+  {% if comparisons %}<h3 class="h6 mt-3">Comparaisons</h3><ul class="small mb-0">{% for label, jobs in comparisons %}<li><a href="{% url 'translation:comparison' project.pk %}?c={{ label|urlencode }}">{{ label }}</a> — {{ jobs|length }} moteur(s){% for j in jobs %}{% if j.status == 'draft' %} · <span class="text-warning">à confirmer</span>{% endif %}{% endfor %}</li>{% endfor %}</ul>{% endif %}
+</section>
+{% empty %}<p class="text-muted">Aucun corpus de référence. <a href="{% url 'translation:project_create' %}">Créez un projet</a> et cochez « Corpus de référence », puis ajoutez-y vos textes.</p>{% endfor %}
+{% endblock %}

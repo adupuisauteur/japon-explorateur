@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Traduction — Exports{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item active">Exports</li></ol></nav>{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1><i class="bi bi-file-earmark-arrow-down"></i> Exports</h1>
+  <p>Exports de vos projets de traduction : texte bilingue, tableau CSV, traduction seule, Word bilingue. Ils sont produits au moment du téléchargement (rien n'est conservé sur le serveur) et réservés au propriétaire du projet.</p></div></div>
+<h2 class="h5">Mes projets</h2>
+{% if projects %}
+<table class="table table-sm align-middle"><thead><tr><th>Projet</th><th>Documents</th><th>Segments validés</th><th></th></tr></thead><tbody>
+{% for p in projects %}<tr><td>{{ p.title }}{% if p.confidential %} <span class="badge text-bg-dark"><i class="bi bi-lock-fill"></i> confidentiel</span>{% endif %}</td>
+  <td>{{ p.n_docs }}</td><td>{{ p.n_validated }} / {{ p.n_segments }}</td>
+  <td><a class="btn btn-sm btn-outline-primary" href="{% url 'translation:project_export' p.pk %}">Exporter…</a></td></tr>{% endfor %}
+</tbody></table>
+{% else %}<p class="text-muted small">Aucun projet.</p>{% endif %}
+<h2 class="h5 mt-4">Mes glossaires (CSV)</h2>
+{% if glossaries %}<ul class="small">{% for g in glossaries %}<li><a href="{% url 'translation:glossary_export' g.pk %}">{{ g.name }}</a> — {{ g.n_entries }} entrée(s), version {{ g.version }}</li>{% endfor %}</ul>
+{% else %}<p class="text-muted small">Aucun glossaire.</p>{% endif %}
+<p class="small text-muted">Les traductions de notices validées s'exportent avec les notices, depuis la rubrique Exports générale de l'application.</p>
+{% endblock %}

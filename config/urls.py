@@ -3,7 +3,7 @@ from django.urls import include, path
 
 from apps.core import views as core_views
 
-admin.site.site_header = "Japon — Explorateur documentaire (gestion interne)"
+admin.site.site_header = "J-ed (gestion interne)"
 admin.site.site_title = "Gestion interne"
 
 urlpatterns = [
@@ -17,6 +17,10 @@ urlpatterns = [
     path("exports/", include("apps.exports.urls")),
     path("ia/", include("apps.ai.urls")),
     path("administration/sauvegardes/", include("apps.backups.urls")),
+    path("journal/", include("apps.incidents.urls")),
+    path("traduction/", include("apps.translation.urls")),
+    path("notifications/", include("apps.notifications.urls")),
+    path("aide/", include("apps.help.urls")),
     path("gestion-interne/", admin.site.urls),
     # PWA : le service worker doit être servi à la racine pour couvrir tout le site.
     path("sw.js", core_views.service_worker, name="service_worker"),

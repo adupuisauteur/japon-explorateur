@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% load app_tags %}
+{% block title %}{{ document.title }} — Traduction{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item"><a href="{% url 'translation:project_list' %}">Projets</a></li><li class="breadcrumb-item"><a href="{% url 'translation:project_detail' project.pk %}">{{ project.title }}</a></li><li class="breadcrumb-item active">{{ document.title }}</li></ol></nav>{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>{{ document.title }}</h1>
+  <p>{{ document.get_variety_display }} · {{ counts.validated }} validé(s) / {{ total }} segment(s){% if counts.alert %} · <span class="text-warning">{{ counts.alert }} en alerte</span>{% endif %}
+    {% if project.confidential %} · <span class="badge text-bg-dark"><i class="bi bi-lock-fill"></i> confidentiel</span>{% endif %}</p>
+  {% if document.variety != 'modern' %}<p class="small text-warning">Texte marqué {{ document.get_variety_display|lower }} : les moteurs automatiques y sont peu fiables ; les IA reçoivent une consigne adaptée.</p>{% endif %}
+  {% if not integrity %}<div class="alert alert-danger">Anomalie : les segments ne redonnent plus exactement le texte importé. Signalez-le (journal des dysfonctionnements).</div>{% endif %}</div>
+  {% if project.owner == user %}<a class="btn btn-outline-secondary align-self-start" href="{% url 'translation:project_export' project.pk %}?document={{ document.pk }}"><i class="bi bi-download"></i> Exporter ce document</a>{% endif %}
+  <div class="progress" style="width:220px" role="progressbar" aria-label="Segments validés" aria-valuenow="{{ counts.validated }}" aria-valuemin="0" aria-valuemax="{{ total }}"><div class="progress-bar bg-success" style="width:{% widthratio counts.validated total 100 %}%"></div></div></div>
+
+<form method="get" class="d-flex flex-wrap gap-2 mb-2 align-items-center">
+  <select name="etat" class="form-select form-select-sm" style="width:auto" aria-label="Filtrer par état"><option value="">Tous les états</option>{% for code, label in states %}<option value="{{ code }}" {% if state == code %}selected{% endif %}>{{ label }} ({{ counts|get_item:code }})</option>{% endfor %}</select>
+  {% if chapters %}<select name="chapitre" class="form-select form-select-sm" style="width:auto" aria-label="Chapitre"><option value="">Tous les chapitres</option>{% for c in chapters %}<option value="{{ c.pk }}" {% if chapter == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.title }}</option>{% endfor %}</select>{% endif %}
+  <button class="btn btn-sm btn-outline-secondary">Filtrer</button>
+</form>
+
+{% include "translation/_argos_invite.html" with invite=argos_invite place="atelier" %}
+{% if variety_suggestion and can_edit %}<div class="alert alert-warning small py-2" id="variete">
+  <strong>{{ variety_suggestion.label }} probable.</strong> Indices : {{ variety_suggestion.reasons|join:" ; " }}. Le document est marqué « japonais moderne » : la traduction et les résumés en tiennent compte.
+  <form method="post" action="{% url 'translation:document_variety' document.pk %}" class="d-inline">{% csrf_token %}<input type="hidden" name="variety" value="{{ variety_suggestion.variety }}"><button class="btn btn-sm btn-outline-secondary py-0">Marquer « {{ variety_suggestion.label }} »</button></form>
+  <span class="text-muted">ou laisser « japonais moderne ».</span></div>{% endif %}
+{% include "translation/_summaries.html" %}
+<form method="post" action="{% url 'translation:document_bulk' document.pk %}">{% csrf_token %}
+{% if can_edit %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-2 card-soft py-2">
+  <select name="scope" class="form-select form-select-sm" style="width:auto" aria-label="Portée"><option value="selected">Segments cochés</option><option value="untranslated">Tous les non traduits</option>{% for c in chapters %}<option value="chapter:{{ c.pk }}">Chapitre : {{ c.title }}</option>{% endfor %}</select>
+  <select name="engine" class="form-select form-select-sm" style="width:auto" aria-label="Moteur"><option value="default">Moteur par défaut</option><option value="second">Deuxième moteur</option></select>
+  <button class="btn btn-sm btn-primary" name="action" value="translate">Traduire…</button>
+  <button class="btn btn-sm btn-outline-secondary" name="action" value="night" title="Prépare la tâche ; vous confirmez le coût une fois"><i class="bi bi-moon-stars"></i> Ajouter à la file de nuit</button>
+  {% if can_validate %}<button class="btn btn-sm btn-outline-success" name="action" value="validate" title="Valide la dernière proposition de chaque segment, sauf s'il a déjà une version validée">Valider les dernières propositions</button>{% endif %}
+  <span class="small text-muted">Une confirmation est demandée avant tout envoi.</span>
+</div>
+{% endif %}
+<table class="table table-sm align-top workbench"><thead><tr>{% if can_edit %}<th></th>{% endif %}<th>#</th><th style="width:45%">Original</th><th>Traduction</th><th>État</th></tr></thead><tbody>
+{% for row in rows %}{% with seg=row.segment v=row.shown %}
+<tr id="seg-{{ seg.pk }}">
+  {% if can_edit %}<td>{% if row.translatable %}<input type="checkbox" class="form-check-input" name="segments" value="{{ seg.pk }}" aria-label="Sélectionner le segment {{ seg.position }}">{% endif %}</td>{% endif %}
+  <td class="small text-muted"><a href="{% url 'translation:segment_detail' seg.pk %}">{{ seg.position }}</a>{% if seg.chapter and seg.chapter.order == seg.position %}<div class="badge text-bg-light">{{ seg.chapter.title|truncatechars:20 }}</div>{% endif %}</td>
+  <td lang="{{ project.source_lang }}" style="white-space:pre-wrap">{{ seg.source_text }}</td>
+  <td>{% if v %}<div style="white-space:pre-wrap">{{ v.text }}</div>
+      <div class="small text-muted">{% if v.status == 'validated' %}<span class="text-success">validée</span>{% else %}proposée{% endif %} · {{ v.get_origin_display }}{% if v.model %} · {{ v.model }}{% endif %}{% if row.n_versions > 1 %} · <a href="{% url 'translation:segment_detail' seg.pk %}">{{ row.n_versions }} versions</a>{% endif %}</div>
+      {% if v.simulated %}<span class="chip chip-warn">Simulation</span>{% endif %}
+      {% for a in v.alerts %}<div class="small text-warning">⚠ {{ a }}</div>{% endfor %}
+    {% elif not row.translatable %}<span class="text-muted small">rien à traduire</span>{% else %}<span class="text-muted">—</span>{% endif %}
+    {% if seg.source_changed %}<div class="small text-danger">Original modifié depuis la traduction (fusion ou division).</div>{% endif %}</td>
+  <td class="small">{{ seg.get_state_display }}</td>
+</tr>{% endwith %}{% empty %}<tr><td colspan="5" class="text-muted">Aucun segment.</td></tr>{% endfor %}
+</tbody></table>
+</form>
+{% if page.has_other_pages %}<nav><ul class="pagination pagination-sm">{% if page.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page.previous_page_number }}&etat={{ state }}&chapitre={{ chapter }}">Précédent</a></li>{% endif %}<li class="page-item disabled"><span class="page-link">{{ page.number }} / {{ page.paginator.num_pages }}</span></li>{% if page.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page.next_page_number }}&etat={{ state }}&chapitre={{ chapter }}">Suivant</a></li>{% endif %}</ul></nav>{% endif %}
+
+{% if notice_field and can_validate %}
+<section class="card-soft mt-4"><h2 class="h6">Publier dans la notice</h2>
+  <p class="small">Ce document vient de la notice <a href="{% url 'translation:record_translations' document.record.record_id %}">{{ document.record.original_title }}</a>.
+    Une fois tous les segments validés, sa traduction peut être proposée dans la notice ; un administrateur la validera.
+    {% if project.confidential %}<strong>Attention : la notice est commune à tous les comptes ; la traduction publiée sortira de la confidentialité du projet.</strong>{% else %}La traduction publiée sera visible par tous les comptes.{% endif %}</p>
+  <form method="post" action="{% url 'translation:document_publish' document.pk %}">{% csrf_token %}
+    <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="confirm_publish" value="1" id="confirm-publish"><label class="form-check-label" for="confirm-publish">Je comprends que cette traduction deviendra visible par tous les comptes.</label></div>
+    <button class="btn btn-sm btn-outline-primary">Publier dans la notice</button></form></section>
+{% endif %}
+{% endblock %}

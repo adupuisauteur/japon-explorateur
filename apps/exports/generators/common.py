@@ -17,7 +17,7 @@ FICHE_FIELDS = [
     ("Support", "material_type_display"),
     ("Institution détentrice", "holding_institution_text"),
     ("Cote", "shelfmark"),
-    ("Accès numérique", "digital_access_label"),
+    ("Disponibilité", "availability_label"),  # 2.0.0 (lot 2) : trois statuts, à la place de « Accès numérique »
     ("Droits et conditions", "rights_and_access"),
     ("Sujets", "subjects_original"),
     ("Lieu", "place_original"),
@@ -33,6 +33,18 @@ FICHE_FIELDS = [
 
 ORIGIN_LABELS = {"ai": "traduction générée par IA", "user": "traduction de l'utilisateur", "rule": "règle automatique",
                  "source": "fournie par la source"}
+
+
+#: 2.0.0 (lot 6) : logo de J-ed dans les en-têtes des exports (décision du 16 novembre 2026)
+LOGO_RATIO = 507 / 611  # hauteur / largeur du logo
+
+
+def logo_file():
+    """Chemin du logo (PNG), ou None s'il manque : un export ne doit jamais échouer pour un logo."""
+    from django.conf import settings
+
+    path = Path(settings.BASE_DIR) / "static" / "img" / "logo-j-ed-grand.png"
+    return path if path.is_file() else None
 
 
 def fiche_rows(rec):
@@ -101,6 +113,7 @@ def metadata_lines(doc):
     lines = [
         ("Titre", m["title"]), ("Sous-titre", m.get("subtitle")), ("Sujet", m.get("subject")),
         ("Préparateur", m.get("author")), ("Date d'export", m["generated_at_display"]),
+        ("Exporté par", m.get("produced_by")),
         ("Identifiant de l'export", m["export_id"]), ("Périmètre", m["scope_label"]),
         ("Nombre de références exportées", str(m["counts"].get("exported", 0))),
     ]
@@ -113,7 +126,9 @@ def metadata_lines(doc):
         collected = f", collecte du {s['collected_from'][:10]} au {s['collected_to'][:10]}" if s.get("collected_from") else ""
         snap = f" — jeu historique (instantané {s['snapshot_date'][:4]})" if s.get("is_snapshot") and s.get("snapshot_date") else ""
         lines.append((f"Source : {s['name']}", f"{s['records']} notice(s), {when}{collected}{snap}"))
-    lines.append(("Contenus générés par IA", "inclus et signalés" if m["contains_ai_content"] and m["ai_content_included"]
+    lines.append(("Contenus générés (IA, traduction automatique)", "inclus et signalés" if m["contains_ai_content"] and m["ai_content_included"]
                   else ("exclus" if not m["ai_content_included"] else "aucun")))
+    if m.get("ai_summaries_included"):  # 2.0.0 (lot 4)
+        lines.append(("Résumés IA", "inclus, marqués « généré par IA », non vérifiés"))
     lines.append(("Application", f"{m['application']} {m['application_version']} — schéma {m['schema_version']}"))
     return [(k, v) for k, v in lines if v]

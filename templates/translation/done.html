@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Traductions effectuées{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item active">Traductions effectuées</li></ol></nav>{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1><i class="bi bi-check2-square"></i> Traductions effectuées</h1>
+  <p>Toutes les traductions de notices, quel que soit le moteur, et l'avancement des documents de vos projets. Les tâches en cours sont dans <a href="{% url 'translation:job_list' %}">Tâches</a>.</p></div></div>
+
+<h2 class="h5">Notices</h2>
+<form method="get" class="d-flex flex-wrap gap-2 align-items-end mb-2">
+  <div><label class="form-label small mb-0" for="f-etat">État</label><select id="f-etat" name="etat" class="form-select form-select-sm">{% for v, l in states %}<option value="{{ v }}"{% if v == state %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  <div><label class="form-label small mb-0" for="f-moteur">Moteur</label><select id="f-moteur" name="moteur" class="form-select form-select-sm"><option value="">Tous les moteurs</option>{% for v, l in engines %}<option value="{{ v }}"{% if v == engine %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  <div><label class="form-label small mb-0" for="f-periode">Date</label><select id="f-periode" name="periode" class="form-select form-select-sm">{% for v, l in periods %}<option value="{{ v }}"{% if v == period %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  <div><label class="form-label small mb-0" for="f-q">Titre ou texte</label><input id="f-q" name="q" value="{{ q }}" class="form-control form-control-sm"></div>
+  <button class="btn btn-sm btn-primary">Filtrer</button>{% if query %}<a class="btn btn-sm btn-link" href="?">Effacer les filtres</a>{% endif %}
+</form>
+{% if page.object_list %}
+<table class="table table-sm align-top"><thead><tr><th>Notice</th><th>Champ</th><th>Traduction</th><th>Moteur</th><th>État</th><th>Date</th></tr></thead><tbody>
+{% for ed in page.object_list %}<tr>
+  <td><a href="{% url 'translation:record_translations' ed.record.record_id %}">{{ ed.record.original_title|default:ed.record.record_id|truncatechars:40 }}</a></td>
+  <td class="small">{{ ed.field_label }}</td>
+  <td class="small">{% if ed.data.simulated %}<span class="chip chip-warn">Simulation</span> {% endif %}{{ ed.content|truncatechars:120 }}</td>
+  <td class="small">{{ ed.engine_label }}{% if ed.data.model and ed.data.model != ed.engine_label %} · {{ ed.data.model }}{% endif %}</td>
+  <td class="small">{{ ed.get_status_display }}{% if ed.needs_review and ed.status != 'rejected' %}<div><span class="badge text-bg-warning">À revoir : l'original a changé</span></div>{% endif %}</td>
+  <td class="small text-muted text-nowrap">{{ ed.created_at|date:"d/m/Y H:i" }}</td>
+</tr>{% endfor %}
+</tbody></table>
+{% if page.has_other_pages %}<nav aria-label="Pages"><ul class="pagination pagination-sm">
+  {% if page.has_previous %}<li class="page-item"><a class="page-link" href="?{{ query }}&page={{ page.previous_page_number }}">Précédente</a></li>{% endif %}
+  <li class="page-item disabled"><span class="page-link">{{ page.number }} / {{ page.paginator.num_pages }}</span></li>
+  {% if page.has_next %}<li class="page-item"><a class="page-link" href="?{{ query }}&page={{ page.next_page_number }}">Suivante</a></li>{% endif %}</ul></nav>{% endif %}
+{% else %}<p class="small text-muted">Aucune traduction de notice ne correspond.</p>{% endif %}
+
+<h2 class="h5 mt-4">Documents de projets</h2>
+{% if documents %}
+<table class="table table-sm align-middle"><thead><tr><th>Document</th><th>Projet</th><th>Segments traduits</th><th>Validés</th><th>Dernière traduction</th></tr></thead><tbody>
+{% for d in documents %}<tr><td><a href="{% url 'translation:document_workbench' d.pk %}">{{ d.title|truncatechars:50 }}</a></td>
+  <td class="small">{{ d.project.title }}{% if d.project.confidential %} <i class="bi bi-lock-fill" title="Confidentiel"></i>{% endif %}</td>
+  <td class="small">{{ d.n_translated }} / {{ d.n_segments }}</td><td class="small">{{ d.n_validated }}</td>
+  <td class="small text-muted">{{ d.last|date:"d/m/Y H:i" }}</td></tr>{% endfor %}
+</tbody></table>
+{% else %}<p class="small text-muted">Aucun document traduit dans vos projets.</p>{% endif %}
+{% endblock %}

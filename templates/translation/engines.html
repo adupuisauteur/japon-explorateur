@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Traduction — Moteurs{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item active">Moteurs</li></ol></nav>{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1><i class="bi bi-cpu"></i> Moteurs de traduction</h1>
+  <p>Seul endroit où se choisissent les moteurs de traduction. Enregistrer un réglage ou tester une clé ne lance aucune
+  traduction. Les clés sont chiffrées et ne sont plus jamais affichées.</p></div></div>
+
+{% if not encryption_ok %}<div class="alert alert-danger">La clé de chiffrement du serveur (<code>AI_KEYS_ENCRYPTION_KEY</code>) n'est pas définie : impossible d'enregistrer une clé.</div>{% endif %}
+
+<section class="card-soft mb-4">
+  <h2 class="h5">Moteurs choisis</h2>
+  <form method="post" action="{% url 'translation:preferences_save' %}" class="row g-2">{% csrf_token %}
+    <div class="col-md-4">{{ pref_form.default_engine.label_tag }}{{ pref_form.default_engine }}</div>
+    <div class="col-md-4">{{ pref_form.default_ai_provider.label_tag }}{{ pref_form.default_ai_provider }}</div>
+    <div class="col-md-4">{{ pref_form.default_ai_model.label_tag }}{{ pref_form.default_ai_model }}{% include "partials/model_picker.html" with provider_id="id_default_ai_provider" provider_name="default_ai_provider" model_id="id_default_ai_model" model_name="default_ai_model" %}</div>
+    <div class="col-md-4">{{ pref_form.second_engine.label_tag }}{{ pref_form.second_engine }}</div>
+    <div class="col-md-4">{{ pref_form.second_ai_provider.label_tag }}{{ pref_form.second_ai_provider }}</div>
+    <div class="col-md-4">{{ pref_form.second_ai_model.label_tag }}{{ pref_form.second_ai_model }}{% include "partials/model_picker.html" with provider_id="id_second_ai_provider" provider_name="second_ai_provider" model_id="id_second_ai_model" model_name="second_ai_model" %}</div>
+    <div class="col-md-4">{{ pref_form.confirmation_threshold.label_tag }}{{ pref_form.confirmation_threshold }}</div>
+    <div class="col-md-8 d-flex flex-column justify-content-end gap-1">
+      <div class="form-check">{{ pref_form.send_neighbour_context }} <label class="form-check-label" for="{{ pref_form.send_neighbour_context.id_for_label }}">{{ pref_form.send_neighbour_context.label }}</label></div>
+      <div class="form-check">{{ pref_form.translate_subjects }} <label class="form-check-label" for="{{ pref_form.translate_subjects.id_for_label }}">{{ pref_form.translate_subjects.label }}</label></div>
+      <div class="form-check">{{ pref_form.translate_place }} <label class="form-check-label" for="{{ pref_form.translate_place.id_for_label }}">{{ pref_form.translate_place.label }}</label></div>
+    </div>
+    <div class="col-12" id="resumes-reglages"><h3 class="h6 mt-2 mb-1">Résumés IA</h3>
+      <p class="small text-muted mb-2">IA utilisée pour les résumés et fiches d'analyse (vide : celle de votre profil IA pour « Résumé documentaire »). « IA locale » : service Ollama de J-ed, gratuit, rien ne quitte l'ordinateur (Traduction → Moteurs locaux).</p></div>
+    <div class="col-md-3">{{ pref_form.summary_provider.label_tag }}{{ pref_form.summary_provider }}</div>
+    <div class="col-md-3">{{ pref_form.summary_model.label_tag }}{{ pref_form.summary_model }}{% include "partials/model_picker.html" with provider_id="id_summary_provider" provider_name="summary_provider" model_id="id_summary_model" model_name="summary_model" %}{{ pref_form.summary_model.errors }}</div>
+    <div class="col-md-3">{{ pref_form.summary_kind.label_tag }}{{ pref_form.summary_kind }}</div>
+    <div class="col-md-3">{{ pref_form.summary_language.label_tag }}{{ pref_form.summary_language }}</div>
+    <div class="col-12" id="japonais-ancien"><h3 class="h6 mt-2 mb-1">Japonais ancien (bungo, kanbun, sōrōbun)</h3>
+      <p class="small text-muted mb-2">J-ed repère les textes anciens probables (vous confirmez ou corrigez sur la fiche ou dans l'atelier). Choisissez ici, d'avance, le moteur à utiliser pour eux : une tâche qui mélange textes modernes et anciens est alors présentée en deux parties, chacune avec son moteur et son coût. Vide : même moteur pour tous les textes. J-ed ne change jamais de moteur sans que ce soit affiché avant l'envoi.</p></div>
+    <div class="col-md-4">{{ pref_form.ancient_engine.label_tag }}{{ pref_form.ancient_engine }}</div>
+    <div class="col-md-4">{{ pref_form.ancient_ai_provider.label_tag }}{{ pref_form.ancient_ai_provider }}</div>
+    <div class="col-md-4">{{ pref_form.ancient_ai_model.label_tag }}{{ pref_form.ancient_ai_model }}{% include "partials/model_picker.html" with provider_id="id_ancient_ai_provider" provider_name="ancient_ai_provider" model_id="id_ancient_ai_model" model_name="ancient_ai_model" %}{{ pref_form.ancient_ai_model.errors }}</div>
+    <div class="col-md-4 offset-md-4">{{ pref_form.summary_ancient_provider.label_tag }}{{ pref_form.summary_ancient_provider }}</div>
+    <div class="col-md-4">{{ pref_form.summary_ancient_model.label_tag }}{{ pref_form.summary_ancient_model }}{% include "partials/model_picker.html" with provider_id="id_summary_ancient_provider" provider_name="summary_ancient_provider" model_id="id_summary_ancient_model" model_name="summary_ancient_model" %}{{ pref_form.summary_ancient_model.errors }}</div>
+    <div class="col-12" id="file-de-nuit"><h3 class="h6 mt-2 mb-1">File de nuit et « Traduire maintenant »</h3>
+      <p class="small text-muted mb-2">Les traductions ajoutées à la file de nuit s'exécutent pendant la plage que vous choisissez (elle peut passer minuit). Sans plage, la file de nuit n'est pas proposée. L'ordinateur doit rester allumé, sans mise en veille, avec Docker Desktop démarré.</p></div>
+    <div class="col-md-3">{{ pref_form.night_start.label_tag }}{{ pref_form.night_start }}{{ pref_form.night_start.errors }}</div>
+    <div class="col-md-3">{{ pref_form.night_end.label_tag }}{{ pref_form.night_end }}{{ pref_form.night_end.errors }}</div>
+    <div class="col-md-6">{{ pref_form.confirm_below.label_tag }}{{ pref_form.confirm_below }}<div class="form-text">{{ pref_form.confirm_below.help_text }} Argos, gratuit et local, ne demande jamais de confirmation.</div>{{ pref_form.confirm_below.errors }}</div>
+    <div class="col-12"><button class="btn btn-primary btn-sm">Enregistrer le choix des moteurs</button>
+      <span class="small text-muted ms-2">Le deuxième moteur est seulement <strong>proposé</strong> en cas d'échec ; il n'est jamais utilisé d'office.</span></div>
+  </form>
+  <div class="small mt-2">
+    {% if default_status %}Moteur par défaut : <strong>{{ default_status.name }}</strong> — <span class="text-{{ default_status.status.level }}">{{ default_status.status.label }}</span>{% if default_status.status.simulated %} <span class="chip chip-warn">Simulation</span>{% endif %}<br>{% else %}<span class="text-muted">Aucun moteur par défaut : choisissez-en un.</span><br>{% endif %}
+    {% if second_status %}Deuxième moteur : <strong>{{ second_status.name }}</strong> — <span class="text-{{ second_status.status.level }}">{{ second_status.status.label }}</span>{% endif %}
+  </div>
+</section>
+
+<h2 class="h5">Services de traduction</h2>
+<div class="row g-3 mb-4">
+{% for row in rows %}
+  <div class="col-lg-4"><div class="card-soft h-100" id="moteur-{{ row.code }}">
+    <h3 class="h6 d-flex justify-content-between align-items-start">{{ row.label }}
+      <span class="badge text-bg-{{ row.status.level }}">{{ row.status.label }}</span></h3>
+    <p class="small text-muted mb-2">{% if row.cls.online %}Service en ligne : le texte est envoyé au fournisseur.{% else %}Moteur local : aucun texte ne quitte votre ordinateur.{% endif %}
+      {% if row.cls.glossary_support == 'native' %}Glossaires pris en charge par le service.{% elif row.cls.glossary_support == 'none' %}Pas de glossaire côté moteur : contrôle terminologique local.{% endif %}</p>
+    {% if row.status.detail %}<p class="small mb-2">{{ row.status.detail }}</p>{% endif %}
+    {% if row.status.simulated %}<div class="alert alert-warning small py-2">Mode démonstration : aucune traduction réelle ; chaque résultat porte la mention « Simulation ».</div>{% endif %}
+    {% if row.code == 'argos' %}{% include "translation/_argos_invite.html" with invite=argos_invite place="moteurs" %}<p class="small mb-2"><a href="{% url 'translation:local_engines' %}"><i class="bi bi-box-seam"></i> Service et paquets de langues (Moteurs locaux)</a></p>{% endif %}
+    {% if row.setting.has_key %}<p class="small mb-2"><i class="bi bi-key"></i> Clé enregistrée (chiffrée){% if row.setting.last_tested_at %}, dernier test le {{ row.setting.last_tested_at|date:"d/m/Y H:i" }}{% endif %}.</p>{% endif %}
+    {% if row.setting.quota_info.character_limit %}<p class="small mb-2">Consommation lue : {{ row.setting.quota_info.character_count }} / {{ row.setting.quota_info.character_limit }} caractères.</p>{% endif %}
+    <form method="post" action="{% url 'translation:engine_save' row.code %}" class="d-grid gap-2">{% csrf_token %}
+      {% for field in row.form %}
+        {% if field.field.widget.input_type == 'checkbox' %}<div class="form-check">{{ field }} <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label></div>
+        {% else %}<div>{{ field.label_tag }}{{ field }}{% if field.name == 'api_key' and row.help %}<div class="form-text">{{ row.help }}</div>{% endif %}</div>{% endif %}
+      {% endfor %}
+      <div class="d-flex flex-wrap gap-1">
+        <button class="btn btn-sm btn-primary" name="action" value="save">Enregistrer</button>
+        {% if row.setting %}<button class="btn btn-sm btn-outline-secondary" name="action" value="test" formnovalidate>Tester</button>{% endif %}
+        {% if row.setting.has_key %}<button class="btn btn-sm btn-link text-danger" name="action" value="revoke" formnovalidate data-confirm="Effacer cette clé du serveur ?">Effacer la clé</button>{% endif %}
+      </div>
+    </form>
+  </div></div>
+{% endfor %}
+</div>
+
+<h2 class="h5">Intelligences artificielles en ligne</h2>
+<p class="small text-muted">Les clés se gèrent dans <a href="{% url 'ai:providers' %}">IA → Fournisseurs</a>.
+  L'usage des IA pour traduire suit vos <a href="{% url 'ai:preferences' %}">préférences IA</a> :
+  mode « {{ profile.get_mode_display }} », traduction {% if profile.translation_enabled %}autorisée{% else %}<strong>non autorisée</strong>{% endif %}.</p>
+<table class="table table-sm align-middle"><thead><tr><th>Fournisseur</th><th>État</th><th>Modèles connus</th><th></th></tr></thead><tbody>
+{% for ai in ai_rows %}<tr><td>{{ ai.label }}</td><td><span class="text-{{ ai.status.level }}">{{ ai.status.label }}</span>{% if ai.status.detail %}<div class="small text-muted">{{ ai.status.detail }}</div>{% endif %}</td>
+  <td class="small">{% if ai.models %}{{ ai.models|length }} modèle(s){% else %}—{% endif %}</td>
+  <td><a class="btn btn-sm btn-link" href="{% url 'ai:providers' %}">Gérer la clé</a></td></tr>{% endfor %}
+</tbody></table>
+<h2 class="h5 mt-4" id="conditions">Conditions d'utilisation des textes envoyés</h2>
+<p class="small text-muted">Résumés vérifiés sur les pages officielles des fournisseurs ; les conditions officielles font foi. Avant le premier envoi à un fournisseur, son résumé est affiché et vous confirmez en avoir pris connaissance. Argos ne transmet rien : il traduit sur votre ordinateur.</p>
+{% for t in provider_terms %}<details class="mb-2"><summary>{{ t.name }} <span class="small text-muted">— vérifié le {{ t.verified_on }}{% if t.read %} · lu{% endif %}</span></summary>
+  <ul class="small mt-1 mb-1">{% for p in t.points %}<li>{{ p }}</li>{% endfor %}</ul>
+  <div class="small">{% for s in t.sources %}<a href="{{ s.url }}" target="_blank" rel="noopener noreferrer">{{ s.label }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}</div></details>{% endfor %}
+{% endblock %}

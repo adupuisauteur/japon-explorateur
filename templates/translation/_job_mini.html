@@ -1,0 +1,9 @@
+{# 2.0.0 (lot 3) : état d'une traduction « maintenant » sur la fiche. #}
+<div id="job-mini-{{ job.pk }}" class="alert {% if job.status == 'done' and not job.failed_items %}alert-success{% elif job.status == 'confirmed' or job.status == 'running' %}alert-info{% else %}alert-warning{% endif %} small py-2 mb-2"
+     {% if job.status == 'confirmed' or job.status == 'running' %}{% if not stale %}hx-get="{% url 'translation:job_mini' job.pk %}" hx-trigger="every 3s" hx-swap="outerHTML" data-pause-hidden{% endif %}{% endif %}>
+  {% if job.status == 'confirmed' or job.status == 'running' %}{% if stale %}Traduction interrompue (aucun signe d'activité). <a href="{% url 'translation:job_detail' job.pk %}">Voir la tâche</a>
+    {% else %}<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span> Traduction en cours ({{ job.done_items }} / {{ job.total_items }})…{% endif %}
+  {% elif job.status == 'done' %}<i class="bi bi-check-circle" aria-hidden="true"></i> Traduction prête{% if job.failed_items %}, avec {{ job.failed_items }} échec(s){% endif %}.
+    <a href="{% if job.items.first.record %}{% url 'translation:record_translations' job.items.first.record.record_id %}{% else %}{% url 'translation:job_detail' job.pk %}{% endif %}">Voir et valider</a>
+  {% else %}Traduction : {{ job.status_label }}. <a href="{% url 'translation:job_detail' job.pk %}">Voir la tâche</a>{% if job.error_summary %}<div>{{ job.error_summary }}</div>{% endif %}{% endif %}
+</div>

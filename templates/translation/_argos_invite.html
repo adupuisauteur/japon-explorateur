@@ -1,0 +1,26 @@
+{# 2.0.0, lot 7 : invitation « Installer la traduction japonais → français » (Moteurs, Moteurs locaux, tâche). #}
+{% if invite %}
+<div class="alert alert-info small mb-2" id="argos-invite">
+  <strong><i class="bi bi-box-seam" aria-hidden="true"></i> Traduction hors ligne japonais → français</strong>
+  {% if invite.running %}
+    <p class="mb-1">Installation en cours ({{ invite.running.done_items }} paquet(s) sur {{ invite.running.total_items }}). Vous pouvez continuer à travailler ; une fenêtre vous préviendra à la fin.</p>
+    <a href="{% url 'translation:local_engines' %}#argos-jobs">Suivre la progression</a>
+  {% elif not invite.health %}
+    <p class="mb-0">Le service Argos ne répond pas : {{ invite.problem }}</p>
+  {% elif invite.can_install %}
+    <p class="mb-1">Argos traduit sur votre ordinateur, sans Internet. Il lui faut d'abord ses paquets de langues :
+      japonais → anglais et anglais → français (le japonais passe par l'anglais), {{ invite.size }} au total,
+      téléchargés <strong>une seule fois</strong> depuis l'index Argos sur Internet. Argos sera aussi activé dans vos moteurs.</p>
+    <form method="post" action="{% url 'translation:argos_install_ja_fr' %}" class="d-flex flex-wrap gap-2 align-items-center">{% csrf_token %}
+      <div class="form-check mb-0"><input class="form-check-input" type="checkbox" name="confirm" value="1" id="argos-confirm-{{ place|default:'x' }}" required>
+        <label class="form-check-label" for="argos-confirm-{{ place|default:'x' }}">Je choisis de télécharger les paquets ({{ invite.size }})</label></div>
+      <button class="btn btn-sm btn-primary">Installer la traduction japonais → français</button>
+      <span class="text-muted">ou plus tard, depuis Traduction → Moteurs locaux.</span>
+    </form>
+  {% elif invite.is_admin %}
+    <p class="mb-0">Paquets de langues manquants : {{ invite.missing|join:", " }}. <a href="{% url 'translation:local_engines' %}">Moteurs locaux</a></p>
+  {% else %}
+    <p class="mb-0">Les paquets de langues d'Argos ne sont pas installés. Ils sont communs à toute l'installation : demandez à l'administrateur de cliquer sur « Installer la traduction japonais → français » (Traduction → Moteurs locaux).</p>
+  {% endif %}
+</div>
+{% endif %}

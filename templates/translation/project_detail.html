@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}{{ project.title }} — Traduction{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item"><a href="{% url 'translation:project_list' %}">Projets</a></li><li class="breadcrumb-item active">{{ project.title }}</li></ol></nav>{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>{{ project.title }}{% if project.confidential %} <span class="badge text-bg-dark fs-6"><i class="bi bi-lock-fill"></i> confidentiel</span>{% endif %}</h1>
+  <p>{{ project.get_source_lang_display }} → {{ project.get_target_lang_display }} · propriétaire : {{ project.owner }}{% if project.collection %} · dossier : <a href="{{ project.collection.get_absolute_url }}">{{ project.collection.title }}</a>{% endif %}</p>
+  {% if project.description %}<p class="text-muted">{{ project.description }}</p>{% endif %}
+  {% if project.confidential %}<p class="small">Moteurs en ligne refusés pour ce projet : seuls les moteurs locaux (Argos) sont utilisables.</p>{% endif %}</div>
+  {% if can_edit %}<div class="d-flex gap-2"><a class="btn btn-outline-secondary" href="{% url 'translation:project_edit' project.pk %}">Modifier</a>
+    {% if project.owner == user %}<a class="btn btn-outline-secondary" href="{% url 'translation:project_export' project.pk %}"><i class="bi bi-download"></i> Exporter</a>{% endif %}
+    <a class="btn btn-primary" href="{% url 'translation:document_add' project.pk %}"><i class="bi bi-plus-lg"></i> Ajouter un document</a></div>{% endif %}</div>
+
+<h2 class="h5">Documents</h2>
+{% if documents %}
+<table class="table table-sm align-middle"><thead><tr><th>Titre</th><th>Provenance</th><th>Variété</th><th>Avancement</th></tr></thead><tbody>
+{% for d in documents %}<tr><td><a href="{% url 'translation:document_workbench' d.pk %}">{{ d.title }}</a></td>
+  <td class="small">{{ d.get_source_kind_display }}{% if d.source_filename and d.source_kind != 'record' %} ({{ d.source_filename }}){% endif %}{% if d.encoding_confidence == 'uncertain' %} <span class="text-warning">encodage confirmé à la main</span>{% endif %}</td>
+  <td class="small">{{ d.get_variety_display }}</td>
+  <td class="small">{{ d.n_validated }} validé(s) / {{ d.n_segments }}{% if d.n_alert %} · <span class="text-warning">{{ d.n_alert }} en alerte</span>{% endif %}</td></tr>{% endfor %}
+</tbody></table>
+{% else %}<p class="text-muted">Aucun document.</p>{% endif %}
+
+<h2 class="h5 mt-4" id="glossaires">Glossaires du projet</h2>
+{% if glossary_links %}
+<table class="table table-sm align-middle" style="max-width:900px"><thead><tr><th>Priorité</th><th>Glossaire</th><th>Entrées</th><th>Version</th>{% if can_edit %}<th></th>{% endif %}</tr></thead><tbody>
+{% for link in glossary_links %}<tr><td>{{ forloop.counter }}</td><td><a href="{% url 'translation:glossary_detail' link.glossary.pk %}">{{ link.glossary.name }}</a>{% if link.glossary.source_lang != project.source_lang %} <span class="text-warning small">paire de langues différente : ignoré</span>{% endif %}</td><td>{{ link.n_entries }}</td><td>{{ link.glossary.version }}</td>
+  {% if can_edit %}<td class="text-nowrap"><form method="post" action="{% url 'translation:project_glossaries' project.pk %}" class="d-inline">{% csrf_token %}<input type="hidden" name="link" value="{{ link.pk }}">
+    {% if not forloop.first %}<button class="btn btn-sm btn-link" name="action" value="up" aria-label="Monter">↑</button>{% endif %}{% if not forloop.last %}<button class="btn btn-sm btn-link" name="action" value="down" aria-label="Descendre">↓</button>{% endif %}
+    <button class="btn btn-sm btn-link text-danger" name="action" value="remove">Retirer</button></form></td>{% endif %}</tr>{% endfor %}
+</tbody></table>
+<p class="small text-muted">En cas de doublon, le glossaire le plus haut dans la liste l'emporte.</p>
+{% else %}<p class="text-muted small">Aucun glossaire.</p>{% endif %}
+{% if contradictions %}<div class="alert alert-warning small" style="max-width:900px"><strong>Contradictions entre glossaires</strong> (même terme, traductions différentes ; la première est retenue) :<ul class="mb-0">
+{% for form, uses in contradictions %}<li><span lang="{{ project.source_lang }}">{{ form }}</span> : {% for g, t in uses %}« {{ t }} » ({{ g.name }}){% if not forloop.last %} ; {% endif %}{% endfor %}</li>{% endfor %}</ul></div>{% endif %}
+{% if can_edit and linkable %}<form method="post" action="{% url 'translation:project_glossaries' project.pk %}" class="d-flex gap-2 mb-3" style="max-width:600px">{% csrf_token %}
+  <select name="glossary" class="form-select form-select-sm" aria-label="Glossaire à ajouter">{% for g in linkable %}<option value="{{ g.pk }}">{{ g.name }}{% if g.owner != user %} ({{ g.owner }}){% endif %}</option>{% endfor %}</select>
+  <button class="btn btn-sm btn-outline-primary text-nowrap" name="action" value="add">Ajouter au projet</button></form>
+{% elif can_edit %}<p class="small"><a href="{% url 'translation:glossary_create' %}">Créer un glossaire</a> ({{ project.get_source_lang_display }} → {{ project.get_target_lang_display }}) pour l'ajouter à ce projet.</p>{% endif %}
+
+{% if jobs %}<h2 class="h5 mt-4">Mes dernières tâches sur ce projet</h2>
+<ul class="small">{% for j in jobs %}<li><a href="{% url 'translation:job_detail' j.pk %}">N° {{ j.pk }}</a> — {{ j.get_engine_display }} — {{ j.get_status_display }} — {{ j.done_items }} / {{ j.total_items }}</li>{% endfor %}</ul>{% endif %}
+
+{% if project.owner == user %}
+<details class="mt-4"><summary class="text-danger small">Supprimer le projet</summary>
+  <form method="post" action="{% url 'translation:project_delete' project.pk %}" class="card-soft mt-2" style="max-width:600px">{% csrf_token %}
+    <p class="small">Supprime le projet, ses documents, segments et toutes leurs traductions. Les notices ne sont pas touchées. Recopiez le titre pour confirmer.</p>
+    <input name="confirm_title" class="form-control form-control-sm mb-2" aria-label="Titre du projet">
+    <button class="btn btn-sm btn-danger">Supprimer définitivement</button></form></details>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Recherche dans l'aide{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'help:index' %}">Aide</a></li><li class="breadcrumb-item active" aria-current="page">Recherche</li></ol></nav>{% endblock %}
+{% block content %}
+<h1>Recherche dans l'aide</h1>
+{% include "help/_search_form.html" %}
+{% if query %}
+  {% if hits %}<p class="text-muted">{{ hits|length }} page(s) pour « {{ query }} ».</p>
+  <ol class="list-unstyled">{% for p, excerpt in hits %}<li class="mb-3"><a href="{% url 'help:page' p.slug %}" class="fw-semibold">{{ p.title }}</a> <span class="small text-muted">· {{ p.section }}</span><div class="small">{{ excerpt }}</div></li>{% endfor %}</ol>
+  {% else %}<p>Aucune page ne contient « {{ query }} ». Essayez un autre mot, ou parcourez <a href="{% url 'help:index' %}">toutes les pages</a>.</p>{% endif %}
+{% endif %}
+{% endblock %}

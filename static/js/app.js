@@ -45,6 +45,29 @@
     }
   });
 
+  // 2.0.0 : copie d'un texte dans le presse-papiers (« Copier le diagnostic »), sans script en ligne
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-copy-target]");
+    if (!btn) { return; }
+    var source = document.querySelector(btn.getAttribute("data-copy-target"));
+    if (!source) { return; }
+    var text = source.textContent;
+    var status = document.querySelector("[data-copy-status]");
+    function done(ok) {
+      if (status) { status.textContent = ok ? (btn.getAttribute("data-copy-done") || "Copié") : "Copie impossible : sélectionnez le texte puis Ctrl+C"; }
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); });
+    } else {
+      var range = document.createRange();
+      range.selectNodeContents(source);
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      try { done(document.execCommand("copy")); } catch (err) { done(false); }
+    }
+  });
+
   // Comportements déclaratifs (remplacent les gestionnaires en ligne, interdits par la politique CSP)
   document.addEventListener("change", function (e) {
     var t = e.target;
@@ -83,5 +106,56 @@
       btn.innerHTML = '<i class="bi bi-check2"></i> Disponible hors ligne';
       btn.classList.replace("btn-outline-secondary", "btn-outline-success");
     }).catch(function () { btn.textContent = "Mise en cache impossible"; });
+  });
+  // 2.0.0 (lot 5) : fenêtres de notification (toasts Bootstrap), sans script en ligne.
+  function showToasts(root) {
+    (root || document).querySelectorAll("[data-jed-toast]:not([data-shown])").forEach(function (el) {
+      el.setAttribute("data-shown", "1");
+      var toast = bootstrap.Toast.getOrCreateInstance(el, {
+        autohide: el.getAttribute("data-autohide") === "true", delay: 12000
+      });
+      el.addEventListener("hidden.bs.toast", function () { el.remove(); });
+      toast.show();
+    });
+  }
+  document.addEventListener("htmx:afterSettle", function (e) { showToasts(e.detail.target); });
+
+  // 2.0.0 (lot 5) : les actualisations périodiques sont suspendues quand l'onglet est masqué, puis reprennent
+  // dès qu'il redevient visible (aucun filtre HTMX en ligne : politique de sécurité du contenu).
+  document.addEventListener("htmx:beforeRequest", function (e) {
+    var elt = e.detail && e.detail.elt;
+    if (document.hidden && elt && elt.closest && elt.closest("[data-pause-hidden]")) { e.preventDefault(); }
+  });
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) { document.body.dispatchEvent(new CustomEvent("jed:visible")); }
+  });
+  // 2.0.0 (lot 8) : choix du modèle dans une liste. Le champ texte reste la valeur envoyée ; il ne s'affiche
+  // que pour « Autre modèle (saisie libre) » ou quand aucune liste n'est disponible.
+  function syncModelPicker(select) {
+    var input = document.querySelector(select.getAttribute("data-model-select"));
+    if (!input) { return; }
+    if (select.value === "__libre__") {
+      input.classList.remove("d-none");
+    } else {
+      if (select.value) { input.value = select.value; }
+      input.classList.add("d-none");
+    }
+  }
+  document.addEventListener("change", function (e) {
+    var select = e.target.closest && e.target.closest("[data-model-select]");
+    if (select) {
+      syncModelPicker(select);
+      if (select.value === "__libre__") {
+        var input = document.querySelector(select.getAttribute("data-model-select"));
+        if (input) { input.focus(); }
+      }
+    }
+  });
+  document.addEventListener("htmx:afterSettle", function (e) {
+    var root = e.detail && e.detail.target;
+    if (!root || !root.classList || !root.classList.contains("model-picker")) { return; }
+    var select = root.querySelector("[data-model-select]");
+    var input = document.getElementById(root.id.replace(/^mp-/, ""));
+    if (select) { syncModelPicker(select); } else if (input) { input.classList.remove("d-none"); }
   });
 })();

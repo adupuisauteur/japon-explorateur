@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Préférences de notification{% endblock %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'notifications:list' %}">Notifications</a> › Préférences</nav>
+<h1>Préférences de notification</h1>
+<div class="row g-4">
+  <div class="col-lg-7">
+    <form method="post" class="card-soft">{% csrf_token %}
+      <h2 class="h5">Être notifié dans l'application</h2>
+      <p class="small text-muted">Une fenêtre s'affiche en bas à droite ; le compteur du menu à votre nom indique les notifications non lues. Si vous n'êtes pas connecté, les fenêtres attendent votre prochaine visite.</p>
+      {% for row in rows %}
+      <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="types" value="{{ row.code }}" id="t-{{ row.code }}"{% if row.enabled %} checked{% endif %}>
+        <label class="form-check-label" for="t-{{ row.code }}">{{ row.label }}</label></div>
+      {% endfor %}
+      {% if user.is_admin_role %}
+      <div class="mt-3"><label class="form-label" for="incident-threshold">Fenêtres de dysfonctionnement : gravité minimale</label>
+        <select id="incident-threshold" name="incident_threshold" class="form-select form-select-sm w-auto">{% for code, label in thresholds %}<option value="{{ code }}"{% if threshold == code or not threshold and code == 'error' %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+        <div class="form-text">Une fenêtre par nouveau groupe d'incidents (pas une par occurrence), ou quand un problème corrigé revient.</div></div>
+      {% endif %}
+      <p class="small text-muted mt-3 mb-2">Canal : dans l'application seulement. Le courriel et les notifications du navigateur viendront plus tard, à activer par chacun, jamais par défaut.</p>
+      <button class="btn btn-primary">Enregistrer</button>
+    </form>
+  </div>
+  <div class="col-lg-5">
+    <div class="card-soft">
+      <h2 class="h5">Tester les notifications</h2>
+      <p class="small">Envoie une notification fictive à votre compte : aucune tâche n'est lancée et rien n'est inscrit au journal. Elle s'affiche en fenêtre dans les secondes qui suivent et figure dans l'historique.</p>
+      <form method="post" action="{% url 'notifications:test' %}" class="mb-2">{% csrf_token %}<input type="hidden" name="kind" value="task">
+        <button class="btn btn-outline-primary"><i class="bi bi-bell"></i> Envoyer une notification d'essai</button></form>
+      {% if user.is_admin_role %}
+      <form method="post" action="{% url 'notifications:test' %}">{% csrf_token %}<input type="hidden" name="kind" value="incident">
+        <button class="btn btn-outline-danger"><i class="bi bi-exclamation-octagon"></i> Envoyer une alerte de dysfonctionnement d'essai</button></form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

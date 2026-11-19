@@ -9,13 +9,18 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
 
-from .common import citation, fiche_rows, metadata_lines
+from .common import citation, fiche_rows, logo_file, metadata_lines
 
 ACCENT = RGBColor(0x8A, 0x2B, 0x23)
 MUTED = RGBColor(0x55, 0x5B, 0x66)
 
 
-def _set_fonts(style, latin, east_asian, size=None):
+def set_fonts(style, latin, east_asian, size=None):
+    """Polices d'un style Word, dont la police des caractères japonais (w:eastAsia).
+
+    Nom public depuis la 1.3.0 (réutilisé par les exports du module de traduction) ; `_set_fonts` reste
+    disponible sous son ancien nom.
+    """
     style.font.name = latin
     rpr = style.element.get_or_add_rPr()
     fonts = rpr.find(qn("w:rFonts"))
@@ -27,6 +32,9 @@ def _set_fonts(style, latin, east_asian, size=None):
     fonts.set(qn("w:eastAsia"), east_asian)
     if size:
         style.font.size = Pt(size)
+
+
+_set_fonts = set_fonts
 
 
 def _field(paragraph, instruction, placeholder=""):
@@ -100,8 +108,12 @@ def generate_docx(doc, out_dir, basename):
     d.core_properties.author = meta.get("author") or ""
     d.core_properties.comments = f"Export {meta['export_id']}"
 
-    # Page de titre
-    for _ in range(5):
+    # Page de titre (2.0.0, lot 6 : logo de J-ed)
+    logo = logo_file()
+    for _ in range(2 if logo else 5):
+        d.add_paragraph()
+    if logo is not None:
+        d.add_picture(str(logo), width=Cm(3.6))
         d.add_paragraph()
     d.add_paragraph(meta["title"], style="Title")
     if meta.get("subtitle"):
@@ -123,13 +135,24 @@ def generate_docx(doc, out_dir, basename):
     body = d.add_section(WD_SECTION.CONTINUOUS)
     body.different_first_page_header_footer = False
     header_p = body.header.paragraphs[0]
-    header_p.text = meta.get("header") or meta["title"]
     header_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    header_p.runs[0].font.size = Pt(8.5)
-    header_p.runs[0].font.color.rgb = MUTED
+    if logo is not None:  # petit logo, puis le texte de l'en-tête
+        header_p.add_run().add_picture(str(logo), height=Cm(0.55))
+        header_p.add_run("   ")
+    header_run = header_p.add_run(meta.get("header") or meta["title"])
+    header_run.font.size = Pt(8.5)
+    header_run.font.color.rgb = MUTED
     footer_p = body.footer.paragraphs[0]
     footer_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    footer_run = footer_p.add_run(f"{meta.get('footer') or ''}  —  {meta['export_id']}  —  page ")
+    if meta.get("footer"):
+        free = footer_p.add_run(meta["footer"])
+        free.font.size = Pt(8.5)
+        footer_p = body.footer.add_paragraph()
+        footer_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    # 2.0.0 (U2) : date et heure, application et version, utilisateur, identifiant de l'export, page.
+    pieces = [meta.get("production_line") or "", meta["export_id"]]
+    footer_run = footer_p.add_run("  —  ".join(p for p in pieces if p)
+                                  + ("  —  page " if opts.get("pagination", True) else ""))
     footer_run.font.size = Pt(8.5)
     if opts.get("pagination", True):
         _field(footer_p, "PAGE", "1")
@@ -171,7 +194,7 @@ def generate_docx(doc, out_dir, basename):
                 p = d.add_paragraph()
                 r = p.add_run(f"{ed['kind']} — {ed['origin']} ({ed['status']}) : ")
                 r.bold = True
-                r.font.color.rgb = ACCENT if ed["origin_code"] == "ai" else MUTED
+                r.font.color.rgb = ACCENT if ed["origin_code"] in ("ai", "mt") else MUTED
                 p.add_run(ed["content"])
             if rec["collection_note"]:
                 p = d.add_paragraph()

@@ -1,4 +1,5 @@
 """Outils communs aux tests."""
+import atexit
 import shutil
 import tempfile
 from pathlib import Path
@@ -12,6 +13,10 @@ from apps.catalog.models import Catalogue
 
 EXAMPLES = Path(__file__).resolve().parent.parent / "docs" / "exemples"
 TMP = tempfile.mkdtemp(prefix="japon-tests-")
+# 2.0.0 : le dossier temporaire est supprimé une seule fois, à la fin de l'exécution (processus principal).
+# Le supprimer à la fin de chaque classe faisait échouer les tests lancés en parallèle (--parallel), car
+# les processus de test partagent ce dossier.
+atexit.register(shutil.rmtree, TMP, ignore_errors=True)
 
 
 @override_settings(MEDIA_ROOT=TMP + "/files", BACKUP_DIR=Path(TMP) / "backups", CELERY_TASK_ALWAYS_EAGER=True,
@@ -29,11 +34,6 @@ class AppTestCase(TestCase):
 
     def setUp(self):
         self.client.force_login(self.admin)
-
-    @classmethod
-    def tearDownClass(cls):
-        super().tearDownClass()
-        shutil.rmtree(TMP, ignore_errors=True)
 
     def catalogue(self, code):
         return Catalogue.objects.get(code=code)
@@ -56,3 +56,21 @@ class AppTestCase(TestCase):
         self.client.post(job.get_absolute_url(), {"action": "apply"})
         job.refresh_from_db()
         return job
+
+
+def acknowledge_terms(user, *keys):
+    """Prise de connaissance des conditions des fournisseurs (1.3.0, § 13) pour les tests qui portent sur
+    autre chose : le contrôle lui-même est testé dans tests/test_translation_terms.py."""
+    from apps.translation import terms
+
+    for key in keys:
+        terms.acknowledge(user, key)
+
+
+def set_argos_demo(enabled=True):
+    """2.0.0 (décision D4) : la simulation d'Argos n'existe qu'en « mode démonstration », activé ici."""
+    from apps.core.models import AppSettings
+
+    settings_obj = AppSettings.get()
+    settings_obj.argos_demo_mode = enabled
+    settings_obj.save(update_fields=["argos_demo_mode"])

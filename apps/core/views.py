@@ -8,12 +8,15 @@ from django.http import HttpResponse
 from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
 from django.templatetags.static import static
+from django.urls import reverse
 from django.views.decorators.cache import cache_control
+from django.views.decorators.http import require_POST
 
 from .audit import log_action
 from .forms import AppSettingsForm
 from .models import AppSettings, AuditLog
 from .permissions import admin_required
+from .redirects import safe_next
 
 
 @login_required
@@ -42,12 +45,83 @@ def home(request):
 
 
 def offline(request):
+    """Page mise en cache par le navigateur, affichée quand le serveur J-ed ne répond pas.
+
+    2.0.0 : page autonome, sans menu ni numéro de version, pour ne pas laisser croire qu'une ancienne version
+    est en service (constat du 14 novembre 2026).
+    """
     return render(request, "core/offline.html")
+
+
+@cache_control(no_store=True)
+def health(request):
+    """Contrôle de santé de Docker : le serveur répond et la base est joignable. Aucune donnée affichée."""
+    from django.db import connection
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+    except Exception as exc:  # noqa: BLE001 — le type d'erreur suffit au diagnostic
+        return HttpResponse(f"base injoignable : {type(exc).__name__}\n", status=503,
+                            content_type="text/plain; charset=utf-8")
+    return HttpResponse("ok\n", content_type="text/plain; charset=utf-8")
+
+
+# Composants livrés avec l'interface (dossier static/vendor) et principaux composants du serveur.
+ABOUT_COMPONENTS = [
+    ("Django", "cadre de l'application"), ("PostgreSQL", "base de données"),
+    ("Celery et Redis", "tâches en arrière-plan"), ("HTMX", "interface, licence BSD zéro clause"),
+    ("Bootstrap et Bootstrap Icons", "présentation, licence MIT"),
+    ("ReportLab et python-docx", "exports PDF et Word"), ("Argos Translate", "traduction hors ligne, licence MIT"),
+    ("Ollama", "IA locale facultative, licence MIT ; modèles Qwen3 sous licence Apache 2.0"),
+    ("Python-Markdown", "pages de l'aide intégrée, licence BSD"),
+]
+
+
+@login_required
+def about(request):
+    return render(request, "core/about.html", {
+        "instance_name": AppSettings.get().instance_name,
+        "schema_version": settings.DATA_SCHEMA_VERSION,
+        "components": ABOUT_COMPONENTS,
+    })
+
+
+_SHELL_FILES = ("css/app.css", "js/app.js", "vendor/bootstrap/bootstrap.min.css",
+                "vendor/bootstrap/bootstrap.bundle.min.js", "vendor/htmx/htmx.min.js",
+                "vendor/bootstrap-icons/bootstrap-icons.min.css",
+                # 2.0.0 (lot 6) : logo et icônes, mis en cache eux aussi
+                "icons/icon-192.png", "icons/favicon-32.png", "img/logo-j-ed.png")
+_shell_fingerprint = None
+
+
+def shell_fingerprint():
+    """Empreinte des fichiers de l'interface mis en cache par le navigateur.
+
+    2.0.0 (lot 5) : le cache du service worker portait seulement le numéro de version ; entre deux livraisons
+    de la même version (lots de la 2.0.0), le navigateur gardait l'ancien app.js et l'ancien app.css. Le nom du
+    cache change désormais dès que l'un de ces fichiers change.
+    """
+    global _shell_fingerprint
+    if _shell_fingerprint is None or settings.DEBUG:
+        import hashlib
+
+        from django.contrib.staticfiles import finders
+
+        digest = hashlib.sha256(settings.APP_VERSION.encode())
+        for name in _SHELL_FILES:
+            path = finders.find(name)
+            if path:
+                with open(path, "rb") as fh:
+                    digest.update(fh.read())
+        _shell_fingerprint = digest.hexdigest()[:12]
+    return _shell_fingerprint
 
 
 @cache_control(no_cache=True)
 def service_worker(request):
-    content = render_to_string("core/sw.js", {"version": settings.APP_VERSION, "static_prefix": settings.STATIC_URL})
+    content = render_to_string("core/sw.js", {"version": f"{settings.APP_VERSION}-{shell_fingerprint()}",
+                                              "static_prefix": settings.STATIC_URL})
     response = HttpResponse(content, content_type="application/javascript")
     response["Service-Worker-Allowed"] = "/"
     return response
@@ -55,8 +129,8 @@ def service_worker(request):
 
 def manifest(request):
     data = {
-        "name": "Japon — Explorateur documentaire",
-        "short_name": "Explorateur Japon",
+        "name": settings.APP_NAME,
+        "short_name": settings.APP_NAME,
         "description": "Recherche, gestion et exploitation de ressources documentaires japonaises.",
         "lang": "fr",
         "start_url": "/",
@@ -89,6 +163,49 @@ def admin_hub(request):
 
 
 @admin_required
+def installation_state(request):
+    """2.0.0 : état de l'installation (version, base, workers, planificateur, Redis, Argos, sauvegardes…)."""
+    from . import health
+
+    results = health.collect()
+    return render(request, "core/state.html", {
+        "results": results, "overall": health.overall(results), "level_labels": health.LEVEL_LABELS,
+        "diagnostic": health.diagnostic_text(results), "computer_memory_gb": AppSettings.get().computer_memory_gb,
+    })
+
+
+@admin_required
+@require_POST
+def machine_memory(request):
+    """2.0.0 (lot 3) : mémoire totale de l'ordinateur, pour le conseil du profil (rien n'est modifié d'office)."""
+    raw = (request.POST.get("computer_memory_gb") or "").strip()
+    obj = AppSettings.get()
+    if raw == "":
+        obj.computer_memory_gb = None
+    elif raw.isdigit() and 1 <= int(raw) <= 1024:
+        obj.computer_memory_gb = int(raw)
+    else:
+        messages.error(request, "Indiquez un nombre entier de gigaoctets (par exemple 16).")
+        return redirect("core:state")
+    obj.save(update_fields=["computer_memory_gb", "updated_at"])
+    messages.success(request, "Mémoire de l'ordinateur enregistrée : voir le conseil de la ligne « Profil de la machine ».")
+    return redirect(reverse("core:state") + "#etat-profil")
+
+
+@admin_required
+@require_POST
+def argos_selftest(request):
+    from apps.translation.tasks import run_argos_selftest
+
+    run_argos_selftest.delay()
+    log_action(request, "argos.selftest", None, "Traduction d'essai Argos demandée")
+    messages.info(request, "Traduction d'essai d'Argos lancée : le résultat s'affiche ici dans quelques secondes "
+                           "(rechargez la page).")
+    # 2.0.0 (lot 3) : le bouton existe aussi dans Traduction → Moteurs locaux, qui y revient.
+    return redirect(safe_next(request, reverse("core:state")))
+
+
+@admin_required
 def app_settings(request):
     obj = AppSettings.get()
     form = AppSettingsForm(request.POST or None, instance=obj)
@@ -107,3 +224,29 @@ def audit_log(request):
         qs = qs.filter(action__startswith=request.GET["action"])
     page = Paginator(qs, 50).get_page(request.GET.get("page"))
     return render(request, "core/audit_log.html", {"page": page})
+
+
+@admin_required
+def demo_dataset(request):
+    """2.0.0 (rc1) : jeu d'essai fictif, chargé ou retiré sur demande de l'administrateur."""
+    from . import jeu_essai
+
+    if request.method == "POST":
+        if request.POST.get("action") == "charger":
+            summary = jeu_essai.load(request.user)
+            # Recette rc1 : les nombres figurent dans le résumé du journal, pas seulement dans le message.
+            log_action(request, "demo.load", None,
+                       f"Jeu d'essai chargé : {summary['notices']} notice(s), dont {summary['créées']} nouvelle(s)",
+                       **{k: v for k, v in summary.items() if k in ("notices", "créées")})
+            messages.success(request, f"Jeu d'essai chargé : {summary['notices']} notices fictives, le dossier "
+                                      f"« {summary['dossier']} » et le projet « {summary['projet']} ».")
+        elif request.POST.get("action") == "retirer":
+            summary = jeu_essai.remove()
+            text = (f"Jeu d'essai retiré : {summary['notices']} notice(s), {summary['dossiers']} dossier(s), "
+                    f"{summary['projets']} projet(s).")
+            if summary["gardées"]:
+                text += " Gardé(s), car encore utilisé(s) : " + " ; ".join(summary["gardées"]) + "."
+            log_action(request, "demo.remove", None, text[:250], notices=summary["notices"])
+            messages.success(request, text)
+        return redirect("core:demo_dataset")
+    return render(request, "core/demo_dataset.html", {"present": jeu_essai.present()})

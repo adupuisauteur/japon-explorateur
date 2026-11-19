@@ -78,6 +78,9 @@ def generate(job):
         job.status = "failed"
         job.error = f"{exc.__class__.__name__} : {exc}"
     job.save()
+    from apps.notifications.services import export_ended  # 2.0.0 (lot 5)
+
+    export_ended(job)
     return job
 
 
@@ -86,7 +89,9 @@ def data_changed_since(job):
         return None
     try:
         return fingerprint(job) != job.data_fingerprint
-    except Exception:
+    except Exception as exc:  # 2.0.0 : prudence (« données modifiées ») mais l'erreur est journalisée
+        logger.warning("Empreinte de l'export %s incalculable (%s : %s) : données considérées comme modifiées.",
+                       job.export_uid, exc.__class__.__name__, exc)
         return True
 
 

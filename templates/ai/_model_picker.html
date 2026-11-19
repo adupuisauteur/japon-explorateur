@@ -1,0 +1,25 @@
+{% if not provider %}
+<div class="form-text">Choisissez d'abord le fournisseur : la liste de ses modèles s'affichera ici.</div>
+{% elif not credential %}
+<div class="form-text">Aucune clé enregistrée pour {{ provider_label }} (<a href="{% url 'ai:providers' %}">IA → Fournisseurs</a>) : saisissez le nom du modèle.</div>
+{% else %}
+{% if local_problem %}
+<div class="small text-warning-emphasis" role="status"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i> {{ local_problem }} Les modèles s'installent dans <a href="{% url 'translation:local_engines' %}#ia-locale">Traduction → Moteurs locaux</a>, section « IA locale ».</div>
+{% endif %}
+{% if models %}
+<select class="form-select form-select-sm" data-model-select="#{{ model_id }}" aria-label="Choisir le modèle {{ provider_label }} dans la liste">
+  <option value="">— Choisir dans la liste ({{ models|length }} modèle{{ models|length|pluralize }} de texte) —</option>
+  {% for m in models %}<option value="{{ m.id }}"{% if m.id == current %} selected{% endif %}>{{ m.id }}{% if m.price %} — {{ m.price }}{% endif %}</option>
+  {% endfor %}<option value="__libre__"{% if current and not listed %} selected{% endif %}>Autre modèle (saisie libre)…</option>
+</select>
+{% elif not local_problem %}
+<div class="form-text">La liste des modèles de {{ provider_label }} est vide : actualisez-la, ou saisissez le nom du modèle.</div>
+{% endif %}
+<div class="form-text">{% if credential.last_tested_at %}Liste du {{ credential.last_tested_at|date:"d/m/Y H:i" }}{% else %}Liste jamais actualisée{% endif %} ·
+  <button type="button" class="btn btn-link btn-sm p-0 align-baseline" hx-post="{% url 'ai:model_refresh' %}" hx-target="#mp-{{ model_id }}"
+          hx-include="#{{ provider_id }}, #{{ model_id }}"
+          hx-vals='{"provider_field": "{{ provider_field }}", "model_field": "{{ model_field }}", "provider_id": "{{ provider_id }}", "model_id": "{{ model_id }}"}'
+          title="{% if provider == 'ollama' %}Relit les modèles installés dans l'IA locale{% else %}Interroge {{ provider_label }} avec votre clé{% endif %}">Actualiser la liste</button>{% if truncated %} · liste limitée aux 2 000 premiers modèles{% endif %}</div>
+{% if error %}<div class="small text-danger" role="alert">{{ error }}</div>{% endif %}
+{% if missing %}<div class="small text-warning-emphasis" role="status"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i> Le modèle « {{ current }} » n'apparaît pas dans la liste de ce fournisseur (retiré, ou nom inexact). Il est conservé tel quel ; vérifiez-le ou choisissez-en un autre.</div>{% endif %}
+{% endif %}

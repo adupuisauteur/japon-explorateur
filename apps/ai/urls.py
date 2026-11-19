@@ -14,4 +14,6 @@ urlpatterns = [
     path("taches/", views.tasks, name="tasks"),
     path("taches/<int:pk>/", views.task_detail, name="task"),
     path("tarifs/", views.prices, name="prices"),
+    path("modeles/choix/", views.model_picker, name="model_picker"),
+    path("modeles/actualiser/", views.model_refresh, name="model_refresh"),
 ]

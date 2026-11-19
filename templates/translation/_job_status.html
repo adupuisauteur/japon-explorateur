@@ -1,0 +1,125 @@
+<div id="job-status" {% if polling %}hx-get="{% url 'translation:job_detail' job.pk %}" hx-trigger="every 2s" hx-swap="outerHTML" data-pause-hidden{% endif %}>
+{% if job.status == 'draft' %}
+  <section class="card-soft mb-3">
+    <h2 class="h5">À confirmer — rien n'a encore été envoyé</h2>
+    {% if summary.summary_job %}
+    <dl class="row mb-2">
+      <dt class="col-sm-4">Résumés</dt><dd class="col-sm-8">{{ job.options.kind|default:"court" }} · langue {{ job.options.language|default:"fr" }} · texte lu : {% if job.options.source == 'translation' %}traduction du document{% else %}original japonais{% endif %}
+        <div class="small text-muted">Chaque résumé porte la mention « généré par IA » ; il n'entre ni dans la mémoire de traduction ni dans les exports de traduction.</div></dd>
+      {% for part in summary.parts %}
+      <dt class="col-sm-4">{% if summary.parts|length > 1 %}{% if part.ancient %}Japonais ancien{% else %}Japonais moderne{% endif %}{% else %}IA{% endif %}</dt>
+      <dd class="col-sm-8">{{ part.job.total_items }} notice(s) ou document(s) · {{ part.engine }} · {{ part.calls }} appel(s)
+        <div class="small">{% if part.cost is not None %}Coût estimé : {{ part.cost|floatformat:4 }} USD{% else %}Coût : non disponible{% endif %} <span class="text-muted">({{ part.basis }})</span></div>
+        {% if part.job.ai_provider == 'ollama' %}<div class="small text-muted">IA locale : aucun texte ne quitte votre ordinateur ; le calcul peut prendre plusieurs minutes par document.</div>{% else %}<div class="small text-muted">Service en ligne : le texte sera envoyé au fournisseur.</div>{% endif %}</dd>
+      {% endfor %}
+      {% if summary.parts|length > 1 %}<dt class="col-sm-4"></dt><dd class="col-sm-8 small text-muted">Les textes repérés comme anciens partent vers l'IA que vous avez choisie pour eux (Traduction → Moteurs) ; les deux parties sont confirmées ensemble.</dd>{% endif %}
+    </dl>
+    {% else %}
+    <dl class="row mb-2">
+      <dt class="col-sm-4">Moteur</dt><dd class="col-sm-8">{{ engine_label }} — <span class="text-{{ summary.status.level }}">{{ summary.status.label }}</span>
+        {% if summary.status.simulated %}<span class="chip chip-warn">Simulation</span>{% endif %}
+        {% if summary.engine.online %}<div class="small text-muted">Service en ligne : le texte sera envoyé au fournisseur.</div>{% else %}<div class="small text-muted">Moteur local : aucun texte ne quitte votre ordinateur.</div>{% endif %}</dd>
+      <dt class="col-sm-4">À envoyer</dt><dd class="col-sm-8">{{ summary.counts.pending }} élément(s), {{ job.chars_estimated }} caractère(s)</dd>
+      <dt class="col-sm-4">Non envoyés</dt><dd class="col-sm-8">{{ summary.counts.validated }} déjà validé(s) · {{ summary.counts.memory }} repris de la mémoire de traduction</dd>
+      <dt class="col-sm-4">Coût estimé</dt><dd class="col-sm-8">{% if summary.cost.amount is not None %}{{ summary.cost.amount|floatformat:4 }} {{ summary.cost.currency }} <span class="small text-muted">(estimation : {{ summary.cost.basis }} ; la facture du fournisseur fait foi)</span>{% else %}<span class="text-muted">Non disponible — {{ summary.cost.basis }}</span>{% endif %}</dd>
+      {% if summary.glossary %}<dt class="col-sm-4">Glossaires</dt><dd class="col-sm-8">{% for g in summary.glossary.refs %}{{ g.name }} (v{{ g.version }}, {% if g.application == 'native' %}appliqué par DeepL{% elif g.application == 'consigne' %}termes présents ajoutés à la consigne de l'IA{% else %}contrôle local{% endif %}){% if not forloop.last %} · {% endif %}{% endfor %}
+        {% for n in summary.glossary.notes %}<div class="small text-muted">{{ n|capfirst }}.</div>{% endfor %}
+        <div class="small text-muted">Contrôle terminologique local après traduction : il signale les écarts sans les corriger.</div></dd>{% endif %}
+      {% if summary.parts %}<dt class="col-sm-4">Japonais ancien</dt><dd class="col-sm-8">
+        {% if summary.parts|length > 1 %}Tâche en deux parties, confirmées ensemble :<ul class="small mb-1">{% for part in summary.parts %}<li><strong>{% if part.ancient %}Japonais ancien{% else %}Japonais moderne{% endif %}</strong> : {{ part.items }} élément(s), {{ part.chars }} caractère(s) → {{ part.engine }}{% if part.cost is not None %} ({{ part.cost|floatformat:4 }} {{ part.currency }}){% endif %}</li>{% endfor %}</ul>
+        {% else %}Tous les textes sont repérés comme anciens : ils partent vers {{ summary.parts.0.engine }}, le moteur choisi pour le japonais ancien.{% endif %}
+        <div class="small text-muted">Choix fait d'avance dans Traduction → Moteurs (« Pour le japonais ancien, utiliser… »). Le repérage est « probable » tant que vous ne l'avez pas confirmé sur la fiche ; corrigez-le si besoin avant de confirmer.</div></dd>{% endif %}
+      {% if summary.quota.character_limit %}<dt class="col-sm-4">Quota lu</dt><dd class="col-sm-8">{{ summary.quota.character_count }} / {{ summary.quota.character_limit }} caractères</dd>{% endif %}
+      {% if job.project %}<dt class="col-sm-4">Projet</dt><dd class="col-sm-8">{{ job.project.title }}{% if job.project.confidential %} <span class="badge text-bg-dark"><i class="bi bi-lock-fill"></i> confidentiel</span>{% endif %}</dd>{% endif %}
+    </dl>
+    {% endif %}
+    {% if summary.problems %}
+      <div class="alert alert-danger"><strong>Envoi impossible :</strong><ul class="mb-0">{% for p in summary.problems %}<li>{{ p }}</li>{% endfor %}</ul></div>
+      {% include "translation/_argos_invite.html" with invite=summary.argos_invite place="tache" %}
+    {% endif %}
+    {% if summary.terms %}{% include "translation/_terms.html" with t=summary.terms %}{% endif %}
+    <form method="post" action="{% url 'translation:job_action' job.pk %}" class="d-flex flex-wrap gap-2 align-items-center">{% csrf_token %}
+      {% if summary.terms %}<div class="form-check w-100"><input class="form-check-input" type="checkbox" name="terms_acknowledged" value="1" id="terms-ack">
+        <label class="form-check-label" for="terms-ack">J'ai pris connaissance de ce résumé des conditions de {{ summary.terms.name }}.</label></div>{% endif %}
+      {% if job.requires_second_confirmation or summary.second_needed %}<div class="form-check w-100"><input class="form-check-input" type="checkbox" name="second_confirmation" value="1" id="second-confirmation">
+        <label class="form-check-label" for="second-confirmation">Je confirme l'envoi de ce volume ({{ job.chars_estimated }} caractères).</label></div>{% endif %}
+      <fieldset class="w-100 mb-1"><legend class="h6 mb-1">Lancement</legend>
+        {% if job.launch == 'now' %}<div class="form-check"><input class="form-check-input" type="radio" name="launch" value="now" id="launch-now" {% if default_launch == 'now' %}checked{% endif %}>
+          <label class="form-check-label" for="launch-now">Maintenant <span class="small text-muted">— passe avant les longues traductions</span></label></div>{% endif %}
+        <div class="form-check"><input class="form-check-input" type="radio" name="launch" value="immediate" id="launch-immediate" {% if default_launch == 'immediate' %}checked{% endif %}>
+          <label class="form-check-label" for="launch-immediate">Immédiat</label></div>
+        <div class="form-check d-flex flex-wrap align-items-center gap-2"><input class="form-check-input" type="radio" name="launch" value="scheduled" id="launch-scheduled" {% if default_launch == 'scheduled' %}checked{% endif %}>
+          <label class="form-check-label" for="launch-scheduled">Programmé le</label>
+          <input type="datetime-local" name="scheduled_for" class="form-control form-control-sm" style="width:auto" aria-label="Date et heure du départ">
+          <span class="small text-muted w-100 ms-4">Si J-ed est arrêté à cette heure-là, la tâche ne part pas d'elle-même : elle vous attendra.</span></div>
+        <div class="form-check"><input class="form-check-input" type="radio" name="launch" value="night" id="launch-night" {% if default_launch == 'night' %}checked{% endif %} {% if not night_window %}disabled{% endif %}>
+          <label class="form-check-label" for="launch-night">File de nuit{% if night_window %} ({{ night_window }}{% if next_night %}, prochaine plage le {{ next_night|date:"d/m à H:i" }}{% endif %}){% endif %}</label>
+          {% if night_window %}<div class="small text-muted">Moteur conseillé : Argos (gratuit, rien ne quitte l'ordinateur). L'ordinateur doit rester allumé, sans mise en veille, avec Docker Desktop démarré. Si J-ed n'est pas en marche au début de la plage, la file attendra votre confirmation.</div>
+          {% else %}<div class="small text-muted">Choisissez d'abord votre plage horaire : <a href="{% url 'translation:engines' %}#file-de-nuit">Traduction → Moteurs</a>.</div>{% endif %}</div>
+      </fieldset>
+      {% if summary.then_summary %}{% with o=summary.then_summary %}
+      <fieldset class="w-100 mb-1"><legend class="h6 mb-1">Résumés IA</legend>
+        <div class="form-check"><input class="form-check-input" type="checkbox" name="then_summary" value="1" id="then-summary" {% if not o.engine %}disabled{% endif %}>
+          <label class="form-check-label" for="then-summary">Résumer aussi {{ o.targets }} notice(s) ou document(s){% if o.engine %} avec {{ o.engine }}{% endif %}</label></div>
+        {% if o.engine %}<div class="d-flex flex-wrap gap-2 align-items-end ms-4">
+          <div><label class="form-label small mb-0" for="then-kind">Type</label><select name="summary_kind" id="then-kind" class="form-select form-select-sm">{% for v, l in o.kinds %}<option value="{{ v }}"{% if v == o.pref.summary_kind %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+          <div><label class="form-label small mb-0" for="then-lang">Langue</label><select name="summary_language" id="then-lang" class="form-select form-select-sm">{% for v, l in o.languages %}<option value="{{ v }}"{% if v == o.pref.summary_language %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+          <div class="small">
+            <div class="form-check"><input class="form-check-input" type="radio" name="summary_mode" value="each" id="then-each" {% if o.forced_all %}disabled{% else %}checked{% endif %}><label class="form-check-label" for="then-each">juste après chaque traduction</label></div>
+            <div class="form-check"><input class="form-check-input" type="radio" name="summary_mode" value="all" id="then-all" {% if o.forced_all %}checked{% endif %}><label class="form-check-label" for="then-all">après l'ensemble des traductions</label></div></div></div>
+        <div class="small text-muted ms-4">{{ o.estimate.calls }} appel(s) ; coût estimé : {% if o.estimate.amount is not None %}{{ o.estimate.amount|floatformat:4 }} USD{% else %}inconnu{% endif %} ({{ o.estimate.basis }}). Les résumés lisent l'original japonais et sont rédigés dans la langue choisie.{% if o.forced_all %} Argos et l'IA locale ne tiennent pas ensemble en mémoire : les résumés passent après l'ensemble des traductions.{% endif %}</div>
+        {% else %}<div class="small text-muted ms-4">Choisissez d'abord une IA pour les résumés : <a href="{% url 'translation:engines' %}#resumes-reglages">Traduction → Moteurs</a>.</div>{% endif %}
+      </fieldset>{% endwith %}{% endif %}
+      <button class="btn btn-primary" name="action" value="confirm" {% if summary.problems %}disabled{% endif %}>Confirmer</button>
+      <button class="btn btn-outline-secondary" name="action" value="cancel">Annuler</button>
+    </form>
+  </section>
+{% else %}
+  <section class="card-soft mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <div><strong>{% if stale %}Interrompue (aucun signe d'activité){% else %}{{ job.status_label }}{% endif %}</strong>
+        <span class="small text-muted">· {{ job.get_launch_display }}{% if job.launch == 'scheduled' and job.scheduled_for %} le {{ job.scheduled_for|date:"d/m/Y à H:i" }}{% elif job.launch == 'night' and night_window %} ({{ night_window }}){% endif %}</span>
+        <span class="text-muted small">· {{ job.done_items }} {{ job.done_word }} / {{ job.total_items }}{% if job.skipped_items %} · {{ job.skipped_items }} non envoyé(s){% endif %}{% if job.failed_items %} · <span class="text-danger">{{ job.failed_items }} échec(s)</span>{% endif %} · {{ job.chars_sent }} {{ job.sent_word }}</span></div>
+      <form method="post" action="{% url 'translation:job_action' job.pk %}" class="d-flex flex-wrap gap-1">{% csrf_token %}
+        {% if job.status == 'confirmed' or job.status == 'running' or job.status == 'scheduled' %}{% if not stale %}<button class="btn btn-sm btn-outline-secondary" name="action" value="pause" title="Après le paquet en cours ; rien n'est renvoyé à la reprise">Mettre en pause</button>{% endif %}{% endif %}
+        {% if stale or job.status == 'failed' or job.status == 'interrupted' or job.status == 'paused' or job.status == 'late' %}<button class="btn btn-sm btn-primary" name="action" value="resume">{% if job.status == 'late' %}Lancer maintenant{% else %}Reprendre maintenant{% endif %}</button>{% endif %}
+        {% if night_window %}{% if job.status == 'paused' or job.status == 'late' or job.status == 'interrupted' %}<button class="btn btn-sm btn-outline-primary" name="action" value="night">Remettre dans la file de nuit</button>{% endif %}{% endif %}
+        {% if job.status == 'confirmed' or job.status == 'running' or job.status == 'scheduled' or job.status == 'paused' or job.status == 'late' or job.status == 'interrupted' %}<button class="btn btn-sm btn-outline-danger" name="action" value="cancel" data-confirm="Annuler cette tâche ? Ce qui est déjà traduit est conservé.">Annuler</button>{% endif %}
+        {% if job.failed_items and job.status != 'running' and job.status != 'confirmed' %}<button class="btn btn-sm btn-outline-primary" name="action" value="retry">Relancer les échecs</button>
+          <button class="btn btn-sm btn-outline-secondary" name="action" value="second" title="Prépare une nouvelle tâche, à confirmer : aucune bascule automatique">Essayer le deuxième moteur…</button>{% endif %}
+      </form>
+    </div>
+    <div class="progress mt-2" role="progressbar" aria-label="Avancement" aria-valuemin="0" aria-valuemax="{{ job.total_items }}" aria-valuenow="{{ job.done_items }}">
+      <div class="progress-bar" style="width:{% widthratio job.done_items|add:job.skipped_items job.total_items 100 %}%"></div></div>
+    {% if job.error_summary %}<div class="alert alert-warning mt-2 mb-0">{{ job.error_summary }}</div>{% endif %}
+    {% if job.status == 'scheduled' or job.status == 'late' or job.status == 'paused' %}
+    <form method="post" action="{% url 'translation:job_action' job.pk %}" class="d-flex flex-wrap gap-2 align-items-center mt-2">{% csrf_token %}
+      <label class="small" for="resched-{{ job.pk }}">{% if job.status == 'late' %}Ou reprogrammer le{% else %}Programmer le{% endif %}</label>
+      <input type="datetime-local" name="scheduled_for" id="resched-{{ job.pk }}" class="form-control form-control-sm" style="width:auto" required>
+      <button class="btn btn-sm btn-outline-secondary" name="action" value="reschedule">Programmer</button></form>{% endif %}
+  </section>
+  {% if report %}
+  <section class="card-soft mb-3"><h2 class="h6">Compte rendu</h2>
+    <p class="small mb-1">{{ report.done }} {{ job.done_word }} · {{ report.failed }} en échec · {{ report.pending }} restant(s){% if report.skipped %} · {{ report.skipped }} non envoyé(s) (déjà validés ou repris de la mémoire){% endif %}.
+      Coût : {% if report.cost.amount is not None %}{% if report.cost.amount %}{{ report.cost.amount|floatformat:4 }} {{ report.cost.currency }} <span class="text-muted">(estimation sur {{ job.chars_sent }} {{ job.sent_word }} ; la facture du fournisseur fait foi)</span>{% else %}aucun{% endif %}{% else %}<span class="text-muted">non disponible — {{ report.cost.basis }}</span>{% endif %}.</p>
+    {% if report.errors %}<p class="small mb-1"><strong>Erreurs :</strong></p><ul class="small mb-1">{% for message, n in report.errors %}<li>{{ message }}{% if n > 1 %} ({{ n }} éléments){% endif %}</li>{% endfor %}</ul>{% endif %}
+    {% if report.links %}<p class="small mb-0"><strong>Résultats :</strong> {% for label, url in report.links %}<a href="{{ url }}">{{ label|truncatechars:40 }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}</p>{% endif %}
+  </section>{% endif %}
+{% endif %}
+{% if user.is_admin_role and bulk %}
+<form method="post" action="{% url 'translation:job_validate_all' job.pk %}" class="card-soft mb-4 d-flex flex-wrap gap-2 align-items-center">{% csrf_token %}
+  <div class="me-auto"><strong>{{ bulk|length }} traduction{{ bulk|length|pluralize }} proposée{{ bulk|length|pluralize }}</strong> à valider dans cette tâche.
+    <div class="small text-muted">Pour chaque champ, la proposition la plus récente est adoptée dans la fiche ; la traduction adoptée précédente redevient proposée.{% if bulk_skipped %} {{ bulk_skipped|length }} écartée{{ bulk_skipped|length|pluralize }} (simulation, original modifié ou proposition plus ancienne).{% endif %}</div></div>
+  <button class="btn btn-sm btn-success" data-confirm="Valider et adopter {{ bulk|length }} traduction{{ bulk|length|pluralize }} dans les fiches ?">Tout valider et adopter</button>
+</form>{% endif %}
+<table class="table table-sm align-middle"><thead><tr><th>#</th><th>Élément</th><th>État</th><th>Résultat</th></tr></thead><tbody>
+{% for item in items %}<tr>
+  <td class="text-muted small">{{ item.position }}</td>
+  <td class="small">{% if item.segment %}Segment {{ item.segment.position }}{% elif item.record %}<a href="{{ item.record.get_absolute_url }}">{{ item.record.original_title|truncatechars:40 }}</a> — {{ item.record_field }}{% else %}<span class="text-muted">élément supprimé</span>{% endif %}</td>
+  <td class="small">{% if item.status == 'skipped' %}{% if item.skip_reason == 'memory' %}Mémoire{% else %}Déjà validé{% endif %}{% elif item.status == 'done' and job.kind == 'summary' %}Résumé{% elif item.status == 'done' and job.kind == 'package' %}Installé{% else %}{{ item.get_status_display }}{% endif %}</td>
+  <td class="small">{% if item.version %}{% if item.version.simulated %}<span class="chip chip-warn">Simulation</span> {% endif %}{{ item.version.text|truncatechars:120 }}{% for a in item.version.alerts %}<div class="text-warning">⚠ {{ a }}</div>{% endfor %}
+    {% elif item.editorial %}{% if item.editorial.data.simulated %}<span class="chip chip-warn">Simulation</span> {% endif %}{{ item.editorial.content|truncatechars:120 }}{% for a in item.editorial.data.alerts %}<div class="text-warning">⚠ {{ a }}</div>{% endfor %}
+    {% elif item.error_message %}<span class="text-danger">{{ item.error_message }}</span>{% endif %}</td>
+</tr>{% endfor %}
+</tbody></table>
+</div>

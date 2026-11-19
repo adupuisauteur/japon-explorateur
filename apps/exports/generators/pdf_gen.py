@@ -1,4 +1,5 @@
 """Export PDF (ReportLab) : police japonaise incorporée, sommaire, signets, liens, en-têtes/pieds paginés."""
+import logging
 import os
 from pathlib import Path
 from xml.sax.saxutils import escape
@@ -16,7 +17,9 @@ from reportlab.platypus import (KeepTogether, PageBreak, Paragraph, SimpleDocTem
                                 TableStyle)
 from reportlab.platypus.tableofcontents import TableOfContents
 
-from .common import citation, fiche_rows, metadata_lines
+from .common import LOGO_RATIO, citation, fiche_rows, logo_file, metadata_lines
+
+logger = logging.getLogger(__name__)
 
 ACCENT = colors.HexColor("#8A2B23")
 MUTED = colors.HexColor("#555B66")
@@ -44,7 +47,9 @@ def font_set():
                 pdfmetrics.registerFont(font)
                 primary, primary_cmap, embedded = "JaponText", _cmap(font), True
                 break
-            except Exception:
+            except Exception as exc:  # 2.0.0 : police configurée mais illisible → signalée, jamais ignorée en silence
+                logger.warning("Police PDF %s illisible (%s : %s) : police suivante essayée.", path,
+                               exc.__class__.__name__, exc)
                 continue
     if primary is None:
         pdfmetrics.registerFont(UnicodeCIDFont("HeiseiMin-W3"))
@@ -56,7 +61,9 @@ def font_set():
                 font = TTFont(f"JaponSecours{i}", path)
                 pdfmetrics.registerFont(font)
                 fallbacks.append((f"JaponSecours{i}", _cmap(font)))
-            except Exception:
+            except Exception as exc:  # 2.0.0 : signalée dans le journal
+                logger.warning("Police PDF de secours %s illisible (%s : %s) : ignorée.", path,
+                               exc.__class__.__name__, exc)
                 continue
     _FONTS = (primary, primary_cmap, fallbacks, embedded)
     return _FONTS
@@ -171,7 +178,14 @@ def generate_pdf(doc, out_dir, basename):
     def link(url):
         return Paragraph(f'<a href="{escape(url)}" color="#1F4E79">{gm.markup(url)}</a>', s["cell"])
 
-    story = [Spacer(1, 5 * cm), para(meta["title"], "title")]
+    logo = logo_file()
+    if logo is not None:  # 2.0.0 (lot 6) : logo de J-ed sur la page de titre
+        from reportlab.platypus import Image as RLImage
+
+        story = [Spacer(1, 2 * cm), RLImage(str(logo), width=3.6 * cm, height=3.6 * cm * LOGO_RATIO),
+                 Spacer(1, 1.2 * cm), para(meta["title"], "title")]
+    else:
+        story = [Spacer(1, 5 * cm), para(meta["title"], "title")]
     if meta.get("subtitle"):
         story.append(para(meta["subtitle"], "subtitle"))
     if meta.get("subject"):
@@ -259,9 +273,15 @@ def generate_pdf(doc, out_dir, basename):
         canvas.setFont(font, 7.5)
         canvas.setFillColor(MUTED)
         gm.draw(canvas, A4[0] - 2 * cm, A4[1] - 1.2 * cm, (meta.get("header") or meta["title"])[:110], 7.5, "right")
+        if logo is not None:  # petit logo à gauche de l'en-tête
+            canvas.drawImage(str(logo), 2 * cm, A4[1] - 1.27 * cm, width=0.75 * cm, height=0.75 * cm * LOGO_RATIO,
+                             mask="auto")
         canvas.setStrokeColor(SOFT)
         canvas.line(2 * cm, A4[1] - 1.35 * cm, A4[0] - 2 * cm, A4[1] - 1.35 * cm)
-        footer = f"{meta.get('footer') or ''}   {meta['export_id']}"
+        if meta.get("footer"):
+            gm.draw(canvas, 2 * cm, 1.45 * cm, meta["footer"][:130], 7.5)
+        # 2.0.0 (U2) : date et heure, application et version, utilisateur, identifiant de l'export.
+        footer = f"{meta.get('production_line') or ''}   {meta['export_id']}".strip()
         gm.draw(canvas, 2 * cm, 1.1 * cm, footer[:130], 7.5)
         canvas.setFont(font, 7.5)
         if opts.get("pagination", True):
@@ -275,6 +295,7 @@ def generate_pdf(doc, out_dir, basename):
     # Le corps a déjà été balisé ; on ajoute l'en-tête et le pied de page, puis la note explicite.
     gm.runs(meta.get("header") or meta["title"])
     gm.runs(meta.get("footer") or "")
+    gm.runs(meta.get("production_line") or "")
     if gm.missing:
         listing = ", ".join(sorted(gm.missing.values()))
         missing_note.__init__(escape(f"Caractères absents des polices disponibles, remplacés par {REPLACEMENT} : {listing}."),

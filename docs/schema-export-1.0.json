@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "japon-explorateur/export/1.0",
-  "title": "Export Japon — Explorateur documentaire",
+  "title": "Export J-ed (anciennement Japon — Explorateur documentaire)",
   "type": "object",
   "required": [
     "schema_version",
@@ -83,6 +83,10 @@
           },
           "notes": {
             "type": "array"
+          },
+          "statuses": {
+            "type": "object",
+            "description": "2.0.0 : notice, document, iiif — value, label, origin, origin_label, checked_at, url, detail"
           },
           "collected_at": {
             "type": "string"

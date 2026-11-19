@@ -24,4 +24,5 @@ class AppSettingsForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = AppSettings
         fields = ["instance_name", "default_search_mode", "temporary_session_days", "backup_enabled",
-                  "backup_retention", "export_default_author", "export_default_header", "export_default_footer"]
+                  "backup_retention", "export_default_author", "export_default_header", "export_default_footer",
+                  "argos_demo_mode", "iiif_viewer_enabled", "iiif_viewer_hosts"]

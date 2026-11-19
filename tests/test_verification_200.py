@@ -1,0 +1,351 @@
+"""2.0.0 — outils de vérification : `manage.py verifier_fonctionnalites` et `verifier-j-ed.ps1`.
+
+La commande est exécutée réellement sur la base de test ; le script PowerShell l'est avec un faux « docker »
+(tests/fixtures/verification) et un petit serveur web local qui joue le rôle de J-ed. Ignoré sans pwsh.
+"""
+import json
+import os
+import shutil
+import subprocess
+import tempfile
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from io import StringIO
+from pathlib import Path
+from unittest import mock
+
+from django.conf import settings
+from django.core.management import CommandError, call_command
+from django.test import SimpleTestCase, TransactionTestCase
+
+from apps.accounts.models import User
+from apps.catalog.models import Catalogue, Record
+from apps.core import verification as V
+from apps.exports.models import ExportJob
+from apps.translation.models import TranslationProject
+
+ROOT = Path(settings.BASE_DIR)
+SCRIPT = ROOT / "verifier-j-ed.ps1"
+FAKE_DOCKER_DIR = ROOT / "tests" / "fixtures" / "verification"
+PWSH = shutil.which("pwsh") or ("/opt/pwsh/pwsh" if Path("/opt/pwsh/pwsh").exists() else None)
+
+
+def replaced(key, func):
+    """La liste CHECKS garde une référence à chaque fonction : on y remplace l'entrée voulue."""
+    return mock.patch.object(V, "CHECKS", [(k, label, func if k == key else f, needs)
+                                           for k, label, f, needs in V.CHECKS])
+
+
+class FeatureCheckTests(TransactionTestCase):
+    """TransactionTestCase : la commande ouvre et annule sa propre transaction, comme sur une vraie base."""
+
+    def setUp(self):
+        call_command("seed_sources", verbosity=0)
+        User.objects.create_user("admin-reel", password="motdepasse-solide-1", role="admin")
+
+    def counts(self):
+        return (Record.objects.count(), User.objects.count(), Catalogue.objects.count(),
+                TranslationProject.objects.count(), ExportJob.objects.count())
+
+    def test_every_feature_check_passes_and_nothing_is_kept(self):
+        before = self.counts()
+        results = {r.key: r for r in V.run()}
+        self.assertEqual(self.counts(), before, "la base n'est pas modifiée")
+        for key in ("japonais", "notices", "doublons", "import", "bibliotheque", "exports", "traduction", "pages",
+                    "droits", "comptes"):
+            with self.subTest(key=key):
+                self.assertEqual(results[key].level, V.OK, f"{results[key].summary} {results[key].details}")
+        self.assertEqual(results["sources"].level, V.SKIPPED, "aucun appel à Internet sans --sources")
+        self.assertEqual(results["taches"].level, V.SKIPPED)  # tests : tâches exécutées immédiatement
+
+    def test_sources_without_online_connector_are_not_failures(self):
+        """16 novembre 2026 (-AvecSources) : « Nichibunken, Tōyō Bunko… : ÉCHEC — ConnectorNotConfigured »."""
+        Catalogue.objects.update(enabled_for_search=False)
+        Catalogue.objects.filter(code="others").update(enabled_for_search=True)
+        ok_source = Catalogue.objects.filter(code="ndl").first()
+        Catalogue.objects.filter(pk=ok_source.pk).update(enabled_for_search=True)
+        fake = mock.Mock()
+        fake.live_test.return_value = (True, "La source répond (fictif).", {})
+        from apps.connectors import registry
+
+        real = registry.get_connector
+        with mock.patch.object(registry, "get_connector",
+                               side_effect=lambda c: fake if c.pk == ok_source.pk else real(c)):
+            level, summary, details = V.check_sources(None)
+        self.assertEqual((level, summary), (V.OK, "1 source(s) en ligne répondent"))
+        self.assertIn("Sans interrogation en ligne (import de fichiers ou source à étudier) : Nichibunken", details[-1])
+
+    def test_a_failing_check_is_reported_and_the_others_still_run(self):
+        with replaced("doublons", mock.Mock(side_effect=RuntimeError("panne fictive"))):
+            results = {r.key: r for r in V.run()}
+        self.assertEqual(results["doublons"].level, V.ERROR)
+        self.assertIn("RuntimeError : panne fictive", results["doublons"].summary)
+        self.assertEqual(results["exports"].level, V.OK)
+
+    def test_dependent_checks_are_skipped_when_the_fictive_record_fails(self):
+        with replaced("notices", mock.Mock(side_effect=RuntimeError("x"))):
+            results = {r.key: r for r in V.run()}
+        self.assertEqual(results["exports"].level, V.SKIPPED)
+        self.assertIn("Notice fictive indisponible", results["exports"].summary)
+
+    def test_command_json_and_exit_code(self):
+        out = StringIO()
+        with replaced("japonais", mock.Mock(return_value=(V.ERROR, "panne fictive", []))):
+            with self.assertRaises(CommandError):
+                call_command("verifier_fonctionnalites", "--json", stdout=out)
+        raw = out.getvalue()
+        self.assertTrue(raw.startswith("<<<JED-JSON\n") and raw.rstrip().endswith("JED-JSON>>>"))  # repères (lot 6)
+        data = json.loads(raw.split("<<<JED-JSON", 1)[1].rsplit("JED-JSON>>>", 1)[0])
+        self.assertEqual(data["version"], settings.APP_VERSION)
+        self.assertEqual(data["etat"], "error")
+        self.assertIn("japonais", [v["cle"] for v in data["verifications"]])
+
+    def test_report_masks_personal_paths(self):
+        results = [V.Result("x", "Essai", V.OK, r"C:\Users\Arnaud\sauvegardes")]
+        self.assertNotIn("Arnaud", V.report_text(results))
+
+
+class _FakeJed(BaseHTTPRequestHandler):
+    health_status = 200
+
+    def do_GET(self):  # noqa: N802
+        if self.path == "/sante/" and self.health_status != 200:
+            self.send_response(self.health_status)
+            self.end_headers()
+            return
+        self.send_response(200)
+        if self.path == "/comptes/connexion/":
+            self.send_header("Content-Security-Policy", "default-src 'self'")
+        self.send_header("Content-Type", "text/html")
+        self.end_headers()
+        self.wfile.write(b"ok")
+
+    def log_message(self, *args):
+        return
+
+
+class VerifyScriptRunTests(SimpleTestCase):
+    def setUp(self):
+        if PWSH is None:
+            self.skipTest("PowerShell (pwsh) absent")
+        self.tmp = Path(tempfile.mkdtemp(prefix="verif-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.install = self.tmp / "installation"
+        self.install.mkdir()
+        (self.install / "docker-compose.yml").write_text("name: x\n")
+        (self.install / "VERSION").write_text("2.0.0\n")
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), _FakeJed)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.addCleanup(self.server.shutdown)
+        self.port = self.server.server_address[1]
+        self.backups = self.tmp / "sauvegardes"
+        self.backups.mkdir()
+        (self.backups / "sauvegarde-20261114-022300-full.tar").write_bytes(b"x" * 10)
+        self.write_env()
+        self.verif = self.tmp / "verif.json"
+        self.verif.write_text(json.dumps({"version": "2.0.0", "etat": "ok", "verifications": [
+            {"cle": "exports", "libelle": "Exports", "niveau": "ok", "resume": "6 formats", "details": []},
+            {"cle": "argos", "libelle": "Argos", "niveau": "skipped", "resume": "non configuré", "details": []}]}),
+            encoding="utf-8")
+
+    def write_env(self, **extra):
+        values = {"COMPOSE_PROJECT_NAME": "jed-essai", "WEB_PORT": str(self.port),
+                  "DJANGO_SECRET_KEY": "x" * 64, "AI_KEYS_ENCRYPTION_KEY": "y" * 44, "POSTGRES_PASSWORD": "z" * 32,
+                  "DOSSIER_SAUVEGARDES": str(self.backups)}
+        values.update(extra)
+        (self.install / ".env").write_text("".join(f"{k}={v}\n" for k, v in values.items()), encoding="utf-8")
+
+    def run_script(self, *extra, **fake):
+        env = dict(os.environ, FAKE_DOCKER_LOG=str(self.tmp / "docker.log"), FAKE_PORT=str(self.port),
+                   FAKE_VERIF_JSON=str(self.verif),
+                   PATH=str(FAKE_DOCKER_DIR) + os.pathsep + os.environ.get("PATH", ""))
+        env.update({f"FAKE_{k.upper()}": str(v) for k, v in fake.items()})
+        result = subprocess.run([PWSH, "-NoProfile", "-NonInteractive", "-File", str(SCRIPT), "-Dossier",
+                                 str(self.install), *extra], capture_output=True, text=True, timeout=300, env=env)
+        self.report = next(self.tmp.glob("verification-j-ed-*.txt"), None)
+        return result
+
+    def test_healthy_installation(self):
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for expected in ("[OK] Nom de l'installation : « jed-essai »", "[OK] Mots de passe techniques",
+                         "[OK] Conteneurs : en service", "[OK] Port publié", "[OK] Volumes de données",
+                         "[OK] Page de connexion : répond", "[OK] Exports : 6 formats", "[OK] Dossier des sauvegardes"):
+            self.assertIn(expected, result.stdout)
+        self.assertIsNotNone(self.report)
+        self.assertNotIn("x" * 64, self.report.read_text(encoding="utf-8-sig"), "aucun secret dans le rapport")
+
+    def test_health_address(self):
+        result = self.run_script()
+        self.assertIn("[OK] Contrôle de santé : le serveur répond et la base est joignable", result.stdout)
+        for status, expected in ((404, "[Non vérifié] Contrôle de santé : adresse /sante/ absente"),
+                                 (503, "[Problème] Contrôle de santé : le serveur répond, mais la base de données "
+                                       "est injoignable")):
+            _FakeJed.health_status = status
+            try:
+                result = self.run_script()
+            finally:
+                _FakeJed.health_status = 200
+            self.assertIn(expected, result.stdout)
+
+    def test_problems_are_reported_with_exit_code_1(self):
+        self.write_env(DJANGO_SECRET_KEY="à-remplacer", COMPOSE_PROJECT_NAME="japon-explorateur-essai")
+        result = self.run_script(beat_down=1)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("[Problème] Mots de passe techniques : à renseigner dans .env : DJANGO_SECRET_KEY", result.stdout)
+        self.assertIn("AUTORISER_NOM_PROJET=japon-explorateur-essai manque", result.stdout)
+        self.assertIn("[Problème] Conteneurs : arrêtés : beat", result.stdout)
+
+    def test_argos_running_without_the_profile_line_is_flagged(self):
+        """15 novembre 2026, poste de l'utilisateur : Argos en service mais « non activé » d'après .env."""
+        result = self.run_script(argos=1)
+        self.assertIn("[À surveiller] Argos : en service, mais COMPOSE_PROFILES=argos manque dans .env",
+                      result.stdout)
+
+    def test_argos_is_standard_since_200(self):
+        """Lot 7 : sans la ligne, Argos est signalé ; ligne vide = désactivé volontairement ; ligne présente =
+        conteneur attendu."""
+        result = self.run_script()
+        self.assertIn("[À surveiller] Argos : non démarré : la ligne COMPOSE_PROFILES=argos manque dans .env",
+                      result.stdout)
+        self.write_env(COMPOSE_PROFILES="")
+        self.assertIn("[Non vérifié] Argos : désactivé volontairement", self.run_script().stdout)
+        for value in ("argos", "hors-ligne"):
+            self.write_env(COMPOSE_PROFILES=value)
+            result = self.run_script()
+            self.assertIn("[Problème] Conteneurs : arrêtés : argos", result.stdout)
+            self.assertIn("[OK] Conteneurs : en service", self.run_script(argos=1).stdout)
+
+    def test_local_ai_is_optional(self):
+        """Lot 4 : l'IA locale n'est jamais attendue par défaut ; avec le profil « ollama », son conteneur l'est."""
+        self.write_env(COMPOSE_PROFILES="argos")
+        result = self.run_script(argos=1)
+        self.assertIn("[Non vérifié] IA locale : non installée (facultative", result.stdout)
+        self.assertIn("[OK] Conteneurs : en service", result.stdout)
+        self.assertIn("[À surveiller] IA locale : en service, mais « ollama » manque",
+                      self.run_script(argos=1, ollama=1).stdout)
+        self.write_env(COMPOSE_PROFILES="argos,ollama")
+        self.assertIn("[Problème] Conteneurs : arrêtés : ollama", self.run_script(argos=1).stdout)
+        result = self.run_script(argos=1, ollama=1)
+        self.assertIn("[OK] Conteneurs : en service", result.stdout)
+        self.assertIn("[OK] IA locale : service Ollama démarré", result.stdout)
+
+    def test_duplicate_env_line_is_flagged_and_the_last_one_counts(self):
+        """16 novembre 2026, poste de l'utilisateur : « argos,ollama » puis, plus bas, « hors-ligne »."""
+        self.write_env(COMPOSE_PROFILES="argos,ollama")
+        with (self.install / ".env").open("a", encoding="utf-8") as env:
+            env.write("# Ajouté plus tard\nCOMPOSE_PROFILES=hors-ligne\n")
+        result = self.run_script(argos=1)
+        self.assertIn("[À surveiller] Fichier .env : la ligne COMPOSE_PROFILES= figure 2 fois : seule la dernière "
+                      "compte", result.stdout)
+        self.assertIn("Valeur retenue par Docker : COMPOSE_PROFILES=hors-ligne", result.stdout)
+        self.assertIn("[Non vérifié] IA locale : non installée", result.stdout)  # comme Docker : ollama absent
+
+    def test_json_survives_noise_and_unreadable_reply_is_explained(self):
+        """16 novembre 2026, poste de l'utilisateur : « Vérification dans l'application : impossible à lancer »,
+        sans cause affichée. Le JSON est maintenant encadré de repères ; ce qui l'entoure ne le gêne plus."""
+        body = self.verif.read_text(encoding="utf-8")
+        self.verif.write_text("Avertissement {bruit} avant\n<<<JED-JSON\n" + body + "\nJED-JSON>>>\nfin {bruit}\n",
+                              encoding="utf-8")
+        result = self.run_script()
+        self.assertNotIn("Vérification dans l'application", result.stdout)
+        self.verif.write_text("<<<JED-JSON\n{\"version\": \"2.0.0\", \"verif\nJED-JSON>>>\n", encoding="utf-8")
+        result = self.run_script()
+        self.assertIn("[Problème] Vérification dans l'application : réponse illisible", result.stdout)
+        self.assertIn("Cause : ", result.stdout)
+        self.assertIn("Début : <<<JED-JSON", result.stdout)
+
+    def test_docker_not_running(self):
+        result = self.run_script(docker_info=1)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Docker Desktop : ne répond pas", result.stdout)
+
+    def test_tests_option_runs_the_suite_in_the_container(self):
+        result = self.run_script("-AvecTests")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("[OK] Tests automatiques : 440 tests réussis", result.stdout)
+
+    def test_script_file_is_ready_for_windows_powershell_51(self):
+        raw = SCRIPT.read_bytes()
+        self.assertTrue(raw.startswith(b"\xef\xbb\xbf"))
+        self.assertNotIn(b"\n", raw.replace(b"\r\n", b""))
+        text = raw.decode("utf-8-sig")
+        self.assertLess(text.index("[Console]::OutputEncoding = [System.Text.Encoding]::UTF8"),
+                        text.index("Docker-Ici @('info'"))
+        self.assertNotIn("down -v", text)
+        self.assertNotIn("JaponEssai", text)
+
+
+class TestIsolationTests(SimpleTestCase):
+    """15 novembre 2026 : « verifier-j-ed.ps1 -AvecTests » lance les tests dans le conteneur de l'installation.
+    Ils ne doivent toucher ni à ses dossiers (sauvegardes copiées dans Windows), ni à sa file de tâches, ni à
+    ses services (Argos), quelles que soient les variables d'environnement du conteneur."""
+
+    def test_settings_isolate_the_installation(self):
+        import tempfile
+
+        from django.conf import settings
+
+        self.assertEqual(settings.BACKUP_EXTERNAL_DIR, "")
+        self.assertEqual(settings.BACKUP_EXTERNAL_HOST_DIR, "")
+        self.assertEqual(settings.CELERY_BROKER_URL, "")
+        self.assertTrue(settings.CELERY_TASK_ALWAYS_EAGER)
+        self.assertEqual(settings.TRANSLATION_ARGOS_URL, "")
+        self.assertEqual(settings.CINII_APPID, "")
+        self.assertIn("LocMemCache", settings.CACHES["default"]["BACKEND"])
+        self.assertTrue(str(settings.DATA_DIR).startswith(tempfile.gettempdir()))
+        self.assertTrue(str(settings.TRANSLATION_ARGOS_DEPOT_DIR).startswith(str(settings.DATA_DIR)))
+
+
+class JapanSearchWithoutDatabaseTests(TransactionTestCase):
+    """16 novembre 2026 : Waseda relié à Japan Search sans base renvoyait tout le portail."""
+
+    def test_refused_with_a_clear_message(self):
+        from apps.connectors.registry import get_connector
+
+        call_command("seed_sources", verbosity=0)
+        waseda = Catalogue.objects.get(code="waseda")
+        waseda.connector, waseda.config = "japansearch", {}
+        waseda.save()
+        ok, message, _ = get_connector(waseda).test()
+        self.assertFalse(ok)
+        # Recette rc1 : pour Waseda, le remède proposé est le connecteur dédié.
+        self.assertIn("Waseda Kotenseki (via NDL Search)", message)
+        other = Catalogue.objects.create(code="essai-jps", name="Essai Japan Search", connector="japansearch",
+                                         config={})
+        ok, message, _ = get_connector(other).test()
+        self.assertFalse(ok)
+        self.assertIn("passe par Japan Search sans identifiant de base", message)
+        archives = Catalogue.objects.filter(connector="japansearch").exclude(code__in=["japansearch", "waseda"]).first()
+        self.assertTrue(archives.config.get("database"))  # Archives nationales : base « najda », non concernée
+
+
+
+class LiveTestBypassesCacheTests(TransactionTestCase):
+    """Recette rc1 (17 novembre 2026) : « répond (0 ms) » — l'essai -AvecSources lisait le cache HTTP."""
+
+    def test_live_test_ignores_cached_response(self):
+        import httpx
+        from django.core.cache import cache
+
+        from apps.catalog.models import Catalogue
+        from apps.connectors import http as H
+
+        catalogue = Catalogue.objects.create(code="essai-cache", name="Essai cache", connector="ndl")
+        client = H.ConnectorHTTP(catalogue)
+        url, params = "https://exemple.invalid/api", {"q": "x"}
+        cache.clear()
+        cache.set(H.cache_key(url, params) if hasattr(H, "cache_key") else
+                  "conn:" + __import__("hashlib").sha256(json.dumps([url, params], sort_keys=True,
+                                                                     default=str).encode()).hexdigest(),
+                  {"status": 200, "text": "{}"}, 60)
+        failing = mock.patch.object(httpx.Client, "get", side_effect=httpx.ConnectError("injoignable (fictif)"))
+        with failing as sent:
+            # Lecture ordinaire : le cache répond, aucun appel réseau.
+            self.assertEqual(client.get(url, params, retries=0)["status"], 200)
+            self.assertEqual(sent.call_count, 0)
+            # Essai réel : la source est interrogée, et son échec n'est pas masqué par le cache.
+            with H.live_requests(), self.assertRaises(H.ConnectorError):
+                client.get(url, params, retries=0)
+            self.assertEqual(sent.call_count, 1)
+        self.assertFalse(H.bypass_cache.get())

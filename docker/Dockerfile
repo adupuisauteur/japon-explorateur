@@ -18,9 +18,11 @@ RUN pip install -r requirements.txt
 COPY . .
 RUN chmod +x docker/entrypoint.sh \
  && useradd --create-home --uid 1000 japon \
- && mkdir -p /data && chown -R japon:japon /data /app
+ && mkdir -p /data /argos-depot /backups-externes \
+ && chown -R japon:japon /data /app /argos-depot /backups-externes
 
 USER japon
 EXPOSE 8000
 ENTRYPOINT ["docker/entrypoint.sh"]
-CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3", "--timeout", "180", "--access-logfile", "-"]
+# 2.0.0 (lot 3) : adresse, délai et nombre de processus dans config/gunicorn.conf.py (profil de machine).
+CMD ["gunicorn", "config.wsgi:application", "-c", "config/gunicorn.conf.py"]

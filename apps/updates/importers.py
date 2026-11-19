@@ -6,12 +6,16 @@ import csv
 import hashlib
 import io
 import json
+import logging
 import re
 from collections import Counter
 
 from lxml import etree
 
 from apps.core import japanese as jp
+from apps.core.encoding import decode_text  # noqa: F401  (déplacée en 1.3.0 ; nom conservé ici)
+
+logger = logging.getLogger(__name__)
 
 # --------------------------------------------------------------------------- synonymes de colonnes
 
@@ -112,7 +116,8 @@ def unknown_columns(columns, mapping):
     used = set()
     for v in mapping.values():
         used.update(v if isinstance(v, list) else [v])
-    return [c for c in columns if c not in used]
+    # 2.0.0 (lot 2) : les statuts d'un export J-ed sont recalculés à l'import, ce ne sont pas des colonnes perdues.
+    return [c for c in columns if c not in used and not c.startswith("statuses.")]
 
 
 # --------------------------------------------------------------------------- détection et lecture
@@ -129,8 +134,9 @@ def detect_format(filename, head):
             text = head.decode("utf-8-sig", errors="ignore")
             if '"schema_version"' in text and '"export_metadata"' in text:
                 return "json_export"
-        except Exception:
-            pass
+        except Exception as exc:  # 2.0.0 : journalisé ; le fichier est alors traité comme du JSON ordinaire
+            logger.warning("Détection d'un export J-ed impossible (%s : %s) : lecture comme JSON ordinaire.",
+                           exc.__class__.__name__, exc)
         return "json"
     if name.endswith((".xml", ".marcxml")):
         text = head.decode("utf-8", errors="ignore")
@@ -142,13 +148,7 @@ def detect_format(filename, head):
     return "csv"
 
 
-def decode_text(raw):
-    for enc in ("utf-8-sig", "cp932", "euc_jp", "utf-16"):
-        try:
-            return raw.decode(enc), enc
-        except UnicodeDecodeError:
-            continue
-    return raw.decode("latin-1"), "latin-1"
+# decode_text : déplacée dans apps/core/encoding.py (1.3.0), importée ci-dessus sous le même nom.
 
 
 def read_rows(path, fmt, *, delimiter="", sheet_name=""):

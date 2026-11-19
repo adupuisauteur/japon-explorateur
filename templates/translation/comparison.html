@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}{{ label }} — Évaluation{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item"><a href="{% url 'translation:evaluation' %}">Évaluation</a></li><li class="breadcrumb-item active">{{ label }}</li></ol></nav>{% endblock %}
+{% block content %}
+<div id="comparaison" {% if running %}hx-get="{{ url }}" hx-trigger="every 3s" data-pause-hidden hx-select="#comparaison" hx-swap="outerHTML"{% endif %}>
+<h1 class="h3">{{ label }}</h1>
+{% if drafts %}
+<section class="card-soft mb-3"><h2 class="h5">Confirmation du coût — rien n'a encore été envoyé</h2>
+<table class="table table-sm align-middle"><thead><tr><th>Moteur</th><th>Segments</th><th>Caractères</th><th>Coût estimé</th><th>Envoi</th></tr></thead><tbody>
+{% for job, s, name in drafts %}<tr><td>{{ name }}{% if s.status.simulated %} <span class="chip chip-warn">Simulation</span>{% endif %}<div class="small text-muted">{% if s.engine.online %}service en ligne : le texte sera envoyé{% else %}moteur local{% endif %}</div></td>
+  <td>{{ s.counts.pending }}</td><td>{{ job.chars_estimated }}</td>
+  <td class="small">{% if not s.engine.online %}gratuit (moteur local){% elif s.cost.amount is not None %}≈ {{ s.cost.amount|floatformat:4 }} {{ s.cost.currency }} <span class="text-muted">({{ s.cost.basis }})</span>{% else %}<span class="text-muted">non disponible — {{ s.cost.basis }}</span>{% endif %}</td>
+  <td class="small">{% if s.problems %}<span class="text-danger">{{ s.problems|join:" " }}</span>{% else %}<span class="text-success">possible</span>{% endif %}</td></tr>{% endfor %}
+</tbody></table>
+<p class="small text-muted">Montants estimés ; la facture du fournisseur fait foi.</p>
+{% for t in terms %}{% include "translation/_terms.html" with t=t %}{% endfor %}
+<form method="post" action="{% url 'translation:comparison_action' project.pk %}" class="d-flex flex-wrap gap-2 align-items-center">{% csrf_token %}<input type="hidden" name="c" value="{{ label }}">
+  {% if terms %}<div class="form-check w-100"><input class="form-check-input" type="checkbox" name="terms_acknowledged" value="1" id="terms-ack"><label class="form-check-label" for="terms-ack">J'ai pris connaissance des résumés ci-dessus.</label></div>{% endif %}
+  {% if needs_second %}<div class="form-check"><input class="form-check-input" type="checkbox" name="second_confirmation" value="1" id="second"><label class="form-check-label" for="second">Volume important : je confirme une seconde fois l'envoi</label></div>{% endif %}
+  <button class="btn btn-primary" name="action" value="confirm">Confirmer et lancer</button>
+  <button class="btn btn-outline-secondary" name="action" value="cancel">Annuler</button></form>
+</section>
+{% endif %}
+
+<section class="mb-3"><h2 class="h5">Vos notes</h2>
+<p class="small text-muted">Répartition des appréciations que <strong>vous</strong> avez données. Aucun score automatique n'est calculé : seule votre lecture juge la qualité.</p>
+<table class="table table-sm" style="max-width:900px"><thead><tr><th>Moteur</th><th>État</th>{% for code, name in ratings %}<th>{{ name }}</th>{% endfor %}<th>Non notées</th></tr></thead><tbody>
+{% for s in summary %}<tr><td>{{ s.label }}</td><td class="small">{{ s.job.get_status_display }}{% if s.job.status != 'draft' %} ({{ s.job.done_items }}/{{ s.job.total_items }}){% endif %}</td>
+  {% for code, name, n in s.counts %}<td>{{ n }}</td>{% endfor %}<td>{{ s.unrated }}</td></tr>{% endfor %}
+</tbody></table></section>
+
+<h2 class="h5">Segments</h2>
+<table class="table table-sm align-top"><thead><tr><th style="width:22%">Original</th>{% for job, name in columns %}<th>{{ name }}</th>{% endfor %}</tr></thead><tbody>
+{% for segment, items in rows %}<tr id="s-{{ segment.pk }}"><td lang="{{ project.source_lang }}" style="white-space:pre-wrap">{{ segment.source_text }}</td>
+  {% for item in items %}<td>{% if item.version %}{% with v=item.version %}
+    <div style="white-space:pre-wrap">{{ v.text }}</div>{% if v.simulated %}<span class="chip chip-warn">Simulation</span>{% endif %}
+    {% for a in v.alerts %}<div class="small text-warning">⚠ {{ a }}</div>{% endfor %}
+    <form method="post" action="{% url 'translation:version_rate' v.pk %}" class="mt-1">{% csrf_token %}<input type="hidden" name="next" value="{{ url }}#s-{{ segment.pk }}">
+      <select name="rating" class="form-select form-select-sm mb-1" aria-label="Appréciation"><option value="">— non notée —</option>{% for code, name in ratings %}<option value="{{ code }}" {% if v.rating == code %}selected{% endif %}>{{ name }}</option>{% endfor %}</select>
+      <input name="comment" value="{{ v.rating_comment }}" class="form-control form-control-sm mb-1" placeholder="Commentaire" aria-label="Commentaire">
+      <button class="btn btn-sm btn-outline-secondary py-0">Noter</button></form>{% endwith %}
+  {% elif item %}<span class="small text-muted">{{ item.get_status_display }}{% if item.error_message %} — {{ item.error_message }}{% endif %}</span>{% endif %}</td>{% endfor %}</tr>{% endfor %}
+</tbody></table>
+</div>
+{% endblock %}

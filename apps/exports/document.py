@@ -10,7 +10,8 @@ from django.conf import settings
 from django.db.models import Max, Min
 from django.utils import timezone
 
-from apps.catalog.models import DIGITAL_ACCESS, DOCUMENT_TYPES, MATERIAL_TYPES, PERIODS, RECORD_SOURCE_FIELDS, Record
+from apps.catalog.models import (DIGITAL_ACCESS, DOCUMENT_TYPES, GENERATED_ORIGINS, MATERIAL_TYPES, PERIODS,
+                                 RECORD_SOURCE_FIELDS, Record)
 
 PERIOD_LABELS = dict(PERIODS)
 DOC_LABELS = dict(DOCUMENT_TYPES)
@@ -20,16 +21,17 @@ ACCESS_LABELS = dict(DIGITAL_ACCESS)
 COLUMN_PROFILES = {
     "bibliography": ["record_id", "catalogue_code", "source_id", "original_title", "reading", "translated_title",
                      "creator_original", "composition_date_text", "copy_date_text", "holding_institution_text",
-                     "shelfmark", "source_url", "collected_at"],
+                     "shelfmark", "source_url", "status_notice", "status_document", "status_iiif", "collected_at"],
     "historical": ["record_id", "original_title", "reading", "translated_title", "creator_original", "period",
                    "composition_date_text", "composition_year_start", "composition_year_end",
                    "composition_date_precision", "copy_date_text", "copy_year_start", "copy_year_end",
                    "copy_date_precision", "document_type", "material_type", "place_original",
-                   "holding_institution_text", "source_url"],
+                   "holding_institution_text", "source_url", "status_notice", "status_document", "status_iiif"],
     "generic": ["record_id", "catalogue_code", "record_version"] + RECORD_SOURCE_FIELDS + ["collected_at"],
     "inventory": ["record_id", "catalogue_code", "catalogue_name", "record_version", "record_status"]
                  + RECORD_SOURCE_FIELDS + ["period", "document_type", "material_type", "title_romaji",
-                                           "translated_title_origin", "collected_at", "dataset_label"],
+                                           "translated_title_origin", "status_notice", "status_document",
+                                           "status_iiif", "collected_at", "dataset_label"],
 }
 
 COLUMN_DOC = {
@@ -74,6 +76,11 @@ COLUMN_DOC = {
     "title_romaji": ("texte", "Rōmaji automatique (lecture non vérifiée)."),
     "collected_at": ("date ISO 8601", "Date et heure de collecte."),
     "dataset_label": ("texte", "Jeu de données d'origine (import)."),
+    # 2.0.0 (lot 2) : trois statuts indépendants (détail, origine et date dans l'export JSON, clé « statuses »).
+    "status_notice": ("valeur contrôlée", "Notice disponible en ligne chez la source : oui, non, non_verifie."),
+    "status_document": ("valeur contrôlée", "Document (images ou texte) consultable en ligne par tous : oui, non, "
+                                            "non_verifie."),
+    "status_iiif": ("valeur contrôlée", "Manifeste IIIF : absent, identifie, verifie, echec, non_verifie."),
 }
 
 
@@ -89,7 +96,26 @@ class ExportDocument:
     options: dict = field(default_factory=dict)
 
 
-def _record_dict(record, *, include_ai, include_notes, user, collection_item=None):
+def _statuses(record):
+    """2.0.0 (lot 2) : les trois statuts indépendants de la notice, pour tous les formats d'export."""
+    from apps.catalog.statuses import KIND_LABELS, KINDS, LABELS, ORIGIN_LABELS
+
+    rows = record.status_map
+    detail, flat, parts = {}, {}, []
+    for kind in KINDS:
+        s = rows.get(kind)
+        value = getattr(s, "value", "") or "non_verifie"
+        checked = getattr(s, "checked_at", None)
+        detail[kind] = {"value": value, "label": LABELS.get(value, value), "origin": getattr(s, "origin", "") or "",
+                        "origin_label": ORIGIN_LABELS.get(getattr(s, "origin", "") or "", ""),
+                        "checked_at": checked.isoformat() if checked else "", "url": getattr(s, "url", "") or "",
+                        "detail": getattr(s, "detail", "") or ""}
+        flat[f"status_{kind}"] = value
+        parts.append(f"{KIND_LABELS[kind]} : {LABELS.get(value, value)}")
+    return {"statuses": detail, **flat, "availability_label": " · ".join(parts)}
+
+
+def _record_dict(record, *, include_ai, include_notes, user, collection_item=None, include_summaries=False):
     d = {f: getattr(record, f) for f in RECORD_SOURCE_FIELDS}
     d.update({
         "record_id": record.record_id,
@@ -104,6 +130,7 @@ def _record_dict(record, *, include_ai, include_notes, user, collection_item=Non
         "material_type": record.material_type,
         "material_type_label": MATERIAL_LABELS.get(record.material_type, "") if record.material_type else "",
         "digital_access_label": ACCESS_LABELS.get(record.digital_access, "") if record.digital_access else "",
+        **_statuses(record),
         "title_romaji": record.title_romaji,
         "translated_title_origin": record.translated_title_origin,
         "description_translation_origin": record.description_translation_origin,
@@ -116,18 +143,30 @@ def _record_dict(record, *, include_ai, include_notes, user, collection_item=Non
         "collection_note": collection_item.note if collection_item else "",
     })
     if not include_ai:
-        if record.translated_title_origin == "ai":
+        if record.translated_title_origin in GENERATED_ORIGINS:
             d["translated_title"] = ""
-        if record.description_translation_origin == "ai":
+        if record.description_translation_origin in GENERATED_ORIGINS:
             d["description_translation"] = ""
     for ed in record.editorial.exclude(status="rejected"):
-        if ed.origin == "ai" and not include_ai:
+        if ed.origin in GENERATED_ORIGINS and not include_ai:
             continue
         d["editorial"].append({"kind": ed.get_kind_display(), "kind_code": ed.kind, "content": ed.content,
                                "origin": ed.get_origin_display(), "origin_code": ed.origin,
                                "status": ed.get_status_display(), "target_field": ed.target_field,
                                "ai_model": f"{ed.ai_task.provider}/{ed.ai_task.model}" if ed.ai_task_id else "",
                                "created_at": ed.created_at.isoformat()})
+    if include_summaries:  # 2.0.0 (lot 4) : résumés IA, seulement sur demande, toujours marqués « généré par IA »
+        from apps.translation.summaries import latest_for
+
+        for s in latest_for(record=record):
+            if s.document_id:
+                continue  # résumé d'un document de projet : il peut être confidentiel, il reste dans le projet
+            d["editorial"].append({
+                "kind": f"Résumé IA — {s.get_kind_display().lower()} ({s.get_language_display().lower()})",
+                "kind_code": "ai_summary", "content": s.content + (f"\n(Limites : {s.data['limits']})"
+                                                                 if s.data.get("limits") else ""),
+                "origin": "Généré par IA", "origin_code": "ai", "status": "Non vérifié", "target_field": "",
+                "ai_model": f"{s.provider}/{s.model}", "created_at": s.created_at.isoformat()})
     if include_notes:
         from apps.library.models import Annotation
 
@@ -148,7 +187,7 @@ def resolve_records(job):
     if job.scope == "collection":
         collection = Collection.objects.get(pk=p["collection_id"])
         sections = []
-        items = collection.items.select_related("record__catalogue", "section")
+        items = collection.items.select_related("record__catalogue", "section").prefetch_related("record__statuses")
         by_section = {}
         for item in items:
             by_section.setdefault(item.section_id, []).append((item.record, item))
@@ -167,7 +206,8 @@ def resolve_records(job):
         records = [r.integrated_record or r.local_record for r in which if (r.integrated_record or r.local_record)]
         counts["not_integrated"] = which.count() - len(records)
     elif job.scope == "library":
-        qs = LibraryEntry.objects.filter(user=job.owner).select_related("record__catalogue")
+        qs = LibraryEntry.objects.filter(user=job.owner).select_related("record__catalogue").prefetch_related(
+            "record__statuses")
         if p.get("tag"):
             qs = qs.filter(tags__name=p["tag"])
         if p.get("favorites"):
@@ -176,20 +216,33 @@ def resolve_records(job):
     else:
         ids = p.get("record_ids") or []
         order = {rid: i for i, rid in enumerate(ids)}
-        records = sorted(Record.objects.filter(record_id__in=ids).select_related("catalogue"),
+        records = sorted(Record.objects.filter(record_id__in=ids).select_related("catalogue")
+                         .prefetch_related("statuses"),
                          key=lambda r: order.get(r.record_id, 0))
     counts["exported"] = len(records)
     return [("Références", "", [(r, None) for r in records])], counts, None
+
+
+def production_line(meta):
+    """Ligne du bas de page (demande U2) : date et heure de production, application et version, utilisateur."""
+    date, _, time = meta["generated_at_display"].partition(" ")
+    parts = [f"Produit le {date} à {time}", f"{meta['application']} {meta['application_version']}"]
+    if meta.get("produced_by"):
+        parts.append(f"par {meta['produced_by']}")
+    return " · ".join(parts)
 
 
 def build_document(job):
     opts = job.options or {}
     include_ai = bool(opts.get("include_ai", True))
     include_notes = bool(opts.get("include_notes", True))
+    # 2.0.0 (lot 4) : décoché par défaut ; jamais si les contenus générés sont exclus
+    include_summaries = include_ai and bool(opts.get("include_summaries", False))
     sections_raw, counts, collection = resolve_records(job)
     sections, flat = [], []
     for title, description, items in sections_raw:
-        recs = [_record_dict(r, include_ai=include_ai, include_notes=include_notes, user=job.owner, collection_item=i)
+        recs = [_record_dict(r, include_ai=include_ai, include_notes=include_notes, user=job.owner, collection_item=i,
+                             include_summaries=include_summaries)
                 for r, i in items]
         sections.append({"title": title, "description": description, "records": recs})
         flat.extend(recs)
@@ -208,8 +261,9 @@ def build_document(job):
             "snapshot_date": row["catalogue__snapshot_date"].isoformat() if row["catalogue__snapshot_date"] else None,
             "is_snapshot": row["catalogue__is_snapshot"],
         })
-    has_ai = any(r["translated_title_origin"] == "ai" or r["description_translation_origin"] == "ai"
-                 or any(e["origin_code"] == "ai" for e in r["editorial"]) for r in flat)
+    # « contains_ai_content » : nom de clé inchangé (compatibilité) ; couvre aussi la traduction automatique (1.3.0).
+    has_ai = any(r["translated_title_origin"] in GENERATED_ORIGINS or r["description_translation_origin"] in GENERATED_ORIGINS
+                 or any(e["origin_code"] in GENERATED_ORIGINS for e in r["editorial"]) for r in flat)
     restrictions = sorted({r["rights_and_access"] for r in flat if r["rights_and_access"]})
     now = job.generated_at or timezone.now()
     metadata = {
@@ -220,7 +274,7 @@ def build_document(job):
         "author": job.author,
         "generated_at": now.isoformat(),
         "generated_at_display": timezone.localtime(now).strftime("%d/%m/%Y %H:%M"),
-        "application": "Japon — Explorateur documentaire",
+        "application": settings.APP_NAME,
         "application_version": settings.APP_VERSION,
         "schema_version": settings.DATA_SCHEMA_VERSION,
         "format": job.format,
@@ -232,10 +286,14 @@ def build_document(job):
         "records": [{"record_id": r["record_id"], "version": r["record_version"]} for r in flat],
         "contains_ai_content": has_ai,
         "ai_content_included": include_ai,
+        "ai_summaries_included": include_summaries,
         "restrictions": restrictions,
         "header": job.header_text,
         "footer": job.footer_text,
+        # 2.0.0 (demande U2) : identifiant de connexion de l'auteur de l'export, sauf s'il a choisi de le masquer.
+        "produced_by": "" if opts.get("hide_user") else job.owner.get_username(),
     }
+    metadata["production_line"] = production_line(metadata)
     creators = sorted({r["creator_original"] for r in flat if r["creator_original"]})
     places = sorted({p for r in flat for p in (r["place_original"], r["holding_institution_text"]) if p})
     return ExportDocument(

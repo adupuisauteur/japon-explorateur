@@ -4,7 +4,10 @@ comparaison avec l'existant, détection prudente des doublons.
 """
 import difflib
 
-from django.db import transaction
+from django.conf import settings
+
+from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from apps.core import japanese as jp
@@ -115,18 +118,24 @@ def upsert_record(catalogue, data, *, raw=None, raw_format="", origin="import", 
     now = collected_at or timezone.now()
 
     if existing is None:
-        record = build_unsaved_record(catalogue, clean, raw, raw_format)
-        record.collected_at = now
-        record.dataset_label = dataset_label
-        record.created_by = user
-        record.record_hash = ""
-        record.save()
-        record.record_hash = record.compute_hash()
-        record.save(update_fields=["record_hash"])
-        RecordVersion.objects.create(record=record, version=1, change_type="created", origin=origin,
-                                     snapshot=record.source_snapshot(), record_hash=record.record_hash,
-                                     created_by=user, note=note)
-        return record, "created"
+        try:
+            with transaction.atomic():  # point de reprise : une création concurrente ne casse pas la transaction
+                record = build_unsaved_record(catalogue, clean, raw, raw_format)
+                record.collected_at = now
+                record.dataset_label = dataset_label
+                record.created_by = user
+                record.record_hash = ""
+                record.save()
+                record.record_hash = record.compute_hash()
+                record.save(update_fields=["record_hash"])
+                RecordVersion.objects.create(record=record, version=1, change_type="created", origin=origin,
+                                             snapshot=record.source_snapshot(), record_hash=record.record_hash,
+                                             created_by=user, note=note)
+            return record, "created"
+        except IntegrityError:
+            # 2.0.0 (lot 10, incident du 16/11/2026) : la même notice vient d'être créée par une autre opération
+            # (deux intégrations simultanées). On la reprend et on continue comme une mise à jour.
+            existing = Record.objects.select_for_update().get(catalogue=catalogue, source_id=clean["source_id"])
 
     previous = existing.source_snapshot()
     for key, value in clean.items():
@@ -173,6 +182,98 @@ def set_record_status(record, status, *, origin="user", user=None, note=""):
     return record
 
 
+#: champ source → champ de la notice qui reçoit la traduction adoptée
+ADOPTABLE_TRANSLATION_FIELDS = {"original_title": "translated_title", "description_original": "description_translation"}
+
+
+def adopt_translation(ed, user):
+    """Recopie une traduction proposée dans la notice (couche éditoriale), avec son origine, et la valide.
+
+    Logique extraite de la vue editorial_decide (1.2.0), comportement inchangé. Retourne le champ adopté,
+    ou None si la traduction ne porte pas sur un champ adoptable (sujets, lieu…).
+    """
+    record = ed.record
+    field = ADOPTABLE_TRANSLATION_FIELDS.get(ed.target_field)
+    if field:
+        old = getattr(record, field)
+        setattr(record, field, ed.content)
+        setattr(record, f"{field}_origin", ed.origin)
+        record_editorial_change(record, field, old, ed.content, user,
+                                note=f"Traduction adoptée ({ed.get_origin_display()})")
+        ed.status = "validated"
+        ed.save(update_fields=["status", "updated_at"])
+    return field
+
+
+def validate_translation(ed, user):
+    """1.3.0 (décision du 13 novembre 2026) : valider une traduction de notice = l'adopter dans la notice.
+
+    Une seule traduction validée par notice et par champ : la précédente redevient « proposée ».
+    """
+    from .models import EditorialContent
+
+    (EditorialContent.objects.filter(record=ed.record, kind="translation", target_field=ed.target_field,
+                                     status="validated").exclude(pk=ed.pk).update(status="proposed"))
+    field = adopt_translation(ed, user)
+    if not field:
+        ed.status = "validated"
+        ed.save(update_fields=["status", "updated_at"])
+    return field
+
+
+def plan_bulk_validation(editorials):
+    """2.0.0 (demande du 15 novembre 2026) : traductions à valider en une fois, et celles écartées avec la raison.
+
+    Pour chaque notice et chaque champ, la proposition la plus récente est retenue. Sont écartées : les
+    traductions simulées (mode démonstration), celles dont l'original a changé depuis, et les propositions plus
+    anciennes du même champ. Les traductions déjà validées ou rejetées ne sont pas concernées.
+    Retourne (retenues, écartées) ; écartées = [(traduction, raison)].
+    """
+    chosen, skipped, seen = [], [], set()
+    for ed in sorted(editorials, key=lambda e: e.created_at, reverse=True):
+        if ed.kind != "translation" or ed.status != "proposed" or not ed.record_id:
+            continue
+        key = (ed.record_id, ed.target_field)
+        current = (getattr(ed.record, ed.target_field, "") or "").strip() if ed.target_field else ""
+        if (ed.data or {}).get("simulated"):
+            skipped.append((ed, "simulation (aucune traduction réelle)"))
+        elif ed.source_text and current and ed.source_text.strip() != current:
+            skipped.append((ed, "l'original a changé depuis cette traduction"))
+        elif key in seen:
+            skipped.append((ed, "une proposition plus récente du même champ est retenue"))
+        else:
+            seen.add(key)
+            chosen.append(ed)
+    return chosen, skipped
+
+
+def validate_translations(editorials, user):
+    """Valide et adopte en une fois les traductions retenues par plan_bulk_validation (tout ou rien)."""
+    chosen, skipped = plan_bulk_validation(editorials)
+    with transaction.atomic():
+        # Une seule instance (verrouillée) par notice : chaque adoption incrémente le numéro de version de la
+        # notice ; avec des copies séparées, deux versions recevaient le même numéro (erreur d'intégrité).
+        records = {r.pk: r for r in Record.objects.select_for_update().filter(pk__in={ed.record_id for ed in chosen})}
+        for ed in chosen:
+            ed.record = records[ed.record_id]
+            validate_translation(ed, user)
+    return chosen, skipped
+
+
+def bulk_validation_message(chosen, skipped):
+    parts = []
+    if chosen:
+        parts.append(f"{len(chosen)} traduction(s) validée(s) et adoptée(s) dans les fiches.")
+    else:
+        parts.append("Aucune traduction à valider.")
+    reasons = {}
+    for _ed, reason in skipped:
+        reasons[reason] = reasons.get(reason, 0) + 1
+    if reasons:
+        parts.append("Écartée(s) : " + " ; ".join(f"{n} — {r}" for r, n in reasons.items()) + ".")
+    return " ".join(parts)
+
+
 def record_editorial_change(record, field, old, new, user, note=""):
     from .normalization import RULE_FIELDS
 
@@ -216,8 +317,24 @@ def duplicate_candidates(record, limit=10):
     key = _title_key(record.original_title)
     if len(key) >= 2:
         prefix = key[: max(2, min(6, len(key)))]
-        qs = (Record.objects.exclude(pk=record.pk).exclude(record_status="deleted")
-              .filter(search_text__contains=jp.search_normalize(record.original_title)[:max(2, len(prefix))]))
+        # 2.0.0 (rc1, jeu d'essai) : la présélection portait sur la graphie exacte ; 架空國史略 et 架空国史略 ne se
+        # rencontraient jamais, alors que la comparaison des titres ramène les deux à la graphie moderne. Le début du
+        # titre est cherché sous sa forme reçue, moderne (shinjitai) et ancienne (kyūjitai).
+        size = max(2, len(prefix))
+        forms = {jp.search_normalize(f(record.original_title))[:size]
+                 for f in (lambda t: t, jp.to_shinjitai, jp.to_kyujitai)}
+        condition = Q()
+        for form in forms:
+            condition |= Q(search_text__contains=form)
+        qs = Record.objects.exclude(pk=record.pk).exclude(record_status="deleted").filter(condition)
+        if settings.IS_POSTGRES:
+            # 2.0.0 (lot 9) : les 200 notices examinées étaient prises au hasard parmi celles qui partagent le début
+            # du titre ; à 50 000 notices, les vrais doublons n'y figuraient pas. Les plus proches d'abord (pg_trgm).
+            from django.contrib.postgres.search import TrigramSimilarity
+
+            qs = qs.annotate(_trgm=TrigramSimilarity("original_title", record.original_title)).order_by("-_trgm", "pk")
+        else:
+            qs = qs.order_by("pk")
         for other in qs[:200]:
             if other.pk in results:
                 continue

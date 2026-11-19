@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Traduction — Mémoire de traduction{% endblock %}
+{% block breadcrumb %}<nav aria-label="Fil d'Ariane"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="{% url 'translation:home' %}">Traduction</a></li><li class="breadcrumb-item active">Mémoire de traduction</li></ol></nav>{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1><i class="bi bi-archive"></i> Mémoire de traduction</h1>
+  <p>Paires validées de vos projets ({{ n_total }}, dont {{ n_excluded }} exclue(s)). Un segment identique (après normalisation des largeurs de caractères et des espaces) reprend la traduction validée comme <em>proposition</em>, jamais comme validation, et sans appel au moteur. Votre mémoire n'est visible que par vous.</p></div></div>
+<form method="get" class="d-flex flex-wrap gap-2 mb-3">
+  <input name="q" value="{{ q }}" class="form-control form-control-sm" style="max-width:320px" placeholder="Rechercher dans l'original ou la traduction" aria-label="Rechercher">
+  <select name="projet" class="form-select form-select-sm" style="width:auto" aria-label="Projet"><option value="">Tous les projets</option>{% for p in projects %}<option value="{{ p.pk }}" {% if project == p.pk|stringformat:"d" %}selected{% endif %}>{{ p.title }}</option>{% endfor %}</select>
+  <select name="etat" class="form-select form-select-sm" style="width:auto" aria-label="État"><option value="">Toutes</option><option value="actives" {% if state == "actives" %}selected{% endif %}>Utilisées par la mémoire</option><option value="exclues" {% if state == "exclues" %}selected{% endif %}>Exclues</option></select>
+  <button class="btn btn-sm btn-outline-secondary">Filtrer</button></form>
+<table class="table table-sm align-middle"><thead><tr><th>Original</th><th>Traduction validée</th><th>Projet</th><th>Origine</th><th>Validée le</th><th></th></tr></thead><tbody>
+{% for v in page %}<tr class="{% if v.excluded_from_memory %}text-muted{% endif %}">
+  <td style="white-space:pre-wrap" lang="{{ v.segment.document.project.source_lang }}">{{ v.segment.source_text|truncatechars:160 }}</td>
+  <td style="white-space:pre-wrap">{{ v.text|truncatechars:200 }}{% if v.simulated %} <span class="chip chip-warn">Simulation</span>{% endif %}</td>
+  <td class="small"><a href="{% url 'translation:segment_detail' v.segment.pk %}">{{ v.segment.document.project.title }}</a></td>
+  <td class="small">{{ v.get_origin_display }}</td><td class="small">{{ v.decided_at|date:"d/m/Y" }}</td>
+  <td><form method="post" action="{% url 'translation:memory_toggle' v.pk %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+    {% if v.excluded_from_memory %}<span class="badge text-bg-secondary">exclue</span> <button class="btn btn-sm btn-link" name="action" value="include">Réintégrer</button>
+    {% else %}<button class="btn btn-sm btn-link text-danger" name="action" value="exclude">Exclure</button>{% endif %}</form></td></tr>
+{% empty %}<tr><td colspan="6" class="text-muted">Aucune paire validée{% if q or state or project %} pour ce filtre{% endif %}.</td></tr>{% endfor %}
+</tbody></table>
+{% if page.has_other_pages %}<nav><ul class="pagination pagination-sm">
+{% if page.has_previous %}<li class="page-item"><a class="page-link" href="?q={{ q|urlencode }}&etat={{ state }}&projet={{ project }}&page={{ page.previous_page_number }}">Précédente</a></li>{% endif %}
+<li class="page-item disabled"><span class="page-link">{{ page.number }} / {{ page.paginator.num_pages }}</span></li>
+{% if page.has_next %}<li class="page-item"><a class="page-link" href="?q={{ q|urlencode }}&etat={{ state }}&projet={{ project }}&page={{ page.next_page_number }}">Suivante</a></li>{% endif %}
+</ul></nav>{% endif %}
+{% endblock %}

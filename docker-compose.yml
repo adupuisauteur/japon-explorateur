@@ -1,24 +1,44 @@
-# Japon — Explorateur documentaire : installation locale reproductible (§17.1)
-#   docker compose up -d --build      puis ouvrir http://localhost:8000
+# J-ed : installation locale reproductible (§17.1)
+#   docker compose up -d --build      puis ouvrir http://localhost:8000 (port réglable par WEB_PORT)
 # Les mêmes images servent ensuite sur un serveur Linux (voir docs/deploiement.md).
 
-# Nom fixe : les volumes de données restent les mêmes même si le dossier est renommé.
-name: japon-explorateur
+# Version 2.0.0 — le nom du projet Docker (donc des conteneurs et des volumes de données) vient de
+# COMPOSE_PROJECT_NAME, OBLIGATOIRE dans .env (aucune valeur par défaut : décision D3 de l'audit 2.0.0).
+# Noms protégés : « japon-explorateur » (installation principale) et « japon-explorateur-essai » (essai
+# existant). Les conteneurs refusent de démarrer sous l'un de ces noms (docker/entrypoint.sh), sauf
+# autorisation explicite AUTORISER_NOM_PROJET=<même nom> dans .env, pour mettre à jour cette installation.
+name: ${COMPOSE_PROJECT_NAME:?définir COMPOSE_PROJECT_NAME dans .env (voir .env.example)}
 
 x-app: &app
   build:
     context: .
     dockerfile: docker/Dockerfile
-  image: japon-explorateur:1.0
+  # Étiquette d'image propre à la 2.0.0 : les images des versions précédentes (1.0 de l'installation
+  # principale, 1.2.0, 1.3.0) ne sont pas remplacées.
+  image: japon-explorateur:2.0.0
   env_file: .env
   environment:
     DATABASE_URL: postgres://japon:${POSTGRES_PASSWORD:?définir POSTGRES_PASSWORD dans .env}@db:5432/japon
     REDIS_URL: redis://redis:6379/0
     DATA_DIR: /data
+    # Nom du projet transmis aux conteneurs pour le contrôle d'isolation de l'entrypoint.
+    COMPOSE_PROJECT_CHECK: ${COMPOSE_PROJECT_NAME}
+    # Service Argos : adresse interne. S'il ne répond pas, une traduction Argos est refusée ou interrompue (jamais
+    # simulée, sauf « mode démonstration » activé par l'administrateur).
+    TRANSLATION_ARGOS_URL: ${TRANSLATION_ARGOS_URL:-http://argos:5000}
+    TRANSLATION_ARGOS_DEPOT_DIR: /argos-depot
+    # 2.0.0 (lot 4) : IA locale facultative (service « ollama », profil du même nom).
+    OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
+    # 2.0.0 : chaque sauvegarde est aussi copiée dans /backups-externes (voir le volume ci-dessous).
+    BACKUP_EXTERNAL_DIR: /backups-externes
   volumes:
     - app-data:/data
-    # Copie externe des sauvegardes : décommentez et adaptez (disque externe, NAS…)
-    # - /chemin/vers/disque-externe/japon:/backups-externes
+    # Dépôt des paquets Argos (.argosmodel) envoyés depuis l'application, lus par le service Argos.
+    - argos-depot:/argos-depot
+    # Copie des sauvegardes visible dans Windows (2.0.0) : DOSSIER_SAUVEGARDES dans .env, par exemple
+    #   DOSSIER_SAUVEGARDES=C:\J-ed\sauvegardes
+    # Sans cette ligne, la copie reste dans le volume Docker « sauvegardes-externes ».
+    - ${DOSSIER_SAUVEGARDES:-sauvegardes-externes}:/backups-externes
   depends_on:
     - db
     - redis
@@ -45,21 +65,42 @@ services:
     <<: *app
     ports:
       # Écoute sur la boucle locale uniquement. Pour un accès réseau, passer par un reverse proxy HTTPS.
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:${WEB_PORT:-8000}:8000"
     healthcheck:
-      test: ["CMD", "curl", "-fs", "http://localhost:8000/hors-ligne/"]
+      # 2.0.0 : adresse dédiée (le serveur répond et la base est joignable), distincte de la page hors ligne.
+      test: ["CMD", "curl", "-fs", "http://localhost:8000/sante/"]
       interval: 30s
       timeout: 5s
       retries: 3
 
-  worker:
+  # 2.0.0 (lot 3) : trois workers séparés, pour qu'une longue traduction ne bloque jamais le reste.
+  #   worker              file « celery »     : travaux courts (exports, synchronisations, sauvegardes, horloge)
+  #   worker-traduction   file « traduction » : longues traductions, file de nuit, installation de paquets Argos
+  #   worker-maintenant   file « maintenant » : « Traduire maintenant » d'une fiche et petites tâches
+  worker: &worker
     <<: *app
     environment:
       DATABASE_URL: postgres://japon:${POSTGRES_PASSWORD}@db:5432/japon
       REDIS_URL: redis://redis:6379/0
       DATA_DIR: /data
       RUN_MIGRATIONS: "0"
-    command: ["celery", "-A", "config", "worker", "-l", "info", "--concurrency", "2"]
+      COMPOSE_PROJECT_CHECK: ${COMPOSE_PROJECT_NAME}
+      TRANSLATION_ARGOS_URL: ${TRANSLATION_ARGOS_URL:-http://argos:5000}
+      TRANSLATION_ARGOS_DEPOT_DIR: /argos-depot
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
+      BACKUP_EXTERNAL_DIR: /backups-externes
+    # Nombre de travaux courts en parallèle : selon le profil de machine (CELERY_WORKER_CONCURRENCY).
+    command: ["celery", "-A", "config", "worker", "-l", "info", "-n", "courts@%h", "-Q", "celery"]
+
+  worker-traduction:
+    <<: *worker
+    command: ["celery", "-A", "config", "worker", "-l", "info", "-n", "traduction@%h", "--concurrency", "1",
+              "-Q", "traduction"]
+
+  worker-maintenant:
+    <<: *worker
+    command: ["celery", "-A", "config", "worker", "-l", "info", "-n", "maintenant@%h", "--concurrency", "1",
+              "-Q", "maintenant"]
 
   beat:
     <<: *app
@@ -68,8 +109,65 @@ services:
       REDIS_URL: redis://redis:6379/0
       DATA_DIR: /data
       RUN_MIGRATIONS: "0"
+      COMPOSE_PROJECT_CHECK: ${COMPOSE_PROJECT_NAME}
     command: ["celery", "-A", "config", "beat", "-l", "info", "--schedule", "/data/celerybeat-schedule"]
+
+  # Argos Translate, moteur de traduction hors ligne (décision A1).
+  # 2.0.0 (lot 7) : il fait partie de l'installation standard. Il démarre avec J-ed grâce à la ligne
+  #   COMPOSE_PROFILES=argos
+  # du fichier .env (présente dans .env.example ; ajoutée par mettre-a-jour.ps1 si elle manque). Pour un poste à
+  # mémoire limitée, la désactiver en la laissant vide : « COMPOSE_PROFILES= ». L'ancien profil « hors-ligne »
+  # (1.3.0) reste accepté. Les paquets de langues ne sont PAS livrés : l'utilisateur les récupère en un clic
+  # (Traduction → Moteurs locaux). Image séparée (PyTorch « CPU ») ; aucun port publié : le service n'est
+  # joignable que par l'application, sur le réseau interne du projet. Les paquets sont dans le volume
+  # « argos-packages », conservé lors d'une réinitialisation normale de l'essai (décision E6).
+  argos:
+    profiles: ["argos", "hors-ligne"]
+    build:
+      context: docker/argos
+    image: japon-explorateur-argos:2.0.0
+    # Limites facultatives (.env) : nombre de cœurs et mémoire maximale du service. 0 (par défaut) = sans limite.
+    cpus: ${ARGOS_COEURS:-0}
+    mem_limit: ${ARGOS_MEMOIRE_MAX:-0}
+    environment:
+      COMPOSE_PROJECT_CHECK: ${COMPOSE_PROJECT_NAME}
+      # 2.0.0 : découpage en phrases par J-ed (« jed », par défaut) ou par le modèle du paquet (« paquet »).
+      ARGOS_DECOUPAGE: ${ARGOS_DECOUPAGE:-jed}
+      AUTORISER_NOM_PROJET: ${AUTORISER_NOM_PROJET:-}
+      # Fils de calcul d'une traduction (argostranslate les fixe au démarrage du service) : ARGOS_COEURS s'il
+      # est réglé, sinon le réglage par défaut d'Argos.
+      ARGOS_INTRA_THREADS: ${ARGOS_COEURS:-0}
+      ARGOS_MEMOIRE_MAX: ${ARGOS_MEMOIRE_MAX:-0}
+    volumes:
+      - argos-packages:/argos
+      - argos-depot:/depot:ro
+    restart: unless-stopped
+
+  # 2.0.0 (lot 4, demande U8) : IA locale gratuite pour les résumés (et, si on la choisit, la traduction par IA).
+  # FACULTATIVE : elle ne démarre que si « ollama » figure dans COMPOSE_PROFILES (.env), par exemple
+  #   COMPOSE_PROFILES=argos,ollama
+  # Image officielle Ollama (licence MIT), version fixée (OLLAMA_VERSION pour la changer). AUCUN modèle n'est
+  # livré ni téléchargé d'office : l'utilisateur en choisit un dans Traduction → Moteurs locaux (taille affichée,
+  # confirmation). Modèles dans le volume « ollama-models ». Aucun port publié : joignable par J-ed seulement.
+  ollama:
+    profiles: ["ollama"]
+    image: ollama/ollama:${OLLAMA_VERSION:-0.30.9}
+    cpus: ${OLLAMA_COEURS:-0}
+    mem_limit: ${OLLAMA_MEMOIRE_MAX:-0}
+    environment:
+      # Un seul modèle chargé, une seule demande à la fois ; le modèle quitte la mémoire après 5 minutes sans
+      # demande (Argos et l'IA locale ne tiennent pas toujours ensemble en mémoire).
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-5m}
+    volumes:
+      - ollama-models:/root/.ollama
+    restart: unless-stopped
 
 volumes:
   db-data:
   app-data:
+  argos-packages:
+  argos-depot:
+  ollama-models:
+  sauvegardes-externes:
