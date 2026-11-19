@@ -1300,10 +1300,15 @@ Ces recherches interrogent les vraies sources. Les résultats peuvent varier lé
 2. **Document à images.** Pour voir aussi les images dans J-ed, activez d'abord la visionneuse intégrée (elle est
    désactivée par défaut) : Administration → **Paramètres** → cochez **Visionneuse d'images intégrée** → Enregistrer.
    La liste des sites d'images autorisés, déjà remplie, peut rester telle quelle.
-   Puis source Kokusho : `10.20730/200015559` (歌仙繪) → ajoutez-le à la bibliothèque, ouvrez sa fiche (**Fiche
-   locale**) → **Ouvrir dans le Kokusho**, puis **Voir les images dans J-ed**.
-   [La visionneuse du NIJL s'ouvre sur son site ; dans J-ed, la visionneuse intégrée montre 152 vues. Sans
-   l'activation, seul le premier bouton est proposé.]
+   Puis Rechercher → source **Kokusho** seule cochée → tapez `10.20730/200015559` (l'identifiant DOI du 歌仙繪).
+   [Un seul résultat : 歌仙繪. Son lien « Ouvrir dans le Kokusho » ouvre la visionneuse du NIJL, sur son site.]
+   Sur cette ligne, cliquez sur **Retenir**, puis, en haut de la liste, sur **Intégrer la sélection (1)** → « Ma
+   bibliothèque uniquement » → **Confirmer l'intégration**.
+   [Retour aux résultats avec « Intégration terminée : 1 notice(s) créée(s)… » ; la ligne affiche maintenant
+   **Fiche locale**. Si 歌仙繪 était déjà intégré, ce lien y est déjà.]
+   Cliquez sur **Fiche locale** (nouvel onglet), puis sur **Voir les images dans J-ed**.
+   [La visionneuse intégrée montre 152 vues. Sans l'activation de la visionneuse, ce bouton n'apparaît pas. La
+   fiche se retrouve aussi plus tard dans la **Bibliothèque**.]
 3. **NDL.** Source **NDL Search** : `2586959` → fiche → **Vérifier le manifeste IIIF**, puis rechargez la page.
    [Document : « oui », consultable librement sur Internet.]
 4. **Aozora Bunko.** Si la liste n'est pas encore importée : Mises à jour → Aozora Bunko → synchronisation
