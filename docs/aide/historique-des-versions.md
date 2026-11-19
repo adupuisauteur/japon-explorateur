@@ -5,7 +5,7 @@ ordre: 20
 public: admin
 resume: Évolutions et améliorations de J-ed, version par version.
 ---
-## Version 2.0.0 (version candidate rc1 du 17 novembre 2026)
+## Version 2.0.0 (19 novembre 2026)
 
 Une version de consolidation : J-ed devient plus sûr, travaille seul la nuit, résume, et s'explique lui-même.
 

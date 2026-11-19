@@ -11,7 +11,7 @@ Le deuxième moteur n'est jamais utilisé d'office : il vous est seulement propo
 
 | Moteur | Où le texte est traité | Coût | Bon pour |
 | --- | --- | --- | --- |
-| **Argos Translate** | Sur votre ordinateur | Gratuit | Premier jet, textes confidentiels, gros volumes la nuit |
+| **Argos Translate** | Sur votre ordinateur | Gratuit | Premier jet, textes confidentiels, gros volumes la nuit ; passe par l'anglais (japonais → anglais → français) |
 | **DeepL** | Service en ligne (clé personnelle) | Selon votre offre (gratuite limitée, ou payante) | Japonais moderne, bonne qualité courante |
 | **Google Traduction** (Basic) | Service en ligne (clé personnelle) | Au caractère | Alternative à DeepL |
 | **IA en ligne** (OpenAI, Anthropic, Gemini…) | Service en ligne (clé personnelle) | Au nombre de mots envoyés et reçus | Textes difficiles, contexte, japonais ancien |

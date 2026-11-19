@@ -2,6 +2,10 @@
 
 **J-ed** (anciennement « Japon — Explorateur documentaire ») · 17 novembre 2026
 
+> **Mise à jour du 19 novembre 2026 :** après la rc2 (18 novembre) et la recette courte, la version **2.0.0** est
+> déclarée définitive, puis la branche `evolution-2.0.0` est fusionnée dans `main` sans réécriture de l'historique.
+> Détail des changements depuis la rc1 : `CHANGELOG.md` ; recette : `06-recette.md`. Le présent rapport décrit la rc1.
+
 | | |
 |---|---|
 | Version de départ | **1.3.0-rc3**, étiquette `v1.3.0-rc3`, commit `d7296d4` |

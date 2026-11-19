@@ -83,11 +83,30 @@ Sur l'installation d'essai (port 8001), à jour avec `japon-explorateur-2.0.0-rc
 
 | N° | Essai | Attendu | Résultat |
 |---|---|---|---|
-| S1 | `powershell -ExecutionPolicy Bypass -File .\mettre-a-jour.ps1 -Archive .\japon-explorateur-2.0.0-rc2.zip …` | « Mise à jour terminée : J-ed 2.0.0 » | |
-| S2 | `powershell -ExecutionPolicy Bypass -File .\verifier-j-ed.ps1 -AvecTests -AvecSources` | Aucune ligne « Problème » ; environ 760 tests ; temps de réponse des sources réels (plus de « 0 ms ») | |
-| S3 | Administration → Jeu d'essai → Charger | Bouton « Ouvrir la procédure « Essayer J-ed » » ; l'aide s'ouvre dans un nouvel onglet ; journal : « Jeu d'essai chargé : 38 notice(s)… » | |
-| S4 | Une traduction Argos (étape 8 de la partie A) | « caractère(s) traité(s) sur cet ordinateur » | |
-| S5 | Retirer le jeu d'essai | Journal : « Jeu d'essai retiré : 38 notice(s), 1 dossier(s), 1 projet(s). » ; données intactes | |
+| S1 | `powershell -ExecutionPolicy Bypass -File .\mettre-a-jour.ps1 -Archive .\japon-explorateur-2.0.0-rc2.zip …` | « Mise à jour terminée : J-ed 2.0.0 » | OK le 19/11 sur l'installation d'essai (machine des premiers essais) : code rc2 confirmé. Sur la VM de migration, derrière un proxy à fichier PAC : construction impossible (Docker Hub injoignable) après l'arrêt de l'ancienne version ; J-ed remis en service, données intactes ; suite en 2.0.1 |
+| S2 | `powershell -ExecutionPolicy Bypass -File .\verifier-j-ed.ps1 -AvecTests -AvecSources` | Aucune ligne « Problème » ; environ 760 tests ; temps de réponse des sources réels (plus de « 0 ms ») | OK (rapport du 19/11, 15 h 12) : 32 OK, 0 problème, 759 tests ; 8 sources en ligne de 312 ms à 6,5 s ; Waseda répond (223 résultats) ; Kokugakuin répond avec 0 résultat (à surveiller) |
+| S3 | Administration → Jeu d'essai → Charger | Bouton « Ouvrir la procédure « Essayer J-ed » » ; l'aide s'ouvre dans un nouvel onglet ; journal : « Jeu d'essai chargé : 38 notice(s)… » | OK : lien et bouton dans un nouvel onglet ; journal « Jeu d'essai chargé : 38 notice(s), dont 38 nouvelle(s) » (un second clic : « dont 0 nouvelle(s) », sans doublon) |
+| S4 | Une traduction Argos (étape 8 de la partie A) | « caractère(s) traité(s) sur cet ordinateur » | OK : tâche 26, « 80 caractère(s) traité(s) sur cet ordinateur », coût : aucun, connexion coupée |
+| S5 | Retirer le jeu d'essai | Journal : « Jeu d'essai retiré : 38 notice(s), 1 dossier(s), 1 projet(s). » ; données intactes | OK : journal « Jeu d'essai retiré : 38 notice(s), 1 dossier(s), 1 projet(s). » |
+
+Constats de la partie B de « Essayer J-ed » (19/11) et corrections de l'aide, livrées dans la 2.0.0 :
+
+- document à images (Kokusho, 歌仙繪) : l'aide disait « ajoutez-le à la bibliothèque », sans bouton de ce nom ;
+  chemin exact écrit (Retenir, Intégrer la sélection, Confirmer l'intégration, Fiche locale, Voir les images dans
+  J-ed) et validé : 152 vues ;
+- NDL : la recherche de `2586959` renvoie deux articles qui contiennent ce nombre (R000000004-I2586959,
+  R100000002-I025933528), pas le document numérisé ; un titre (`吾輩ハ猫デアル`, `徒然草`) renvoie d'abord des
+  notices récentes ou des revues numérisées réservées ; **étape retirée de l'aide**, recherche fiable d'un document
+  numérisé librement consultable étudiée en 2.0.1 ;
+- Aozora Bunko (17 840 notices) : 羅生門 téléchargé avec ses furigana et son 底本 ; l'aide précise « Fiche locale » ;
+- Waseda : recherche et lien vers la page de l'ouvrage corrects (site de Waseda en maintenance programmée le
+  19/11 au soir) ;
+- aide « Mettre à jour J-ed » : méthode pas à pas, une commande par cadre ; vérifier l'accès de Docker à Internet
+  (`docker pull python:3.12-slim-bookworm`) avant de lancer le script, proxy de Docker Desktop, conduite à tenir
+  si l'arrêt survient après « OUI ». Le changement d'ordre du script (construire avant d'arrêter, journal, retour
+  automatique) est reporté à la 2.0.1 (décision de l'utilisateur).
+
+**Décision (19 novembre 2026) : recette rc2 validée, J-ed 2.0.0 déclarée définitive.**
 
 Ensuite : 2.0.0 définitive, fusion dans `main`, puis passage de l'installation principale (1.x) vers la 2.0,
 d'abord essayé sur une copie ; puis 2.0.1 (Linux, accès en réseau local, section proxy).

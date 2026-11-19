@@ -1,11 +1,27 @@
 # Historique des versions
 
-## 2.0.0-rc2 — 18 novembre 2026 (version candidate)
+## 2.0.0 — 19 novembre 2026
 
 Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquette `v1.3.0-rc3` (commit
 `d7296d4`). Audit et plan : `docs/evolution-2.0.0/01-audit.md` ; synthèse technique :
 `docs/evolution-2.0.0/rapport-technique-2.0.0.md` ; recette : `docs/evolution-2.0.0/06-recette.md`. La version
-devient définitive (2.0.0) une fois la recette faite sur le poste de l'utilisateur.
+a été déclarée définitive le 19 novembre 2026, après la recette des versions candidates rc1 et rc2 sur le poste de
+l'utilisateur.
+
+- **Version définitive** (19 novembre 2026), après la recette courte de la rc2 (mise à jour, vérification
+  complète avec 759 tests et les sources interrogées en direct, jeu d'essai, Argos, retrait : tout est conforme).
+  Seule l'aide change par rapport à la rc2 ; ni le code de l'application ni la base ne changent :
+  - **« Mettre à jour J-ed »** : la méthode pas à pas et les commandes une par une ; vérifier d'abord que Docker
+    joint Internet (`docker pull python:3.12-slim-bookworm`), car la nouvelle version est construite après l'arrêt
+    de l'ancienne ; déclarer un proxy dans Docker Desktop (un fichier de configuration automatique PAC n'est pas
+    lu) ; que faire si le script s'arrête après « OUI » ;
+  - **« Essayer J-ed », partie B** : chemin exact pour le document à images (Retenir, Intégrer la sélection,
+    Fiche locale, Voir les images dans J-ed) ; « Fiche locale » pour Aozora Bunko ; l'étape NDL est retirée : la
+    recherche du numéro proposé renvoyait des articles qui contiennent ce nombre, pas le document numérisé
+    (recherche fiable d'un document numérisé de la NDL : 2.0.1).
+  - **Argos** (« Argos et IA locale », « Moteurs de traduction », lexique) : la traduction se fait en deux temps,
+    japonais → anglais puis anglais → français ; conséquences (erreurs qui s'additionnent, noms propres et titres
+    anciens traduits comme des mots ordinaires, pas de glossaire) et conduite à tenir.
 
 - **Version candidate rc2** (18 novembre 2026), corrections issues de la recette de la rc1 sur le poste de
   l'utilisateur (mise à jour de l'installation d'essai, procédure « Essayer J-ed », installation complète) :

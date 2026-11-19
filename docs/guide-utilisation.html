@@ -87,7 +87,7 @@ pas, avec le résultat attendu à chaque étape.</p>
 <li><a href="#signaler-un-probleme">Signaler un problème</a></li>
 </ul></section><section id='quoi-de-neuf'><h2>Quoi de neuf</h2><p class=lead>Les nouveautés de la dernière version.</p><p>Voici ce qui change dans la dernière version. Les versions précédentes sont décrites dans
 l'<strong>Historique des versions</strong> (Administration).</p>
-<h3 id="quoi-de-neuf--version-200-version-candidate-rc1-du-17-novembre-2026">Version 2.0.0 (version candidate rc1 du 17 novembre 2026)</h3>
+<h3 id="quoi-de-neuf--version-200-19-novembre-2026">Version 2.0.0 (19 novembre 2026)</h3>
 <p>Une version de consolidation : J-ed devient plus sûr, travaille seul la nuit, résume, et s'explique lui-même.</p>
 <ul>
 <li><strong>Un nouveau nom, J-ed</strong>, et un logo. Une page « À propos » donne la version et l'origine du projet.
@@ -469,7 +469,7 @@ Le deuxième moteur n'est jamais utilisé d'office : il vous est seulement propo
 <td><strong>Argos Translate</strong></td>
 <td>Sur votre ordinateur</td>
 <td>Gratuit</td>
-<td>Premier jet, textes confidentiels, gros volumes la nuit</td>
+<td>Premier jet, textes confidentiels, gros volumes la nuit ; passe par l'anglais (japonais → anglais → français)</td>
 </tr>
 <tr>
 <td><strong>DeepL</strong></td>
@@ -808,8 +808,25 @@ son nom.</p>
 doublons, traductions, résumés. Rien ne remplace les données de la source.</p>
 <p>IA → <strong>Historique</strong> : chaque appel, avec le fournisseur, le modèle, les jetons envoyés et reçus, et le coût estimé.</p></section><section id='moteurs-locaux'><h2>Argos et IA locale</h2><p class=lead>Les deux moteurs gratuits qui travaillent sur votre ordinateur.</p><p>Traduction → <strong>Moteurs locaux</strong>. Les installations sont faites par l'administrateur ; chacun peut consulter l'état.</p>
 <h3 id="moteurs-locaux--argos-translate-traduction">Argos Translate (traduction)</h3>
-<p>Argos fait partie de l'installation standard. Il traduit sans Internet, gratuitement, en passant par l'anglais
-(japonais → anglais → français).</p>
+<p>Argos fait partie de l'installation standard. Il traduit sans Internet, gratuitement.</p>
+<h4 id="moteurs-locaux--une-traduction-en-deux-temps-par-langlais">Une traduction en deux temps, par l'anglais</h4>
+<p>Argos ne traduit <strong>pas directement</strong> du japonais au français. Il fait deux traductions à la suite :</p>
+<ol>
+<li>du <strong>japonais vers l'anglais</strong> (paquet ja → en) ;</li>
+<li>puis de <strong>l'anglais vers le français</strong> (paquet en → fr).</li>
+</ol>
+<p>Vous ne voyez que le résultat français. Les conséquences :</p>
+<ul>
+<li><strong>les erreurs s'additionnent</strong> : une ambiguïté mal résolue en anglais est reprise, parfois aggravée, en français ;</li>
+<li><strong>les noms propres et les titres anciens</strong> sont souvent pris pour des mots ordinaires, puis traduits. Exemple
+  constaté : le titre 今様源氏小倉百人一首 devient « M. Yuichi Kokura » ; un nom de collection (九曜文庫) devient un
+  nombre ; un nom de lieu devient un mot courant ;</li>
+<li>Argos <strong>n'utilise pas les glossaires</strong>.</li>
+</ul>
+<p>À retenir : lisez toujours l'original à côté ; rejetez les propositions manifestement fausses (bouton
+<strong>Rejeter</strong>) ; pour un titre, un nom ou un texte important, préférez DeepL ou une IA quand vous êtes en ligne. Si
+vous lisez l'anglais, l'étape anglaise est souvent plus fidèle que le français final : une traduction vers
+l'anglais seul est envisagée dans une prochaine version.</p>
 <ul>
 <li><strong>Installer la traduction japonais → français</strong> : récupère les paquets de langues (environ 200 Mo, une seule
   fois), après confirmation.</li>
@@ -1342,7 +1359,7 @@ avec une capture d'écran si possible.</p>
 </tr>
 <tr>
 <td><strong>Argos Translate</strong></td>
-<td>Moteur de traduction gratuit qui travaille sur votre ordinateur, sans Internet.</td>
+<td>Moteur de traduction gratuit qui travaille sur votre ordinateur, sans Internet, en passant par l'anglais (japonais → anglais → français).</td>
 </tr>
 <tr>
 <td><strong>IA locale</strong></td>
@@ -1417,7 +1434,7 @@ avec une capture d'écran si possible.</p>
 <td>Un problème enregistré par J-ed (source injoignable, erreur…), suivi par l'administrateur.</td>
 </tr>
 </tbody>
-</table></section><section id='historique-des-versions'><h2>Historique des versions <span class='badge'>administrateur</span></h2><p class=lead>Évolutions et améliorations de J-ed, version par version.</p><h3 id="historique-des-versions--version-200-version-candidate-rc1-du-17-novembre-2026">Version 2.0.0 (version candidate rc1 du 17 novembre 2026)</h3>
+</table></section><section id='historique-des-versions'><h2>Historique des versions <span class='badge'>administrateur</span></h2><p class=lead>Évolutions et améliorations de J-ed, version par version.</p><h3 id="historique-des-versions--version-200-19-novembre-2026">Version 2.0.0 (19 novembre 2026)</h3>
 <p>Une version de consolidation : J-ed devient plus sûr, travaille seul la nuit, résume, et s'explique lui-même.</p>
 <ul>
 <li><strong>Un nouveau nom, J-ed</strong>, et un logo. Une page « À propos » donne la version et l'origine du projet.

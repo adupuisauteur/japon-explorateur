@@ -19,7 +19,7 @@ resume: Les mots de J-ed, en une phrase chacun.
 | **Manifeste IIIF** | Fichier qui décrit les images d'un document numérisé ; J-ed peut l'ouvrir pour vérifier qu'il existe. |
 | **Statuts** | Notice disponible, document consultable, IIIF : voir [Les trois statuts](aide:trois-statuts). |
 | **Moteur** | Ce qui traduit : DeepL, Google, Argos, une IA en ligne, l'IA locale. |
-| **Argos Translate** | Moteur de traduction gratuit qui travaille sur votre ordinateur, sans Internet. |
+| **Argos Translate** | Moteur de traduction gratuit qui travaille sur votre ordinateur, sans Internet, en passant par l'anglais (japonais → anglais → français). |
 | **IA locale** | Une IA (Ollama) qui travaille sur votre ordinateur, sans Internet une fois le modèle installé. |
 | **Modèle** | Le « cerveau » précis d'une IA (par exemple qwen3:4b, ou un modèle d'OpenAI). |
 | **Projet de traduction** | Un ensemble de documents à traduire, avec ses glossaires ; il peut être confidentiel. |

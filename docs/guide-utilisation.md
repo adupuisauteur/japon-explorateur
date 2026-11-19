@@ -61,7 +61,7 @@ Les nouveautés de la dernière version.
 Voici ce qui change dans la dernière version. Les versions précédentes sont décrites dans
 l'**Historique des versions** (Administration).
 
-### Version 2.0.0 (version candidate rc1 du 17 novembre 2026)
+### Version 2.0.0 (19 novembre 2026)
 
 Une version de consolidation : J-ed devient plus sûr, travaille seul la nuit, résume, et s'explique lui-même.
 
@@ -459,7 +459,7 @@ Le deuxième moteur n'est jamais utilisé d'office : il vous est seulement propo
 
 | Moteur | Où le texte est traité | Coût | Bon pour |
 | --- | --- | --- | --- |
-| **Argos Translate** | Sur votre ordinateur | Gratuit | Premier jet, textes confidentiels, gros volumes la nuit |
+| **Argos Translate** | Sur votre ordinateur | Gratuit | Premier jet, textes confidentiels, gros volumes la nuit ; passe par l'anglais (japonais → anglais → français) |
 | **DeepL** | Service en ligne (clé personnelle) | Selon votre offre (gratuite limitée, ou payante) | Japonais moderne, bonne qualité courante |
 | **Google Traduction** (Basic) | Service en ligne (clé personnelle) | Au caractère | Alternative à DeepL |
 | **IA en ligne** (OpenAI, Anthropic, Gemini…) | Service en ligne (clé personnelle) | Au nombre de mots envoyés et reçus | Textes difficiles, contexte, japonais ancien |
@@ -824,8 +824,27 @@ Traduction → **Moteurs locaux**. Les installations sont faites par l'administr
 
 ### Argos Translate (traduction)
 
-Argos fait partie de l'installation standard. Il traduit sans Internet, gratuitement, en passant par l'anglais
-(japonais → anglais → français).
+Argos fait partie de l'installation standard. Il traduit sans Internet, gratuitement.
+
+#### Une traduction en deux temps, par l'anglais
+
+Argos ne traduit **pas directement** du japonais au français. Il fait deux traductions à la suite :
+
+1. du **japonais vers l'anglais** (paquet ja → en) ;
+2. puis de **l'anglais vers le français** (paquet en → fr).
+
+Vous ne voyez que le résultat français. Les conséquences :
+
+- **les erreurs s'additionnent** : une ambiguïté mal résolue en anglais est reprise, parfois aggravée, en français ;
+- **les noms propres et les titres anciens** sont souvent pris pour des mots ordinaires, puis traduits. Exemple
+  constaté : le titre 今様源氏小倉百人一首 devient « M. Yuichi Kokura » ; un nom de collection (九曜文庫) devient un
+  nombre ; un nom de lieu devient un mot courant ;
+- Argos **n'utilise pas les glossaires**.
+
+À retenir : lisez toujours l'original à côté ; rejetez les propositions manifestement fausses (bouton
+**Rejeter**) ; pour un titre, un nom ou un texte important, préférez DeepL ou une IA quand vous êtes en ligne. Si
+vous lisez l'anglais, l'étape anglaise est souvent plus fidèle que le français final : une traduction vers
+l'anglais seul est envisagée dans une prochaine version.
 
 - **Installer la traduction japonais → français** : récupère les paquets de langues (environ 200 Mo, une seule
   fois), après confirmation.
@@ -1349,7 +1368,7 @@ Les mots de J-ed, en une phrase chacun.
 | **Manifeste IIIF** | Fichier qui décrit les images d'un document numérisé ; J-ed peut l'ouvrir pour vérifier qu'il existe. |
 | **Statuts** | Notice disponible, document consultable, IIIF : voir [Les trois statuts](#trois-statuts). |
 | **Moteur** | Ce qui traduit : DeepL, Google, Argos, une IA en ligne, l'IA locale. |
-| **Argos Translate** | Moteur de traduction gratuit qui travaille sur votre ordinateur, sans Internet. |
+| **Argos Translate** | Moteur de traduction gratuit qui travaille sur votre ordinateur, sans Internet, en passant par l'anglais (japonais → anglais → français). |
 | **IA locale** | Une IA (Ollama) qui travaille sur votre ordinateur, sans Internet une fois le modèle installé. |
 | **Modèle** | Le « cerveau » précis d'une IA (par exemple qwen3:4b, ou un modèle d'OpenAI). |
 | **Projet de traduction** | Un ensemble de documents à traduire, avec ses glossaires ; il peut être confidentiel. |
@@ -1373,7 +1392,7 @@ Les mots de J-ed, en une phrase chacun.
 
 Évolutions et améliorations de J-ed, version par version.
 
-### Version 2.0.0 (version candidate rc1 du 17 novembre 2026)
+### Version 2.0.0 (19 novembre 2026)
 
 Une version de consolidation : J-ed devient plus sûr, travaille seul la nuit, résume, et s'explique lui-même.
 

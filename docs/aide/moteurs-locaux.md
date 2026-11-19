@@ -10,8 +10,27 @@ Traduction → **Moteurs locaux**. Les installations sont faites par l'administr
 
 ## Argos Translate (traduction)
 
-Argos fait partie de l'installation standard. Il traduit sans Internet, gratuitement, en passant par l'anglais
-(japonais → anglais → français).
+Argos fait partie de l'installation standard. Il traduit sans Internet, gratuitement.
+
+### Une traduction en deux temps, par l'anglais
+
+Argos ne traduit **pas directement** du japonais au français. Il fait deux traductions à la suite :
+
+1. du **japonais vers l'anglais** (paquet ja → en) ;
+2. puis de **l'anglais vers le français** (paquet en → fr).
+
+Vous ne voyez que le résultat français. Les conséquences :
+
+- **les erreurs s'additionnent** : une ambiguïté mal résolue en anglais est reprise, parfois aggravée, en français ;
+- **les noms propres et les titres anciens** sont souvent pris pour des mots ordinaires, puis traduits. Exemple
+  constaté : le titre 今様源氏小倉百人一首 devient « M. Yuichi Kokura » ; un nom de collection (九曜文庫) devient un
+  nombre ; un nom de lieu devient un mot courant ;
+- Argos **n'utilise pas les glossaires**.
+
+À retenir : lisez toujours l'original à côté ; rejetez les propositions manifestement fausses (bouton
+**Rejeter**) ; pour un titre, un nom ou un texte important, préférez DeepL ou une IA quand vous êtes en ligne. Si
+vous lisez l'anglais, l'étape anglaise est souvent plus fidèle que le français final : une traduction vers
+l'anglais seul est envisagée dans une prochaine version.
 
 - **Installer la traduction japonais → français** : récupère les paquets de langues (environ 200 Mo, une seule
   fois), après confirmation.
