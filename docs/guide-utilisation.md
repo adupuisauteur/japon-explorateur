@@ -1020,6 +1020,26 @@ mise à jour** livré avec chaque version détaille chaque étape.
 - Environ 5 Go d'espace disque libre.
 - Les trois fichiers de la nouvelle version, dans le **dossier parent** de l'installation (par exemple `C:\J-ed`) :
   l'archive `.zip`, son empreinte `.zip.sha256`, et `mettre-a-jour.ps1`.
+- Un accès Internet **pour Docker** : la nouvelle version est construite à partir d'éléments téléchargés (Docker Hub
+  et bibliothèques Python).
+
+#### Vérifier l'accès Internet de Docker avant de commencer
+
+Le script arrête l'ancienne version **avant** de construire la nouvelle. Si Docker ne peut pas télécharger, J-ed
+reste arrêté jusqu'au retour en arrière (plus bas). Vérifiez donc d'abord, dans PowerShell :
+
+```
+docker pull python:3.12-slim-bookworm
+```
+
+[Résultat attendu : l'image se télécharge, ou « Image is up to date ». Un message contenant « deadline exceeded » ou
+« connecting to … » veut dire que Docker ne joint pas Internet : ne lancez pas la mise à jour.]
+
+**Derrière un proxy** (réseau d'entreprise ou d'établissement), déclarez-le dans Docker Desktop : Settings →
+Resources → Proxies → « Manual proxy configuration », la même adresse (par exemple `http://10.0.0.1:3128`) dans les
+champs HTTP et HTTPS, et `localhost,127.0.0.1,db,redis,argos,ollama,web` dans le champ des exceptions, puis « Apply &
+restart ». Docker Desktop ne sait pas lire un fichier de configuration automatique (PAC) : il faut l'adresse réelle du
+proxy, que votre service informatique peut vous donner. Refaites ensuite la vérification ci-dessus.
 
 ### Toujours le script de la nouvelle version
 
@@ -1069,6 +1089,12 @@ powershell -ExecutionPolicy Bypass -File .\mettre-a-jour.ps1 -Archive .\japon-ex
 
 À la moindre anomalie, le script s'arrête avec un message qui commence par **ARRÊT** et dit quoi faire. Avant
 l'étape `OUI`, l'installation actuelle n'a pas été touchée.
+
+**Si l'arrêt survient après `OUI`** (par exemple « démarrage de la nouvelle version impossible »), l'ancienne version
+est déjà arrêtée et J-ed ne répond plus. Vos données ne sont pas touchées. Suivez les lignes « Pour revenir en
+arrière » affichées par le script : `docker compose down` dans le **nouveau** dossier, puis `docker compose up -d`
+dans l'**ancien**. Gardez une copie du message d'erreur (copier-coller dans un fichier texte) avant de fermer la
+fenêtre.
 
 **Installation au nom protégé** (`japon-explorateur` ou `japon-explorateur-essai`) : son `.env` doit contenir
 `AUTORISER_NOM_PROJET=` suivi du même nom, sinon le script s'arrête. Il n'ajoute jamais cette ligne de lui-même.

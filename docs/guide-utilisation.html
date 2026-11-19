@@ -968,7 +968,20 @@ mise à jour</strong> livré avec chaque version détaille chaque étape.</p>
 <li>Environ 5 Go d'espace disque libre.</li>
 <li>Les trois fichiers de la nouvelle version, dans le <strong>dossier parent</strong> de l'installation (par exemple <code>C:\J-ed</code>) :
   l'archive <code>.zip</code>, son empreinte <code>.zip.sha256</code>, et <code>mettre-a-jour.ps1</code>.</li>
+<li>Un accès Internet <strong>pour Docker</strong> : la nouvelle version est construite à partir d'éléments téléchargés (Docker Hub
+  et bibliothèques Python).</li>
 </ul>
+<h4 id="mettre-a-jour--verifier-lacces-internet-de-docker-avant-de-commencer">Vérifier l'accès Internet de Docker avant de commencer</h4>
+<p>Le script arrête l'ancienne version <strong>avant</strong> de construire la nouvelle. Si Docker ne peut pas télécharger, J-ed
+reste arrêté jusqu'au retour en arrière (plus bas). Vérifiez donc d'abord, dans PowerShell :</p>
+<p><code>docker pull python:3.12-slim-bookworm</code></p>
+<p>[Résultat attendu : l'image se télécharge, ou « Image is up to date ». Un message contenant « deadline exceeded » ou
+« connecting to … » veut dire que Docker ne joint pas Internet : ne lancez pas la mise à jour.]</p>
+<p><strong>Derrière un proxy</strong> (réseau d'entreprise ou d'établissement), déclarez-le dans Docker Desktop : Settings →
+Resources → Proxies → « Manual proxy configuration », la même adresse (par exemple <code>http://10.0.0.1:3128</code>) dans les
+champs HTTP et HTTPS, et <code>localhost,127.0.0.1,db,redis,argos,ollama,web</code> dans le champ des exceptions, puis « Apply &amp;
+restart ». Docker Desktop ne sait pas lire un fichier de configuration automatique (PAC) : il faut l'adresse réelle du
+proxy, que votre service informatique peut vous donner. Refaites ensuite la vérification ci-dessus.</p>
 <h3 id="mettre-a-jour--toujours-le-script-de-la-nouvelle-version">Toujours le script de la nouvelle version</h3>
 <p>Le script <code>mettre-a-jour.ps1</code> évolue avec J-ed. <strong>À chaque mise à jour, remplacez celui du dossier parent</strong> par celui
 livré avec la nouvelle version (ou par celui du nouveau dossier, après la mise à jour). Un ancien script garde ses
@@ -1005,6 +1018,11 @@ numéros et les chemins par les vôtres.</p>
 <p>[Résultat attendu, à la fin : « Mise à jour terminée : J-ed 2.0.1, http://localhost:8000 ».]</p>
 <p>À la moindre anomalie, le script s'arrête avec un message qui commence par <strong>ARRÊT</strong> et dit quoi faire. Avant
 l'étape <code>OUI</code>, l'installation actuelle n'a pas été touchée.</p>
+<p><strong>Si l'arrêt survient après <code>OUI</code></strong> (par exemple « démarrage de la nouvelle version impossible »), l'ancienne version
+est déjà arrêtée et J-ed ne répond plus. Vos données ne sont pas touchées. Suivez les lignes « Pour revenir en
+arrière » affichées par le script : <code>docker compose down</code> dans le <strong>nouveau</strong> dossier, puis <code>docker compose up -d</code>
+dans l'<strong>ancien</strong>. Gardez une copie du message d'erreur (copier-coller dans un fichier texte) avant de fermer la
+fenêtre.</p>
 <p><strong>Installation au nom protégé</strong> (<code>japon-explorateur</code> ou <code>japon-explorateur-essai</code>) : son <code>.env</code> doit contenir
 <code>AUTORISER_NOM_PROJET=</code> suivi du même nom, sinon le script s'arrête. Il n'ajoute jamais cette ligne de lui-même.</p>
 <h3 id="mettre-a-jour--apres-la-mise-a-jour">Après la mise à jour</h3>
