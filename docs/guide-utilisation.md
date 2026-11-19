@@ -1309,23 +1309,14 @@ Ces recherches interrogent les vraies sources. Les résultats peuvent varier lé
    Cliquez sur **Fiche locale** (nouvel onglet), puis sur **Voir les images dans J-ed**.
    [La visionneuse intégrée montre 152 vues. Sans l'activation de la visionneuse, ce bouton n'apparaît pas. La
    fiche se retrouve aussi plus tard dans la **Bibliothèque**.]
-3. **NDL.** Rechercher → source **NDL Search** seule cochée → tapez `2586959` (le numéro d'un document numérisé de
-   la NDL Digital Collections).
-   [Un ou deux résultats : la NDL renvoie aussi les notices qui citent ce numéro. Le bon est celui dont le lien
-   **Ouvrir dans la NDL Digital Collections** mène à une adresse finissant par `pid/2586959` (pointez le lien avec
-   la souris pour voir l'adresse en bas de la fenêtre).]
-   Sur cette ligne : **Retenir** → **Intégrer la sélection (1)** → **Confirmer l'intégration** → **Fiche locale**.
-   Sur la fiche : **Vérifier le manifeste IIIF**, puis rechargez la page après quelques secondes.
-   [Document : « oui », consultable librement sur Internet ; avec la visionneuse activée, **Voir les images dans
-   J-ed** affiche ses vues.]
-4. **Aozora Bunko.** Si la liste n'est pas encore importée : Mises à jour → Aozora Bunko → synchronisation
+3. **Aozora Bunko.** Si la liste n'est pas encore importée : Mises à jour → Aozora Bunko → synchronisation
    complète, puis intégration (quelques minutes, voir [Aozora Bunko](#aozora-bunko)). Rechercher `羅生門`,
-   source Aozora Bunko → fiche → **Texte intégral** → **Télécharger le texte**.
+   source Aozora Bunko → **Fiche locale** sur la ligne de 羅生門 → **Texte intégral** → **Télécharger le texte**.
    [Le texte s'affiche avec ses furigana ; le texte source (底本) est indiqué en bas de page.]
-5. **Waseda.** Source **Waseda** : `源氏物語`.
+4. **Waseda.** Source **Waseda** : `源氏物語`.
    [Environ deux cents notices ; « Ouvrir sur le site de Waseda » mène à la page de l'ouvrage. Sur une installation
    mise à jour depuis une version antérieure, choisissez d'abord le connecteur dédié : voir [Les sources](#sources).]
-6. **Vérification des sources.** `powershell -ExecutionPolicy Bypass -File .\verifier-j-ed.ps1 -AvecSources`.
+5. **Vérification des sources.** `powershell -ExecutionPolicy Bypass -File .\verifier-j-ed.ps1 -AvecSources`.
    [Chaque source en ligne répond, ou figure dans la liste « sans recherche en ligne ».]
 
 ### Pour finir
