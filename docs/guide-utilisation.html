@@ -1023,7 +1023,8 @@ numéros et les chemins par les vôtres.</p>
 l'étape <code>OUI</code>, l'installation actuelle n'a pas été touchée.</p>
 <h3 id="mettre-a-jour--si-la-nouvelle-version-ne-demarre-pas-retour-automatique">Si la nouvelle version ne démarre pas : retour automatique</h3>
 <p>Depuis la 2.0.1, si la nouvelle version ne démarre pas ou ne répond pas au contrôle final, le script <strong>revient tout
-seul à l'ancienne version</strong> : il arrête la nouvelle, puis redémarre l'ancienne depuis l'ancien dossier. Vos données
+seul à l'ancienne version</strong>. Le contrôle final vérifie la version, la base de données, puis que le serveur web
+répond vraiment : deux fois de suite, à quelques secondes d'intervalle. Le retour automatique : il arrête la nouvelle, puis redémarre l'ancienne depuis l'ancien dossier. Vos données
 ne sont pas touchées. Il affiche alors « Retour réussi : l'ancienne version … est de nouveau en service ».</p>
 <p>Si ce retour échoue lui aussi (cas rare), le script affiche les lignes « Pour remettre l'ancienne version en
 service » : <code>docker compose down</code> dans le <strong>nouveau</strong> dossier, puis <code>docker compose up -d</code> dans l'<strong>ancien</strong>.</p>

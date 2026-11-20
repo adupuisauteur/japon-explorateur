@@ -78,8 +78,10 @@ class UpdateScriptRunTests(SimpleTestCase):
         env = dict(os.environ, FAKE_DOCKER_LOG=str(self.log), FAKE_ACTUEL=str(self.current),
                    PATH=str(FAKE_DOCKER_DIR) + os.pathsep + os.environ.get("PATH", ""))
         env.update({f"FAKE_{k.upper()}": str(v) for k, v in fake.items()})
+        # -DelaiStabilite 0 : pas d'attente de 15 s entre les deux interrogations de la page de santé.
         params = ["-Archive", str(self.archive), "-Actuel", str(self.current),
-                  "-DossierSauvegardes", str(self.tmp / "sauvegardes"), *(["-Oui"] if oui else []), *extra]
+                  "-DossierSauvegardes", str(self.tmp / "sauvegardes"), *(["-Oui"] if oui else []),
+                  "-DelaiStabilite", "0", *extra]
         if legacy:
             # Comme Windows PowerShell 5.1, qui retire les guillemets doubles des arguments des programmes (docker).
             quoted = " ".join("'" + a.replace("'", "''") + "'" if not a.startswith("-") else a for a in params)
@@ -342,6 +344,63 @@ class UpdateScriptRunTests(SimpleTestCase):
         self.assertIn("INFO Mise à jour de J-ed", journal)
         self.assertIn("ERREUR empreinte de l'archive différente", journal)
         self.assertIn("FIN code=1", journal)
+
+    # --- 2.0.1-rc2 : défauts trouvés pendant la recette de la rc1 (20 novembre 2026) --------------------------
+
+    def test_final_check_asks_the_web_server_twice(self):
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        etat = self.index(lambda c: "etat_installation" in c)
+        sante = [i for i, c in enumerate(self.calls) if c.endswith("curl -fsS http://localhost:8000/sante/")]
+        self.assertEqual(len(sante), 2, "deux interrogations de la page de santé")
+        self.assertLess(etat, sante[0])
+        self.assertIn("Le serveur web répond ; nouveau contrôle dans 0 s", result.stdout)
+
+    def test_web_server_that_never_answers_returns_to_the_old_version(self):
+        """R4 de la recette rc1 : etat_installation répondait pendant que le conteneur préparait la base, puis le
+        conteneur s'arrêtait ; le script annonçait « Mise à jour terminée »."""
+        result = self.run_script("-DelaiControle", "1", sante="ko")
+        self.assertEqual(result.returncode, 4, result.stdout + result.stderr)
+        self.assertIn("le serveur web ne répond pas (page /sante/)", result.stdout)
+        self.assertIn("Retour réussi", result.stdout)
+        self.assertNotIn("Mise à jour terminée", result.stdout)
+
+    def test_web_server_that_stops_after_one_answer_returns_to_the_old_version(self):
+        result = self.run_script("-DelaiControle", "1", sante="une-fois")
+        self.assertEqual(result.returncode, 4, result.stdout + result.stderr)
+        self.assertIn("Le serveur web répond ; nouveau contrôle", result.stdout, "une première réponse…")
+        self.assertIn("(page /sante/)", result.stdout, "… puis plus aucune : retour")
+        self.assertIn("Retour réussi", result.stdout)
+        self.assertNotIn("Mise à jour terminée", result.stdout)
+
+    def test_docker_error_lines_are_shown_as_text(self):
+        """R3 de la recette rc1 : « System.Management.Automation.RemoteException » à la place des lignes vides."""
+        result = self.run_script(build=1)
+        self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+        self.assertIn("Dockerfile:15", result.stdout)
+        self.assertIn("context deadline exceeded", result.stdout)
+        self.assertNotIn("RemoteException", result.stdout)
+        self.assertNotIn("RemoteException", self.journal())
+
+    def test_docker_error_lines_are_shown_as_text_like_windows_powershell_51(self):
+        result = self.run_script(build=1, legacy=True)
+        self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+        self.assertNotIn("RemoteException", result.stdout + self.journal())
+
+    def test_partial_build_gets_the_old_image_back(self):
+        """R3 de la recette rc1 : la construction a ré-étiqueté une image avant d'échouer (même version)."""
+        (self.current / "VERSION").write_text("2.0.0\n")
+        result = self.run_script(build_partiel=1)
+        self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+        self.assertIn("Image japon-explorateur:2.0.0 remise comme avant la mise à jour.", result.stdout)
+        self.assertEqual(self.images()["japon-explorateur:2.0.0"], "sha256:ancienne")
+        self.assertFalse(any(c.endswith("compose down") for c in self.calls), "rien n'a été arrêté")
+
+    def test_cancel_after_build_gets_the_old_image_back(self):
+        (self.current / "VERSION").write_text("2.0.0\n")
+        result = self.run_script(oui=False, stdin="non\n")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertEqual(self.images()["japon-explorateur:2.0.0"], "sha256:ancienne")
 
     def test_full_update_like_windows_powershell_51(self):
         """Arguments passés comme Windows PowerShell 5.1 ($PSNativeCommandArgumentPassing = 'Legacy')."""

@@ -14,7 +14,10 @@
          joint pas Internet, le script s'arrête ici et l'ancienne version n'a pas été touchée ;
       6. arrêt de l'ancienne version (sans effacer aucune donnée : « docker compose down » sans -v), puis
          démarrage de la nouvelle, sans reconstruire ;
-      7. contrôle final : version attendue et base de données à jour (manage.py etat_installation).
+      7. contrôle final : version attendue et base de données à jour (manage.py etat_installation), puis le
+         serveur web lui-même : sa page de santé (/sante/) doit répondre deux fois de suite, à quelques secondes
+         d'intervalle (2.0.1-rc2 : un conteneur qui s'arrête juste après son démarrage n'est plus pris pour un
+         succès).
     Si la nouvelle version ne démarre pas ou ne répond pas (étapes 6 et 7), le script revient tout seul à
     l'ancienne version (2.0.1) : arrêt de la nouvelle, redémarrage de l'ancienne depuis l'ancien dossier.
     Les données (base, fichiers, paquets Argos) sont dans les volumes Docker du projet : elles sont reprises
@@ -55,6 +58,9 @@
 .PARAMETER DelaiControle
     Temps maximal, en secondes, laissé à la nouvelle version pour répondre au contrôle final (300 par défaut).
 
+.PARAMETER DelaiStabilite
+    Secondes entre les deux interrogations de la page de santé du serveur web, au contrôle final (15 par défaut).
+
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File .\mettre-a-jour.ps1 -Archive .\japon-explorateur-2.0.1.zip -Actuel D:\Exemple\japon-explorateur-2.0.0
 #>
@@ -65,7 +71,8 @@ param(
     [string]$Destination,
     [string]$DossierSauvegardes,
     [switch]$Oui,
-    [int]$DelaiControle = 300
+    [int]$DelaiControle = 300,
+    [int]$DelaiStabilite = 15
 )
 
 # Les codes de retour de Docker sont contrôlés un par un (compatible Windows PowerShell 5.1).
@@ -136,6 +143,7 @@ function Arreter([string]$Message, [int]$Code = $CodeArret) {
     Write-Host "ARRÊT : $Message" -ForegroundColor Red
     Ecrire-Journal 'ERREUR' $Message
     if ($Code -eq $CodeConstruction -or $Code -eq $CodeAnnule) {
+        Remettre-Images   # 2.0.1-rc2 : la construction a pu ré-étiqueter des images avant d'échouer
         Write-Host 'L''ancienne version est toujours en service : rien n''a été arrêté.' -ForegroundColor Yellow
         Write-Host "Le dossier de la nouvelle version ($Destination) peut être supprimé avant de relancer le script." -ForegroundColor Yellow
     } else {
@@ -162,7 +170,12 @@ function Docker-Dans {
     } finally {
         Pop-Location
     }
-    $texte = (($sortie | ForEach-Object { "$_" }) -join "`n").Trim()
+    # 2.0.1-rc2 : une ligne de la sortie d'erreur arrive comme ErrorRecord ; convertie telle quelle, une ligne VIDE
+    # donnait « System.Management.Automation.RemoteException » (recette du 20/11/2026). On prend son texte.
+    $lignes = $sortie | ForEach-Object {
+        if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { "$_" }
+    }
+    $texte = (@($lignes) -join "`n").Trim()
     if ($Discret) { Ecrire-Journal 'RESULTAT' "code=$code (sortie non journalisée)" }
     elseif ($texte) { Ecrire-Journal 'RESULTAT' "code=$code`n$texte" }
     else { Ecrire-Journal 'RESULTAT' "code=$code" }
@@ -227,16 +240,10 @@ function Id-Image([string]$Dossier, [string]$Nom) {
     return (($r.Texte -split "`n")[0]).Trim()
 }
 
-function Revenir([string]$Raison) {
-    # 2.0.1 : retour automatique à l'ancienne version, sans question. Aucune donnée n'est effacée.
-    Write-Host ''
-    Write-Host "ARRÊT : $Raison" -ForegroundColor Red
-    Ecrire-Journal 'ERREUR' $Raison
-    Etape 'Retour automatique à l''ancienne version'
-    $arretNouvelle = Docker-Dans $Destination @('compose', 'down')
-    if ($arretNouvelle.Code -ne 0) { Avertir "Arrêt de la nouvelle version incomplet : $($arretNouvelle.Texte)" }
-    # Même numéro de version (versions candidates) : la construction a repris l'étiquette de l'ancienne image.
-    # On lui rend l'image d'avant la mise à jour, relevée à l'étape 5.
+function Remettre-Images {
+    # Même numéro de version (versions candidates) : la construction reprend l'étiquette des images de l'ancienne
+    # version, même si elle échoue ensuite (recette du 20/11/2026 : image Argos ré-étiquetée avant l'échec). On
+    # rend à chaque étiquette l'image d'avant la mise à jour, relevée à l'étape 5. Sans relevé : rien à faire.
     foreach ($nom in @($script:ImagesAnciennes.Keys)) {
         $avant = $script:ImagesAnciennes[$nom]
         if ((Id-Image $Actuel $nom) -ne $avant) {
@@ -245,6 +252,23 @@ function Revenir([string]$Raison) {
             else { Avertir "Image $nom : impossible de remettre l'image d'avant la mise à jour ($($t.Texte))." }
         }
     }
+}
+
+function Sante-Web {
+    # 2.0.1-rc2 : le serveur web répond-il ? Page de santé interrogée depuis le conteneur (comme le contrôle de
+    # santé de Docker) : elle ne répond que si le serveur web tourne et joint la base.
+    return Docker-Dans $Destination @('compose', 'exec', '-T', 'web', 'curl', '-fsS', 'http://localhost:8000/sante/')
+}
+
+function Revenir([string]$Raison) {
+    # 2.0.1 : retour automatique à l'ancienne version, sans question. Aucune donnée n'est effacée.
+    Write-Host ''
+    Write-Host "ARRÊT : $Raison" -ForegroundColor Red
+    Ecrire-Journal 'ERREUR' $Raison
+    Etape 'Retour automatique à l''ancienne version'
+    $arretNouvelle = Docker-Dans $Destination @('compose', 'down')
+    if ($arretNouvelle.Code -ne 0) { Avertir "Arrêt de la nouvelle version incomplet : $($arretNouvelle.Texte)" }
+    Remettre-Images
     $relance = Docker-Dans $Actuel @('compose', 'up', '-d')
     $ok = $false
     if ($relance.Code -eq 0) {
@@ -534,27 +558,45 @@ if ($lancement.Code -ne 0) { Revenir "démarrage de la nouvelle version impossib
 # --- 7. Contrôle final ------------------------------------------------------------------------------------
 Etape '7/7 Contrôle final'
 
+# 2.0.1-rc2 : deux conditions. (1) etat_installation : version attendue et base à jour. (2) le serveur web lui-même
+# répond à sa page de santé, deux fois à $DelaiStabilite s d'intervalle. Recette du 20/11/2026 : (1) seule a répondu
+# « tout va bien » pendant les secondes où le conteneur préparait la base, juste avant de s'arrêter.
 $fin = (Get-Date).AddSeconds($DelaiControle)
 $etat = $null
+$reussi = $false
 $dernier = ''
 while ($true) {
     $r = Docker-Dans $Destination @('compose', 'exec', '-T', 'web', 'python', 'manage.py', 'etat_installation', '--json')
+    $lu = $null
     $debut = $r.Texte.IndexOf('{')
     $finJson = $r.Texte.LastIndexOf('}')
     if ($debut -ge 0 -and $finJson -gt $debut) {
-        try { $etat = $r.Texte.Substring($debut, $finJson - $debut + 1) | ConvertFrom-Json } catch { $etat = $null }
+        try { $lu = $r.Texte.Substring($debut, $finJson - $debut + 1) | ConvertFrom-Json } catch { $lu = $null }
     }
-    if ($etat -and $etat.version -eq $VersionNouvelle) {
-        $base = $etat.controles | Where-Object { $_.cle -eq 'base' } | Select-Object -First 1
-        if ($base -and $base.niveau -eq 'ok') { break }
+    $etatOk = $false
+    if ($lu -and $lu.version -eq $VersionNouvelle) {
+        $base = $lu.controles | Where-Object { $_.cle -eq 'base' } | Select-Object -First 1
+        $etatOk = ($base -and $base.niveau -eq 'ok')
     }
-    $dernier = $r.Texte
-    $etat = $null
+    if (-not $etatOk) {
+        $dernier = $r.Texte
+    } else {
+        $s1 = Sante-Web
+        if ($s1.Code -ne 0) {
+            $dernier = "le serveur web ne répond pas (page /sante/) : $($s1.Texte)"
+        } else {
+            Dire "Le serveur web répond ; nouveau contrôle dans $DelaiStabilite s…"
+            Start-Sleep -Seconds $DelaiStabilite
+            $s2 = Sante-Web
+            if ($s2.Code -eq 0) { $etat = $lu; $reussi = $true; break }
+            $dernier = "le serveur web a cessé de répondre (page /sante/) : $($s2.Texte)"
+        }
+    }
     $reste = ($fin - (Get-Date)).TotalSeconds
     if ($reste -le 0) { break }
     Start-Sleep -Seconds ([int][Math]::Ceiling([Math]::Min(10, $reste)))
 }
-if (-not $etat) { Revenir "la nouvelle version ne répond pas correctement après $DelaiControle s. Dernière réponse :`n$dernier" }
+if (-not $reussi) { Revenir "la nouvelle version ne répond pas correctement après $DelaiControle s. Dernière réponse :`n$dernier" }
 
 foreach ($c in $etat.controles) {
     $couleur = 'Gray'

@@ -51,7 +51,14 @@ case "$*" in
   "tag "*)
     set_image "$3" "$2"; exit 0 ;;
   "compose build")
+    if [ "${FAKE_BUILD_PARTIEL:-0}" = 1 ]; then
+      # 2.0.1-rc2 : comme le 20/11/2026, une image est reconstruite et ré-étiquetée avant l'échec.
+      set_image "japon-explorateur:$(cat VERSION)" "sha256:partielle"
+      printf 'target web: failed to solve: exit code: 1\n\n' >&2; exit 1
+    fi
     if [ "${FAKE_BUILD:-0}" != 0 ]; then
+      # Lignes vides sur la sortie d'erreur, comme Docker (« RemoteException » sous Windows PowerShell 5.1).
+      printf 'Dockerfile:15\n\n--------------------\n\n' >&2
       echo "failed to solve: python:3.12-slim-bookworm: failed to resolve source metadata: context deadline exceeded" >&2
       exit "$FAKE_BUILD"
     fi
@@ -65,6 +72,16 @@ case "$*" in
   "compose up -d")
     if ici_actuel; then exit "${FAKE_UP_ANCIENNE:-0}"; fi
     exit "${FAKE_UP:-0}" ;;
+  "compose exec -T web curl -fsS http://localhost:8000/sante/")
+    # 2.0.1-rc2 : page de santé du serveur web. ok ; ko (jamais) ; une-fois (répond une fois, puis plus).
+    case "${FAKE_SANTE:-ok}" in
+      ok) echo '{"etat": "ok"}'; exit 0 ;;
+      une-fois)
+        if [ ! -f "${FAKE_DOCKER_LOG%/*}/sante-deja" ]; then
+          touch "${FAKE_DOCKER_LOG%/*}/sante-deja"; echo '{"etat": "ok"}'; exit 0
+        fi ;;
+    esac
+    echo "curl: (7) Failed to connect to localhost port 8000: Connection refused" >&2; exit 7 ;;
   "compose exec -T web python manage.py etat_installation --json")
     niveau=ok; [ "${FAKE_ETAT:-ok}" = ko ] && niveau=error
     echo "{\"version\": \"$(cat VERSION)\", \"etat\": \"warning\", \"controles\": [{\"cle\": \"base\", \"libelle\": \"Base de données et migrations\", \"niveau\": \"$niveau\", \"resume\": \"À jour\", \"details\": []}]}"

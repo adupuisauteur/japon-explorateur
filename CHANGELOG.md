@@ -1,5 +1,19 @@
 # Historique des versions
 
+## 2.0.1 — version candidate rc2 (20 novembre 2026)
+
+- **Version candidate rc2** (20 novembre 2026), corrections issues de la recette de la rc1 sur l'installation
+  d'essai (mise à jour normale, vérification complète, construction impossible, démarrage impossible) :
+  - **contrôle final de la mise à jour** : il interroge désormais le serveur web lui-même (page de santé
+    `/sante/`), deux fois à 15 secondes d'intervalle (paramètre `-DelaiStabilite`), après la version et la base.
+    Pendant la recette, un service web qui s'arrêtait juste après son démarrage avait été pris pour un succès : le
+    contrôle (`etat_installation`) avait répondu pendant les secondes où le conteneur préparait la base ;
+  - **messages de Docker** : les lignes vides de la sortie d'erreur s'affichaient « System.Management.Automation.
+    RemoteException » sous Windows PowerShell 5.1 ; elles s'affichent désormais telles quelles ;
+  - **étiquettes d'images** : quand la construction échoue (code 3) ou que la mise à jour est annulée (code 2), les
+    images de l'ancienne version reprennent leur étiquette (une construction qui échoue peut en avoir ré-étiqueté
+    une avant l'échec, avec le même numéro de version).
+
 ## 2.0.1 — version candidate rc1 (20 novembre 2026)
 
 Première des versions courtes décidées le 20 novembre 2026 (2.0.1 → 2.0.2 Linux → 2.0.3 assistant graphique
@@ -23,7 +37,7 @@ base, aucun changement des données**. Note de version validée par l'utilisateu
 - **Tests automatiques sur GitHub** (lot 2) : `.github/workflows/tests.yml` lance tous les tests à chaque envoi sur
   `main` ou une branche `evolution-…` (Ubuntu, Python 3.12, PostgreSQL 15, polices japonaises de l'image Docker) ;
   échec si un test est ignoré. Première exécution réussie le 20 novembre 2026 (781 tests).
-- Tests : 784 (759 en 2.0.0) ; `LICENSE` inclus dans l'archive de la version.
+- Tests : 784 (759 en 2.0.0 ; 791 en rc2) ; `LICENSE` inclus dans l'archive de la version.
 
 ## 2.0.0 — 19 novembre 2026
 

@@ -90,7 +90,8 @@ l'étape `OUI`, l'installation actuelle n'a pas été touchée.
 ## Si la nouvelle version ne démarre pas : retour automatique
 
 Depuis la 2.0.1, si la nouvelle version ne démarre pas ou ne répond pas au contrôle final, le script **revient tout
-seul à l'ancienne version** : il arrête la nouvelle, puis redémarre l'ancienne depuis l'ancien dossier. Vos données
+seul à l'ancienne version**. Le contrôle final vérifie la version, la base de données, puis que le serveur web
+répond vraiment : deux fois de suite, à quelques secondes d'intervalle. Le retour automatique : il arrête la nouvelle, puis redémarre l'ancienne depuis l'ancien dossier. Vos données
 ne sont pas touchées. Il affiche alors « Retour réussi : l'ancienne version … est de nouveau en service ».
 
 Si ce retour échoue lui aussi (cas rare), le script affiche les lignes « Pour remettre l'ancienne version en
