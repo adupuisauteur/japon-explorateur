@@ -1,7 +1,20 @@
 #!/bin/sh
-# Faux « docker » pour tester mettre-a-jour.ps1 sans Docker (2.0.0). Journalise chaque appel.
+# Faux « docker » pour tester mettre-a-jour.ps1 sans Docker (2.0.0, complété en 2.0.1). Journalise chaque appel.
+# 2.0.1 : garde une petite liste d'images (« nom identifiant ») à côté du journal des appels, pour simuler la
+# construction, le téléchargement, l'étiquetage et le retour à l'ancienne version.
 echo "$(pwd) | $*" >> "$FAKE_DOCKER_LOG"
+IMAGES="${FAKE_DOCKER_LOG%/*}/images.txt"
 env_value() { sed -n "s/^$1=//p" .env 2>/dev/null | head -n 1; }
+if [ ! -f "$IMAGES" ]; then
+  # Images présentes au départ : celles de l'installation actuelle (dossier FAKE_ACTUEL).
+  printf 'japon-explorateur:%s sha256:ancienne\npostgres:15-bookworm sha256:postgres\nredis:7-alpine sha256:redis\n' \
+    "$(cat "$FAKE_ACTUEL/VERSION")" > "$IMAGES"
+  for absente in ${FAKE_IMAGES_ABSENTES:-}; do
+    grep -v "^$absente " "$IMAGES" > "$IMAGES.tmp"; mv "$IMAGES.tmp" "$IMAGES"
+  done
+fi
+set_image() { grep -v "^$1 " "$IMAGES" > "$IMAGES.tmp"; echo "$1 $2" >> "$IMAGES.tmp"; mv "$IMAGES.tmp" "$IMAGES"; }
+ici_actuel() { [ "$(pwd)" = "$FAKE_ACTUEL" ]; }
 case "$*" in
   "info") exit "${FAKE_DOCKER_INFO:-0}" ;;
   "compose ps --services --status running")
@@ -25,11 +38,36 @@ case "$*" in
   "compose exec -T web sha256sum "*)
     echo "$(printf 'contenu-fictif' | sha256sum | cut -d' ' -f1)  /data/backups/x.tar"; exit 0 ;;
   "compose config --format json")
-    echo "{\"name\": \"$(env_value COMPOSE_PROJECT_NAME)\"}"; exit 0 ;;
+    # Comme le vrai : la configuration complète contient les mots de passe du .env.
+    echo "{\"name\": \"$(env_value COMPOSE_PROJECT_NAME)\", \"services\": {\"db\": {\"environment\": {\"POSTGRES_PASSWORD\": \"$(env_value POSTGRES_PASSWORD)\"}}}}"
+    exit 0 ;;
+  "compose config --images")
+    printf 'japon-explorateur:%s\npostgres:15-bookworm\nredis:7-alpine\n' "$(cat VERSION)"; exit 0 ;;
+  "image inspect --format {{.Id}} "*)
+    nom=$(echo "$*" | awk '{print $5}')
+    id=$(sed -n "s/^$nom //p" "$IMAGES" | head -n 1)
+    if [ -n "$id" ]; then echo "$id"; exit 0; fi
+    echo "Error: No such image: $nom" >&2; exit 1 ;;
+  "tag "*)
+    set_image "$3" "$2"; exit 0 ;;
+  "compose build")
+    if [ "${FAKE_BUILD:-0}" != 0 ]; then
+      echo "failed to solve: python:3.12-slim-bookworm: failed to resolve source metadata: context deadline exceeded" >&2
+      exit "$FAKE_BUILD"
+    fi
+    set_image "japon-explorateur:$(cat VERSION)" "sha256:construite"; exit 0 ;;
+  "compose pull --ignore-buildable")
+    if [ "${FAKE_PULL:-ok}" = ok ]; then
+      for absente in ${FAKE_IMAGES_ABSENTES:-}; do set_image "$absente" "sha256:telechargee"; done; exit 0
+    fi
+    echo "Error response from daemon: Get https://registry-1.docker.io/v2/: context deadline exceeded" >&2; exit 1 ;;
   "compose down") exit 0 ;;
-  "compose up -d --build"|"compose --profile hors-ligne up -d --build") exit "${FAKE_UP:-0}" ;;
+  "compose up -d")
+    if ici_actuel; then exit "${FAKE_UP_ANCIENNE:-0}"; fi
+    exit "${FAKE_UP:-0}" ;;
   "compose exec -T web python manage.py etat_installation --json")
-    echo "{\"version\": \"$(cat VERSION)\", \"etat\": \"warning\", \"controles\": [{\"cle\": \"base\", \"libelle\": \"Base de données et migrations\", \"niveau\": \"ok\", \"resume\": \"À jour\", \"details\": []}]}"
+    niveau=ok; [ "${FAKE_ETAT:-ok}" = ko ] && niveau=error
+    echo "{\"version\": \"$(cat VERSION)\", \"etat\": \"warning\", \"controles\": [{\"cle\": \"base\", \"libelle\": \"Base de données et migrations\", \"niveau\": \"$niveau\", \"resume\": \"À jour\", \"details\": []}]}"
     echo "CommandError: exemple de texte après le JSON" >&2; exit 0 ;;
 esac
 echo "faux docker : appel non prévu : $*" >&2

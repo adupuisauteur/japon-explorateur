@@ -1051,15 +1051,16 @@ mise à jour** livré avec chaque version détaille chaque étape.
 
 #### Vérifier l'accès Internet de Docker avant de commencer
 
-Le script arrête l'ancienne version **avant** de construire la nouvelle. Si Docker ne peut pas télécharger, J-ed
-reste arrêté jusqu'au retour en arrière (plus bas). Vérifiez donc d'abord, dans PowerShell :
+Depuis la 2.0.1, le script construit la nouvelle version **pendant que l'ancienne reste en service**. Si Docker ne
+peut pas télécharger, le script s'arrête sans avoir rien arrêté : J-ed continue de fonctionner. La vérification
+reste utile pour savoir avant de commencer si la mise à jour pourra aboutir. Dans PowerShell :
 
 ```
 docker pull python:3.12-slim-bookworm
 ```
 
 [Résultat attendu : l'image se télécharge, ou « Image is up to date ». Un message contenant « deadline exceeded » ou
-« connecting to … » veut dire que Docker ne joint pas Internet : ne lancez pas la mise à jour.]
+« connecting to … » veut dire que Docker ne joint pas Internet : réglez d'abord ce point (proxy, ci-dessous).]
 
 **Derrière un proxy** (réseau d'entreprise ou d'établissement), déclarez-le dans Docker Desktop : Settings →
 Resources → Proxies → « Manual proxy configuration », la même adresse (par exemple `http://10.0.0.1:3128`) dans les
@@ -1084,8 +1085,9 @@ rappel à la fin.
 2. Vérifiez que Docker Desktop est démarré et que J-ed s'ouvre dans le navigateur.
 3. Lancez le script (commandes ci-dessous). Il vérifie l'archive, fait une **sauvegarde vérifiée** copiée dans votre
    dossier de sauvegardes, installe la nouvelle version dans un **nouveau dossier** (l'ancien n'est jamais modifié)
-   et reprend votre `.env`. Il demande ensuite de taper `OUI` avant d'arrêter l'ancienne version et de démarrer la
-   nouvelle.
+   et reprend votre `.env`. Il **construit** ensuite la nouvelle version pendant que l'ancienne reste en service
+   (plusieurs minutes la première fois). Il demande enfin de taper `OUI` avant d'arrêter l'ancienne version et de
+   démarrer la nouvelle.
 4. Vérifiez la nouvelle version, puis gardez l'ancien dossier quelques semaines : il permet de revenir en arrière.
 
 ### Les commandes
@@ -1116,11 +1118,38 @@ powershell -ExecutionPolicy Bypass -File .\mettre-a-jour.ps1 -Archive .\japon-ex
 À la moindre anomalie, le script s'arrête avec un message qui commence par **ARRÊT** et dit quoi faire. Avant
 l'étape `OUI`, l'installation actuelle n'a pas été touchée.
 
-**Si l'arrêt survient après `OUI`** (par exemple « démarrage de la nouvelle version impossible »), l'ancienne version
-est déjà arrêtée et J-ed ne répond plus. Vos données ne sont pas touchées. Suivez les lignes « Pour revenir en
-arrière » affichées par le script : `docker compose down` dans le **nouveau** dossier, puis `docker compose up -d`
-dans l'**ancien**. Gardez une copie du message d'erreur (copier-coller dans un fichier texte) avant de fermer la
-fenêtre.
+### Si la nouvelle version ne démarre pas : retour automatique
+
+Depuis la 2.0.1, si la nouvelle version ne démarre pas ou ne répond pas au contrôle final, le script **revient tout
+seul à l'ancienne version** : il arrête la nouvelle, puis redémarre l'ancienne depuis l'ancien dossier. Vos données
+ne sont pas touchées. Il affiche alors « Retour réussi : l'ancienne version … est de nouveau en service ».
+
+Si ce retour échoue lui aussi (cas rare), le script affiche les lignes « Pour remettre l'ancienne version en
+service » : `docker compose down` dans le **nouveau** dossier, puis `docker compose up -d` dans l'**ancien**.
+
+Ce comportement est celui du script **de la 2.0.1 ou plus récent** : c'est une raison de plus pour toujours
+utiliser le script de la nouvelle version (plus haut).
+
+### Le journal de la mise à jour
+
+Chaque mise à jour écrit un journal dans le dossier des sauvegardes, par exemple
+`C:\J-ed\sauvegardes\mise-a-jour-20261120-143000.log`. Son chemin est affiché au début et à la fin. Il contient
+chaque étape, chaque commande Docker et sa réponse. Il ne contient jamais vos mots de passe ni vos clés. En cas de
+problème, gardez-le : il permet de comprendre ce qui s'est passé.
+
+Le script se termine par un **code de sortie**, écrit aussi à la dernière ligne du journal (`FIN code=…`) :
+
+| Code | Ce qui s'est passé | État de J-ed |
+| --- | --- | --- |
+| 0 | Mise à jour réussie | Nouvelle version en service |
+| 1 | Arrêt pendant les contrôles, la sauvegarde, la décompression ou la reprise du `.env` | Ancienne version en service, rien de modifié |
+| 2 | Mise à jour annulée (réponse autre que `OUI`) | Ancienne version en service |
+| 3 | Construction de la nouvelle version impossible (le plus souvent : pas d'accès Internet pour Docker) | Ancienne version en service |
+| 4 | La nouvelle version n'a pas démarré correctement ; retour automatique réussi | Ancienne version en service |
+| 5 | La nouvelle version n'a pas démarré correctement et le retour a échoué | Arrêtée : suivez les lignes affichées |
+
+Après un code 1, 2, 3 ou 4, le nouveau dossier (par exemple `C:\J-ed\japon-explorateur-2.0.1`) peut être supprimé
+avant de relancer le script : celui-ci refuse d'écrire dans un dossier qui existe déjà.
 
 **Installation au nom protégé** (`japon-explorateur` ou `japon-explorateur-essai`) : son `.env` doit contenir
 `AUTORISER_NOM_PROJET=` suivi du même nom, sinon le script s'arrête. Il n'ajoute jamais cette ligne de lui-même.
