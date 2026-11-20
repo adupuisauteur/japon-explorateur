@@ -11,6 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import httpx
+from django.conf import settings
 from django.test import SimpleTestCase, override_settings
 
 from apps.core.models import ServiceCheck
@@ -339,7 +340,7 @@ class SelftestButtonAndAutoTests(ClientMixin, AppTestCase):
         self.assertEqual(auto_selftest(), "fait")
         check = ServiceCheck.objects.get(name="argos_essai")
         self.assertTrue(check.data["auto"])
-        self.assertEqual(check.data["version"], "2.0.0")
+        self.assertEqual(check.data["version"], settings.APP_VERSION)
         self.assertEqual(auto_selftest(), "inutile")  # redémarrage ordinaire : pas de nouvel essai
         check.data["version"] = "1.3.0"  # mise à jour : nouvel essai
         check.save()

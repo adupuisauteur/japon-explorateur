@@ -3,6 +3,7 @@ from io import StringIO
 from pathlib import Path
 from unittest import mock
 
+from django.conf import settings
 from django.core.management import CommandError, call_command
 from django.test import override_settings
 
@@ -292,7 +293,7 @@ class InstallationStateTests(AppTestCase):
                       "Sauvegardes", "Clés des services en ligne", "Espace disque", "Ressources accordées par Docker"):
             self.assertContains(r, label)
         self.assertContains(r, 'data-copy-target="#diagnostic"')
-        self.assertContains(r, "J-ed 2.0.0")
+        self.assertContains(r, f"J-ed {settings.APP_VERSION}")
         self.assertNotContains(r, "onclick")  # CSP : aucun gestionnaire en ligne
 
     def test_diagnostic_has_no_personal_data(self):

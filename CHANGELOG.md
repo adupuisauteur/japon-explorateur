@@ -1,5 +1,30 @@
 # Historique des versions
 
+## 2.0.1 — version candidate rc1 (20 novembre 2026)
+
+Première des versions courtes décidées le 20 novembre 2026 (2.0.1 → 2.0.2 Linux → 2.0.3 assistant graphique
+Windows → 2.0.4 réseau local, proxy, migration, NDL). Même application que la 2.0.0 : **aucune migration de
+base, aucun changement des données**. Note de version validée par l'utilisateur le 20 novembre 2026.
+
+- **Licence dans l'application** (lot 0) : J-ed est publié sous la GNU AGPL v3.0 **ou toute version ultérieure**
+  (`AGPL-3.0-or-later`, fichier `LICENSE`). Page « À propos » : section « Licence et code source » (ce que la
+  licence permet, absence de garantie, lien « Code source », lien vers la licence) ; pykakasi (GPL v3 ou
+  ultérieure) ajouté aux composants. Lien « Code source » en bas de chaque page, y compris la page de connexion
+  (article 13 de l'AGPL). Réglage `CODE_SOURCE_URL` (`.env`) pour qu'une version modifiée indique son propre
+  dépôt. README : section « Licence » ; nouveau `CONTRIBUTING.md` ; aide « Bien démarrer » : « Un logiciel libre ».
+- **Mise à jour sûre** (lot 1, `mettre-a-jour.ps1`) : la nouvelle version est **construite pendant que l'ancienne
+  reste en service** ; les images manquantes sont téléchargées avant tout arrêt. Si Docker ne joint pas Internet,
+  le script s'arrête et l'ancienne version continue de fonctionner (constat du 19 novembre 2026 sur une machine
+  derrière un proxy : J-ed restait arrêté). La nouvelle version démarre ensuite sans reconstruire ; si elle ne
+  démarre pas ou ne répond pas au contrôle final, **retour automatique** à l'ancienne version. Même numéro de
+  version (versions candidates) : l'image d'avant la mise à jour est remise lors du retour. **Journal**
+  `mise-a-jour-AAAAMMJJ-HHMMSS.log` dans le dossier des sauvegardes (jamais de mot de passe) ; **codes de sortie**
+  0 à 5 ; paramètre `-DelaiControle`. Aide « Mettre à jour J-ed » complétée (retour automatique, journal, codes).
+- **Tests automatiques sur GitHub** (lot 2) : `.github/workflows/tests.yml` lance tous les tests à chaque envoi sur
+  `main` ou une branche `evolution-…` (Ubuntu, Python 3.12, PostgreSQL 15, polices japonaises de l'image Docker) ;
+  échec si un test est ignoré. Première exécution réussie le 20 novembre 2026 (781 tests).
+- Tests : 784 (759 en 2.0.0) ; `LICENSE` inclus dans l'archive de la version.
+
 ## 2.0.0 — 19 novembre 2026
 
 Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquette `v1.3.0-rc3` (commit

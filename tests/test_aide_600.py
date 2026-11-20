@@ -133,8 +133,8 @@ class HelpScreenTests(AppTestCase):
     def test_whats_new_and_version_history(self):
         self.client.force_login(self.reader)
         page = self.client.get("/aide/quoi-de-neuf/").content.decode()
-        self.assertIn("Version 2.0.0", page)
-        self.assertNotIn("Version 1.3.0", page)  # seulement la dernière version
+        self.assertIn("Version 2.0.1", page)
+        self.assertNotIn("Version 2.0.0", page)  # seulement la dernière version (2.0.1 depuis le lot 3)
         self.assertEqual(self.client.get("/aide/historique-des-versions/").status_code, 403)
         self.client.force_login(self.admin)
         page = self.client.get("/aide/historique-des-versions/").content.decode()

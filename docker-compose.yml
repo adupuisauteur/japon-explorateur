@@ -13,9 +13,9 @@ x-app: &app
   build:
     context: .
     dockerfile: docker/Dockerfile
-  # Étiquette d'image propre à la 2.0.0 : les images des versions précédentes (1.0 de l'installation
-  # principale, 1.2.0, 1.3.0) ne sont pas remplacées.
-  image: japon-explorateur:2.0.0
+  # Étiquette d'image propre à chaque version (depuis la 2.0.0) : les images des versions précédentes ne sont pas
+  # remplacées, et la mise à jour sûre (2.0.1) peut revenir à l'ancienne version sans rien reconstruire.
+  image: japon-explorateur:2.0.1
   env_file: .env
   environment:
     DATABASE_URL: postgres://japon:${POSTGRES_PASSWORD:?définir POSTGRES_PASSWORD dans .env}@db:5432/japon
@@ -125,7 +125,7 @@ services:
     profiles: ["argos", "hors-ligne"]
     build:
       context: docker/argos
-    image: japon-explorateur-argos:2.0.0
+    image: japon-explorateur-argos:2.0.1
     # Limites facultatives (.env) : nombre de cœurs et mémoire maximale du service. 0 (par défaut) = sans limite.
     cpus: ${ARGOS_COEURS:-0}
     mem_limit: ${ARGOS_MEMOIRE_MAX:-0}

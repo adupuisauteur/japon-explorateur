@@ -673,7 +673,7 @@ class DeliveryTests(SimpleTestCase):
         config = self.compose_config("hors-ligne", env_text=self.NEW_INSTALL)
         argos = config["services"]["argos"]
         self.assertNotIn("ports", argos)  # aucun port publié
-        self.assertEqual(argos["image"], "japon-explorateur-argos:2.0.0")
+        self.assertEqual(argos["image"], f"japon-explorateur-argos:{settings.APP_VERSION}")
         mounts = {v["source"]: v for v in argos["volumes"]}
         self.assertEqual(mounts["argos-packages"]["target"], "/argos")
         self.assertTrue(mounts["argos-depot"]["read_only"])
