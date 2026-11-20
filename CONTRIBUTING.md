@@ -28,7 +28,8 @@ personnel, ou contenu sous une licence compatible dont vous indiquez l'origine).
    sections 1 et 8) :
    `python manage.py test tests --noinput --parallel 4`, puis `python manage.py makemigrations --check --dry-run`.
 6. Mettez à jour l'aide intégrée (`docs/aide/`) si ce que voit l'utilisateur change, et `CHANGELOG.md`.
-7. Ouvrez une demande de fusion (« Pull request ») qui explique le pourquoi de la modification.
+7. Ouvrez une demande de fusion (« Pull request ») qui explique le pourquoi de la modification. Les tests
+   automatiques de GitHub (onglet « Actions ») se lancent seuls : ils doivent être au vert.
 
 ## Conventions
 

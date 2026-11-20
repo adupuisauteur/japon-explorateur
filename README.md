@@ -160,8 +160,9 @@ Dans le dossier de J-ed : `docker compose exec web python manage.py <commande>`.
 ## 8. Tests
 
 ```bash
-python manage.py test tests --parallel 4     # 750 tests environ ; PostgreSQL requis (DATABASE_URL)
+python manage.py test tests --parallel 4     # 781 tests (2.0.1) ; PostgreSQL requis (DATABASE_URL)
 ```
+**Tests automatiques (2.0.1)** : à chaque envoi sur `main` ou sur une branche `evolution-…`, GitHub Actions lance tous les tests sur une machine Ubuntu avec PostgreSQL 15 et les polices japonaises de l'image Docker (`.github/workflows/tests.yml`). Résultats dans l'onglet « Actions » du dépôt ; l'exécution échoue si un test est ignoré.
 Ils couvrent les critères d'acceptation AT-01 à AT-20 et AT-IA-01 à AT-IA-12 (correspondance détaillée dans `docs/conformite.md`), puis chaque évolution des versions 1.2.0, 1.3.0 et 2.0.0 (`tests/test_*_<lot>.py`). Les connecteurs et fournisseurs d'IA sont testés sur des réponses simulées, sans appel réseau ; pour la 2.0.0, les simulations reprennent les structures réelles relevées sur le poste de l'utilisateur. `tests/test_audit_corrections.py` reproduit chacune des anomalies relevées par l'audit et vérifie qu'elle ne se produit plus. Les scripts PowerShell sont testés avec PowerShell 7 (`tests/test_mise_a_jour_ps1.py`, `tests/test_verification_200.py`).
 
 ---
