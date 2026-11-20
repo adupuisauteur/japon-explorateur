@@ -40,6 +40,13 @@ action de votre part, et J-ed affiche le coût estimé avant de vous demander co
 
 Les notices restent la propriété de leurs institutions. Vérifiez-les auprès des catalogues d'origine.
 
+## Un logiciel libre
+
+J-ed est un logiciel libre, sous la licence **GNU AGPL v3 ou toute version ultérieure**. Vous pouvez l'utiliser,
+étudier son code, le modifier et le redistribuer, sous la même licence. Le lien **Code source**, en bas de chaque
+page, mène au dépôt du projet. La page **À propos** (en bas de page) donne la version, la licence et la liste des
+logiciels libres que J-ed utilise.
+
 ## Découvrir J-ed sans vos données
 
 L'administrateur peut charger un **jeu d'essai** : une quarantaine de notices fictives, un dossier et un projet de

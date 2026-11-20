@@ -192,3 +192,15 @@ tests/               tests d'acceptation et de non-régression
 ```
 
 Licences des composants front embarqués : Bootstrap, Bootstrap Icons et htmx (MIT) ; fichiers `LICENSE` dans `static/vendor/`. Liste complète des composants et de leurs licences : page « À propos » de l'application.
+
+---
+
+## 10. Licence
+
+J-ed est un logiciel libre, publié sous la licence **GNU Affero General Public License, version 3 ou (à votre choix) toute version ultérieure** (identifiant SPDX `AGPL-3.0-or-later`). Le texte complet est dans le fichier [`LICENSE`](LICENSE).
+
+- Vous pouvez utiliser J-ed, étudier son code, le modifier et le redistribuer, sous la même licence.
+- Si vous mettez une **version modifiée** de J-ed à disposition d'autres personnes à travers un réseau, vous devez leur offrir son code source (article 13 de l'AGPL). L'application affiche un lien « Code source » (pied de page et page « À propos ») ; indiquez l'adresse de votre version dans la variable `CODE_SOURCE_URL` du fichier `.env`.
+- J-ed est fourni **sans aucune garantie**, dans les limites prévues par la licence.
+
+Les composants utilisés gardent leur propre licence (liste dans la page « À propos ») : des licences libres compatibles avec l'AGPL v3 (MIT, BSD, Apache 2.0, LGPL v3, GPL v3 ou ultérieure pour pykakasi). Pour proposer une contribution : [`CONTRIBUTING.md`](CONTRIBUTING.md).

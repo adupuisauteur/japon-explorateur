@@ -2,7 +2,9 @@ from django.conf import settings
 
 
 def app_context(request):
-    ctx = {"APP_VERSION": settings.APP_VERSION, "APP_NAME": settings.APP_NAME, "ai_ui_enabled": False}
+    ctx = {"APP_VERSION": settings.APP_VERSION, "APP_NAME": settings.APP_NAME, "ai_ui_enabled": False,
+           # 2.0.1 (lot 0) : lien « Code source » du pied de page, visible aussi avant la connexion (AGPL, art. 13)
+           "SOURCE_CODE_URL": settings.SOURCE_CODE_URL}
     user = getattr(request, "user", None)
     if user is not None and user.is_authenticated and user.is_admin_role:
         from apps.incidents.models import Incident

@@ -21,6 +21,13 @@ environ.Env.read_env(BASE_DIR / ".env", overwrite=False)
 APP_VERSION = (BASE_DIR / "VERSION").read_text(encoding="utf-8").strip()
 # 2.0.0 : nom affiché de l'application. Les noms techniques (projet Docker, images, volumes, dépôt) ne changent pas.
 APP_NAME = "J-ed"
+# 2.0.1 (lot 0) : licence et code source. J-ed est sous GNU AGPL v3.0 ou toute version ultérieure. L'article 13 de
+# l'AGPL demande d'offrir le code source aux personnes qui utilisent l'application à travers un réseau : le lien
+# « Code source » (pied de page, page « À propos ») mène à cette adresse. Qui modifie J-ed et le met à disposition
+# d'autres personnes doit y indiquer l'adresse de SA version (variable CODE_SOURCE_URL du fichier .env).
+APP_LICENSE = "GNU AGPL v3.0 ou toute version ultérieure"
+APP_LICENSE_SPDX = "AGPL-3.0-or-later"
+SOURCE_CODE_URL = env("CODE_SOURCE_URL", default="https://github.com/adupuisauteur/japon-explorateur")
 DATA_SCHEMA_VERSION = "1.0"
 
 TESTING = len(sys.argv) > 1 and sys.argv[1] == "test"
