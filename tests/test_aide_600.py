@@ -64,7 +64,8 @@ class HelpContentTests(AppTestCase):
     def test_installation_section_for_the_administrator(self):
         pages = {p.slug: p for p in self.reg.pages.values() if p.section == "Installation et mises à jour"}
         self.assertEqual(set(pages), {"mettre-a-jour", "verifier-l-installation", "depannage-apres-mise-a-jour",
-                                      "essayer-j-ed"})  # rc1 : procédure de test et jeu d'essai
+                                      "essayer-j-ed", "assistant-j-ed"})  # rc1 : procédure de test et jeu d'essai ;
+        # 2.0.2 : page de l'assistant J-ed
         self.assertTrue(all(p.audience == "admin" for p in pages.values()))
         self.assertIn("mettre-a-jour.ps1", pages["mettre-a-jour"].body)
 
@@ -133,8 +134,8 @@ class HelpScreenTests(AppTestCase):
     def test_whats_new_and_version_history(self):
         self.client.force_login(self.reader)
         page = self.client.get("/aide/quoi-de-neuf/").content.decode()
-        self.assertIn("Version 2.0.1", page)
-        self.assertNotIn("Version 2.0.0", page)  # seulement la dernière version (2.0.1 depuis le lot 3)
+        self.assertIn("Version 2.0.2", page)
+        self.assertNotIn("Version 2.0.1", page)  # seulement la dernière version (2.0.2 depuis la 2.0.2-rc1)
         self.assertEqual(self.client.get("/aide/historique-des-versions/").status_code, 403)
         self.client.force_login(self.admin)
         page = self.client.get("/aide/historique-des-versions/").content.decode()

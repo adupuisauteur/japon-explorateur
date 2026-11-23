@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Avant de commencer — installer J-ed</title>
+<style>
+  body { font-family: "Segoe UI", Arial, sans-serif; font-size: 16px; line-height: 1.55; color: #1d1d1f;
+         max-width: 820px; margin: 0 auto; padding: 24px 20px 60px; }
+  h1 { font-size: 28px; margin-bottom: 4px; }
+  h2 { font-size: 21px; margin-top: 36px; padding-top: 12px; border-top: 1px solid #ddd; }
+  h3 { font-size: 17px; margin-top: 22px; }
+  .chapeau { color: #444; font-size: 17px; }
+  ol li, ul li { margin: 6px 0; }
+  code, .commande { font-family: Consolas, "Courier New", monospace; }
+  .commande { display: block; background: #f3f3f3; border: 1px solid #d0d0d0; border-radius: 6px; padding: 10px 12px;
+              margin: 8px 0; white-space: pre-wrap; }
+  .attendu { color: #2f6b2f; }
+  .attention { background: #fdf0d7; border-left: 4px solid #be6e00; padding: 10px 14px; margin: 14px 0; }
+  .conseil { background: #e8f3e8; border-left: 4px solid #1e7828; padding: 10px 14px; margin: 14px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  th, td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: #f0f0f0; }
+  nav ol { columns: 2; }
+  @media print { body { max-width: none; font-size: 11.5pt; } h2 { break-before: auto; } a { color: inherit; } }
+</style>
+</head>
+<body>
+
+<h1>Avant de commencer</h1>
+<p class="chapeau">Installer J-ed sur un ordinateur Windows, pas à pas, sans rien connaître à Docker ni à PowerShell.
+Comptez une heure la première fois, surtout du temps d'attente. Chaque étape dit ce que vous devez voir.</p>
+
+<div class="conseil">L'<strong>assistant J-ed</strong> (le fichier <code>J-ed.cmd</code>) fait l'installation pour vous
+et vérifie lui-même chacun des points ci-dessous : s'il manque quelque chose, il l'affiche en rouge avec un bouton
+« Comment faire ? » qui mène à la bonne partie de cette page.</div>
+
+<nav>
+<ol>
+  <li><a href="#configuration">Ce qu'il faut</a></li>
+  <li><a href="#virtualisation">La virtualisation</a></li>
+  <li><a href="#wsl">WSL</a></li>
+  <li><a href="#docker">Docker Desktop</a></li>
+  <li><a href="#docker-demarre">Démarrer Docker Desktop</a></li>
+  <li><a href="#disque">Place sur le disque</a></li>
+  <li><a href="#telecharger">Télécharger J-ed</a></li>
+  <li><a href="#assistant">Ouvrir l'assistant</a></li>
+  <li><a href="#installer">Installer J-ed</a></li>
+  <li><a href="#proxy">Derrière un proxy</a></li>
+  <li><a href="#problemes">En cas de problème</a></li>
+</ol>
+</nav>
+
+<h2 id="configuration">1. Ce qu'il faut</h2>
+<ul>
+  <li><strong>Windows 10 ou 11, en 64 bits, à jour.</strong> Docker Desktop demande au moins Windows 10 version 22H2
+    ou Windows 11 version 23H2 : ouvrez <em>Paramètres → Windows Update</em> et installez les mises à jour proposées.</li>
+  <li><strong>8 Go de mémoire</strong> conseillés (4 Go au minimum ; J-ed sera alors lent).</li>
+  <li><strong>20 Go de place libre</strong> sur le disque (voir <a href="#disque">plus bas</a>).</li>
+  <li><strong>Un compte administrateur de l'ordinateur</strong>, une seule fois, pour installer WSL et Docker Desktop.</li>
+  <li><strong>Internet</strong> pendant l'installation. Ensuite, J-ed fonctionne aussi hors ligne (sauf la recherche
+    dans les catalogues en ligne).</li>
+</ul>
+
+<h2 id="virtualisation">2. La virtualisation</h2>
+<p>Docker a besoin de la « virtualisation » du processeur. Pour savoir si elle est active :</p>
+<ol>
+  <li>clic droit sur la barre des tâches, puis <strong>Gestionnaire des tâches</strong> ;</li>
+  <li>onglet <strong>Performances</strong>, puis <strong>Processeur</strong> (ou « CPU ») ;</li>
+  <li>en bas à droite, la ligne <strong>Virtualisation</strong>.</li>
+</ol>
+<p class="attendu">Attendu : « Virtualisation : Activé ».</p>
+<div class="attention">Si vous lisez « Désactivé », elle s'active dans les réglages de démarrage de l'ordinateur
+(le BIOS ou l'UEFI), sous un nom comme <em>Intel VT-x</em>, <em>Intel Virtualization Technology</em>, <em>AMD-V</em>
+ou <em>SVM</em>. La façon d'y entrer change d'un fabricant à l'autre (souvent une touche comme F2, F10 ou Suppr au
+démarrage) : demandez de l'aide si vous n'êtes pas à l'aise. Sur une machine virtuelle, c'est un réglage de
+l'hôte (par exemple le type de processeur « host » sous Proxmox).</div>
+
+<h2 id="wsl">3. WSL</h2>
+<p>WSL est un composant de Windows dont Docker Desktop se sert. Pour l'installer :</p>
+<ol>
+  <li>clic droit sur le bouton <strong>Démarrer</strong>, puis <strong>Terminal (administrateur)</strong> ;
+    acceptez la question « Voulez-vous autoriser… » ;</li>
+  <li>tapez la commande ci-dessous, puis Entrée :</li>
+</ol>
+<span class="commande">wsl --install</span>
+<p class="attendu">Attendu : l'installation se déroule, puis Windows demande de redémarrer. Redémarrez.</p>
+<p>Pour vérifier ensuite (dans un Terminal ordinaire) :</p>
+<span class="commande">wsl --version</span>
+<p class="attendu">Attendu : une ligne « Version WSL : 2.x.x ». Si la commande n'est pas reconnue, ou si la version
+est plus ancienne que 2.1.5, tapez <code>wsl --update</code>.</p>
+
+<h2 id="docker">4. Docker Desktop</h2>
+<p>Docker Desktop fait tourner J-ed dans des « conteneurs ». Il est <strong>gratuit pour un usage personnel</strong>,
+l'enseignement, les projets libres non commerciaux et les petites entreprises (moins de 250 salariés et moins de
+10 millions de dollars de chiffre d'affaires) ; au-delà, Docker demande un abonnement payant.</p>
+<ol>
+  <li>Téléchargez Docker Desktop pour Windows sur le site officiel :
+    <a href="https://www.docker.com/products/docker-desktop/">docker.com/products/docker-desktop</a>
+    (bouton de l'assistant : « Télécharger Docker Desktop »).</li>
+  <li>Ouvrez le fichier téléchargé (<code>Docker Desktop Installer.exe</code>).</li>
+  <li>Gardez l'option <strong>« Use WSL 2 »</strong> cochée, puis <strong>OK</strong>. L'installation dure quelques
+    minutes.</li>
+  <li>À la fin, cliquez sur <strong>Close</strong> (ou redémarrez si c'est demandé).</li>
+</ol>
+
+<h2 id="docker-demarre">5. Démarrer Docker Desktop</h2>
+<ol>
+  <li>Ouvrez <strong>Docker Desktop</strong> depuis le menu Démarrer.</li>
+  <li>La première fois : acceptez les conditions d'utilisation (<em>Accept</em>). La connexion à un compte Docker
+    n'est <strong>pas</strong> nécessaire : vous pouvez passer cette étape (<em>Skip</em>).</li>
+  <li>Attendez que la baleine de Docker, près de l'horloge, soit <strong>immobile</strong>, et que Docker Desktop
+    affiche « Engine running » en bas à gauche.</li>
+</ol>
+<div class="conseil">Pour que J-ed soit prêt à chaque démarrage de l'ordinateur : dans Docker Desktop,
+<em>Settings → General</em>, cochez « Start Docker Desktop when you sign in to your computer ». J-ed redémarre
+ensuite tout seul avec Docker.</div>
+
+<h2 id="disque">6. Place sur le disque</h2>
+<p>Docker et J-ed occupent environ 10 Go ; prévoyez <strong>20 Go libres</strong> (plus si vous installez l'IA locale).
+Pour voir la place libre : ouvrez l'<strong>Explorateur de fichiers</strong>, puis <strong>Ce PC</strong>.</p>
+
+<h2 id="telecharger">7. Télécharger J-ed</h2>
+<ol>
+  <li>Ouvrez la page des versions de J-ed :
+    <a href="https://github.com/adupuisauteur/japon-explorateur/releases/latest">github.com/adupuisauteur/japon-explorateur/releases/latest</a>.</li>
+  <li>En bas, dans <strong>Assets</strong>, téléchargez les <strong>deux</strong> fichiers :
+    <code>japon-explorateur-X.Y.Z.zip</code> et <code>japon-explorateur-X.Y.Z.zip.sha256</code> (l'empreinte, qui
+    permet de vérifier que l'archive est complète et intacte).</li>
+  <li><strong>Débloquez l'archive</strong> : clic droit sur le fichier <code>.zip</code>, <strong>Propriétés</strong>,
+    cochez <strong>Débloquer</strong> en bas, puis <strong>OK</strong> (si la case n'existe pas, rien à faire).</li>
+  <li>Clic droit sur le <code>.zip</code>, <strong>Extraire tout…</strong>, choisissez par exemple
+    <code>C:\J-ed</code>, puis <strong>Extraire</strong>.</li>
+</ol>
+
+<h2 id="assistant">8. Ouvrir l'assistant</h2>
+<ol>
+  <li>Dans le dossier extrait, double-cliquez sur <strong><code>J-ed.cmd</code></strong>.</li>
+  <li>Si Windows affiche « Windows a protégé votre ordinateur » : cliquez sur <strong>Informations
+    complémentaires</strong>, puis <strong>Exécuter quand même</strong> (J-ed n'a pas de signature payante ; son code
+    est public).</li>
+</ol>
+<p class="attendu">Attendu : la fenêtre « Assistant J-ed » s'ouvre au bout de quelques secondes. Elle vérifie les
+points 1 à 6 : « Prérequis : tout est prêt » en vert, sinon la liste de ce qui reste à régler.</p>
+
+<h2 id="installer">9. Installer J-ed</h2>
+<ol>
+  <li>Cliquez sur <strong>Nouvelle installation</strong>.</li>
+  <li>Archive : <strong>Choisir…</strong> et prenez le même fichier <code>.zip</code> (l'empreinte est trouvée
+    toute seule), ou bien <strong>Télécharger la dernière version (GitHub)</strong>.</li>
+  <li>Gardez le nom, le port, l'emplacement et le dossier des sauvegardes proposés (ou changez-les), puis cliquez sur
+    <strong>Installer</strong>.</li>
+  <li>Attendez : la première installation prend <strong>10 à 30 minutes</strong> (téléchargements). La fenêtre
+    montre chaque étape ; elle se termine en vert.</li>
+  <li>Cliquez sur <strong>1. Créer le compte administrateur</strong> : J-ed s'ouvre dans le navigateur ; choisissez
+    un identifiant et un mot de passe (10 caractères au moins).</li>
+  <li>Si vous voulez : <strong>Créer les raccourcis</strong> (Bureau et menu Démarrer) et <strong>Charger le jeu
+    d'essai</strong> (des notices fictives pour découvrir J-ed ; l'aide « Essayer J-ed » guide la visite).</li>
+</ol>
+<div class="conseil">Le dossier extrait à l'étape 7 ne sert qu'à lancer l'assistant : J-ed est installé dans son
+propre dossier (par exemple <code>C:\J-ed\jed-X.Y.Z</code>), qui contient aussi l'assistant. Pour les mises à jour,
+ouvrez l'assistant (raccourci « Assistant J-ed ») et cliquez sur <strong>Mettre à jour une installation</strong>.</div>
+
+<h2 id="proxy">10. Derrière un proxy (réseau d'entreprise ou d'établissement)</h2>
+<p>Si Windows passe par un proxy, Docker doit aussi y passer :</p>
+<ol>
+  <li>dans Docker Desktop : <strong>Settings</strong> (roue dentée) → <strong>Resources</strong> →
+    <strong>Proxies</strong> ;</li>
+  <li>choisissez <strong>System proxy</strong> pour Docker Desktop et pour les conteneurs (le proxy de Windows est
+    repris, y compris un fichier de configuration automatique « PAC » réglé dans Windows) ;</li>
+  <li><strong>Apply &amp; restart</strong>, puis attendez la baleine immobile.</li>
+</ol>
+<p>Dans l'assistant, laissez cochée la case <strong>« Mon réseau passe par un proxy : utiliser celui de Windows »</strong>
+(cochée d'avance si un proxy est détecté) : J-ed s'en servira aussi. Le bouton <strong>« Docker joint-il
+Internet ? »</strong> vérifie que tout est bien réglé. Un proxy qui demande un identifiant et un mot de passe se règle
+à la main (l'assistant n'écrit jamais de mot de passe).</p>
+
+<h2 id="problemes">11. En cas de problème</h2>
+<table>
+  <tr><th>Ce que vous voyez</th><th>Que faire</th></tr>
+  <tr><td>« Docker Desktop n'est pas démarré » ; « error during connect »</td>
+      <td>Ouvrez Docker Desktop et attendez la baleine immobile, puis recommencez.</td></tr>
+  <tr><td>« WSL » en rouge ; Docker Desktop parle de WSL au démarrage</td>
+      <td>Refaites l'<a href="#wsl">étape 3</a> (<code>wsl --update</code>), puis redémarrez l'ordinateur.</td></tr>
+  <tr><td>« Virtualisation » en rouge</td><td>Voir l'<a href="#virtualisation">étape 2</a>.</td></tr>
+  <tr><td>« Docker ne joint pas Internet » ; « context deadline exceeded »</td>
+      <td>Vérifiez la connexion ; derrière un proxy, voir l'<a href="#proxy">étape 10</a>.</td></tr>
+  <tr><td>« Le port … est déjà utilisé »</td><td>Choisissez un autre port dans l'assistant (il en propose un libre).</td></tr>
+  <tr><td>Le disque est plein</td><td>Libérez de la place (voir l'<a href="#disque">étape 6</a>).</td></tr>
+  <tr><td>Rien ne s'ouvre en double-cliquant sur <code>J-ed.cmd</code></td>
+      <td>Débloquez l'archive et extrayez-la de nouveau (<a href="#telecharger">étape 7</a>). Sinon, ouvrez un Terminal
+      dans le dossier (clic droit sur le fond du dossier, « Ouvrir dans le Terminal ») et tapez
+      <code>powershell -ExecutionPolicy Bypass -File .\assistant\assistant-j-ed.ps1</code> : le message affiché dit
+      pourquoi.</td></tr>
+  <tr><td>Mot de passe de J-ed oublié</td><td>Assistant → Opérations de maintenance → <strong>Mot de passe
+      oublié</strong>.</td></tr>
+  <tr><td>Autre chose</td><td>Assistant → <strong>Ça ne marche pas</strong> : un compte rendu (sans aucun mot de passe)
+      est enregistré sur le Bureau ; envoyez-le à la personne qui vous aide.</td></tr>
+</table>
+
+<p style="margin-top:40px;color:#666;font-size:14px">J-ed — logiciel libre (licence GNU AGPL v3 ou ultérieure).
+Code source : github.com/adupuisauteur/japon-explorateur.</p>
+</body>
+</html>

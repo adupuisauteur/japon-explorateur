@@ -356,7 +356,7 @@ function Start-VerificationJed {
     $f = New-FenetreJed "Vérifier « $($i.Nom) »" 560 260
     $l = New-EtiquetteJed "La vérification ne modifie rien. Elle écrit un rapport à côté du dossier de l'installation." 16 16 510 44
     $cTests = New-Object System.Windows.Forms.CheckBox
-    $cTests.Text = 'Avec les tests automatiques (3 à 10 minutes)'
+    $cTests.Text = 'Avec les tests automatiques (15 à 25 minutes en tout)'
     $cTests.Location = New-Object System.Drawing.Point(16, 70)
     $cTests.Size = New-Object System.Drawing.Size(500, 26)
     $cSources = New-Object System.Windows.Forms.CheckBox

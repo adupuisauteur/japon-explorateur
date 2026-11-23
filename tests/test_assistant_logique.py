@@ -171,6 +171,8 @@ class PrerequisTests(AssistantTestCase):
         self.assertEqual(self.niveaux(MemoireGo=6)["memoire"][0], "attention")
         self.assertEqual(self.niveaux(DisqueLibreGo=15)["disque"][0], "attention")
         self.assertEqual(self.niveaux(Build=19041)["windows"][0], "attention")
+        self.assertEqual(self.niveaux(Build=22621)["windows"][0], "attention", "Windows 11 22H2 : trop ancien")
+        self.assertEqual(self.niveaux(Build=19045)["windows"][0], "ok", "Windows 10 22H2")
         self.assertEqual(self.niveaux(Virtualisation=None)["virtualisation"][0], "attention")
 
     def test_facts_are_gathered_without_error(self):

@@ -241,7 +241,8 @@ function Test-PrerequisJed {
         $c.Add((New-ControleJed 'windows' 'Windows' 'erreur' "L'assistant fonctionne sous Windows 10 ou 11." 'configuration'))
     } elseif (-not $Faits.Bits64) {
         $c.Add((New-ControleJed 'windows' 'Windows 64 bits' 'erreur' 'Docker Desktop demande un Windows 64 bits.' 'configuration'))
-    } elseif ($Faits.Build -lt 19045) {
+    } elseif ($Faits.Build -lt 19045 -or ($Faits.Build -ge 22000 -and $Faits.Build -lt 22631)) {
+        # Docker Desktop demande Windows 10 22H2 (19045) ou Windows 11 23H2 (22631) au moins (documentation, 23/11/2026).
         $c.Add((New-ControleJed 'windows' 'Version de Windows' 'attention' "Windows trop ancien pour Docker Desktop (version $($Faits.Build)) : faites les mises à jour de Windows." 'configuration'))
     } else {
         $c.Add((New-ControleJed 'windows' 'Windows' 'ok' 'Windows 64 bits à jour.' 'configuration'))

@@ -1,5 +1,42 @@
 # Historique des versions
 
+## 2.0.2-rc1 — 23 novembre 2026
+
+**Version candidate rc1** de la 2.0.2 : l'**assistant graphique Windows**. Même application : **aucune migration de
+base, aucun changement des données** (seul ajout à l'application : la commande `mot_de_passe_oublie`).
+
+**Ordre des versions modifié le 23 novembre 2026** (décision de l'utilisateur) : l'assistant graphique, d'abord
+prévu en 2.0.3 après Linux, devient la **2.0.2** ; **Linux** devient la **2.0.3** (avec le proxy sous Ubuntu) ; le
+**proxy sous Windows** passe de la 2.0.4 à la 2.0.2. La 2.0.4 garde le réseau local, la migration et la NDL.
+
+- **Assistant J-ed** (`J-ed.cmd`, `assistant/`, Windows PowerShell 5.1 et Windows Forms : rien à installer). Il ne
+  contient aucune logique d'installation : il lance les scripts (contrat `docs/contrat-scripts.md`, testé) et
+  montre leur déroulement en français.
+  - Écran d'accueil : « Mettre à jour une installation », « Nouvelle installation », liste des installations
+    (retrouvées par Docker et par une liste gardée ; « Ajouter une installation… »), dernière sauvegarde.
+  - Prérequis vérifiés (Windows, mémoire, virtualisation, WSL, Docker Desktop installé et démarré, place libre),
+    avec « Comment faire ? » vers `AVANT-DE-COMMENCER.html`.
+  - Mise à jour : archive choisie ou **dernière version publiée sur GitHub** (archive et `.sha256` téléchargés,
+    empreinte contrôlée), confirmation OUI dans une boîte de dialogue au moment où le script la pose, message
+    de chaque code de sortie, cause probable des erreurs Docker courantes.
+  - **Nouvelle installation** (`installer-j-ed.ps1`), aussi une deuxième instance : nom et port neufs contrôlés,
+    secrets neufs, fin guidée (compte administrateur, raccourcis, jeu d'essai).
+  - Opérations de maintenance : créer et **restaurer une sauvegarde** (dans une nouvelle installation, ou dans
+    l'installation choisie après saisie de `RESTAURER`), **mot de passe oublié**, vérifier la migration,
+    réinitialiser l'essai.
+  - **Proxy de Windows** (PAC compris) : case à cocher, vérification de l'accès de Docker à Internet, `HTTP_PROXY`,
+    `HTTPS_PROXY`, `NO_PROXY` écrits dans le `.env` et transmis par `docker-compose.yml` (vides par défaut).
+  - Raccourcis « J-ed » et « Assistant J-ed » ; compte rendu « Ça ne marche pas » sans aucun secret ; fenêtres
+    adaptées aux petits écrans.
+- `mettre-a-jour.ps1` : paramètre facultatif `-Empreinte` ; confirmation pilotable (repères `QUESTION` et `REPONSE`
+  du journal). `reinitialiser-essai.ps1` : réponses lues sur l'entrée standard quand un programme les fournit ;
+  avec `-Complet`, images gardées si une autre installation de J-ed existe.
+- Commande `mot_de_passe_oublie` (liste des comptes ; nouveau mot de passe lu sur l'entrée standard, vérifié, noté
+  dans le journal des actions sensibles).
+- **`AVANT-DE-COMMENCER.html` et `.pdf`** à la racine de l'archive : guide pas à pas pour un débutant complet.
+- Aide intégrée : nouvelle page « L'assistant J-ed » ; « Mettre à jour J-ed » présente d'abord l'assistant.
+- 887 tests.
+
 ## 2.0.1 — 23 novembre 2026
 
 **Version définitive**, déclarée par l'utilisateur le 23 novembre 2026 après la recette des versions candidates rc1,

@@ -6,8 +6,12 @@ public: admin
 resume: Passer à une nouvelle version sans rien perdre, avec le script de mise à jour.
 ---
 Une mise à jour **garde toutes vos données** : notices, bibliothèque, projets, glossaires, comptes, clés, paquets
-Argos et modèles de l'IA locale. Elle se fait en une commande, avec le script `mettre-a-jour.ps1`. Le **guide de
-mise à jour** livré avec chaque version détaille chaque étape.
+Argos et modèles de l'IA locale. Le **guide de mise à jour** livré avec chaque version détaille chaque étape.
+
+**Le plus simple (depuis la 2.0.2) : l'assistant J-ed.** Double-cliquez sur `J-ed.cmd` (ou sur le raccourci
+« Assistant J-ed »), choisissez votre installation, puis **Mettre à jour une installation** : l'assistant fait tout
+ce qui est décrit ci-dessous, et vous demande de confirmer au bon moment (aide [L'assistant J-ed](aide:assistant-j-ed)).
+La suite de cette page décrit la même mise à jour en ligne de commande, avec le script `mettre-a-jour.ps1`.
 
 ## Ce qu'il faut
 

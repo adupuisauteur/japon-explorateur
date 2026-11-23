@@ -23,7 +23,7 @@ x-app: &app
       no_proxy: ${NO_PROXY:-}
   # Étiquette d'image propre à chaque version (depuis la 2.0.0) : les images des versions précédentes ne sont pas
   # remplacées, et la mise à jour sûre (2.0.1) peut revenir à l'ancienne version sans rien reconstruire.
-  image: japon-explorateur:2.0.1
+  image: japon-explorateur:2.0.2
   env_file: .env
   environment:
     DATABASE_URL: postgres://japon:${POSTGRES_PASSWORD:?définir POSTGRES_PASSWORD dans .env}@db:5432/japon
@@ -141,7 +141,7 @@ services:
         http_proxy: ${HTTP_PROXY:-}
         https_proxy: ${HTTPS_PROXY:-}
         no_proxy: ${NO_PROXY:-}
-    image: japon-explorateur-argos:2.0.1
+    image: japon-explorateur-argos:2.0.2
     # Limites facultatives (.env) : nombre de cœurs et mémoire maximale du service. 0 (par défaut) = sans limite.
     cpus: ${ARGOS_COEURS:-0}
     mem_limit: ${ARGOS_MEMOIRE_MAX:-0}
