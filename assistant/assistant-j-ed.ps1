@@ -285,7 +285,10 @@ function Update-BilanJed {
 function Update-ListeJed {
     $script:Fenetre.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
     try {
-        $script:Installations = @(Find-InstallationsJed -Fichier $script:Liste)
+        # 2.0.2-rc3 : Find-InstallationsJed renvoie déjà un tableau (« return ,@(…) ») ; l'entourer de @( ) en faisait
+        # un tableau dans un tableau, et la liste plantait dès deux installations (recette de la rc2, T3).
+        $script:Installations = Find-InstallationsJed -Fichier $script:Liste
+        if ($null -eq $script:Installations) { $script:Installations = @() }
     } finally {
         $script:Fenetre.Cursor = [System.Windows.Forms.Cursors]::Default
     }

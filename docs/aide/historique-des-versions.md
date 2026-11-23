@@ -5,7 +5,7 @@ ordre: 20
 public: admin
 resume: Évolutions et améliorations de J-ed, version par version.
 ---
-## Version 2.0.2 (version candidate rc2, 23 novembre 2026)
+## Version 2.0.2 (version candidate rc3, 23 novembre 2026)
 
 Une version pour installer et entretenir J-ed **sans ouvrir PowerShell**. Aucun changement de vos données.
 

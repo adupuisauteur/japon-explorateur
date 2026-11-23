@@ -68,7 +68,7 @@ Les nouveautés de la dernière version.
 Voici ce qui change dans la dernière version. Les versions précédentes sont décrites dans
 l'**Historique des versions** (Administration).
 
-### Version 2.0.2 (version candidate rc2, 23 novembre 2026)
+### Version 2.0.2 (version candidate rc3, 23 novembre 2026)
 
 Une version pour installer et entretenir J-ed **sans ouvrir PowerShell**. Aucun changement de vos données.
 
@@ -1504,7 +1504,7 @@ Les mots de J-ed, en une phrase chacun.
 
 Évolutions et améliorations de J-ed, version par version.
 
-### Version 2.0.2 (version candidate rc2, 23 novembre 2026)
+### Version 2.0.2 (version candidate rc3, 23 novembre 2026)
 
 Une version pour installer et entretenir J-ed **sans ouvrir PowerShell**. Aucun changement de vos données.
 

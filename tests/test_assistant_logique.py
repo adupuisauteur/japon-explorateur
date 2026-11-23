@@ -116,6 +116,26 @@ class InstallationsTests(AssistantTestCase):
         self.assertEqual(len(self.liste.read_text(encoding="utf-8").splitlines()), 2, "gardées dans la liste")
         self.assertNotIn(SECRET_FICTIF, self.liste.read_text(encoding="utf-8"))
 
+    def test_list_as_the_window_uses_it_with_two_installations(self):
+        """2.0.2-rc3 (recette de la rc2, T3) : avec deux installations, la fenêtre recevait un tableau dans un tableau
+        et « SubItems.Add » plantait (System.Object[]). La fenêtre affecte le résultat sans l'entourer de @( )."""
+        a = self.make_install("a", "jed-a", version="2.0.1")
+        b = self.make_install("b", "jed-a", version="2.0.2")
+        self.ps(f"Add-InstallationListeJed -Fichier '{self.liste}' -Dossier '{a}'")
+        ls = json.dumps([{"Name": "jed-a", "Status": "running(9)", "ConfigFiles": str(b / "docker-compose.yml")}])
+        code = (f"$x = Find-InstallationsJed -Fichier '{self.liste}'; "
+                "@($x.Count) + @($x | ForEach-Object { $_.Version.GetType().Name + ' ' + $_.Nom.GetType().Name })")
+        r = self.ps(code, compose_ls=ls)
+        self.assertEqual(r, [2, "String String", "String String"])
+        for vide in ("[]",):
+            liste_vide = self.tmp / "vide.txt"
+            r = self.ps(f"$x = Find-InstallationsJed -Fichier '{liste_vide}'; @($x).Count", compose_ls=vide)
+            self.assertEqual(r, 0)
+
+    def test_window_never_wraps_the_list_in_another_array(self):
+        fenetre = (ROOT / "assistant" / "assistant-j-ed.ps1").read_text(encoding="utf-8-sig")
+        self.assertNotIn("@(Find-InstallationsJed", fenetre)
+
     def test_installation_stopped_with_down_is_still_found_from_the_list(self):
         """« docker compose ls » ne voit plus une installation arrêtée par « down » : la liste gardée la retrouve."""
         a = self.make_install("a", "jed-a")

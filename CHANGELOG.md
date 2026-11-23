@@ -1,8 +1,19 @@
 # Historique des versions
 
-## 2.0.2-rc2 — 23 novembre 2026
+## 2.0.2-rc3 — 23 novembre 2026
 
-**Version candidate rc2**, correction d'un défaut bloquant trouvé à la recette de la rc1 (essai T2, mise à jour de
+**Version candidate rc3**, correction d'un défaut bloquant trouvé à la recette de la rc2 (après la première mise à
+jour réussie par l'assistant, essai T2) :
+
+- **la liste des installations plantait dès qu'il y en avait deux** (erreur « System.Object[] » de Windows Forms,
+  ici l'ancien et le nouveau dossier de l'essai) : la fenêtre entourait d'un second tableau la liste déjà rendue
+  sous forme de tableau. Nouveaux tests : la liste telle que la fenêtre l'utilise, avec deux installations et
+  sans aucune.
+- 892 tests.
+
+### Version candidate rc2 (23 novembre 2026)
+
+Correction d'un défaut bloquant trouvé à la recette de la rc1 (essai T2, mise à jour de
 l'installation d'essai depuis l'assistant) :
 
 - **la mise à jour vers la rc1 s'arrêtait à l'étape 4/7** (« nom de projet inattendu », code 1 ; rien n'était
