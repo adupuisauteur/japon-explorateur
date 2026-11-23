@@ -81,6 +81,8 @@ powershell -ExecutionPolicy Bypass -File .\mettre-a-jour.ps1 -Archive .\japon-ex
   d'installation.
 - `-Destination` (facultatif) : le nouveau dossier, si celui proposé par défaut (`C:\J-ed\japon-explorateur-2.0.1`)
   existe déjà.
+- `-Empreinte` (facultatif, depuis la 2.0.2) : le fichier `.sha256` de l'archive, s'il n'est pas rangé à côté
+  d'elle.
 
 [Résultat attendu, à la fin : « Mise à jour terminée : J-ed 2.0.1, http://localhost:8000 ».]
 

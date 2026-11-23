@@ -25,7 +25,8 @@
 
     Journal (2.0.1) : chaque mise à jour écrit le fichier mise-a-jour-AAAAMMJJ-HHMMSS.log dans le dossier des
     sauvegardes. Chaque ligne commence par la date, l'heure et un repère fixe : ETAPE, INFO, ATTENTION, COMMANDE,
-    RESULTAT, ERREUR, FIN ; les lignes de suite commencent par « | ». La configuration complète de Docker (qui
+    RESULTAT, ERREUR, QUESTION et REPONSE (2.0.2 : confirmation), FIN ; les lignes de suite commencent par « | ».
+    Le contrat suivi par l'assistant J-ed (paramètres, codes, repères) est dans docs/contrat-scripts.md. La configuration complète de Docker (qui
     contient les mots de passe) n'y est jamais écrite.
 
     Codes de sortie (2.0.1) :
@@ -39,7 +40,11 @@
          nécessaire (le message et le journal disent quoi faire).
 
 .PARAMETER Archive
-    Chemin de l'archive de la nouvelle version (.zip). Le fichier d'empreinte (.sha256) doit être à côté.
+    Chemin de l'archive de la nouvelle version (.zip). Le fichier d'empreinte (.sha256) doit être à côté, sauf si
+    -Empreinte est donné.
+
+.PARAMETER Empreinte
+    (2.0.2) Fichier d'empreinte SHA-256 de l'archive, s'il n'est pas à côté d'elle (utilisé par l'assistant J-ed).
 
 .PARAMETER Actuel
     Dossier de l'installation actuelle (celui qui contient docker-compose.yml et .env).
@@ -68,6 +73,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$Archive,
+    [string]$Empreinte,
     [Parameter(Mandatory = $true)][string]$Actuel,
     [string]$Destination,
     [string]$DossierSauvegardes,
@@ -368,10 +374,18 @@ try {
 Write-Host "Journal de la mise à jour : $script:Journal"
 
 # Empreinte : « <archive>.sha256 » ou « <nom sans .zip>.sha256 », à côté de l'archive.
-$CandidatsEmpreinte = @("$Archive.sha256", ([System.IO.Path]::ChangeExtension($Archive, '.sha256')))
-$FichierEmpreinte = $CandidatsEmpreinte | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-if (-not $FichierEmpreinte) {
-    Arreter "fichier d'empreinte absent (attendu : $($CandidatsEmpreinte[0])). Téléchargez-le avec l'archive."
+# 2.0.2 : ou le fichier donné par -Empreinte.
+if ($Empreinte) {
+    if (-not (Test-Path -LiteralPath $Empreinte -PathType Leaf)) {
+        Arreter "fichier d'empreinte introuvable : $Empreinte"
+    }
+    $FichierEmpreinte = $Empreinte
+} else {
+    $CandidatsEmpreinte = @("$Archive.sha256", ([System.IO.Path]::ChangeExtension($Archive, '.sha256')))
+    $FichierEmpreinte = $CandidatsEmpreinte | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    if (-not $FichierEmpreinte) {
+        Arreter "fichier d'empreinte absent (attendu : $($CandidatsEmpreinte[0])). Téléchargez-le avec l'archive."
+    }
 }
 $Attendue = ((Get-Content -LiteralPath $FichierEmpreinte -Raw).Trim() -split '\s+')[0].ToLowerInvariant()
 $Calculee = (Get-FileHash -LiteralPath $Archive -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -603,8 +617,23 @@ Dire 'Nouvelle version prête : toutes ses images sont sur cet ordinateur.' 'Gre
 Etape '6/7 Arrêt de l''ancienne version et démarrage de la nouvelle'
 
 if (-not $Oui) {
-    $reponse = Read-Host "L'ancienne version va être arrêtée (aucune donnée effacée). Taper OUI pour continuer"
-    if ($reponse.Trim() -ne 'OUI') { Arreter 'mise à jour annulée à votre demande.' $CodeAnnule }
+    # 2.0.2 : repère QUESTION dans le journal (l'assistant J-ed affiche alors sa boîte de dialogue), et lecture de
+    # la réponse sur l'entrée standard quand un programme la fournit (Read-Host n'y est pas fiable sous Windows
+    # PowerShell 5.1).
+    $question = "L'ancienne version va être arrêtée (aucune donnée effacée). Taper OUI pour continuer"
+    Ecrire-Journal 'QUESTION' 'OUI pour arrêter l''ancienne version et démarrer la nouvelle'
+    if ([Console]::IsInputRedirected) {
+        Write-Host "$($question) : " -NoNewline
+        $reponse = [Console]::In.ReadLine()
+    } else {
+        $reponse = Read-Host $question
+    }
+    if ($null -eq $reponse) { $reponse = '' }
+    if ($reponse.Trim() -ne 'OUI') {
+        Ecrire-Journal 'REPONSE' 'refus'
+        Arreter 'mise à jour annulée à votre demande.' $CodeAnnule
+    }
+    Ecrire-Journal 'REPONSE' 'OUI'
 }
 $script:AncienneArretee = $true
 $arret = Docker-Dans $Actuel @('compose', 'down')

@@ -321,6 +321,51 @@ class UpdateScriptRunTests(SimpleTestCase):
         self.assertIn("L'ancienne version est toujours en service", result.stdout)
         self.assertTrue(any(c.endswith("compose build") for c in self.calls), "question posée après la construction")
 
+    def test_oui_given_by_another_program_continues(self):
+        """2.0.2 : l'assistant J-ed répond OUI sur l'entrée standard, après le repère QUESTION du journal."""
+        result = self.run_script(oui=False, stdin="OUI\n")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        journal = self.journal()
+        question = journal.index(" QUESTION OUI pour arrêter l'ancienne version")
+        self.assertLess(journal.index(" ETAPE 5/7 "), question, "question posée après la construction")
+        self.assertLess(question, journal.index(" REPONSE OUI"))
+        self.assertLess(journal.index(" REPONSE OUI"), journal.index("compose down"))
+
+    def test_refusal_is_written_in_the_journal(self):
+        result = self.run_script(oui=False, stdin="non\n")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        journal = self.journal()
+        self.assertLess(journal.index(" QUESTION "), journal.index(" REPONSE refus"))
+        self.assertNotIn("compose down", journal)
+
+    def test_no_answer_at_all_cancels(self):
+        """Entrée standard fermée sans réponse (programme arrêté) : annulation, jamais d'arrêt de l'ancienne version."""
+        result = self.run_script(oui=False, stdin="")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertFalse(any(c.endswith("compose down") for c in self.calls))
+
+    def test_hash_file_given_elsewhere_is_used(self):
+        """2.0.2 : -Empreinte, pour un fichier .sha256 qui n'est pas à côté de l'archive."""
+        ailleurs = self.tmp / "ailleurs"
+        ailleurs.mkdir()
+        hash_file = ailleurs / "empreinte.sha256"
+        Path(f"{self.archive}.sha256").rename(hash_file)
+        result = self.run_script("-Empreinte", str(hash_file))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Empreinte de l'archive vérifiée", result.stdout)
+
+    def test_hash_file_given_elsewhere_is_checked(self):
+        hash_file = self.tmp / "fausse.sha256"
+        hash_file.write_text("0" * 64 + "  archive.zip\n")
+        result = self.run_script("-Empreinte", str(hash_file))
+        self.assertStopped(result, "empreinte de l'archive différente")
+        self.assertFalse(self.destination().exists())
+
+    def test_missing_hash_file_given_elsewhere_stops(self):
+        result = self.run_script("-Empreinte", str(self.tmp / "absente.sha256"))
+        self.assertStopped(result, "fichier d'empreinte introuvable")
+        self.assertFalse(self.destination().exists())
+
     def test_journal_is_readable_and_never_contains_the_passwords(self):
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -329,7 +374,7 @@ class UpdateScriptRunTests(SimpleTestCase):
         self.assertNotIn(SECRET_FICTIF, journal)
         self.assertIn("compose config --format json", journal)
         self.assertIn("RESULTAT code=0 (sortie non journalisée)", journal)
-        reperes = {"ETAPE", "INFO", "ATTENTION", "COMMANDE", "RESULTAT", "ERREUR", "FIN"}
+        reperes = {"ETAPE", "INFO", "ATTENTION", "COMMANDE", "RESULTAT", "ERREUR", "FIN", "QUESTION", "REPONSE"}
         for line in journal.splitlines():
             if line.startswith("    | "):
                 continue
