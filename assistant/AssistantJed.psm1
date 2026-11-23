@@ -41,6 +41,9 @@ function Invoke-DockerJed {
         $r = Invoke-ScriptJed -Moteur $moteur -Arguments $Arguments -Dossier $Dossier -SurAttente $SurAttente -SurLigne $SurLigne
         return [pscustomobject]@{ Code = $r.Code; Texte = (@($r.Lignes) -join "`n").Trim() }
     }
+    # Windows PowerShell 5.1 : avec « Stop » (réglage de la fenêtre), une seule ligne écrite par docker sur la
+    # sortie d'erreur arrêterait tout (exception non gérée). Ici, ces lignes sont du texte à lire : « Continue ».
+    $ErrorActionPreference = 'Continue'
     if ($Dossier) { Push-Location -LiteralPath $Dossier }
     try {
         $sortie = & docker @Arguments 2>&1
@@ -208,6 +211,7 @@ function Get-FaitsSystemeJed {
             } catch { }
         }
         if (Get-Command wsl.exe -ErrorAction SilentlyContinue) {
+            $ErrorActionPreference = 'Continue'   # voir Invoke-DockerJed (Windows PowerShell 5.1)
             & wsl.exe --status *> $null
             $faits.Wsl = ($LASTEXITCODE -eq 0)
         } else {

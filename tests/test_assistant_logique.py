@@ -37,6 +37,22 @@ class ModuleFileTests(SimpleTestCase):
         self.assertNotRegex(code, r"'down'|\bdown -v\b|'-v'|--volumes")
         self.assertNotIn("'-Oui'", code.replace("$x -ne '-Oui'", ""), "jamais -Oui ajouté par l'assistant")
 
+    def test_native_commands_never_stop_on_stderr_in_windows_powershell_51(self):
+        """Recette 2.0.2-rc3 (T9) : sous Windows PowerShell 5.1, avec « Stop » (réglage de la fenêtre), une ligne
+        écrite par docker sur la sortie d'erreur (« Unknown command ») devenait une exception non gérée.
+        PowerShell 7 (celui des tests) ne le fait pas : on vérifie donc le code lui-même. Chaque appel direct de
+        docker ou de wsl.exe est précédé, dans sa fonction, de « $ErrorActionPreference = 'Continue' »."""
+        code = MODULE.read_text(encoding="utf-8-sig")
+        fonctions = re.split(r"\r?\n(?=function )", code)
+        appels = 0
+        for bloc in fonctions:
+            for m in re.finditer(r"^\s*(?:\$\w+\s*=\s*)?& (docker|wsl\.exe)\b", bloc, flags=re.M):
+                appels += 1
+                avant = bloc[:m.start()]
+                self.assertIn("$ErrorActionPreference = 'Continue'", avant,
+                              f"appel direct sans « Continue » : {bloc.splitlines()[0]}")
+        self.assertGreaterEqual(appels, 2)
+
 
 class AssistantTestCase(SimpleTestCase):
     def setUp(self):
@@ -430,6 +446,12 @@ class FenetreFileTests(SimpleTestCase):
         code = re.sub(r"<#.*?#>", "", data.decode("utf-8-sig"), flags=re.S)
         self.assertNotIn("-Oui", code)
         self.assertNotRegex(code, r"down -v|'-v'|--volumes")
+
+    def test_account_list_keeps_the_window_alive(self):
+        """Recette 2.0.2-rc3 (T9) : la liste des comptes passe par un processus à part (fenêtre active, sortie
+        d'erreur lue comme du texte), comme le changement du mot de passe."""
+        code = self.FENETRE.read_text(encoding="utf-8-sig")
+        self.assertRegex(code, r"Get-ComptesJed \$i -SurAttente ")
 
     def test_cmd_launches_the_window_without_console(self):
         data = self.CMD.read_bytes()

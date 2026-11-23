@@ -854,7 +854,7 @@ function Show-MotDePasseJed {
     if (-not $i) { return }
     if ($i.Etat -ne 'en marche') { Show-InfoJed "« $($i.Nom) » est arrêtée : démarrez-la d'abord."; return }
     $script:Fenetre.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
-    $c = Get-ComptesJed $i
+    $c = Get-ComptesJed $i -SurAttente { [System.Windows.Forms.Application]::DoEvents() }
     $script:Fenetre.Cursor = [System.Windows.Forms.Cursors]::Default
     if (-not $c.Ok) { Show-ErreurJed $c.Raison; return }
     if ($c.Comptes.Count -eq 0) { Show-InfoJed "Aucun compte : ouvrez $(Get-AdressePremierDemarrageJed $i) pour créer le compte administrateur."; return }
