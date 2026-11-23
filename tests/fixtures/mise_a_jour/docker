@@ -17,6 +17,11 @@ set_image() { grep -v "^$1 " "$IMAGES" > "$IMAGES.tmp"; echo "$1 $2" >> "$IMAGES
 ici_actuel() { [ "$(pwd)" = "$FAKE_ACTUEL" ]; }
 case "$*" in
   "info") exit "${FAKE_DOCKER_INFO:-0}" ;;
+  "compose ls -a --format json")
+    # 2.0.2 (assistant) : projets Compose connus de Docker, au format JSON de « docker compose ls ».
+    printf '%s\n' "${FAKE_COMPOSE_LS:-[]}"; exit "${FAKE_COMPOSE_LS_CODE:-0}" ;;
+  "volume ls --format {{.Name}}")
+    for v in ${FAKE_VOLUMES:-}; do echo "$v"; done; exit 0 ;;
   "compose ps --services --status running")
     printf 'db\nredis\nweb\nworker\nbeat\n'; [ "${FAKE_ARGOS:-0}" = 1 ] && echo argos; exit 0 ;;
   "compose exec -T web python manage.py backup --verify")
