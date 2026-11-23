@@ -71,6 +71,9 @@ class ContratSourceTests(SimpleTestCase):
         self.assertIn("[Console]::IsInputRedirected", source)
         self.assertIn("[Console]::In.ReadLine()", source)
 
+    def test_verification_writes_the_report_line(self):
+        self.assertIn('Write-Host "Rapport enregistré : $Rapport"', lire("verifier-j-ed.ps1"))
+
     def test_checks_end_with_code_0_or_1(self):
         for script in ("verifier-j-ed.ps1", "verifier-migration.ps1", "reinitialiser-essai.ps1"):
             codes = set(re.findall(r"\bexit (\d+)", lire(script)))

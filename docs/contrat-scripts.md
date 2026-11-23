@@ -67,7 +67,8 @@ construction de la nouvelle version (étape 6).
 ## `verifier-j-ed.ps1`
 
 Paramètres : `-Dossier`, `-AvecSources`, `-AvecTests`. Codes de sortie : 0 tout va bien (avertissements
-possibles), 1 au moins une erreur. Aucune question.
+possibles), 1 au moins une erreur. Aucune question. Le chemin du rapport est écrit sur la sortie, dans une ligne qui commence par
+`Rapport enregistré : ` (l'assistant propose de l'ouvrir).
 
 ## `verifier-migration.ps1`
 

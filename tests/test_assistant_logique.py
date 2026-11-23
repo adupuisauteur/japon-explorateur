@@ -392,3 +392,95 @@ class OperationsTests(AssistantTestCase):
         r = self.ps(f"Get-DerniereSauvegardeJed (Get-InstallationJed '{d}') -Maintenant ((Get-Date).AddDays(12))")
         self.assertEqual((Path(r["Fichier"]).name, r["Jours"], r["Texte"]), ("recente.tar", 12, "il y a 12 jours"))
         self.assertEqual(self.ps("Format-AncienneteJed 0"), "aujourd'hui")
+
+
+class FenetreFileTests(SimpleTestCase):
+    """2.0.2, lot 2 — la fenêtre (assistant-j-ed.ps1) et J-ed.cmd. L'affichage lui-même s'essaie sous Windows."""
+
+    FENETRE = ROOT / "assistant" / "assistant-j-ed.ps1"
+    CMD = ROOT / "J-ed.cmd"
+
+    def test_window_script_is_bom_crlf_and_never_confirms_alone(self):
+        data = self.FENETRE.read_bytes()
+        self.assertTrue(data.startswith(b"\xef\xbb\xbf"))
+        self.assertNotIn(b"\n", data.replace(b"\r\n", b""))
+        code = re.sub(r"<#.*?#>", "", data.decode("utf-8-sig"), flags=re.S)
+        self.assertNotIn("-Oui", code)
+        self.assertNotRegex(code, r"down -v|'-v'|--volumes")
+
+    def test_cmd_launches_the_window_without_console(self):
+        data = self.CMD.read_bytes()
+        self.assertTrue(data.isascii(), "J-ed.cmd en ASCII (pas d'accent pour cmd.exe)")
+        self.assertNotIn(b"\n", data.replace(b"\r\n", b""))
+        texte = data.decode("ascii")
+        self.assertIn('-ExecutionPolicy Bypass', texte)
+        self.assertIn('-Sta', texte)
+        self.assertIn('"%~dp0assistant\\assistant-j-ed.ps1"', texte)
+
+    def test_scripts_parse_and_every_called_function_exists(self):
+        if PWSH is None:
+            self.skipTest("PowerShell (pwsh) absent")
+        code = (
+            "$e = $null; $t = $null; "
+            f"$ast = [System.Management.Automation.Language.Parser]::ParseFile('{self.FENETRE}', [ref]$t, [ref]$e); "
+            "if ($e.Count) { throw ($e | ForEach-Object { $_.Message + ' ligne ' + $_.Extent.StartLineNumber }) -join '; ' }; "
+            "$definies = @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true) | ForEach-Object { $_.Name }); "
+            "$appelees = @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.CommandAst] }, $true) | "
+            "ForEach-Object { $_.GetCommandName() } | Where-Object { $_ -like '*Jed' } | Sort-Object -Unique); "
+            f"Import-Module '{MODULE}' -Force; $module = @(Get-Command -Module AssistantJed | ForEach-Object {{ $_.Name }}); "
+            "@($appelees | Where-Object { $_ -notin $definies -and $_ -notin $module })"
+        )
+        r = subprocess.run([PWSH, "-NoProfile", "-NonInteractive", "-Command", code],
+                           capture_output=True, text=True, timeout=120)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.strip(), "", "fonctions appelées mais définies nulle part")
+
+
+class RaccourcisEtCompteRenduTests(AssistantTestCase):
+    def test_shortcut_to_jed_uses_the_port_of_the_instance(self):
+        d = self.make_install("a", "jed-essai-2", port=8002)
+        bureau, menu = self.tmp / "Bureau", self.tmp / "Menu"
+        r = self.ps(f"New-RaccourcisJed (Get-InstallationJed '{d}') '{d}' -Dossiers @('{bureau}', '{menu}')")
+        self.assertEqual(sorted(Path(x).name for x in r), ["J-ed - jed-essai-2.url"] * 2)
+        texte = (bureau / "J-ed - jed-essai-2.url").read_text(encoding="ascii")
+        self.assertIn("URL=http://localhost:8002/", texte)
+
+    def test_secrets_are_masked(self):
+        texte = ("POSTGRES_PASSWORD=abc123 DJANGO_SECRET_KEY: \"zz9\" postgres://jed:motdepasse@db:5432/jed "
+                 "contact prenom.nom@exemple.fr valeur-fictive-du-env")
+        r = self.ps(f"Protect-TexteJed @'\n{texte}\n'@ @('valeur-fictive-du-env')")
+        for secret in ("abc123", "zz9", "motdepasse", "prenom.nom@exemple.fr", "valeur-fictive-du-env"):
+            self.assertNotIn(secret, r)
+        self.assertIn("POSTGRES_PASSWORD=***", r)
+
+    def test_report_contains_no_secret_and_no_env_file(self):
+        sauvegardes = self.tmp / "sauvegardes"
+        sauvegardes.mkdir()
+        (sauvegardes / "mise-a-jour-20261123-120000.log").write_text(
+            f"2026-11-23 12:00:00 INFO mot {SECRET_FICTIF} dans le journal\r\n", encoding="utf-8")
+        d = self.make_install("a", "jed-a", sauvegardes=str(sauvegardes))
+        logs = f"web-1 | connexion avec {SECRET_FICTIF} ; utilisateur auteur@exemple.org connecté"
+        zip_path = self.ps(f"New-CompteRenduJed -Installation (Get-InstallationJed '{d}') -Destination '{self.tmp / 'bureau'}' "
+                           "-VersionAssistant '2.0.2'", actuel=d, logs=logs)
+        with zipfile.ZipFile(zip_path) as z:
+            noms = z.namelist()
+            contenu = "\n".join(z.read(n).decode("utf-8") for n in noms)
+        self.assertIn("compte-rendu.txt", noms)
+        self.assertIn("mise-a-jour-20261123-120000.log", noms)
+        self.assertNotIn(".env", noms)
+        self.assertNotIn(SECRET_FICTIF, contenu)
+        self.assertNotIn("auteur@exemple.org", contenu)
+        self.assertIn("Docker (moteur) : 29.9.3", contenu)
+        self.assertIn("Nom : jed-a", contenu)
+
+    def test_docker_from_the_window_runs_as_a_separate_process(self):
+        """Avec -SurAttente, la commande Docker tourne à part (la fenêtre reste active) et rend le même résultat."""
+        d = self.make_install("a", "jed-a")
+        r = self.ps(f"$n = 0; $x = Invoke-DockerJed '{d}' @('compose', 'ps', '-a') -SurAttente {{ $n++ }}; $x", actuel=d)
+        self.assertEqual(r["Code"], 0)
+        self.assertIn("x-web-1", r["Texte"])
+        self.assertTrue(self.log.read_text().splitlines()[-1].startswith(f"{d} | compose ps -a"), "dans le dossier")
+
+    def test_verification_report_path_is_read(self):
+        r = self.ps("Get-RapportVerificationJed @('…', 'Rapport enregistré : C:\\J-ed\\verification-j-ed-20261123-1200.txt')")
+        self.assertEqual(r, "C:\\J-ed\\verification-j-ed-20261123-1200.txt")

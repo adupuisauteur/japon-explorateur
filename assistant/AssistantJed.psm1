@@ -31,9 +31,15 @@ function Get-CleCheminJed([string]$Chemin) {
 
 function Invoke-DockerJed {
     <# Lance docker (dans un dossier si demandé) ; renvoie le code et le texte (sortie et erreurs). #>
-    param([string]$Dossier, [string[]]$Arguments)
+    param([string]$Dossier, [string[]]$Arguments, [scriptblock]$SurAttente, [scriptblock]$SurLigne)
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
         return [pscustomobject]@{ Code = 127; Texte = "docker n'est pas reconnu : Docker Desktop n'est pas installé." }
+    }
+    if ($SurAttente -or $SurLigne) {
+        # Depuis la fenêtre : processus à part, pour qu'elle reste active pendant une longue commande.
+        $moteur = (Get-Command docker).Source
+        $r = Invoke-ScriptJed -Moteur $moteur -Arguments $Arguments -Dossier $Dossier -SurAttente $SurAttente -SurLigne $SurLigne
+        return [pscustomobject]@{ Code = $r.Code; Texte = (@($r.Lignes) -join "`n").Trim() }
     }
     if ($Dossier) { Push-Location -LiteralPath $Dossier }
     try {
@@ -494,9 +500,10 @@ function Invoke-ScriptJed {
        -SurAttente est appelé pendant l'attente (la fenêtre y garde la main). Renvoie le code de sortie, les
        lignes affichées et le chemin du journal. #>
     param([string]$Moteur = 'powershell.exe', [string[]]$Arguments, [scriptblock]$SurLigne,
-          [scriptblock]$SurQuestion, [scriptblock]$SurAttente)
+          [scriptblock]$SurQuestion, [scriptblock]$SurAttente, [string]$Dossier)
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = $Moteur
+    if ($Dossier) { $psi.WorkingDirectory = $Dossier }
     $psi.Arguments = Join-ArgumentsJed $Arguments
     $psi.UseShellExecute = $false
     $psi.RedirectStandardInput = $true
@@ -631,9 +638,9 @@ function Format-AncienneteJed([int]$Jours) {
 function Invoke-SauvegardeJed {
     <# Sauvegarde vérifiée de l'installation, copiée dans son dossier des sauvegardes s'il est réglé, avec
        contrôle de l'empreinte de la copie (comme mettre-a-jour.ps1). #>
-    param($Installation)
+    param($Installation, [scriptblock]$SurAttente, [scriptblock]$SurLigne)
     $res = [pscustomobject]@{ Ok = $false; Fichier = ''; Copie = ''; Message = '' }
-    $r = Invoke-DockerJed $Installation.Dossier (Get-CommandeActionJed 'Sauvegarder')
+    $r = Invoke-DockerJed $Installation.Dossier (Get-CommandeActionJed 'Sauvegarder') -SurAttente $SurAttente -SurLigne $SurLigne
     if ($r.Code -ne 0 -or $r.Texte -notmatch 'Termin.{1,3}e : (\S+\.tar)' -or $r.Texte -notmatch 'Int.{1,3}grit.{1,3} v.{1,3}rifi') {
         $res.Message = "La sauvegarde a échoué.`n$($r.Texte)"
         return $res
@@ -648,12 +655,12 @@ function Invoke-SauvegardeJed {
     }
     New-Item -ItemType Directory -Force -Path $d | Out-Null
     $copie = Join-CheminJed $d (Split-Path -Leaf $chemin)
-    $cp = Invoke-DockerJed $Installation.Dossier @('compose', 'cp', "web:$chemin", $copie)
+    $cp = Invoke-DockerJed $Installation.Dossier @('compose', 'cp', "web:$chemin", $copie) -SurAttente $SurAttente
     if ($cp.Code -ne 0 -or -not (Test-Path -LiteralPath $copie)) {
         $res.Message = "Sauvegarde faite, mais sa copie sur l'ordinateur a échoué.`n$($cp.Texte)"
         return $res
     }
-    $sha = Invoke-DockerJed $Installation.Dossier @('compose', 'exec', '-T', 'web', 'sha256sum', $chemin)
+    $sha = Invoke-DockerJed $Installation.Dossier @('compose', 'exec', '-T', 'web', 'sha256sum', $chemin) -SurAttente $SurAttente
     $local = (Get-FileHash -LiteralPath $copie -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($sha.Code -ne 0 -or (($sha.Texte -split '\s+')[0]).ToLowerInvariant() -ne $local) {
         $res.Message = "La copie de la sauvegarde ($copie) ne correspond pas à l'original."
@@ -663,6 +670,149 @@ function Invoke-SauvegardeJed {
     $res.Copie = $copie
     $res.Message = "Sauvegarde faite, vérifiée et copiée : $copie"
     return $res
+}
+
+function Get-ScriptVerificationJed {
+    <# verifier-j-ed.ps1 de l'installation (celui de sa version), sinon celui du dossier de l'assistant. #>
+    param($Installation, [string]$DossierAssistant)
+    $propre = Join-CheminJed $Installation.Dossier 'verifier-j-ed.ps1'
+    if (Test-Path -LiteralPath $propre) { return $propre }
+    return Join-CheminJed $DossierAssistant 'verifier-j-ed.ps1'
+}
+
+function Get-RapportVerificationJed([string[]]$Lignes) {
+    <# Chemin du rapport écrit par verifier-j-ed.ps1 (ligne « Rapport enregistré : … » du contrat). #>
+    foreach ($l in $Lignes) { if ($l -match '^Rapport enregistr.{1,3} : (.+)$') { return $Matches[1].Trim() } }
+    return $null
+}
+
+# --- Raccourcis ------------------------------------------------------------------------------------------
+
+function Get-NomRaccourciJed($Installation) {
+    $nom = "J-ed - $($Installation.Nom)"
+    return ($nom -replace '[\\/:*?"<>|]', '-')
+}
+
+function New-RaccourcisJed {
+    <# Raccourci « J-ed - <nom> » (ouvre J-ed dans le navigateur) et « Assistant J-ed » (ouvre l'assistant), sur
+       le Bureau et dans le menu Démarrer. Remplace seulement des raccourcis de ces mêmes noms. Renvoie les
+       fichiers écrits. #>
+    param($Installation, [string]$DossierAssistant, [string[]]$Dossiers)
+    if (-not $Dossiers) {
+        $Dossiers = @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs'))
+    }
+    $ecrits = New-Object System.Collections.Generic.List[string]
+    foreach ($d in $Dossiers) {
+        if (-not $d) { continue }
+        New-Item -ItemType Directory -Force -Path $d | Out-Null
+        $url = Join-CheminJed $d ((Get-NomRaccourciJed $Installation) + '.url')
+        $texte = "[InternetShortcut]`r`nURL=$(Get-AdresseJed $Installation)`r`n"
+        [System.IO.File]::WriteAllText($url, $texte, [System.Text.Encoding]::ASCII)
+        $ecrits.Add($url)
+        $cmd = Join-CheminJed $DossierAssistant 'J-ed.cmd'
+        if ((Test-Path -LiteralPath $cmd) -and ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT)) {
+            $lnk = Join-CheminJed $d 'Assistant J-ed.lnk'
+            $shell = New-Object -ComObject WScript.Shell
+            $r = $shell.CreateShortcut($lnk)
+            $r.TargetPath = $cmd
+            $r.WorkingDirectory = $DossierAssistant
+            $r.WindowStyle = 7
+            $r.Description = 'Assistant J-ed : installer, mettre à jour, vérifier et sauvegarder J-ed'
+            $r.Save()
+            $ecrits.Add($lnk)
+        }
+    }
+    return ,$ecrits.ToArray()
+}
+
+# --- Compte rendu « Ça ne marche pas » --------------------------------------------------------------------
+
+function Protect-TexteJed {
+    <# Masque les secrets d'un texte : valeurs sensibles du .env, mots de passe et clés écrits « nom=valeur »,
+       identifiants dans les adresses, adresses électroniques. #>
+    param([string]$Texte, [string[]]$Secrets = @())
+    if (-not $Texte) { return $Texte }
+    foreach ($s in $Secrets) {
+        if ($s -and $s.Length -ge 4) { $Texte = $Texte.Replace($s, '***') }
+    }
+    $Texte = [regex]::Replace($Texte, '(?i)\b([A-Z0-9_]*(PASSWORD|PASSWD|SECRET|TOKEN|KEY|MOT_DE_PASSE|CLE)[A-Z0-9_]*)\s*([=:])\s*("?)[^\s"]+', '$1$3$4***')
+    $Texte = [regex]::Replace($Texte, '(?i)(://)[^/\s:@]+:[^/\s@]+@', '$1***:***@')
+    $Texte = [regex]::Replace($Texte, '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}', '***@***')
+    return $Texte
+}
+
+function Get-SecretsEnvJed($Installation) {
+    <# Valeurs à masquer : toutes celles du .env dont le nom évoque un secret. Jamais renvoyées ailleurs. #>
+    $liste = New-Object System.Collections.Generic.List[string]
+    if (-not $Installation -or -not $Installation.Valide) { return ,$liste.ToArray() }
+    $valeurs = Read-EnvJed (Join-CheminJed $Installation.Dossier '.env')
+    foreach ($k in $valeurs.Keys) {
+        if ($k -match '(?i)PASSWORD|SECRET|TOKEN|KEY|DATABASE_URL|_URL$' -and $valeurs[$k]) { $liste.Add("$($valeurs[$k])") }
+    }
+    return ,$liste.ToArray()
+}
+
+function New-CompteRenduJed {
+    <# Compte rendu pour une personne qui aide : système, prérequis, installation, état des services, dernières
+       lignes des journaux, dernier journal de mise à jour. Jamais le .env ; secrets masqués ; contrôle final.
+       Écrit un .zip dans -Destination et renvoie son chemin. #>
+    param($Installation, [string]$Destination, [string]$VersionAssistant = '?', [scriptblock]$SurAttente)
+    $l = New-Object System.Collections.Generic.List[string]
+    $l.Add("Compte rendu de l'assistant J-ed $VersionAssistant — $(Get-Date -Format 'yyyy-MM-dd HH:mm')")
+    $l.Add('Sans mot de passe, sans clé, sans adresse électronique, sans le fichier .env.')
+    $l.Add('')
+    $l.Add('== Ordinateur')
+    $faits = Get-FaitsSystemeJed -Dossier $(if ($Installation) { $Installation.Dossier } else { '' })
+    foreach ($p in $faits.PSObject.Properties) { $l.Add("$($p.Name) : $($p.Value)") }
+    $l.Add("Système : $([Environment]::OSVersion.VersionString)")
+    $l.Add('')
+    $l.Add('== Prérequis')
+    foreach ($c in (Test-PrerequisJed $faits)) { $l.Add("[$($c.Niveau)] $($c.Libelle) : $($c.Detail)") }
+    $v = Invoke-DockerJed '' @('version', '--format', '{{.Server.Version}}') -SurAttente $SurAttente
+    $l.Add("Docker (moteur) : $($v.Texte)")
+    $journal = $null
+    if ($Installation) {
+        $l.Add('')
+        $l.Add('== Installation')
+        foreach ($k in @('Nom', 'Version', 'Port', 'Etat', 'Dossier', 'DossierSauvegardes', 'Essai', 'Protegee', 'Valide', 'Probleme')) {
+            $l.Add("$k : $($Installation.$k)")
+        }
+        if ($Installation.Valide) {
+            $ps = Invoke-DockerJed $Installation.Dossier @('compose', 'ps', '-a') -SurAttente $SurAttente
+            $l.Add(''); $l.Add('== Services (docker compose ps -a)'); $l.Add($ps.Texte)
+            $logs = Invoke-DockerJed $Installation.Dossier @('compose', 'logs', '--tail', '150', '--no-color') -SurAttente $SurAttente
+            $l.Add(''); $l.Add('== Dernières lignes des journaux (docker compose logs --tail 150)'); $l.Add($logs.Texte)
+        }
+        $d = $Installation.DossierSauvegardes
+        if ($d -and (Test-Path -LiteralPath $d)) {
+            $journal = Get-ChildItem -LiteralPath $d -Filter 'mise-a-jour-*.log' -File -ErrorAction SilentlyContinue |
+                Sort-Object -Property LastWriteTime -Descending | Select-Object -First 1
+        }
+    }
+    $secrets = Get-SecretsEnvJed $Installation
+    $texte = Protect-TexteJed (($l.ToArray()) -join "`r`n") $secrets
+    $journalTexte = $null
+    if ($journal) { $journalTexte = Protect-TexteJed ([System.IO.File]::ReadAllText($journal.FullName)) $secrets }
+    # Contrôle final : aucune valeur secrète du .env ne doit rester.
+    foreach ($s in $secrets) {
+        if ($s.Length -ge 4 -and ($texte.Contains($s) -or ($journalTexte -and $journalTexte.Contains($s)))) {
+            throw 'Compte rendu refusé : une valeur secrète y figure encore.'
+        }
+    }
+    New-Item -ItemType Directory -Force -Path $Destination | Out-Null
+    $nom = "compte-rendu-j-ed-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+    $temp = Join-CheminJed ([System.IO.Path]::GetTempPath()) $nom
+    New-Item -ItemType Directory -Force -Path $temp | Out-Null
+    try {
+        [System.IO.File]::WriteAllText((Join-CheminJed $temp 'compte-rendu.txt'), $texte, $script:Utf8SansBom)
+        if ($journalTexte) { [System.IO.File]::WriteAllText((Join-CheminJed $temp $journal.Name), $journalTexte, $script:Utf8SansBom) }
+        $zip = Join-CheminJed $Destination "$nom.zip"
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [System.IO.Compression.ZipFile]::CreateFromDirectory($temp, $zip)
+    } finally {
+        Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    return $zip
 }
 
 Export-ModuleMember -Function *-*Jed, Join-CheminJed

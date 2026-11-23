@@ -20,6 +20,12 @@ case "$*" in
   "compose ls -a --format json")
     # 2.0.2 (assistant) : projets Compose connus de Docker, au format JSON de « docker compose ls ».
     printf '%s\n' "${FAKE_COMPOSE_LS:-[]}"; exit "${FAKE_COMPOSE_LS_CODE:-0}" ;;
+  "version --format {{.Server.Version}}") echo "29.9.3"; exit 0 ;;
+  "compose ps -a")
+    echo "NAME   SERVICE   STATUS"; echo "x-web-1   web   Up 2 minutes (healthy)"; exit 0 ;;
+  "compose logs --tail 150 --no-color")
+    # 2.0.2 (compte rendu) : des journaux qui contiennent un secret et une adresse, à masquer.
+    printf '%s\n' "${FAKE_LOGS:-web-1  | démarrage}"; exit 0 ;;
   "volume ls --format {{.Name}}")
     for v in ${FAKE_VOLUMES:-}; do echo "$v"; done; exit 0 ;;
   "compose ps --services --status running")
