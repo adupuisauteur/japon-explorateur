@@ -56,6 +56,19 @@ function Etape([string]$Message) {
     Write-Host "== $Message" -ForegroundColor Cyan
 }
 
+function Lire-Reponse([string]$Question) {
+    # 2.0.2 : la réponse peut venir de l'assistant J-ed (entrée standard fournie par un programme), sinon de
+    # l'écran comme avant (Read-Host n'est pas fiable sur une entrée redirigée sous Windows PowerShell 5.1).
+    if ([Console]::IsInputRedirected) {
+        Write-Host "$($Question) : " -NoNewline
+        $r = [Console]::In.ReadLine()
+        if ($null -eq $r) { $r = '' }
+        Write-Host ''
+        return $r
+    }
+    return Read-Host $Question
+}
+
 function Docker-Sortie {
     # Exécute docker et renvoie la sortie standard (les avertissements de Docker sont ignorés).
     param([string[]]$Arguments)
@@ -171,7 +184,7 @@ $argosEnMarche = $enMarche -contains 'argos'
 if (-not $SansSauvegarde -and ($enMarche -contains 'web')) {
     Etape 'Sauvegarde avant effacement (facultative)'
     Write-Host 'Pensez aussi à exporter vos diagnostics (Dysfonctionnements → Exporter un diagnostic) si vous voulez les envoyer.'
-    $reponse = Read-Host 'Faire une sauvegarde complète de l''essai dans le dossier « sauvegardes-essai » ? (O/N)'
+    $reponse = Lire-Reponse 'Faire une sauvegarde complète de l''essai dans le dossier « sauvegardes-essai » ? (O/N)'
     if ($reponse -match '^[oOyY]') {
         & docker compose exec -T web python manage.py backup --verify
         if ($LASTEXITCODE -ne 0) { Arreter 'la sauvegarde a échoué.' }
@@ -189,7 +202,7 @@ if (-not $SansSauvegarde -and ($enMarche -contains 'web')) {
 
 # --- 3. Confirmation ----------------------------------------------------------------------------
 Etape 'Confirmation'
-$saisie = Read-Host 'Pour effacer l''installation d''essai, tapez REINITIALISER (en majuscules)'
+$saisie = Lire-Reponse 'Pour effacer l''installation d''essai, tapez REINITIALISER (en majuscules)'
 if ($saisie -cne 'REINITIALISER') {
     Write-Host 'Annulé : rien n''a été effacé.' -ForegroundColor Yellow
     exit 0
@@ -223,12 +236,21 @@ if (-not $Complet -and $paquets.Count -gt 0) { Write-Host 'Paquets de langues Ar
 
 if ($Complet) {
     Etape "Suppression de l'image japon-explorateur:$Version"
-    foreach ($nomImage in @("japon-explorateur:$Version", "japon-explorateur-argos:$Version")) {
-        $image = Docker-Sortie @('image', 'inspect', $nomImage)
-        if ($image.Code -eq 0) {
-            & docker image rm $nomImage
-        } else {
-            Write-Host "Image $nomImage déjà absente."
+    # 2.0.2 : deux installations de la même version partagent ces images. Si une autre installation de J-ed existe
+    # sur cet ordinateur (ses données sont dans un volume « <nom>_db-data », même si elle est arrêtée), les images
+    # sont gardées : la supprimer l'obligerait à reconstruire, Internet compris.
+    $autres = @((Docker-Sortie @('volume', 'ls', '-q')).Texte -split "`n" | ForEach-Object { $_.Trim() } |
+        Where-Object { $_ -like '*_db-data' -and -not $_.StartsWith("${Projet}_") })
+    if ($autres.Count -gt 0) {
+        Write-Host "Images gardées : d'autres installations de J-ed existent sur cet ordinateur et peuvent s'en servir ($($autres -join ', '))." -ForegroundColor Yellow
+    } else {
+        foreach ($nomImage in @("japon-explorateur:$Version", "japon-explorateur-argos:$Version")) {
+            $image = Docker-Sortie @('image', 'inspect', $nomImage)
+            if ($image.Code -eq 0) {
+                & docker image rm $nomImage
+            } else {
+                Write-Host "Image $nomImage déjà absente."
+            }
         }
     }
     Write-Host ''

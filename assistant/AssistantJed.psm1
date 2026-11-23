@@ -505,7 +505,7 @@ function Invoke-ScriptJed {
        -SurAttente est appelé pendant l'attente (la fenêtre y garde la main). Renvoie le code de sortie, les
        lignes affichées et le chemin du journal. #>
     param([string]$Moteur = 'powershell.exe', [string[]]$Arguments, [scriptblock]$SurLigne,
-          [scriptblock]$SurQuestion, [scriptblock]$SurAttente, [string]$Dossier)
+          [scriptblock]$SurQuestion, [scriptblock]$SurAttente, [string]$Dossier, [string]$Entree)
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = $Moteur
     if ($Dossier) { $psi.WorkingDirectory = $Dossier }
@@ -518,6 +518,11 @@ function Invoke-ScriptJed {
     $psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8
     $psi.StandardErrorEncoding = [System.Text.Encoding]::UTF8
     $p = [System.Diagnostics.Process]::Start($psi)
+    if ($PSBoundParameters.ContainsKey('Entree')) {
+        # Réponses connues d'avance (mot de passe, confirmation) : écrites puis entrée fermée. Jamais en argument.
+        $p.StandardInput.Write($Entree)
+        $p.StandardInput.Close()
+    }
     $lignes = New-Object System.Collections.Generic.List[string]
     $journal = $null
     $repondu = $false
@@ -532,11 +537,11 @@ function Invoke-ScriptJed {
             $ligne = $t.Result
             if ($null -eq $ligne) { $lectures.Remove($nom); continue }
             $lignes.Add($ligne)
-            if (-not $journal -and $ligne -match '^Journal de la mise .{1,3} jour : (.+)$') { $journal = $Matches[1].Trim() }
+            if (-not $journal -and $ligne -match '^Journal de (la mise .{1,3} jour|l.installation) : (.+)$') { $journal = $Matches[2].Trim() }
             if ($SurLigne) { & $SurLigne $ligne }
             $lectures[$nom] = $flux[$nom].ReadLineAsync()
         }
-        if (-not $repondu -and $journal) {
+        if (-not $repondu -and $journal -and -not $PSBoundParameters.ContainsKey('Entree')) {
             $etat = Get-EtatJournalJed $journal
             if ($etat.QuestionEnAttente) {
                 $oui = $false
@@ -973,6 +978,122 @@ function Get-ConseilProxyDockerJed([string]$Proxy) {
     if ($Proxy) { $t += "   si cela ne suffit pas : « Manual configuration », et l'adresse $Proxy pour HTTP et HTTPS ;`n" }
     $t += "3. cliquez sur « Apply & restart », attendez la baleine immobile, puis « Vérifier à nouveau »."
     return $t
+}
+
+# --- Nouvelle installation (installer-j-ed.ps1) --------------------------------------------------------
+
+function New-ArgumentsInstallationJed {
+    param([string]$Script, [string]$Archive, [string]$Empreinte, [string]$Destination, [string]$Nom, [int]$Port,
+          [string]$DossierSauvegardes, [string]$Proxy, [switch]$SansArgos, [string[]]$Autres = @())
+    $a = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $Script, '-Archive', $Archive, '-Destination', $Destination,
+           '-Nom', $Nom, '-Port', "$Port")
+    if ($Empreinte) { $a += @('-Empreinte', $Empreinte) }
+    if ($DossierSauvegardes) { $a += @('-DossierSauvegardes', $DossierSauvegardes) }
+    if ($Proxy) { $a += @('-Proxy', $Proxy) }
+    if ($SansArgos) { $a += '-SansArgos' }
+    $a += $Autres
+    return ,$a
+}
+
+function Get-MessageInstallationJed([int]$Code) {
+    $m = @{
+        0 = @('ok', 'Installation réussie', "J-ed est installé et répond. Il reste à créer le compte administrateur dans le navigateur.")
+        1 = @('attention', 'Installation arrêtée avant de commencer', "Rien n'a été créé. Le message affiché dit pourquoi (nom, port, archive, Docker).")
+        3 = @('attention', 'Construction impossible', "Le plus souvent, Docker ne joint pas Internet (ou un proxy le bloque). Le dossier a été créé, rien n'a démarré : il peut être supprimé avant de recommencer.")
+        5 = @('erreur', 'J-ed ne démarre pas', "L'installation est faite mais J-ed ne répond pas. Utilisez « Ça ne marche pas » pour préparer un compte rendu.")
+    }
+    if ($m.ContainsKey($Code)) {
+        $v = $m[$Code]
+        return [pscustomobject]@{ Code = $Code; Niveau = $v[0]; Titre = $v[1]; Texte = $v[2] }
+    }
+    return [pscustomobject]@{ Code = $Code; Niveau = 'erreur'; Titre = "Résultat inattendu (code $Code)"; Texte = 'Gardez le journal et utilisez « Ça ne marche pas ».' }
+}
+
+function Get-AdressePremierDemarrageJed($Installation) {
+    return "http://localhost:$($Installation.Port)/comptes/premier-demarrage/"
+}
+
+# --- Mot de passe oublié -------------------------------------------------------------------------------
+
+function Get-ComptesJed {
+    <# Comptes de l'installation (commande « mot_de_passe_oublie --liste », J-ed 2.0.2 ou plus récent). #>
+    param($Installation, [scriptblock]$SurAttente)
+    $r = Invoke-DockerJed $Installation.Dossier @('compose', 'exec', '-T', 'web', 'python', 'manage.py', 'mot_de_passe_oublie', '--liste') -SurAttente $SurAttente
+    $res = [pscustomobject]@{ Ok = $false; Comptes = @(); Raison = '' }
+    if ($r.Code -ne 0) {
+        if ($r.Texte -match 'Unknown command') { $res.Raison = 'Cette installation est trop ancienne : « Mot de passe oublié » demande J-ed 2.0.2 ou plus récent.' }
+        else { $res.Raison = "Liste des comptes impossible (J-ed est-il démarré ?).`n$($r.Texte)" }
+        return $res
+    }
+    $debut = $r.Texte.IndexOf('['); $fin = $r.Texte.LastIndexOf(']')
+    try { $res.Comptes = @(($r.Texte.Substring($debut, $fin - $debut + 1) | ConvertFrom-Json) | ForEach-Object { $_ }) }
+    catch { $res.Raison = 'Réponse illisible.'; return $res }
+    $res.Ok = $true
+    return $res
+}
+
+function Set-MotDePasseJed {
+    <# Nouveau mot de passe d'un compte, transmis par l'entrée standard (jamais en argument ni dans un fichier). #>
+    param($Installation, [string]$Utilisateur, [string]$MotDePasse, [scriptblock]$SurAttente)
+    if (-not $MotDePasse) { return [pscustomobject]@{ Ok = $false; Message = 'Aucun mot de passe saisi.' } }
+    $moteur = (Get-Command docker -ErrorAction SilentlyContinue)
+    if (-not $moteur) { return [pscustomobject]@{ Ok = $false; Message = "Docker Desktop n'est pas installé." } }
+    $r = Invoke-ScriptJed -Moteur $moteur.Source -Dossier $Installation.Dossier -Entree "$MotDePasse`n" -SurAttente $SurAttente `
+        -Arguments @('compose', 'exec', '-T', 'web', 'python', 'manage.py', 'mot_de_passe_oublie', '--utilisateur', $Utilisateur)
+    $texte = Protect-TexteJed ((@($r.Lignes) -join "`n").Trim()) @($MotDePasse)
+    return [pscustomobject]@{ Ok = ($r.Code -eq 0); Message = $texte }
+}
+
+# --- Restaurer une sauvegarde ----------------------------------------------------------------------------
+
+function Invoke-RestaurationJed {
+    <# Restaure une sauvegarde (.tar) dans une installation démarrée : copie dans le conteneur, puis
+       « restore_backup --yes » (l'utilisateur a tapé RESTAURER dans l'assistant) ; J-ed fait toujours sa
+       sauvegarde de sécurité avant (jamais --sans-securite) ; redémarrage ensuite (la base est mise à niveau au
+       démarrage si la sauvegarde vient d'une version plus ancienne). #>
+    param($Installation, [string]$Fichier, [scriptblock]$SurAttente, [scriptblock]$SurLigne)
+    $res = [pscustomobject]@{ Ok = $false; Message = ''; Securite = '' }
+    if (-not (Test-Path -LiteralPath $Fichier -PathType Leaf) -or $Fichier -notmatch '\.tar$') {
+        $res.Message = "Fichier de sauvegarde introuvable ou incorrect (un fichier .tar est attendu) : $Fichier"
+        return $res
+    }
+    $nom = 'restauration-' + ([System.IO.Path]::GetFileName($Fichier) -replace '[^A-Za-z0-9._-]', '_')
+    $d = $Installation.Dossier
+    $cp = Invoke-DockerJed $d @('compose', 'cp', $Fichier, "web:/data/$nom") -SurAttente $SurAttente -SurLigne $SurLigne
+    if ($cp.Code -ne 0) { $res.Message = "Copie de la sauvegarde dans J-ed impossible (J-ed est-il démarré ?).`n$($cp.Texte)"; return $res }
+    $r = Invoke-DockerJed $d @('compose', 'exec', '-T', 'web', 'python', 'manage.py', 'restore_backup', "/data/$nom", '--yes') -SurAttente $SurAttente -SurLigne $SurLigne
+    if ($r.Texte -match 'Sauvegarde de s.{1,3}curit.{1,3} cr.{1,3}.{1,3}e : (\S+)') { $res.Securite = $Matches[1] }
+    if ($r.Code -ne 0) {
+        $res.Message = "La restauration a échoué.`n$($r.Texte)"
+        if ($res.Securite) { $res.Message += "`nSauvegarde de sécurité faite juste avant : $($res.Securite)" }
+        return $res
+    }
+    $redemarrage = Invoke-DockerJed $d @('compose', 'restart') -SurAttente $SurAttente -SurLigne $SurLigne
+    if ($redemarrage.Code -ne 0) { $res.Message = "Sauvegarde restaurée, mais le redémarrage a échoué : utilisez « Démarrer ».`n$($redemarrage.Texte)"; return $res }
+    $res.Ok = $true
+    $res.Message = "Sauvegarde restaurée. J-ed redémarre (une minute environ)."
+    if ($res.Securite) { $res.Message += "`nSauvegarde de sécurité faite juste avant : $($res.Securite)" }
+    return $res
+}
+
+# --- Vérifier la migration, réinitialiser l'essai --------------------------------------------------------
+
+function New-ArgumentsMigrationJed([string]$Script, [string]$Dossier) {
+    return ,@('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $Script, '-Dossiers', $Dossier)
+}
+
+function Get-ScriptInstallationJed($Installation, [string]$Nom, [string]$DossierAssistant) {
+    <# Script de l'installation elle-même (celui de sa version) ; à défaut, celui du dossier de l'assistant. #>
+    $propre = Join-CheminJed $Installation.Dossier $Nom
+    if (Test-Path -LiteralPath $propre) { return $propre }
+    return Join-CheminJed $DossierAssistant $Nom
+}
+
+function New-ArgumentsReinitialisationJed([string]$Script, [switch]$Complet) {
+    <# Toujours -SansSauvegarde : l'assistant fait lui-même la sauvegarde avant, si l'utilisateur la demande. #>
+    $a = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $Script, '-SansSauvegarde')
+    if ($Complet) { $a += '-Complet' }
+    return ,$a
 }
 
 Export-ModuleMember -Function *-*Jed, Join-CheminJed

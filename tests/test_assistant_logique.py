@@ -611,3 +611,90 @@ class ProxyTests(AssistantTestCase):
         r = self.ps(f"Invoke-SauvegardeJed (Get-InstallationJed '{d}')", actuel=d)
         self.assertTrue(r["Ok"], r["Message"])
         self.assertFalse(any("compose cp" in c for c in self.log.read_text().splitlines()))
+
+
+class MaintenanceTests(AssistantTestCase):
+    """2.0.2, lot 3 — mot de passe oublié, restauration, réinitialisation, nouvelle installation (arguments)."""
+
+    def test_accounts_are_listed(self):
+        d = self.make_install("a", "jed-a")
+        r = self.ps(f"Get-ComptesJed (Get-InstallationJed '{d}')", actuel=d)
+        self.assertTrue(r["Ok"], r)
+        self.assertEqual(r["Comptes"][0]["identifiant"], "auteur-fictif")
+
+    def test_password_goes_through_stdin_only(self):
+        d = self.make_install("a", "jed-a")
+        mot = "Nouveau-Mot-De-Passe-2026"
+        r = self.ps(f"Set-MotDePasseJed (Get-InstallationJed '{d}') 'auteur-fictif' '{mot}'", actuel=d)
+        self.assertTrue(r["Ok"], r)
+        self.assertIn("Mot de passe changé pour « auteur-fictif »", r["Message"])
+        self.assertEqual((self.tmp / "mot-recu").read_text(), mot, "reçu par l'entrée standard")
+        self.assertNotIn(mot, self.log.read_text(), "jamais dans les arguments de la commande")
+
+    def test_refused_password_is_reported_without_echoing_it(self):
+        d = self.make_install("a", "jed-a")
+        r = self.ps(f"Set-MotDePasseJed (Get-InstallationJed '{d}') 'auteur-fictif' 'Xy-123'", actuel=d)
+        self.assertFalse(r["Ok"])
+        self.assertIn("trop court", r["Message"])
+
+    def test_restore_copies_restores_with_safety_backup_and_restarts(self):
+        d = self.make_install("a", "jed-a")
+        tar = self.tmp / "sauvegarde-20261120-100000-full.tar"
+        tar.write_bytes(b"fictif")
+        r = self.ps(f"Invoke-RestaurationJed (Get-InstallationJed '{d}') '{tar}'", actuel=d)
+        self.assertTrue(r["Ok"], r)
+        self.assertIn("sauvegarde-20261123-150000-full.tar", r["Securite"])
+        calls = [c.split(" | ", 1)[1] for c in self.log.read_text().splitlines()]
+        cp = next(i for i, c in enumerate(calls) if c.startswith("compose cp "))
+        rest = next(i for i, c in enumerate(calls) if "restore_backup" in c)
+        restart = calls.index("compose restart")
+        self.assertLess(cp, rest)
+        self.assertLess(rest, restart)
+        self.assertFalse(any("--sans-securite" in c for c in calls), "jamais sans sauvegarde de sécurité")
+
+    def test_failed_restore_mentions_the_safety_backup_and_does_not_restart(self):
+        d = self.make_install("a", "jed-a")
+        tar = self.tmp / "s.tar"
+        tar.write_bytes(b"fictif")
+        r = self.ps(f"Invoke-RestaurationJed (Get-InstallationJed '{d}') '{tar}'", actuel=d, restore="ko")
+        self.assertFalse(r["Ok"])
+        self.assertIn("Sauvegarde de sécurité faite juste avant", r["Message"])
+        self.assertNotIn("compose restart", self.log.read_text())
+        self.assertFalse(self.ps(f"Invoke-RestaurationJed (Get-InstallationJed '{d}') '{self.tmp / 'x.zip'}'")["Ok"])
+
+    def test_reset_arguments_always_without_the_script_backup(self):
+        r = self.ps("New-ArgumentsReinitialisationJed 'C:\\J\\reinitialiser-essai.ps1' -Complet")
+        self.assertEqual(r[-2:], ["-SansSauvegarde", "-Complet"])
+
+    def test_installation_arguments(self):
+        r = self.ps("New-ArgumentsInstallationJed -Script 'C:\\T\\installer-j-ed.ps1' -Archive 'C:\\a.zip' "
+                    "-Destination 'C:\\J-ed\\jed-2-2.0.2' -Nom 'jed-2' -Port 8003 -Proxy 'http://p:3128' -SansArgos")
+        self.assertEqual(r[r.index("-Nom") + 1], "jed-2")
+        self.assertEqual(r[r.index("-Port") + 1], "8003")
+        self.assertIn("-SansArgos", r)
+        for code, niveau in [(0, "ok"), (1, "attention"), (3, "attention"), (5, "erreur")]:
+            self.assertEqual(self.ps(f"Get-MessageInstallationJed {code}")["Niveau"], niveau)
+
+    def test_new_installation_through_the_assistant(self):
+        """Le vrai installer-j-ed.ps1 lancé par l'assistant ; le journal d'installation est retrouvé."""
+        archive = self.tmp / "japon-explorateur-2.0.2.zip"
+        with zipfile.ZipFile(archive, "w") as z:
+            z.writestr("j/VERSION", "2.0.2\n")
+            z.writestr("j/docker-compose.yml", "name: x\n")
+            z.writestr("j/.env.example", (ROOT / ".env.example").read_text(encoding="utf-8"))
+        Path(f"{archive}.sha256").write_text(hashlib.sha256(archive.read_bytes()).hexdigest() + "\n")
+        import socket
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            port = s.getsockname()[1]
+        dest = self.tmp / "J-ed" / "jed-2-2.0.2"
+        code = (f"$a = New-ArgumentsInstallationJed -Script '{ROOT / 'installer-j-ed.ps1'}' -Archive '{archive}' "
+                f"-Destination '{dest}' -Nom 'jed-2' -Port {port} -DossierSauvegardes '{self.tmp / 's'}' "
+                "-Autres @('-DelaiStabilite', '0'); "
+                f"$r = Invoke-ScriptJed -Moteur '{PWSH}' -Arguments $a; "
+                "[pscustomobject]@{ Code = $r.Code; Journal = $r.Journal; Fin = (Get-EtatJournalJed $r.Journal) }")
+        r = self.ps(code)
+        self.assertEqual(r["Code"], 0, r)
+        self.assertTrue(Path(r["Journal"]).name.startswith("installation-"))
+        self.assertEqual(r["Fin"]["Code"], 0)
+        self.assertEqual(self.ps(f"(Get-InstallationJed '{dest}').Nom"), "jed-2")

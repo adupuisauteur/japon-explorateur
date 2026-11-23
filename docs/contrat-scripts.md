@@ -76,6 +76,25 @@ Paramètre : `-Dossiers`. Codes de sortie : 0 tout va bien, 1 au moins une erreu
 
 ## `reinitialiser-essai.ps1`
 
-Paramètres : `-Complet`, `-SansSauvegarde`. Codes de sortie : 0 terminé ou abandonné sans rien effacer, 1 refus
-ou erreur. Questions à l'écran (sauvegarde `O/N`, puis saisie de `REINITIALISER`) : leur pilotage par l'assistant
-est prévu avec les opérations de maintenance de la 2.0.2. Refuse de s'exécuter hors d'une installation d'essai.
+Paramètres : `-Complet`, `-SansSauvegarde`. Codes de sortie : 0 terminé ou abandonné sans rien effacer (ligne
+commençant par `Annulé`), 1 refus ou erreur. Questions : sauvegarde `O/N` (seulement sans `-SansSauvegarde` et si
+l'essai est démarré), puis saisie de `REINITIALISER`. Depuis la 2.0.2, quand l'entrée standard est fournie par un
+programme, les réponses y sont lues ; l'assistant passe toujours `-SansSauvegarde` (il fait la sauvegarde lui-même
+avant) et répond `REINITIALISER`. Refuse de s'exécuter hors d'une installation d'essai ; agit sur SON dossier
+(celui du script) : l'assistant lance toujours le script du dossier de l'installation choisie. Avec `-Complet`,
+les images ne sont supprimées que si aucune autre installation de J-ed n'existe sur l'ordinateur (2.0.2).
+
+## `installer-j-ed.ps1` (depuis la 2.0.2)
+
+Paramètres : `-Archive`, `-Empreinte`, `-Destination`, `-Nom`, `-Port`, `-DossierSauvegardes`, `-Proxy`,
+`-SansArgos`, `-DelaiControle`, `-DelaiStabilite`. Codes de sortie : 0 installation réussie, 1 arrêt pendant les
+contrôles (rien créé), 3 construction impossible (dossier créé, rien démarré), 5 J-ed ne démarre pas ou ne répond
+pas. Journal `installation-AAAAMMJJ-HHMMSS.log` (dossier des sauvegardes, sinon à côté du nouveau dossier), mêmes
+repères que la mise à jour ; son chemin est écrit dans une ligne qui commence par `Journal de l'installation : `.
+Aucune question. Ne touche jamais à une autre installation : nom et port neufs contrôlés, secrets neufs.
+
+## Commande J-ed `mot_de_passe_oublie` (depuis la 2.0.2)
+
+Lancée par `docker compose exec -T web python manage.py mot_de_passe_oublie` : `--liste` (comptes en JSON :
+`identifiant`, `nom`, `role`, `actif`) ou `--utilisateur <identifiant>` avec le nouveau mot de passe sur l'entrée
+standard (jamais en argument). Code 0 : changé ; 1 : refusé (règles de mot de passe), compte introuvable.

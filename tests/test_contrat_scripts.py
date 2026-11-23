@@ -23,6 +23,8 @@ PARAMETRES = {
     "verifier-j-ed.ps1": {"Dossier", "AvecSources", "AvecTests"},
     "verifier-migration.ps1": {"Dossiers"},
     "reinitialiser-essai.ps1": {"Complet", "SansSauvegarde"},
+    "installer-j-ed.ps1": {"Archive", "Empreinte", "Destination", "Nom", "Port", "DossierSauvegardes", "Proxy",
+                           "SansArgos", "DelaiControle", "DelaiStabilite"},
 }
 CODES_MISE_A_JOUR = {"CodeArret": 1, "CodeAnnule": 2, "CodeConstruction": 3, "CodeRetourReussi": 4,
                      "CodeRetourImpossible": 5}
@@ -73,6 +75,18 @@ class ContratSourceTests(SimpleTestCase):
 
     def test_verification_writes_the_report_line(self):
         self.assertIn('Write-Host "Rapport enregistré : $Rapport"', lire("verifier-j-ed.ps1"))
+
+    def test_reset_reads_answers_from_another_program(self):
+        source = lire("reinitialiser-essai.ps1")
+        self.assertIn("[Console]::IsInputRedirected", source)
+        self.assertEqual(source.count("Lire-Reponse '"), 2, "les deux questions passent par Lire-Reponse")
+
+    def test_installer_exit_codes_and_journal_line(self):
+        source = lire("installer-j-ed.ps1")
+        for nom, valeur in {"CodeArret": 1, "CodeConstruction": 3, "CodeDemarrage": 5}.items():
+            self.assertRegex(source, rf"\${nom} = {valeur}\r?\n")
+        self.assertIn("Journal de l'installation : ", source)
+        self.assertLessEqual(set(re.findall(r"Ecrire-Journal '([A-Z]+)'", source)), REPERES)
 
     def test_checks_end_with_code_0_or_1(self):
         for script in ("verifier-j-ed.ps1", "verifier-migration.ps1", "reinitialiser-essai.ps1"):

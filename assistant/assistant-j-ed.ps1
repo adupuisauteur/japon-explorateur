@@ -549,6 +549,409 @@ function Show-MiseAJourJed {
     }
 }
 
+# --- Nouvelle installation -------------------------------------------------------------------------------
+
+function New-ZoneTexteJed([int]$X, [int]$Y, [int]$Largeur = 560) {
+    $t = New-Object System.Windows.Forms.TextBox
+    $t.Location = New-Object System.Drawing.Point($X, $Y)
+    $t.Size = New-Object System.Drawing.Size($Largeur, 26)
+    return $t
+}
+
+function Get-NomLibreJed([string]$Base) {
+    $volumes = Get-VolumesDockerJed
+    if ((Test-NomProjetJed $Base $script:Installations $volumes).Ok) { return $Base }
+    for ($n = 2; $n -lt 100; $n++) {
+        if ((Test-NomProjetJed "$Base-$n" $script:Installations $volumes).Ok) { return "$Base-$n" }
+    }
+    return ''
+}
+
+function Show-FinInstallationJed($Installation) {
+    # Fin guidée (fonction pour un pur débutant) : compte administrateur, raccourcis, jeu d'essai.
+    $f = New-FenetreJed "« $($Installation.Nom) » est installée" 640 360
+    $f.Controls.Add((New-EtiquetteJed ("J-ed répond à l'adresse $(Get-AdresseJed $Installation)`n`n" +
+        "1. Créez le compte administrateur (une seule fois).`n2. Si vous voulez, créez les raccourcis et chargez le jeu d'essai " +
+        "pour découvrir J-ed avec des notices fictives (après l'étape 1).") 16 14 600 110))
+    $bCompte = New-BoutonJed '1. Créer le compte administrateur' 16 132 600 36
+    $bRaccourcis = New-BoutonJed 'Créer les raccourcis (Bureau, menu Démarrer)' 16 176 600 36
+    $bEssai = New-BoutonJed 'Charger le jeu d''essai (notices fictives)' 16 220 600 36
+    $bFermer = New-BoutonJed 'Fermer' 446 272 170
+    $bCompte.Add_Click({ Start-Process (Get-AdressePremierDemarrageJed $Installation) })
+    $bRaccourcis.Add_Click({
+        $faits = New-RaccourcisJed $Installation $Installation.Dossier
+        Show-InfoJed ("Raccourcis créés :`n" + ($faits -join "`n"))
+    })
+    $bEssai.Add_Click({
+        [void](Start-OperationJed 'Charger le jeu d''essai' {
+            param($surLigne, $surAttente, $surEtape)
+            & $surEtape 'Chargement des notices fictives…'
+            $d = Invoke-DockerJed $Installation.Dossier @('compose', 'exec', '-T', 'web', 'python', 'manage.py', 'jeu_essai', '--charger') -SurAttente $surAttente -SurLigne $surLigne
+            if ($d.Code -eq 0) { return New-ResultatJed 'ok' 'Jeu d''essai chargé' 'Ouvrez J-ed : l''aide « Essayer J-ed » guide la découverte.' $null $null }
+            return New-ResultatJed 'attention' 'Jeu d''essai non chargé' 'Créez d''abord le compte administrateur (étape 1), puis recommencez.' $null $null
+        })
+    })
+    $bFermer.Add_Click({ $f.Close() })
+    $f.Controls.AddRange(@($bCompte, $bRaccourcis, $bEssai, $bFermer))
+    [void]$f.ShowDialog()
+}
+
+function Show-NouvelleInstallationJed {
+    <# Nouvelle installation, aussi à côté d'installations existantes (deuxième instance, autre port). Renvoie la
+       nouvelle installation, ou $null. -PourRestauration : pas de fin guidée (la sauvegarde apporte les comptes). #>
+    param([string]$NomPropose = 'jed', [switch]$PourRestauration)
+    $titre = 'Nouvelle installation'
+    if ($PourRestauration) { $titre = 'Nouvelle installation pour y restaurer la sauvegarde' }
+    $f = New-FenetreJed $titre 760 700
+    $volumes = Get-VolumesDockerJed
+    $f.Controls.Add((New-EtiquetteJed 'Archive de J-ed (.zip) :' 16 12 720 22))
+    $tArchive = New-ZoneTexteJed 16 36
+    $bArchive = New-BoutonJed 'Choisir…' 586 34 140 30
+    $bGitHub = New-BoutonJed 'Télécharger la dernière version (GitHub)' 16 68 330 32
+    $infoGitHub = New-EtiquetteJed '' 356 72 370 44
+    $f.Controls.Add((New-EtiquetteJed 'Empreinte de l''archive (.sha256) :' 16 118 720 22))
+    $tEmpreinte = New-ZoneTexteJed 16 142
+    $bEmpreinte = New-BoutonJed 'Choisir…' 586 140 140 30
+    $f.Controls.Add((New-EtiquetteJed 'Nom de l''installation (lettres minuscules, chiffres, tirets) :' 16 180 470 22))
+    $tNom = New-ZoneTexteJed 16 204 300
+    $tNom.Text = Get-NomLibreJed $NomPropose
+    $f.Controls.Add((New-EtiquetteJed 'Port :' 340 180 100 22))
+    $tPort = New-ZoneTexteJed 340 204 100
+    $tPort.Text = "$(Get-PortLibreJed $script:Installations)"
+    $infoNom = New-EtiquetteJed '' 456 196 280 44
+    $f.Controls.Add((New-EtiquetteJed 'Emplacement (un dossier neuf) :' 16 244 720 22))
+    $tDossier = New-ZoneTexteJed 16 268
+    $bDossier = New-BoutonJed 'Choisir l''emplacement…' 586 266 140 30
+    $f.Controls.Add((New-EtiquetteJed 'Dossier des sauvegardes de cette installation :' 16 306 720 22))
+    $tSauv = New-ZoneTexteJed 16 330
+    $bSauv = New-BoutonJed 'Choisir…' 586 328 140 30
+    $cArgos = New-Object System.Windows.Forms.CheckBox
+    $cArgos.Text = 'Traduction hors ligne Argos (conseillée ; environ 2 Go de plus)'
+    $cArgos.Location = New-Object System.Drawing.Point(16, 368); $cArgos.Size = New-Object System.Drawing.Size(700, 26)
+    $cArgos.Checked = $true
+    $cProxy = New-Object System.Windows.Forms.CheckBox
+    $cProxy.Text = 'Mon réseau passe par un proxy : utiliser celui de Windows'
+    $cProxy.Location = New-Object System.Drawing.Point(16, 398); $cProxy.Size = New-Object System.Drawing.Size(500, 26)
+    $tProxy = New-ZoneTexteJed 36 428 320
+    $proxyDetecte = Get-ProxySystemeJed
+    if ($proxyDetecte) { $cProxy.Checked = $true; $tProxy.Text = $proxyDetecte }
+    $tProxy.Enabled = $cProxy.Checked
+    $cProxy.Add_CheckedChanged({ $tProxy.Enabled = $cProxy.Checked })
+    $controle = New-EtiquetteJed 'Choisissez l''archive, ou téléchargez la dernière version.' 16 468 710 66
+    $bInstaller = New-BoutonJed 'Installer' 376 600 200
+    $bInstaller.Enabled = $false
+    $bInstaller.DialogResult = 'OK'
+    $bAnnuler = New-BoutonJed 'Annuler' 586 600 140
+    $bAnnuler.DialogResult = 'Cancel'
+    $f.CancelButton = $bAnnuler
+    $f.Controls.AddRange(@($tArchive, $bArchive, $bGitHub, $infoGitHub, $tEmpreinte, $bEmpreinte, $tNom, $tPort, $infoNom,
+        $tDossier, $bDossier, $tSauv, $bSauv, $cArgos, $cProxy, $tProxy, $controle, $bInstaller, $bAnnuler))
+    $etat = @{ Version = ''; ArchiveOk = $false; DossierChoisi = $false; Parent = '' }
+
+    $proposer = {
+        # Emplacement et dossier des sauvegardes proposés d'après le nom et la version (sauf choix de l'utilisateur).
+        if (-not $etat.DossierChoisi) { $tDossier.Text = Get-EmplacementParDefautJed $script:Installations $tNom.Text $etat.Version }
+        elseif ($etat.Parent) { $tDossier.Text = [System.IO.Path]::Combine($etat.Parent, "$($tNom.Text)-$($etat.Version)") }
+        $parent = Split-Path -Parent $tDossier.Text
+        $tSauv.Text = [System.IO.Path]::Combine($parent, "sauvegardes-$($tNom.Text)")
+    }
+    $valider = {
+        $bInstaller.Enabled = $false
+        $n = Test-NomProjetJed $tNom.Text $script:Installations $volumes
+        $port = 0
+        [void][int]::TryParse($tPort.Text, [ref]$port)
+        $p = Test-PortJed $port $script:Installations
+        if (-not $n.Ok) { $infoNom.Text = $n.Raison; $infoNom.ForeColor = $script:Couleurs['erreur'] }
+        elseif (-not $p.Ok) { $infoNom.Text = $p.Raison; $infoNom.ForeColor = $script:Couleurs['erreur'] }
+        else { $infoNom.Text = 'Nom et port libres.'; $infoNom.ForeColor = $script:Couleurs['ok'] }
+        $dossierOk = $tDossier.Text -and -not (Test-Path -LiteralPath $tDossier.Text)
+        if (-not $dossierOk -and $tDossier.Text) { $controle.Text = "Le dossier $($tDossier.Text) existe déjà : choisissez un autre nom ou un autre emplacement."; $controle.ForeColor = $script:Couleurs['erreur'] }
+        $bInstaller.Enabled = ($etat.ArchiveOk -and $n.Ok -and $p.Ok -and $dossierOk)
+    }
+    $verifierArchive = {
+        $etat.ArchiveOk = $false
+        if ($tArchive.Text) {
+            $f.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
+            $e = Test-EmpreinteJed -Archive $tArchive.Text -Empreinte $tEmpreinte.Text
+            $v = $null
+            if ($e.Ok) { try { $v = Get-VersionArchiveJed $tArchive.Text } catch { } }
+            $f.Cursor = [System.Windows.Forms.Cursors]::Default
+            if (-not $e.Ok) { $controle.Text = $e.Raison; $controle.ForeColor = $script:Couleurs['erreur'] }
+            elseif (-not $v) { $controle.Text = "Ce n'est pas une archive de J-ed (fichier VERSION absent)."; $controle.ForeColor = $script:Couleurs['erreur'] }
+            else {
+                $etat.Version = $v
+                $etat.ArchiveOk = $true
+                $controle.Text = "Archive de la version $v : empreinte conforme."
+                $controle.ForeColor = $script:Couleurs['ok']
+                & $proposer
+            }
+        }
+        & $valider
+    }
+    $tNom.Add_TextChanged({ & $proposer; & $valider })
+    $tPort.Add_TextChanged({ & $valider })
+    $bArchive.Add_Click({
+        $d = New-Object System.Windows.Forms.OpenFileDialog
+        $d.Filter = 'Archive de J-ed (*.zip)|*.zip'
+        if ($d.ShowDialog() -eq 'OK') {
+            $tArchive.Text = $d.FileName
+            $trouvee = Find-FichierEmpreinteJed $d.FileName
+            if ($trouvee) { $tEmpreinte.Text = $trouvee } else { $tEmpreinte.Text = '' }
+            & $verifierArchive
+        }
+    })
+    $bEmpreinte.Add_Click({
+        $d = New-Object System.Windows.Forms.OpenFileDialog
+        $d.Filter = 'Empreinte (*.sha256)|*.sha256|Tous les fichiers (*.*)|*.*'
+        if ($d.ShowDialog() -eq 'OK') { $tEmpreinte.Text = $d.FileName; & $verifierArchive }
+    })
+    $bGitHub.Add_Click({
+        $f.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
+        $info = Get-DerniereVersionGitHubJed
+        $f.Cursor = [System.Windows.Forms.Cursors]::Default
+        if (-not $info.Ok) { $infoGitHub.Text = $info.Raison; $infoGitHub.ForeColor = $script:Couleurs['erreur']; return }
+        $taille = Format-NombreJed ($info.Archive.Taille / 1MB)
+        $dossier = Get-DossierTelechargementsJed
+        if (-not (Confirm-ChoixJed "Télécharger J-ed $($info.Version) ($taille Mo) dans $dossier ?")) { return }
+        $f.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
+        $infoGitHub.Text = 'Téléchargement…'
+        [System.Windows.Forms.Application]::DoEvents()
+        $t = Save-DerniereVersionJed $info $dossier
+        $f.Cursor = [System.Windows.Forms.Cursors]::Default
+        if (-not $t.Archive -or -not (Test-Path -LiteralPath $t.Archive)) { $infoGitHub.Text = $t.Raison; $infoGitHub.ForeColor = $script:Couleurs['erreur']; return }
+        $infoGitHub.Text = "Version $($info.Version) téléchargée."
+        $infoGitHub.ForeColor = $script:Couleurs['ok']
+        $tArchive.Text = $t.Archive
+        $tEmpreinte.Text = $t.Empreinte
+        & $verifierArchive
+    })
+    $bDossier.Add_Click({
+        $d = New-Object System.Windows.Forms.FolderBrowserDialog
+        $d.Description = 'Dossier dans lequel créer l''installation (un sous-dossier « nom-version » y sera créé)'
+        if ($d.ShowDialog() -eq 'OK') { $etat.DossierChoisi = $true; $etat.Parent = $d.SelectedPath; & $proposer; & $valider }
+    })
+    $bSauv.Add_Click({
+        $d = New-Object System.Windows.Forms.FolderBrowserDialog
+        $d.Description = 'Dossier des sauvegardes de cette installation'
+        if ($d.ShowDialog() -eq 'OK') { $tSauv.Text = $d.SelectedPath }
+    })
+    $f.Add_Shown({ & $proposer; & $valider })
+    if ($f.ShowDialog() -ne 'OK') { return $null }
+
+    $proxy = ''
+    if ($cProxy.Checked) {
+        $tp = Test-AdresseProxyJed $tProxy.Text
+        if (-not $tp.Ok) { Show-ErreurJed "Proxy : $($tp.Raison)"; return $null }
+        $proxy = $tProxy.Text
+    }
+    # Le script de l'archive s'il existe (2.0.2 et suivantes), sinon celui de l'assistant.
+    $temp = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), 'J-ed', "installation-$(Get-Date -Format 'yyyyMMdd-HHmmss')")
+    $scriptInst = Export-ScriptArchiveJed -Archive $tArchive.Text -Nom 'installer-j-ed.ps1' -Dossier $temp
+    if (-not $scriptInst) { $scriptInst = [System.IO.Path]::Combine($Racine, 'installer-j-ed.ps1') }
+    $port = [int]$tPort.Text
+    $arguments = New-ArgumentsInstallationJed -Script $scriptInst -Archive $tArchive.Text -Empreinte $tEmpreinte.Text `
+        -Destination $tDossier.Text -Nom $tNom.Text -Port $port -DossierSauvegardes $tSauv.Text -Proxy $proxy -SansArgos:(-not $cArgos.Checked)
+    $destination = $tDossier.Text
+    $r = Start-OperationJed "Installer « $($tNom.Text) »" {
+        param($surLigne, $surAttente, $surEtape)
+        $ligneEtEtape = { param($l) & $surLigne $l; if ($l -match '^== (.+)$') { & $surEtape $Matches[1] } }
+        $x = Invoke-ScriptJed -Arguments $arguments -SurLigne $ligneEtEtape -SurAttente $surAttente
+        $m = Get-MessageInstallationJed $x.Code
+        $res = New-ResultatJed $m.Niveau $m.Titre $m.Texte $x.Journal $null
+        if ($x.Code -in @(1, 3, 5)) { $res = Add-ExplicationJed $res $x.Lignes }
+        return $res
+    }
+    if (-not $r -or $r.Niveau -ne 'ok') { return $null }
+    Add-InstallationListeJed -Fichier $script:Liste -Dossier $destination
+    Update-ListeJed
+    $nouvelle = Get-InstallationJed $destination
+    $nouvelle.Etat = 'en marche'
+    if (-not $PourRestauration) { Show-FinInstallationJed $nouvelle }
+    return $nouvelle
+}
+
+# --- Opérations de maintenance --------------------------------------------------------------------------
+
+function Read-ConfirmationJed([string]$Texte, [string]$Mot, [string]$Titre = 'Confirmation') {
+    # Confirmation forte : il faut taper le mot demandé (RESTAURER, REINITIALISER).
+    $f = New-FenetreJed $Titre 620 330
+    $f.Controls.Add((New-EtiquetteJed $Texte 16 14 580 150))
+    $f.Controls.Add((New-EtiquetteJed "Pour confirmer, tapez $Mot :" 16 172 580 24))
+    $t = New-ZoneTexteJed 16 198 300
+    $bOk = New-BoutonJed 'Confirmer' 266 240 160
+    $bOk.Enabled = $false
+    $bOk.DialogResult = 'OK'
+    $bNon = New-BoutonJed 'Annuler' 436 240 160
+    $bNon.DialogResult = 'Cancel'
+    $f.CancelButton = $bNon
+    $t.Add_TextChanged({ $bOk.Enabled = ($t.Text -ceq $Mot) })
+    $f.Controls.AddRange(@($t, $bOk, $bNon))
+    return ($f.ShowDialog() -eq 'OK' -and $t.Text -ceq $Mot)
+}
+
+function Show-RestaurationJed {
+    $choisie = $null
+    if ($script:ListeVue.SelectedItems.Count -gt 0) { $choisie = $script:ListeVue.SelectedItems[0].Tag }
+    $d = New-Object System.Windows.Forms.OpenFileDialog
+    $d.Filter = 'Sauvegarde de J-ed (*.tar)|*.tar'
+    $d.Title = 'Sauvegarde à restaurer'
+    if ($choisie -and $choisie.DossierSauvegardes -and (Test-Path -LiteralPath $choisie.DossierSauvegardes)) { $d.InitialDirectory = $choisie.DossierSauvegardes }
+    if ($d.ShowDialog() -ne 'OK') { return }
+    $fichier = $d.FileName
+
+    $f = New-FenetreJed 'Restaurer une sauvegarde' 680 380
+    $f.Controls.Add((New-EtiquetteJed "Sauvegarde : $fichier" 16 14 640 44))
+    $rNouvelle = New-Object System.Windows.Forms.RadioButton
+    $rNouvelle.Text = 'Dans une nouvelle installation (conseillé : rien d''existant n''est touché)'
+    $rNouvelle.Location = New-Object System.Drawing.Point(16, 66); $rNouvelle.Size = New-Object System.Drawing.Size(640, 26)
+    $rNouvelle.Checked = $true
+    $rExistante = New-Object System.Windows.Forms.RadioButton
+    $rExistante.Location = New-Object System.Drawing.Point(16, 96); $rExistante.Size = New-Object System.Drawing.Size(640, 26)
+    if ($choisie -and $choisie.Valide) {
+        $rExistante.Text = "Dans « $($choisie.Nom) » : sa base actuelle sera REMPLACÉE (sauvegarde de sécurité faite avant)"
+    } else {
+        $rExistante.Text = 'Dans une installation existante (choisissez-la d''abord dans la liste)'
+        $rExistante.Enabled = $false
+    }
+    $note = New-EtiquetteJed ("Bon à savoir : dans une nouvelle installation, les clés d'API des IA enregistrées dans la sauvegarde ne sont pas " +
+        "lisibles (elles restent chiffrées avec la clé de l'installation d'origine) : il faudra les saisir à nouveau. " +
+        "Une sauvegarde d'une version plus ancienne est mise à niveau au redémarrage.") 16 132 640 90
+    $bOk = New-BoutonJed 'Continuer' 316 280 160
+    $bOk.DialogResult = 'OK'
+    $bNon = New-BoutonJed 'Annuler' 496 280 160
+    $bNon.DialogResult = 'Cancel'
+    $f.CancelButton = $bNon
+    $f.Controls.AddRange(@($rNouvelle, $rExistante, $note, $bOk, $bNon))
+    if ($f.ShowDialog() -ne 'OK') { return }
+
+    if ($rNouvelle.Checked) {
+        $base = 'jed'
+        if ($choisie -and $choisie.Nom) { $base = "$($choisie.Nom)-copie" }
+        $cible = Show-NouvelleInstallationJed -NomPropose $base -PourRestauration
+        if (-not $cible) { return }
+    } else {
+        $cible = $choisie
+        if ($cible.Etat -ne 'en marche') { Show-InfoJed "« $($cible.Nom) » est arrêtée : démarrez-la d'abord."; return }
+        $texte = "La base actuelle de « $($cible.Nom) » va être remplacée par celle de la sauvegarde. J-ed fait d'abord une sauvegarde de sécurité de l'état actuel."
+        if ($cible.Protegee) { $texte = "ATTENTION : « $($cible.Nom) » est une installation protégée (sans doute votre installation principale).`n`n" + $texte + "`n`nConseil : restaurez plutôt dans une nouvelle installation." }
+        if (-not (Read-ConfirmationJed $texte 'RESTAURER' 'Restaurer une sauvegarde')) { return }
+    }
+    [void](Start-OperationJed "Restaurer dans « $($cible.Nom) »" {
+        param($surLigne, $surAttente, $surEtape)
+        & $surEtape 'Restauration en cours (une à quelques minutes)…'
+        $x = Invoke-RestaurationJed $cible $fichier -SurAttente $surAttente -SurLigne $surLigne
+        if ($x.Ok) { return New-ResultatJed 'ok' 'Sauvegarde restaurée' $x.Message $null $null }
+        return Add-ExplicationJed (New-ResultatJed 'erreur' 'Restauration impossible' $x.Message $null $null) @($x.Message)
+    })
+    Update-ListeJed
+}
+
+function Show-MotDePasseJed {
+    $i = Get-ChoixJed
+    if (-not $i) { return }
+    if ($i.Etat -ne 'en marche') { Show-InfoJed "« $($i.Nom) » est arrêtée : démarrez-la d'abord."; return }
+    $script:Fenetre.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
+    $c = Get-ComptesJed $i
+    $script:Fenetre.Cursor = [System.Windows.Forms.Cursors]::Default
+    if (-not $c.Ok) { Show-ErreurJed $c.Raison; return }
+    if ($c.Comptes.Count -eq 0) { Show-InfoJed "Aucun compte : ouvrez $(Get-AdressePremierDemarrageJed $i) pour créer le compte administrateur."; return }
+    $f = New-FenetreJed "Mot de passe oublié — « $($i.Nom) »" 600 380
+    $f.Controls.Add((New-EtiquetteJed 'Compte :' 16 16 560 22))
+    $liste = New-Object System.Windows.Forms.ComboBox
+    $liste.DropDownStyle = 'DropDownList'
+    $liste.Location = New-Object System.Drawing.Point(16, 40); $liste.Size = New-Object System.Drawing.Size(560, 26)
+    foreach ($compte in $c.Comptes) {
+        $libelle = "$($compte.identifiant)"
+        if ($compte.nom) { $libelle += " — $($compte.nom)" }
+        $libelle += " ($($compte.role))"
+        [void]$liste.Items.Add($libelle)
+    }
+    $liste.SelectedIndex = 0
+    $f.Controls.Add((New-EtiquetteJed 'Nouveau mot de passe (10 caractères au moins, pas trop simple) :' 16 80 560 22))
+    $t1 = New-ZoneTexteJed 16 104 360
+    $t1.UseSystemPasswordChar = $true
+    $f.Controls.Add((New-EtiquetteJed 'Le même, une seconde fois :' 16 140 560 22))
+    $t2 = New-ZoneTexteJed 16 164 360
+    $t2.UseSystemPasswordChar = $true
+    $info = New-EtiquetteJed 'Le mot de passe n''est écrit nulle part : ni dans un fichier, ni dans un journal.' 16 204 560 44
+    $bOk = New-BoutonJed 'Changer le mot de passe' 196 280 220
+    $bOk.DialogResult = 'OK'
+    $bNon = New-BoutonJed 'Annuler' 426 280 150
+    $bNon.DialogResult = 'Cancel'
+    $f.CancelButton = $bNon
+    $f.Controls.AddRange(@($liste, $t1, $t2, $info, $bOk, $bNon))
+    if ($f.ShowDialog() -ne 'OK') { return }
+    if ($t1.Text -cne $t2.Text) { Show-ErreurJed 'Les deux saisies sont différentes : rien n''a changé.'; return }
+    $compte = $c.Comptes[$liste.SelectedIndex].identifiant
+    $mot = $t1.Text
+    $t1.Text = ''; $t2.Text = ''
+    $script:Fenetre.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
+    $x = Set-MotDePasseJed $i $compte $mot -SurAttente { [System.Windows.Forms.Application]::DoEvents() }
+    $mot = $null
+    $script:Fenetre.Cursor = [System.Windows.Forms.Cursors]::Default
+    if ($x.Ok) { Show-InfoJed "Mot de passe changé pour « $compte ». Si le compte était bloqué par trop d'essais, attendez 15 minutes." }
+    else { Show-ErreurJed "Rien n'a changé.`n`n$($x.Message)" }
+}
+
+function Start-VerificationMigrationJed {
+    $i = Get-ChoixJed
+    if (-not $i) { return }
+    $script = Get-ScriptInstallationJed $i 'verifier-migration.ps1' $Racine
+    $arguments = New-ArgumentsMigrationJed $script $i.Dossier
+    [void](Start-OperationJed "Vérifier la migration de « $($i.Nom) »" {
+        param($surLigne, $surAttente, $surEtape)
+        & $surEtape 'Vérification de la migration…'
+        $x = Invoke-ScriptJed -Arguments $arguments -SurLigne $surLigne -SurAttente $surAttente -Dossier $i.Dossier
+        $m = Get-MessageVerificationJed $x.Code
+        return New-ResultatJed $m.Niveau $m.Titre $m.Texte $null $null
+    })
+}
+
+function Start-ReinitialisationJed {
+    $i = Get-ChoixJed
+    if (-not $i) { return }
+    if (-not $i.Essai) { Show-InfoJed "« $($i.Nom) » n'est pas une installation d'essai (son nom ne contient pas « essai ») : la réinitialisation est réservée aux essais."; return }
+    $script = [System.IO.Path]::Combine($i.Dossier, 'reinitialiser-essai.ps1')
+    if (-not (Test-Path -LiteralPath $script)) { Show-ErreurJed "reinitialiser-essai.ps1 est absent du dossier de « $($i.Nom) »."; return }
+    $f = New-FenetreJed "Réinitialiser l'essai « $($i.Nom) »" 640 340
+    $f.Controls.Add((New-EtiquetteJed ("La réinitialisation EFFACE les données de cet essai (base, notices, journaux) puis le redémarre vide. " +
+        "Le script refuse toute installation qui n'est pas un essai.") 16 14 600 66))
+    $cSauver = New-Object System.Windows.Forms.CheckBox
+    $cSauver.Text = 'Faire d''abord une sauvegarde de l''essai (conseillé)'
+    $cSauver.Location = New-Object System.Drawing.Point(16, 90); $cSauver.Size = New-Object System.Drawing.Size(600, 26)
+    $cSauver.Checked = ($i.Etat -eq 'en marche')
+    $cSauver.Enabled = ($i.Etat -eq 'en marche')
+    $cComplet = New-Object System.Windows.Forms.CheckBox
+    $cComplet.Text = 'Réinitialisation complète (paquets de langues Argos et images aussi)'
+    $cComplet.Location = New-Object System.Drawing.Point(16, 120); $cComplet.Size = New-Object System.Drawing.Size(600, 26)
+    $bOk = New-BoutonJed 'Continuer' 296 240 160
+    $bOk.DialogResult = 'OK'
+    $bNon = New-BoutonJed 'Annuler' 466 240 150
+    $bNon.DialogResult = 'Cancel'
+    $f.CancelButton = $bNon
+    $f.Controls.AddRange(@($cSauver, $cComplet, $bOk, $bNon))
+    if ($f.ShowDialog() -ne 'OK') { return }
+    if (-not (Read-ConfirmationJed "Les données de l'essai « $($i.Nom) » vont être effacées." 'REINITIALISER' 'Réinitialiser l''essai')) { return }
+    $sauver = $cSauver.Checked
+    $arguments = New-ArgumentsReinitialisationJed $script -Complet:$cComplet.Checked
+    [void](Start-OperationJed "Réinitialiser l'essai « $($i.Nom) »" {
+        param($surLigne, $surAttente, $surEtape)
+        if ($sauver) {
+            & $surEtape 'Sauvegarde avant effacement…'
+            $s = Invoke-SauvegardeJed $i -SurAttente $surAttente -SurLigne $surLigne
+            if (-not $s.Ok) { return New-ResultatJed 'erreur' 'Sauvegarde impossible : rien n''a été effacé' $s.Message $null $null }
+            & $surLigne $s.Message
+        }
+        & $surEtape 'Réinitialisation…'
+        $ligneEtEtape = { param($l) & $surLigne $l; if ($l -match '^== (.+)$') { & $surEtape $Matches[1] } }
+        $x = Invoke-ScriptJed -Arguments $arguments -Dossier $i.Dossier -Entree "REINITIALISER`n" -SurLigne $ligneEtEtape -SurAttente $surAttente
+        if ($x.Code -ne 0) { return Add-ExplicationJed (New-ResultatJed 'erreur' 'Réinitialisation arrêtée' 'Le message affiché dit pourquoi.' $null $null) $x.Lignes }
+        if (@($x.Lignes | Where-Object { $_ -match '^Annul' }).Count -gt 0) { return New-ResultatJed 'attention' 'Annulée' 'Rien n''a été effacé.' $null $null }
+        return New-ResultatJed 'ok' 'Essai réinitialisé' 'L''essai redémarre avec une base vide.' $null $null
+    })
+    Update-ListeJed
+}
+
 # --- Maintenance -------------------------------------------------------------------------------------
 
 function Start-SauvegardeJed {
@@ -575,8 +978,11 @@ function Show-MaintenanceJed {
     $bMotDePasse = New-BoutonJed 'Mot de passe oublié' 296 92 290 36
     $bMigration = New-BoutonJed 'Vérifier la migration' 16 138 270 36
     $bEssai = New-BoutonJed 'Réinitialiser l''essai' 296 138 290 36
-    foreach ($b in @($bRestaurer, $bMotDePasse, $bMigration, $bEssai)) { $b.Enabled = $false }
-    $note = New-EtiquetteJed 'Restaurer, mot de passe oublié, vérifier la migration et réinitialiser l''essai arrivent à l''étape suivante du développement (version candidate 2.0.2-rc1).' 16 190 570 60
+    $note = New-EtiquetteJed 'Restaurer : choisissez d''abord, dans la liste, l''installation dont vient la sauvegarde (son dossier des sauvegardes s''ouvre). Réinitialiser l''essai : seulement une installation d''essai.' 16 190 570 60
+    $bRestaurer.Add_Click({ Show-RestaurationJed })
+    $bMotDePasse.Add_Click({ Show-MotDePasseJed })
+    $bMigration.Add_Click({ Start-VerificationMigrationJed })
+    $bEssai.Add_Click({ Start-ReinitialisationJed })
     $bFermer = New-BoutonJed 'Fermer' 416 320 170
     $bFermer.Add_Click({ $f.Close() })
     $bSauver.Add_Click({ Start-SauvegardeJed })
@@ -660,7 +1066,7 @@ function Show-AssistantJed {
     $f.Controls.AddRange(@($titre, $sous, $bMaj, $bNouvelle, $groupe, $script:EtiquettePrerequis, $bPrerequis, $bMaintenance, $bPanne, $bAide))
 
     $bMaj.Add_Click({ Show-MiseAJourJed })
-    $bNouvelle.Add_Click({ Show-InfoJed 'La nouvelle installation guidée arrive à l''étape suivante du développement (version candidate 2.0.2-rc1). En attendant, suivez le guide d''installation.' })
+    $bNouvelle.Add_Click({ [void](Show-NouvelleInstallationJed) })
     $bDemarrer.Add_Click({ $i = Get-ChoixJed; if ($i) { [void](Start-ActionDockerJed $i 'Demarrer' 'Démarrer' 'J-ed démarre : il répond en général au bout d''une minute.') } })
     $bArreter.Add_Click({ $i = Get-ChoixJed; if ($i) { [void](Start-ActionDockerJed $i 'Arreter' 'Arrêter' 'J-ed est arrêté. Ses données sont intactes.') } })
     $bOuvrir.Add_Click({

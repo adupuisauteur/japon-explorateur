@@ -26,6 +26,21 @@ case "$*" in
   "compose logs --tail 150 --no-color")
     # 2.0.2 (compte rendu) : des journaux qui contiennent un secret et une adresse, à masquer.
     printf '%s\n' "${FAKE_LOGS:-web-1  | démarrage}"; exit 0 ;;
+  "compose exec -T web python manage.py mot_de_passe_oublie --liste")
+    echo '[{"identifiant": "auteur-fictif", "nom": "Auteur fictif", "role": "Administrateur", "actif": true}]'; exit 0 ;;
+  "compose exec -T web python manage.py mot_de_passe_oublie --utilisateur "*)
+    # 2.0.2 : le mot de passe arrive sur l'entrée standard ; il est gardé à part pour vérifier qu'il est bien reçu.
+    read -r mot; printf '%s' "$mot" > "${FAKE_DOCKER_LOG%/*}/mot-recu"
+    if [ "${#mot}" -lt 10 ]; then echo "CommandError: Mot de passe refusé : Ce mot de passe est trop court." >&2; exit 1; fi
+    echo "Mot de passe changé pour « $9 »."; exit 0 ;;
+  "compose cp "*" web:/data/"*) exit "${FAKE_CP:-0}" ;;
+  "compose exec -T web python manage.py restore_backup /data/"*" --yes")
+    echo "Sauvegarde de sécurité créée : /data/backups/sauvegarde-20261123-150000-full.tar"
+    if [ "${FAKE_RESTORE:-ok}" != ok ]; then echo "CommandError: Restauration impossible (ValueError : archive abîmée)." >&2; exit 1; fi
+    echo "Base restaurée."; exit 0 ;;
+  "compose restart") exit 0 ;;
+  "volume ls -q")
+    for v in ${FAKE_VOLUMES:-}; do echo "$v"; done; exit 0 ;;
   "volume ls --format {{.Name}}")
     for v in ${FAKE_VOLUMES:-}; do echo "$v"; done; exit 0 ;;
   "compose ps --services --status running")
