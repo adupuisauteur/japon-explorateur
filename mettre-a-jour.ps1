@@ -56,7 +56,8 @@
     Ne pas demander de confirmation avant l'arrêt de l'ancienne version.
 
 .PARAMETER DelaiControle
-    Temps maximal, en secondes, laissé à la nouvelle version pour répondre au contrôle final (300 par défaut).
+    Temps maximal, en secondes, laissé à la nouvelle version pour répondre au contrôle final, et à l'ancienne pour
+    répondre de nouveau en cas de retour automatique (300 par défaut).
 
 .PARAMETER DelaiStabilite
     Secondes entre les deux interrogations de la page de santé du serveur web, au contrôle final (15 par défaut).
@@ -83,7 +84,6 @@ try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 $OutputEncoding = [System.Text.Encoding]::UTF8
 $NomsProteges = @('japon-explorateur', 'japon-explorateur-essai')
 $VersionMinimale = [version]'1.3.0'   # première version qui accepte AUTORISER_NOM_PROJET
-$DelaiRetourSecondes = 120             # temps laissé à l'ancienne version pour redémarrer en cas de retour
 
 # 2.0.1 : codes de sortie (voir l'aide du script), lus par l'aide et, plus tard, par l'assistant graphique.
 $CodeArret = 1
@@ -97,6 +97,8 @@ $script:SauvegardeLocale = $null
 $script:Journal = $null
 $script:Tampon = New-Object System.Collections.Generic.List[string]
 $script:ImagesAnciennes = [ordered]@{}
+$script:Reserves = [ordered]@{}        # 2.0.1-rc3 : nom de réserve des images qui vont être remplacées
+$script:RemiseIncomplete = $false
 $Utf8SansBom = New-Object System.Text.UTF8Encoding($false)
 
 # --- Journal (2.0.1) --------------------------------------------------------------------------------------
@@ -144,6 +146,9 @@ function Arreter([string]$Message, [int]$Code = $CodeArret) {
     Ecrire-Journal 'ERREUR' $Message
     if ($Code -eq $CodeConstruction -or $Code -eq $CodeAnnule) {
         Remettre-Images   # 2.0.1-rc2 : la construction a pu ré-étiqueter des images avant d'échouer
+        if ($script:RemiseIncomplete) {
+            Write-Host "Avant de redémarrer un jour cette installation, reconstruisez-la : « docker compose build » dans « $Actuel »." -ForegroundColor Yellow
+        }
         Write-Host 'L''ancienne version est toujours en service : rien n''a été arrêté.' -ForegroundColor Yellow
         Write-Host "Le dossier de la nouvelle version ($Destination) peut être supprimé avant de relancer le script." -ForegroundColor Yellow
     } else {
@@ -240,24 +245,39 @@ function Id-Image([string]$Dossier, [string]$Nom) {
     return (($r.Texte -split "`n")[0]).Trim()
 }
 
+function Nom-Reserve([string]$Nom) {
+    # « japon-explorateur:2.0.1 » → « japon-explorateur:2.0.1-avant-maj »
+    if ($Nom -match ':[^/:]+$') { return "$Nom-avant-maj" }
+    return "$($Nom):avant-maj"
+}
+
 function Remettre-Images {
     # Même numéro de version (versions candidates) : la construction reprend l'étiquette des images de l'ancienne
     # version, même si elle échoue ensuite (recette du 20/11/2026 : image Argos ré-étiquetée avant l'échec). On
     # rend à chaque étiquette l'image d'avant la mise à jour, relevée à l'étape 5. Sans relevé : rien à faire.
+    # 2.0.1-rc3 : avec le stockage d'images récent de Docker (containerd, Docker 29), une image qui perd son
+    # étiquette n'est plus retrouvable par son identifiant (recette du 23/11/2026) : on la remet à partir de son
+    # nom de réserve (étape 5), à défaut par son identifiant.
+    $script:RemiseIncomplete = $false
     foreach ($nom in @($script:ImagesAnciennes.Keys)) {
         $avant = $script:ImagesAnciennes[$nom]
         if ((Id-Image $Actuel $nom) -ne $avant) {
-            $t = Docker-Dans $Actuel @('tag', $avant, $nom)
+            $source = $avant
+            if ($script:Reserves.Contains($nom)) { $source = $script:Reserves[$nom] }
+            $t = Docker-Dans $Actuel @('tag', $source, $nom)
             if ($t.Code -eq 0) { Dire "Image $nom remise comme avant la mise à jour." }
-            else { Avertir "Image $nom : impossible de remettre l'image d'avant la mise à jour ($($t.Texte))." }
+            else {
+                Avertir "Image $nom : impossible de remettre l'image d'avant la mise à jour ($($t.Texte))."
+                $script:RemiseIncomplete = $true
+            }
         }
     }
 }
 
-function Sante-Web {
+function Sante-Web([string]$Dossier) {
     # 2.0.1-rc2 : le serveur web répond-il ? Page de santé interrogée depuis le conteneur (comme le contrôle de
-    # santé de Docker) : elle ne répond que si le serveur web tourne et joint la base.
-    return Docker-Dans $Destination @('compose', 'exec', '-T', 'web', 'curl', '-fsS', 'http://localhost:8000/sante/')
+    # santé de Docker) : elle ne répond que si le serveur web tourne et joint la base (versions 2.0.0 et suivantes).
+    return Docker-Dans $Dossier @('compose', 'exec', '-T', 'web', 'curl', '-fsS', 'http://localhost:8000/sante/')
 }
 
 function Revenir([string]$Raison) {
@@ -269,15 +289,33 @@ function Revenir([string]$Raison) {
     $arretNouvelle = Docker-Dans $Destination @('compose', 'down')
     if ($arretNouvelle.Code -ne 0) { Avertir "Arrêt de la nouvelle version incomplet : $($arretNouvelle.Texte)" }
     Remettre-Images
+    if ($script:RemiseIncomplete) {
+        # 2.0.1-rc3 : sans l'image d'avant, l'ancienne version redémarrerait avec le code de la nouvelle. On la
+        # reconstruit depuis son propre dossier (le cache de Docker rend cela rapide, en général sans Internet).
+        Dire 'Reconstruction de l''ancienne version depuis son dossier (une à quelques minutes)…'
+        $reconstruction = Docker-Dans $Actuel @('compose', 'build')
+        if ($reconstruction.Code -ne 0) { Avertir "Reconstruction de l'ancienne version impossible : $($reconstruction.Texte)" }
+    }
     $relance = Docker-Dans $Actuel @('compose', 'up', '-d')
     $ok = $false
     if ($relance.Code -eq 0) {
-        $fin = (Get-Date).AddSeconds($DelaiRetourSecondes)
-        while ((Get-Date) -lt $fin) {
-            $etatAncien = Docker-Dans $Actuel @('compose', 'ps', '--services', '--status', 'running')
-            $enMarche = @($etatAncien.Texte -split "`n" | ForEach-Object { $_.Trim() })
-            if ($etatAncien.Code -eq 0 -and $enMarche -contains 'web') { $ok = $true; break }
-            Start-Sleep -Seconds 5
+        $fin = (Get-Date).AddSeconds($DelaiControle)
+        while ($true) {
+            if ($vA -ge [version]'2.0.0') {
+                # 2.0.1-rc3 : comme au contrôle final, le serveur web doit répondre deux fois.
+                if ((Sante-Web $Actuel).Code -eq 0) {
+                    Start-Sleep -Seconds $DelaiStabilite
+                    if ((Sante-Web $Actuel).Code -eq 0) { $ok = $true; break }
+                }
+            } else {
+                # Versions 1.x : pas de page de santé ; le service web doit être en marche.
+                $etatAncien = Docker-Dans $Actuel @('compose', 'ps', '--services', '--status', 'running')
+                $enMarche = @($etatAncien.Texte -split "`n" | ForEach-Object { $_.Trim() })
+                if ($etatAncien.Code -eq 0 -and $enMarche -contains 'web') { $ok = $true; break }
+            }
+            $reste = ($fin - (Get-Date)).TotalSeconds
+            if ($reste -le 0) { break }
+            Start-Sleep -Seconds ([int][Math]::Ceiling([Math]::Min(5, $reste)))
         }
     }
     $PortAncien = Lire-Env $EnvActuel 'WEB_PORT'
@@ -490,7 +528,10 @@ if ($LigneProfils.Count -eq 0) {
 # La configuration complète contient les mots de passe du .env : sa sortie n'est pas journalisée.
 $Config = Docker-Dans $Destination @('compose', 'config', '--format', 'json') -Discret
 if ($Config.Code -ne 0) { Arreter "configuration de la nouvelle version invalide (commande « docker compose config » dans $Destination)." }
-try { $Nom = [string](($Config.Texte | ConvertFrom-Json).name) } catch { $Nom = '' }
+$ConfigNouvelle = $null
+try { $ConfigNouvelle = $Config.Texte | ConvertFrom-Json } catch { }
+$Nom = ''
+if ($ConfigNouvelle) { $Nom = [string]$ConfigNouvelle.name }
 if ($Nom -ne $Projet) { Arreter "nom de projet inattendu dans la nouvelle configuration (« $Nom » au lieu de « $Projet »)." }
 Dire 'Fichier .env repris ; configuration valide.'
 
@@ -510,6 +551,26 @@ if ($null -eq $ImagesActuelles) {
     }
     if ($absentes.Count -gt 0) {
         Avertir "Image(s) de la version actuelle introuvable(s) sur cet ordinateur : $($absentes -join ', '). En cas de retour, Docker devra les reconstruire ou les télécharger."
+    }
+}
+# 2.0.1-rc3 : images que la construction va remplacer (même nom des deux côtés : même numéro de version). Elles
+# reçoivent d'abord un nom de réserve, qui les garde sur l'ordinateur et permet de les remettre en cas de retour.
+$Construites = @()
+if ($ConfigNouvelle -and $ConfigNouvelle.services) {
+    foreach ($service in $ConfigNouvelle.services.PSObject.Properties) {
+        if ($service.Value.build -and $service.Value.image) { $Construites += [string]$service.Value.image }
+    }
+}
+foreach ($nom in @($script:ImagesAnciennes.Keys)) {
+    if ($Construites -contains $nom) {
+        $reserve = Nom-Reserve $nom
+        $t = Docker-Dans $Actuel @('tag', $nom, $reserve)
+        if ($t.Code -eq 0) {
+            $script:Reserves[$nom] = $reserve
+            Dire "Même numéro de version : l'image $nom est mise de côté sous le nom $reserve, pour un éventuel retour."
+        } else {
+            Avertir "Image $nom : nom de réserve impossible ($($t.Texte)). En cas de retour, l'ancienne version sera reconstruite."
+        }
     }
 }
 
@@ -581,13 +642,13 @@ while ($true) {
     if (-not $etatOk) {
         $dernier = $r.Texte
     } else {
-        $s1 = Sante-Web
+        $s1 = Sante-Web $Destination
         if ($s1.Code -ne 0) {
             $dernier = "le serveur web ne répond pas (page /sante/) : $($s1.Texte)"
         } else {
             Dire "Le serveur web répond ; nouveau contrôle dans $DelaiStabilite s…"
             Start-Sleep -Seconds $DelaiStabilite
-            $s2 = Sante-Web
+            $s2 = Sante-Web $Destination
             if ($s2.Code -eq 0) { $etat = $lu; $reussi = $true; break }
             $dernier = "le serveur web a cessé de répondre (page /sante/) : $($s2.Texte)"
         }

@@ -39,7 +39,7 @@ case "$*" in
     echo "$(printf 'contenu-fictif' | sha256sum | cut -d' ' -f1)  /data/backups/x.tar"; exit 0 ;;
   "compose config --format json")
     # Comme le vrai : la configuration complète contient les mots de passe du .env.
-    echo "{\"name\": \"$(env_value COMPOSE_PROJECT_NAME)\", \"services\": {\"db\": {\"environment\": {\"POSTGRES_PASSWORD\": \"$(env_value POSTGRES_PASSWORD)\"}}}}"
+    echo "{\"name\": \"$(env_value COMPOSE_PROJECT_NAME)\", \"services\": {\"web\": {\"build\": {\"context\": \".\"}, \"image\": \"japon-explorateur:$(cat VERSION)\"}, \"db\": {\"image\": \"postgres:15-bookworm\", \"environment\": {\"POSTGRES_PASSWORD\": \"$(env_value POSTGRES_PASSWORD)\"}}}}"
     exit 0 ;;
   "compose config --images")
     printf 'japon-explorateur:%s\npostgres:15-bookworm\nredis:7-alpine\n' "$(cat VERSION)"; exit 0 ;;
@@ -49,7 +49,13 @@ case "$*" in
     if [ -n "$id" ]; then echo "$id"; exit 0; fi
     echo "Error: No such image: $nom" >&2; exit 1 ;;
   "tag "*)
-    set_image "$3" "$2"; exit 0 ;;
+    # 2.0.1-rc3 : comme Docker 29 (stockage containerd), la source doit être un nom existant, ou l'identifiant d'une
+    # image qui porte encore au moins un nom : une image qui a perdu son dernier nom n'est plus retrouvable.
+    [ "${FAKE_TAG_ECHEC:-0}" = 1 ] && { echo "Error response from daemon: No such image: $2" >&2; exit 1; }
+    id=$(sed -n "s/^$2 //p" "$IMAGES" | head -n 1)
+    [ -z "$id" ] && grep -q " $2\$" "$IMAGES" && id="$2"
+    [ -z "$id" ] && { echo "Error response from daemon: No such image: $2" >&2; exit 1; }
+    set_image "$3" "$id"; exit 0 ;;
   "compose build")
     if [ "${FAKE_BUILD_PARTIEL:-0}" = 1 ]; then
       # 2.0.1-rc2 : comme le 20/11/2026, une image est reconstruite et ré-étiquetée avant l'échec.
@@ -74,7 +80,9 @@ case "$*" in
     exit "${FAKE_UP:-0}" ;;
   "compose exec -T web curl -fsS http://localhost:8000/sante/")
     # 2.0.1-rc2 : page de santé du serveur web. ok ; ko (jamais) ; une-fois (répond une fois, puis plus).
-    case "${FAKE_SANTE:-ok}" in
+    # 2.0.1-rc3 : dans le dossier de l'installation actuelle, c'est FAKE_SANTE_ANCIENNE qui compte.
+    etat_sante="${FAKE_SANTE:-ok}"; ici_actuel && etat_sante="${FAKE_SANTE_ANCIENNE:-ok}"
+    case "$etat_sante" in
       ok) echo '{"etat": "ok"}'; exit 0 ;;
       une-fois)
         if [ ! -f "${FAKE_DOCKER_LOG%/*}/sante-deja" ]; then

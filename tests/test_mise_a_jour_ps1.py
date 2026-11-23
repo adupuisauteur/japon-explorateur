@@ -297,12 +297,15 @@ class UpdateScriptRunTests(SimpleTestCase):
         (self.current / "VERSION").write_text("2.0.0\n")
         result = self.run_script(up=1)
         self.assertEqual(result.returncode, 4, result.stdout + result.stderr)
+        aside = self.index(lambda c: c.endswith("tag japon-explorateur:2.0.0 japon-explorateur:2.0.0-avant-maj"))
         build = self.index(lambda c: c.endswith("compose build"))
-        tag = self.index(lambda c: c.endswith("tag sha256:ancienne japon-explorateur:2.0.0"))
+        back = self.index(lambda c: c.endswith("tag japon-explorateur:2.0.0-avant-maj japon-explorateur:2.0.0"))
         start_old = self.index(lambda c: c.startswith(str(self.current)) and c.endswith("compose up -d"))
-        self.assertLess(build, tag)
-        self.assertLess(tag, start_old)
+        self.assertLess(aside, build, "nom de réserve AVANT la construction")
+        self.assertLess(build, back)
+        self.assertLess(back, start_old)
         self.assertEqual(self.images()["japon-explorateur:2.0.0"], "sha256:ancienne")
+        self.assertIn("mise de côté sous le nom japon-explorateur:2.0.0-avant-maj", result.stdout)
 
     def test_different_version_keeps_both_images(self):
         result = self.run_script(up=1)
@@ -401,6 +404,43 @@ class UpdateScriptRunTests(SimpleTestCase):
         result = self.run_script(oui=False, stdin="non\n")
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertEqual(self.images()["japon-explorateur:2.0.0"], "sha256:ancienne")
+
+    # --- 2.0.1-rc3 : recette de la rc2 (23 novembre 2026, Docker 29, stockage d'images containerd) -------------
+
+    def test_old_image_lost_by_its_id_is_put_back_from_its_reserve_name(self):
+        """S3 de la recette rc2 : « No such image: sha256:… » en remettant une image par son identifiant."""
+        (self.current / "VERSION").write_text("2.0.0\n")
+        result = self.run_script(build_partiel=1)
+        self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+        self.assertNotIn("impossible de remettre", result.stdout)
+        self.assertEqual(self.images()["japon-explorateur:2.0.0"], "sha256:ancienne")
+
+    def test_return_rebuilds_the_old_version_when_its_image_cannot_be_put_back(self):
+        (self.current / "VERSION").write_text("2.0.0\n")
+        result = self.run_script(up=1, tag_echec=1)
+        self.assertEqual(result.returncode, 4, result.stdout + result.stderr)
+        self.assertIn("Reconstruction de l'ancienne version depuis son dossier", result.stdout)
+        rebuild = self.index(lambda c: c.startswith(str(self.current)) and c.endswith("compose build"))
+        start_old = self.index(lambda c: c.startswith(str(self.current)) and c.endswith("compose up -d"))
+        self.assertLess(rebuild, start_old)
+
+    def test_return_waits_for_the_old_web_server(self):
+        (self.current / "VERSION").write_text("2.0.0\n")
+        result = self.run_script("-DelaiControle", "1", sante="ko")
+        self.assertEqual(result.returncode, 4, result.stdout + result.stderr)
+        sante_old = [c for c in self.calls if c.startswith(str(self.current)) and c.endswith("/sante/")]
+        self.assertEqual(len(sante_old), 2, "l'ancienne version doit répondre deux fois")
+
+    def test_return_fails_when_the_old_web_server_does_not_answer(self):
+        (self.current / "VERSION").write_text("2.0.0\n")
+        result = self.run_script("-DelaiControle", "1", sante="ko", sante_ancienne="ko")
+        self.assertEqual(result.returncode, 5, result.stdout + result.stderr)
+        self.assertIn("Le retour automatique à l'ancienne version n'a pas abouti", result.stdout)
+
+    def test_different_versions_need_no_reserve_name(self):
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertFalse(any("avant-maj" in c for c in self.calls))
 
     def test_full_update_like_windows_powershell_51(self):
         """Arguments passés comme Windows PowerShell 5.1 ($PSNativeCommandArgumentPassing = 'Legacy')."""

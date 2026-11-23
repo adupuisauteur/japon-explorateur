@@ -1,5 +1,17 @@
 # Historique des versions
 
+## 2.0.1 — version candidate rc3 (23 novembre 2026)
+
+- **Version candidate rc3**, corrections issues de la recette courte de la rc2 (Docker 29, stockage d'images
+  containerd) :
+  - **retour à l'ancienne version avec le même numéro de version** (versions candidates) : avec ce stockage, une
+    image qui perd son étiquette n'est plus retrouvable par son identifiant (« No such image »). Avant la
+    construction, les images qui vont être remplacées reçoivent un **nom de réserve** (`…-avant-maj`), d'où elles
+    sont remises en cas d'arrêt ou de retour ; ce nom reste ensuite sur l'ordinateur (la mise à jour suivante le
+    remplace). Si la remise échoue malgré tout, le retour **reconstruit l'ancienne version** depuis son dossier ;
+  - **le retour vérifie que l'ancienne version répond** : pour une ancienne version 2.0.0 ou plus récente, sa page
+    de santé doit répondre deux fois, comme au contrôle final (versions 1.x : service web en marche).
+
 ## 2.0.1 — version candidate rc2 (20 novembre 2026)
 
 - **Version candidate rc2** (20 novembre 2026), corrections issues de la recette de la rc1 sur l'installation
@@ -37,7 +49,7 @@ base, aucun changement des données**. Note de version validée par l'utilisateu
 - **Tests automatiques sur GitHub** (lot 2) : `.github/workflows/tests.yml` lance tous les tests à chaque envoi sur
   `main` ou une branche `evolution-…` (Ubuntu, Python 3.12, PostgreSQL 15, polices japonaises de l'image Docker) ;
   échec si un test est ignoré. Première exécution réussie le 20 novembre 2026 (781 tests).
-- Tests : 784 (759 en 2.0.0 ; 791 en rc2) ; `LICENSE` inclus dans l'archive de la version.
+- Tests : 784 (759 en 2.0.0 ; 791 en rc2 ; 796 en rc3) ; `LICENSE` inclus dans l'archive de la version.
 
 ## 2.0.0 — 19 novembre 2026
 

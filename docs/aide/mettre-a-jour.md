@@ -94,6 +94,10 @@ seul à l'ancienne version**. Le contrôle final vérifie la version, la base de
 répond vraiment : deux fois de suite, à quelques secondes d'intervalle. Le retour automatique : il arrête la nouvelle, puis redémarre l'ancienne depuis l'ancien dossier. Vos données
 ne sont pas touchées. Il affiche alors « Retour réussi : l'ancienne version … est de nouveau en service ».
 
+Le retour vérifie que l'ancienne version répond de nouveau. Quand l'ancienne et la nouvelle version portent le même
+numéro (réinstallation), le script a mis de côté les images de l'ancienne sous un nom de réserve qui se termine par
+`-avant-maj`, pour pouvoir les remettre : ce nom reste ensuite dans la liste des images de Docker, c'est normal.
+
 Si ce retour échoue lui aussi (cas rare), le script affiche les lignes « Pour remettre l'ancienne version en
 service » : `docker compose down` dans le **nouveau** dossier, puis `docker compose up -d` dans l'**ancien**.
 
