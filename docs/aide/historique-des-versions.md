@@ -5,7 +5,7 @@ ordre: 20
 public: admin
 resume: Évolutions et améliorations de J-ed, version par version.
 ---
-## Version 2.0.1 (version candidate, 20 novembre 2026)
+## Version 2.0.1 (23 novembre 2026)
 
 Une petite version, sans changement de vos données : une mise à jour plus sûre et la licence de J-ed.
 

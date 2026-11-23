@@ -1,6 +1,13 @@
 # Historique des versions
 
-## 2.0.1 — version candidate rc3 (23 novembre 2026)
+## 2.0.1 — 23 novembre 2026
+
+**Version définitive**, déclarée par l'utilisateur le 23 novembre 2026 après la recette des versions candidates rc1,
+rc2 et rc3 sur l'installation d'essai (Docker 29) : mise à jour normale, vérification complète, construction
+impossible, démarrage impossible avec retour automatique. Même code que la rc3. Détail des versions candidates
+ci-dessous, de la plus récente à la plus ancienne.
+
+### Version candidate rc3 (23 novembre 2026)
 
 - **Version candidate rc3**, corrections issues de la recette courte de la rc2 (Docker 29, stockage d'images
   containerd) :
@@ -12,7 +19,7 @@
   - **le retour vérifie que l'ancienne version répond** : pour une ancienne version 2.0.0 ou plus récente, sa page
     de santé doit répondre deux fois, comme au contrôle final (versions 1.x : service web en marche).
 
-## 2.0.1 — version candidate rc2 (20 novembre 2026)
+### Version candidate rc2 (20 novembre 2026)
 
 - **Version candidate rc2** (20 novembre 2026), corrections issues de la recette de la rc1 sur l'installation
   d'essai (mise à jour normale, vérification complète, construction impossible, démarrage impossible) :
@@ -26,7 +33,7 @@
     images de l'ancienne version reprennent leur étiquette (une construction qui échoue peut en avoir ré-étiqueté
     une avant l'échec, avec le même numéro de version).
 
-## 2.0.1 — version candidate rc1 (20 novembre 2026)
+### Version candidate rc1 (20 novembre 2026)
 
 Première des versions courtes décidées le 20 novembre 2026 (2.0.1 → 2.0.2 Linux → 2.0.3 assistant graphique
 Windows → 2.0.4 réseau local, proxy, migration, NDL). Même application que la 2.0.0 : **aucune migration de
@@ -49,7 +56,7 @@ base, aucun changement des données**. Note de version validée par l'utilisateu
 - **Tests automatiques sur GitHub** (lot 2) : `.github/workflows/tests.yml` lance tous les tests à chaque envoi sur
   `main` ou une branche `evolution-…` (Ubuntu, Python 3.12, PostgreSQL 15, polices japonaises de l'image Docker) ;
   échec si un test est ignoré. Première exécution réussie le 20 novembre 2026 (781 tests).
-- Tests : 784 (759 en 2.0.0 ; 791 en rc2 ; 796 en rc3) ; `LICENSE` inclus dans l'archive de la version.
+- Tests : 796 en 2.0.1 (759 en 2.0.0 ; 784 en rc1 ; 791 en rc2) ; `LICENSE` inclus dans l'archive de la version.
 
 ## 2.0.0 — 19 novembre 2026
 

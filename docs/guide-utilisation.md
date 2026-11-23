@@ -68,7 +68,7 @@ Les nouveautés de la dernière version.
 Voici ce qui change dans la dernière version. Les versions précédentes sont décrites dans
 l'**Historique des versions** (Administration).
 
-### Version 2.0.1 (version candidate, 20 novembre 2026)
+### Version 2.0.1 (23 novembre 2026)
 
 Une petite version, sans changement de vos données : une mise à jour plus sûre et la licence de J-ed.
 
@@ -1412,7 +1412,7 @@ Les mots de J-ed, en une phrase chacun.
 
 Évolutions et améliorations de J-ed, version par version.
 
-### Version 2.0.1 (version candidate, 20 novembre 2026)
+### Version 2.0.1 (23 novembre 2026)
 
 Une petite version, sans changement de vos données : une mise à jour plus sûre et la licence de J-ed.
 

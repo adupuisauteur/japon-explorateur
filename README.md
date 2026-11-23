@@ -4,7 +4,7 @@ Anciennement « Japon — Explorateur documentaire ». Les noms techniques (dép
 
 Application web progressive (PWA) de recherche, de gestion et d'exploitation de ressources documentaires japonaises, développée d'après le cahier des charges v1.2 du 12 novembre 2026.
 
-**Version 2.0.1 — version candidate rc3 du 23 novembre 2026** (fichier `VERSION`) : licence dans l'application, mise à jour sûre, tests automatiques ; aucun changement des données. Version précédente : **2.0.0** du 19 novembre 2026, renommée **J-ed**, à partir de la 1.3.0-rc3 (étiquette `v1.3.0-rc3`, commit `d7296d4`). Détail des évolutions : `CHANGELOG.md` ; synthèse technique de la 2.0.0 : `docs/evolution-2.0.0/rapport-technique-2.0.0.md`.
+**Version 2.0.1 du 23 novembre 2026** (fichier `VERSION`) : licence dans l'application, mise à jour sûre, tests automatiques ; aucun changement des données. Version précédente : **2.0.0** du 19 novembre 2026, renommée **J-ed**, à partir de la 1.3.0-rc3 (étiquette `v1.3.0-rc3`, commit `d7296d4`). Détail des évolutions : `CHANGELOG.md` ; synthèse technique de la 2.0.0 : `docs/evolution-2.0.0/rapport-technique-2.0.0.md`.
 
 **Nouveautés de la 2.0.0.** Trois statuts par notice (notice, document, IIIF), notifications, tâches et file de nuit, plafonds de dépense, Argos installé d'office, résumés par IA (en ligne ou locale avec Ollama), repérage du japonais ancien, aide intégrée, mise à jour et vérification par script, Aozora Bunko (texte intégral), Waseda, Kokusho dans sa vraie base, « Ouvrir le document », visionneuse IIIF facultative, accès des documents numérisés de la NDL, mesure des performances.
 
