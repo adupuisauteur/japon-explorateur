@@ -222,6 +222,11 @@ function Get-FaitsSystemeJed {
     return [pscustomobject]$faits
 }
 
+function Format-NombreJed([double]$Nombre) {
+    <# 15,9 et non 15.9 : nombres à la française dans les messages. #>
+    return $Nombre.ToString('0.#', [System.Globalization.CultureInfo]::GetCultureInfo('fr-FR'))
+}
+
 function New-ControleJed([string]$Cle, [string]$Libelle, [string]$Niveau, [string]$Detail, [string]$Ancre) {
     return [pscustomobject]@{
         Cle = $Cle; Libelle = $Libelle; Niveau = $Niveau; Detail = $Detail; Aide = "$($script:PageAide)#$Ancre"
@@ -244,11 +249,11 @@ function Test-PrerequisJed {
     if ($null -eq $Faits.MemoireGo) {
         $c.Add((New-ControleJed 'memoire' 'Mémoire' 'attention' 'Mémoire inconnue : 8 Go sont conseillés.' 'configuration'))
     } elseif ($Faits.MemoireGo -lt 4) {
-        $c.Add((New-ControleJed 'memoire' 'Mémoire' 'erreur' "$($Faits.MemoireGo) Go : trop peu pour Docker et J-ed (8 Go conseillés)." 'configuration'))
+        $c.Add((New-ControleJed 'memoire' 'Mémoire' 'erreur' "$(Format-NombreJed $Faits.MemoireGo) Go : trop peu pour Docker et J-ed (8 Go conseillés)." 'configuration'))
     } elseif ($Faits.MemoireGo -lt 7.5) {
-        $c.Add((New-ControleJed 'memoire' 'Mémoire' 'attention' "$($Faits.MemoireGo) Go : J-ed fonctionnera, lentement ; 8 Go sont conseillés." 'configuration'))
+        $c.Add((New-ControleJed 'memoire' 'Mémoire' 'attention' "$(Format-NombreJed $Faits.MemoireGo) Go : J-ed fonctionnera, lentement ; 8 Go sont conseillés." 'configuration'))
     } else {
-        $c.Add((New-ControleJed 'memoire' 'Mémoire' 'ok' "$($Faits.MemoireGo) Go." 'configuration'))
+        $c.Add((New-ControleJed 'memoire' 'Mémoire' 'ok' "$(Format-NombreJed $Faits.MemoireGo) Go." 'configuration'))
     }
     if ($null -eq $Faits.Virtualisation) {
         $c.Add((New-ControleJed 'virtualisation' 'Virtualisation' 'attention' 'Impossible de savoir si la virtualisation est active.' 'virtualisation'))
@@ -272,11 +277,11 @@ function Test-PrerequisJed {
     if ($null -eq $Faits.DisqueLibreGo) {
         $c.Add((New-ControleJed 'disque' 'Place sur le disque' 'attention' 'Place libre inconnue : 20 Go sont conseillés.' 'disque'))
     } elseif ($Faits.DisqueLibreGo -lt 10) {
-        $c.Add((New-ControleJed 'disque' 'Place sur le disque' 'erreur' "$($Faits.DisqueLibreGo) Go libres : trop peu (20 Go conseillés)." 'disque'))
+        $c.Add((New-ControleJed 'disque' 'Place sur le disque' 'erreur' "$(Format-NombreJed $Faits.DisqueLibreGo) Go libres : trop peu (20 Go conseillés)." 'disque'))
     } elseif ($Faits.DisqueLibreGo -lt 20) {
-        $c.Add((New-ControleJed 'disque' 'Place sur le disque' 'attention' "$($Faits.DisqueLibreGo) Go libres : juste (20 Go conseillés)." 'disque'))
+        $c.Add((New-ControleJed 'disque' 'Place sur le disque' 'attention' "$(Format-NombreJed $Faits.DisqueLibreGo) Go libres : juste (20 Go conseillés)." 'disque'))
     } else {
-        $c.Add((New-ControleJed 'disque' 'Place sur le disque' 'ok' "$($Faits.DisqueLibreGo) Go libres." 'disque'))
+        $c.Add((New-ControleJed 'disque' 'Place sur le disque' 'ok' "$(Format-NombreJed $Faits.DisqueLibreGo) Go libres." 'disque'))
     }
     return ,$c.ToArray()
 }
@@ -655,10 +660,13 @@ function Invoke-SauvegardeJed {
     }
     New-Item -ItemType Directory -Force -Path $d | Out-Null
     $copie = Join-CheminJed $d (Split-Path -Leaf $chemin)
-    $cp = Invoke-DockerJed $Installation.Dossier @('compose', 'cp', "web:$chemin", $copie) -SurAttente $SurAttente
-    if ($cp.Code -ne 0 -or -not (Test-Path -LiteralPath $copie)) {
-        $res.Message = "Sauvegarde faite, mais sa copie sur l'ordinateur a échoué.`n$($cp.Texte)"
-        return $res
+    if (-not (Test-Path -LiteralPath $copie)) {
+        # J-ed copie déjà lui-même chaque sauvegarde dans ce dossier (« Copie externe ») : copie seulement si absente.
+        $cp = Invoke-DockerJed $Installation.Dossier @('compose', 'cp', "web:$chemin", $copie) -SurAttente $SurAttente
+        if ($cp.Code -ne 0 -or -not (Test-Path -LiteralPath $copie)) {
+            $res.Message = "Sauvegarde faite, mais sa copie sur l'ordinateur a échoué.`n$($cp.Texte)"
+            return $res
+        }
     }
     $sha = Invoke-DockerJed $Installation.Dossier @('compose', 'exec', '-T', 'web', 'sha256sum', $chemin) -SurAttente $SurAttente
     $local = (Get-FileHash -LiteralPath $copie -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -668,7 +676,7 @@ function Invoke-SauvegardeJed {
     }
     $res.Ok = $true
     $res.Copie = $copie
-    $res.Message = "Sauvegarde faite, vérifiée et copiée : $copie"
+    $res.Message = "Vérifiée, et copiée sur l'ordinateur : $copie"
     return $res
 }
 
@@ -813,6 +821,158 @@ function New-CompteRenduJed {
         Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
     }
     return $zip
+}
+
+# --- Dernière version publiée sur GitHub --------------------------------------------------------------
+
+$script:Depot = 'adupuisauteur/japon-explorateur'
+
+function ConvertTo-VersionJed([string]$Texte) {
+    <# « 2.0.1 », « v2.0.1 », « 2.0.2-rc1 » → [version] 2.0.1 / 2.0.2 ; $null si illisible. #>
+    if ("$Texte" -match '^v?(\d+\.\d+(\.\d+)?)') { return [version]$Matches[1] }
+    return $null
+}
+
+function Initialize-ReseauJed {
+    # Windows PowerShell 5.1 : GitHub exige TLS 1.2. Le proxy du système (PAC compris) est utilisé par défaut.
+    try {
+        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
+    } catch { }
+}
+
+function Get-DerniereVersionGitHubJed {
+    <# Dernière version PUBLIÉE (ni brouillon ni version de test) et ses deux fichiers : archive et .sha256. #>
+    param([string]$Api = 'https://api.github.com', [string]$Depot = $script:Depot)
+    Initialize-ReseauJed
+    $res = [pscustomobject]@{ Ok = $false; Version = ''; Date = ''; Archive = $null; Empreinte = $null; Raison = '' }
+    try {
+        $r = Invoke-WebRequest -Uri "$Api/repos/$Depot/releases/latest" -UseBasicParsing -TimeoutSec 30 `
+            -Headers @{ 'User-Agent' = 'assistant-j-ed'; 'Accept' = 'application/vnd.github+json' }
+        # Texte lu en UTF-8 quel que soit l'en-tête (Windows PowerShell 5.1 suppose sinon ISO-8859-1).
+        $info = [System.Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray()) | ConvertFrom-Json
+    } catch {
+        $res.Raison = "GitHub ne répond pas (Internet, proxy ?) : $($_.Exception.Message)"
+        return $res
+    }
+    $res.Version = ("$($info.tag_name)" -replace '^v', '')
+    $res.Date = "$($info.published_at)"
+    $fichiers = @($info.assets | ForEach-Object { $_ })
+    $archive = $fichiers | Where-Object { $_.name -match '^japon-explorateur-.+\.zip$' } | Select-Object -First 1
+    if ($archive) {
+        $empreinte = $fichiers | Where-Object { $_.name -eq "$($archive.name).sha256" -or $_.name -eq ([System.IO.Path]::ChangeExtension($archive.name, '.sha256')) } | Select-Object -First 1
+    } else { $empreinte = $null }
+    if (-not $archive -or -not $empreinte) {
+        $res.Raison = "La page de la version $($res.Version) sur GitHub n'a pas l'archive et son fichier .sha256 : choisissez les fichiers à la main."
+        return $res
+    }
+    $res.Archive = [pscustomobject]@{ Nom = $archive.name; Url = $archive.browser_download_url; Taille = [long]$archive.size }
+    $res.Empreinte = [pscustomobject]@{ Nom = $empreinte.name; Url = $empreinte.browser_download_url }
+    $res.Ok = $true
+    return $res
+}
+
+function Compare-VersionJed([string]$A, [string]$B) {
+    <# -1 si A est plus ancienne que B, 0 si égales, 1 si plus récente ; $null si l'une est illisible. #>
+    $va = ConvertTo-VersionJed $A; $vb = ConvertTo-VersionJed $B
+    if (-not $va -or -not $vb) { return $null }
+    return $va.CompareTo($vb)
+}
+
+function Get-DossierTelechargementsJed {
+    $profil = [Environment]::GetFolderPath('UserProfile')
+    return Join-CheminJed (Join-CheminJed $profil 'Downloads') 'J-ed'
+}
+
+function Save-DerniereVersionJed {
+    <# Télécharge l'archive et son .sha256 dans le dossier donné (par défaut Téléchargements\J-ed), puis contrôle
+       l'empreinte. Un fichier du même nom dans ce dossier est remplacé par le nouveau téléchargement. #>
+    param($Info, [string]$Dossier = (Get-DossierTelechargementsJed))
+    Initialize-ReseauJed
+    New-Item -ItemType Directory -Force -Path $Dossier | Out-Null
+    $archive = Join-CheminJed $Dossier $Info.Archive.Nom
+    $empreinte = Join-CheminJed $Dossier $Info.Empreinte.Nom
+    $ancienne = $ProgressPreference
+    $ProgressPreference = 'SilentlyContinue'   # Windows PowerShell 5.1 : la barre de progression ralentit tout
+    try {
+        Invoke-WebRequest -Uri $Info.Empreinte.Url -OutFile $empreinte -UseBasicParsing -TimeoutSec 60 -Headers @{ 'User-Agent' = 'assistant-j-ed' }
+        Invoke-WebRequest -Uri $Info.Archive.Url -OutFile $archive -UseBasicParsing -TimeoutSec 600 -Headers @{ 'User-Agent' = 'assistant-j-ed' }
+    } catch {
+        return [pscustomobject]@{ Ok = $false; Archive = ''; Empreinte = ''; Raison = "Téléchargement impossible : $($_.Exception.Message)" }
+    } finally {
+        $ProgressPreference = $ancienne
+    }
+    $controle = Test-EmpreinteJed -Archive $archive -Empreinte $empreinte
+    return [pscustomobject]@{ Ok = $controle.Ok; Archive = $archive; Empreinte = $empreinte; Raison = $controle.Raison }
+}
+
+# --- Proxy (2.0.2) --------------------------------------------------------------------------------------
+
+$script:ExceptionsProxy = 'localhost,127.0.0.1,db,redis,argos,ollama,web'
+
+function Get-ProxySystemeJed {
+    <# Adresse réelle du proxy que Windows utilise pour cette adresse (un fichier PAC est appliqué), ou $null. #>
+    param([string]$Url = 'https://registry-1.docker.io/')
+    try {
+        $uri = New-Object System.Uri($Url)
+        $p = [System.Net.WebRequest]::GetSystemWebProxy().GetProxy($uri)
+        if (-not $p -or $p.AbsoluteUri -eq $uri.AbsoluteUri) { return $null }
+        return "$($p.Scheme)://$($p.Authority)"
+    } catch { return $null }
+}
+
+function Test-AdresseProxyJed([string]$Proxy) {
+    if (-not $Proxy) { return [pscustomobject]@{ Ok = $false; Raison = 'Aucune adresse de proxy.' } }
+    if ($Proxy -notmatch '^https?://[^\s/]+$') {
+        return [pscustomobject]@{ Ok = $false; Raison = 'Adresse attendue sous la forme http://nom-ou-adresse:port' }
+    }
+    if ($Proxy -match '://[^/]*@') {
+        return [pscustomobject]@{ Ok = $false; Raison = "Proxy avec identifiant et mot de passe : à régler à la main (l'assistant n'écrit jamais de mot de passe)." }
+    }
+    return [pscustomobject]@{ Ok = $true; Raison = '' }
+}
+
+function Set-ProxyEnvJed {
+    <# Écrit HTTP_PROXY, HTTPS_PROXY et NO_PROXY dans le .env (les anciennes lignes de ces trois réglages sont
+       remplacées, tout le reste est gardé tel quel, encodage compris). #>
+    param([string]$Fichier, [string]$Proxy)
+    $t = Test-AdresseProxyJed $Proxy
+    if (-not $t.Ok) { throw $t.Raison }
+    $octets = [System.IO.File]::ReadAllBytes($Fichier)
+    $bom = ($octets.Length -ge 3 -and $octets[0] -eq 0xEF -and $octets[1] -eq 0xBB -and $octets[2] -eq 0xBF)
+    $texte = [System.Text.Encoding]::UTF8.GetString($octets)
+    if ($bom) { $texte = $texte.Substring(1) }
+    $fin = "`n"
+    if ($texte -match "`r`n") { $fin = "`r`n" }
+    $lignes = New-Object System.Collections.Generic.List[string]
+    foreach ($l in ($texte -split "`r?`n")) {
+        if ($l -match '^\s*(HTTP_PROXY|HTTPS_PROXY|NO_PROXY)\s*=' -or $l -match '^# Proxy \(assistant J-ed\)') { continue }
+        $lignes.Add($l)
+    }
+    while ($lignes.Count -gt 0 -and $lignes[$lignes.Count - 1] -eq '') { $lignes.RemoveAt($lignes.Count - 1) }
+    $lignes.Add('')
+    $lignes.Add('# Proxy (assistant J-ed) : utilisé pour construire J-ed et par les conteneurs ; services internes exclus.')
+    $lignes.Add("HTTP_PROXY=$Proxy")
+    $lignes.Add("HTTPS_PROXY=$Proxy")
+    $lignes.Add("NO_PROXY=$($script:ExceptionsProxy)")
+    $nouveau = ($lignes -join $fin) + $fin
+    # Copie de l'ancien .env à côté de lui, avant toute modification (jamais rien perdu).
+    Copy-Item -LiteralPath $Fichier -Destination "$Fichier.avant-proxy-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+    $encodage = New-Object System.Text.UTF8Encoding($bom)
+    [System.IO.File]::WriteAllText($Fichier, $nouveau, $encodage)
+}
+
+function Get-CommandeAccesRegistreJed {
+    <# Docker joint-il Internet ? Télécharge l'image de base de J-ed (nécessaire à la construction, de toute façon). #>
+    return ,@('pull', 'python:3.12-slim-bookworm')
+}
+
+function Get-ConseilProxyDockerJed([string]$Proxy) {
+    $t = "Docker Desktop doit passer par le proxy :`n" +
+        "1. ouvrez Docker Desktop, puis Settings (roue dentée) → Resources → Proxies ;`n" +
+        "2. choisissez « System proxy » pour Docker Desktop et pour les conteneurs ;`n"
+    if ($Proxy) { $t += "   si cela ne suffit pas : « Manual configuration », et l'adresse $Proxy pour HTTP et HTTPS ;`n" }
+    $t += "3. cliquez sur « Apply & restart », attendez la baleine immobile, puis « Vérifier à nouveau »."
+    return $t
 }
 
 Export-ModuleMember -Function *-*Jed, Join-CheminJed

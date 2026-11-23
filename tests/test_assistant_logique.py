@@ -65,7 +65,8 @@ class AssistantTestCase(SimpleTestCase):
             actuel = self.tmp / "actuel-par-defaut"
             if not actuel.exists():
                 self.make_install("actuel-par-defaut", "jed-defaut")
-        env = dict(os.environ, FAKE_DOCKER_LOG=str(self.log), FAKE_ACTUEL=str(actuel),
+        env = {k: v for k, v in os.environ.items() if k.lower() not in ("http_proxy", "https_proxy", "all_proxy")}
+        env.update(FAKE_DOCKER_LOG=str(self.log), FAKE_ACTUEL=str(actuel),
                    PATH=str(FAKE_DOCKER_DIR) + os.pathsep + os.environ.get("PATH", ""))
         env.update({f"FAKE_{k.upper()}": str(v) for k, v in fake.items()})
         full = ("$ErrorActionPreference = 'Stop'; $PSNativeCommandArgumentPassing = 'Legacy'; "
@@ -484,3 +485,129 @@ class RaccourcisEtCompteRenduTests(AssistantTestCase):
     def test_verification_report_path_is_read(self):
         r = self.ps("Get-RapportVerificationJed @('…', 'Rapport enregistré : C:\\J-ed\\verification-j-ed-20261123-1200.txt')")
         self.assertEqual(r, "C:\\J-ed\\verification-j-ed-20261123-1200.txt")
+
+
+class GitHubTests(AssistantTestCase):
+    """Dernière version publiée : réponses de GitHub simulées par un petit serveur local."""
+
+    def setUp(self):
+        super().setUp()
+        import http.server
+        import threading
+
+        self.site = self.tmp / "site"
+        (self.site / "repos" / "x" / "y" / "releases").mkdir(parents=True)
+        (self.site / "dl").mkdir()
+        archive = self.site / "dl" / "japon-explorateur-2.0.2.zip"
+        with zipfile.ZipFile(archive, "w") as z:
+            z.writestr("japon-explorateur-2.0.2/VERSION", "2.0.2\n")
+        (self.site / "dl" / "japon-explorateur-2.0.2.zip.sha256").write_text(
+            f"{hashlib.sha256(archive.read_bytes()).hexdigest()}  {archive.name}\n")
+        site = str(self.site)
+
+        class Handler(http.server.SimpleHTTPRequestHandler):
+            def __init__(self, *a, **k):
+                super().__init__(*a, directory=site, **k)
+
+            def log_message(self, *a):
+                pass
+
+        self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.addCleanup(self.server.shutdown)
+        self.base = f"http://127.0.0.1:{self.server.server_port}"
+
+    def release(self, tag="2.0.2", assets=("japon-explorateur-2.0.2.zip", "japon-explorateur-2.0.2.zip.sha256")):
+        data = {"tag_name": tag, "published_at": "2026-11-30T15:00:00Z", "assets": [
+            {"name": n, "size": (self.site / "dl" / n).stat().st_size, "browser_download_url": f"{self.base}/dl/{n}"}
+            for n in assets]}
+        (self.site / "repos" / "x" / "y" / "releases" / "latest").write_text(json.dumps(data))
+
+    def test_newer_release_is_found_downloaded_and_checked(self):
+        self.release()
+        info = self.ps(f"Get-DerniereVersionGitHubJed -Api '{self.base}' -Depot 'x/y'")
+        self.assertTrue(info["Ok"], info)
+        self.assertEqual(info["Version"], "2.0.2")
+        self.assertEqual(self.ps("Compare-VersionJed '2.0.2' '2.0.1'"), 1)
+        self.assertEqual(self.ps("Compare-VersionJed '2.0.1' '2.0.1'"), 0)
+        self.assertEqual(self.ps("Compare-VersionJed 'v2.0.1' '2.0.2-apercu'"), -1)
+        dossier = self.tmp / "Telechargements"
+        r = self.ps(f"$i = Get-DerniereVersionGitHubJed -Api '{self.base}' -Depot 'x/y'; Save-DerniereVersionJed $i '{dossier}'")
+        self.assertTrue(r["Ok"], r)
+        self.assertEqual(Path(r["Archive"]).read_bytes(), (self.site / "dl" / "japon-explorateur-2.0.2.zip").read_bytes())
+
+    def test_release_without_hash_file_is_refused(self):
+        self.release(assets=("japon-explorateur-2.0.2.zip",))
+        info = self.ps(f"Get-DerniereVersionGitHubJed -Api '{self.base}' -Depot 'x/y'")
+        self.assertFalse(info["Ok"])
+        self.assertIn("à la main", info["Raison"])
+
+    def test_github_unreachable_gives_a_clear_reason(self):
+        info = self.ps("Get-DerniereVersionGitHubJed -Api 'http://127.0.0.1:9' -Depot 'x/y'")
+        self.assertFalse(info["Ok"])
+        self.assertIn("GitHub ne répond pas", info["Raison"])
+
+
+class ProxyTests(AssistantTestCase):
+    def test_system_proxy_is_found(self):
+        # PowerShell 7 sous Linux lit le proxy dans les variables d'environnement (au démarrage) ; Windows, dans
+        # ses réglages (PAC compris).
+        env = {k: v for k, v in os.environ.items() if k.lower() not in ("http_proxy", "https_proxy", "all_proxy", "no_proxy")}
+        env.update(HTTPS_PROXY="http://proxy.exemple:3128", HTTP_PROXY="http://proxy.exemple:3128")
+        r = subprocess.run([PWSH, "-NoProfile", "-NonInteractive", "-Command",
+                            f"Import-Module '{MODULE}'; Get-ProxySystemeJed"], capture_output=True, text=True,
+                           timeout=60, env=env)
+        self.assertEqual(r.stdout.strip(), "http://proxy.exemple:3128", r.stderr)
+
+    def test_proxy_address_rules(self):
+        self.assertTrue(self.ps("Test-AdresseProxyJed 'http://proxy.exemple:3128'")["Ok"])
+        for mauvais in ("proxy:3128", "http://jean:secret@proxy:3128", ""):
+            self.assertFalse(self.ps(f"Test-AdresseProxyJed '{mauvais}'")["Ok"], mauvais)
+
+    def test_env_gets_the_proxy_and_keeps_everything_else(self):
+        env = self.tmp / ".env"
+        avant = "﻿COMPOSE_PROJECT_NAME=jed-a\r\nHTTP_PROXY=http://ancien:1\r\nPOSTGRES_PASSWORD=x\r\n"
+        env.write_bytes(avant.encode("utf-8"))
+        self.ps(f"Set-ProxyEnvJed -Fichier '{env}' -Proxy 'http://proxy.exemple:3128'")
+        data = env.read_bytes()
+        self.assertTrue(data.startswith(b"\xef\xbb\xbf"), "BOM gardé")
+        texte = data.decode("utf-8-sig")
+        self.assertIn("COMPOSE_PROJECT_NAME=jed-a\r\n", texte)
+        self.assertIn("POSTGRES_PASSWORD=x\r\n", texte)
+        self.assertNotIn("ancien", texte)
+        self.assertIn("HTTPS_PROXY=http://proxy.exemple:3128\r\n", texte)
+        self.assertIn("NO_PROXY=localhost,127.0.0.1,db,redis,argos,ollama,web\r\n", texte)
+        copies = list(self.tmp.glob(".env.avant-proxy-*"))
+        self.assertEqual(len(copies), 1)
+        self.assertEqual(copies[0].read_bytes(), avant.encode("utf-8"), "ancien .env gardé à côté")
+        self.ps(f"Set-ProxyEnvJed -Fichier '{env}' -Proxy 'http://proxy.exemple:3128'")
+        self.assertEqual(env.read_text(encoding="utf-8-sig").count("HTTPS_PROXY="), 1, "jamais en double")
+
+    def test_env_never_gets_a_password(self):
+        env = self.tmp / ".env"
+        env.write_text("A=1\n")
+        code = f"try {{ Set-ProxyEnvJed -Fichier '{env}' -Proxy 'http://jean:secret@proxy:3128'; 'ecrit' }} catch {{ 'refuse' }}"
+        self.assertEqual(self.ps(code), "refuse")
+        self.assertEqual(env.read_text(), "A=1\n")
+
+    def test_compose_passes_the_proxy_empty_by_default(self):
+        texte = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+        for nom in ("HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"):
+            valeur = "${" + nom + ":-}"
+            # arguments de construction (application et Argos, majuscules et minuscules), conteneurs Argos et Ollama
+            self.assertEqual(texte.count(f"{nom}: {valeur}"), 4, nom)
+            self.assertEqual(texte.count(f"{nom.lower()}: {valeur}"), 2, nom)
+        self.assertIn("  env_file: .env\n", texte, "les conteneurs de J-ed reçoivent le .env")
+
+    def test_numbers_are_written_the_french_way(self):
+        self.assertEqual(self.ps("Format-NombreJed 15.94"), "15,9")
+        self.assertEqual(self.ps("Format-NombreJed 16"), "16")
+
+    def test_backup_already_copied_by_jed_is_not_copied_again(self):
+        sauvegardes = self.tmp / "sauvegardes"
+        sauvegardes.mkdir()
+        (sauvegardes / "sauvegarde-20261114-220000-full.tar").write_bytes(b"contenu-fictif")
+        d = self.make_install("a", "jed-a", sauvegardes=str(sauvegardes))
+        r = self.ps(f"Invoke-SauvegardeJed (Get-InstallationJed '{d}')", actuel=d)
+        self.assertTrue(r["Ok"], r["Message"])
+        self.assertFalse(any("compose cp" in c for c in self.log.read_text().splitlines()))

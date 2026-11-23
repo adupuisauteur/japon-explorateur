@@ -24,11 +24,17 @@ try {
 }
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
-# Fichiers téléchargés : Windows les marque « venus d'Internet ». L'assistant débloque les siens seulement.
-foreach ($f in @(Get-ChildItem -LiteralPath $Ici -File) + @(Get-ChildItem -LiteralPath $Racine -Filter '*.ps1' -File)) {
-    try { Unblock-File -LiteralPath $f.FullName } catch { }
+try {
+    # Fichiers téléchargés : Windows les marque « venus d'Internet ». L'assistant débloque les siens seulement.
+    foreach ($f in @(Get-ChildItem -LiteralPath $Ici -File) + @(Get-ChildItem -LiteralPath $Racine -Filter '*.ps1' -File)) {
+        try { Unblock-File -LiteralPath $f.FullName } catch { }
+    }
+    Import-Module ([System.IO.Path]::Combine($Ici, 'AssistantJed.psm1')) -Force
+} catch {
+    # 2.0.2 (aperçu du 23/11) : sans console, une erreur au démarrage doit s'afficher.
+    [void][System.Windows.Forms.MessageBox]::Show("L'assistant J-ed ne peut pas démarrer :`n`n$($_.Exception.Message)", 'Assistant J-ed', 'OK', 'Error')
+    exit 1
 }
-Import-Module ([System.IO.Path]::Combine($Ici, 'AssistantJed.psm1')) -Force
 
 $script:Version = '?'
 $fichierVersion = [System.IO.Path]::Combine($Racine, 'VERSION')
@@ -82,10 +88,20 @@ function New-EtiquetteJed([string]$Texte, [int]$X, [int]$Y, [int]$Largeur = 600,
     return $l
 }
 
+function Set-TailleJed($Fenetre, [int]$Largeur, [int]$Hauteur) {
+    # Petit écran (portable 15 pouces, mise à l'échelle 125 ou 150 %) : la fenêtre ne dépasse jamais la partie
+    # utile de l'écran ; si elle est réduite, des barres de défilement donnent accès à tout son contenu.
+    $zone = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+    $l = [Math]::Min($Largeur, $zone.Width - 10)
+    $h = [Math]::Min($Hauteur, $zone.Height - 10)
+    if ($l -lt $Largeur -or $h -lt $Hauteur) { $Fenetre.AutoScroll = $true }
+    $Fenetre.Size = New-Object System.Drawing.Size($l, $h)
+}
+
 function New-FenetreJed([string]$Titre, [int]$Largeur, [int]$Hauteur) {
     $f = New-Object System.Windows.Forms.Form
     $f.Text = $Titre
-    $f.Size = New-Object System.Drawing.Size($Largeur, $Hauteur)
+    Set-TailleJed $f $Largeur $Hauteur
     $f.StartPosition = 'CenterParent'
     $f.Font = $script:Police
     $f.FormBorderStyle = 'FixedDialog'
@@ -122,6 +138,7 @@ function Add-ExplicationJed($Resultat, [string[]]$Lignes) {
     # Ajoute l'explication en français d'une erreur Docker reconnue dans ce qui a été affiché.
     $e = Convert-ErreurDockerJed (@($Lignes) -join "`n")
     if ($e) { $Resultat.Texte += "`n`nCause probable : $($e.Explication)`nQue faire : $($e.Solution)" }
+    if ($e -and $e.Cle -eq 'internet') { $Resultat.Texte += "`n`n" + (Get-ConseilProxyDockerJed (Get-ProxySystemeJed)) }
     return $Resultat
 }
 
@@ -210,7 +227,7 @@ function Get-BilanPrerequisJed {
 }
 
 function Show-PrerequisJed {
-    $f = New-FenetreJed 'Avant de commencer : ce qu''il faut sur cet ordinateur' 760 520
+    $f = New-FenetreJed 'Avant de commencer : ce qu''il faut sur cet ordinateur' 760 560
     $panneau = New-Object System.Windows.Forms.Panel
     $panneau.Location = New-Object System.Drawing.Point(16, 16)
     $panneau.Size = New-Object System.Drawing.Size(710, 380)
@@ -377,30 +394,43 @@ function Show-MiseAJourJed {
         $r = Start-ActionDockerJed $i 'Demarrer' 'Démarrer' 'J-ed démarre.'
         if ($r.Niveau -ne 'ok') { return }
     }
-    $f = New-FenetreJed "Mettre à jour « $($i.Nom) » (version $($i.Version))" 760 420
+    $f = New-FenetreJed "Mettre à jour « $($i.Nom) » (version $($i.Version))" 760 590
     $f.Controls.Add((New-EtiquetteJed "Installation : $($i.Dossier)" 16 14 720 24))
     $f.Controls.Add((New-EtiquetteJed 'Archive de la nouvelle version (.zip) :' 16 50 720 22))
     $tArchive = New-Object System.Windows.Forms.TextBox
     $tArchive.Location = New-Object System.Drawing.Point(16, 74); $tArchive.Size = New-Object System.Drawing.Size(560, 26)
     $bArchive = New-BoutonJed 'Choisir…' 586 72 140 30
-    $f.Controls.Add((New-EtiquetteJed 'Empreinte de l''archive (.sha256), téléchargée avec elle :' 16 110 720 22))
+    $bGitHub = New-BoutonJed 'Télécharger la dernière version (GitHub)' 16 106 330 32
+    $infoGitHub = New-EtiquetteJed '' 356 110 370 44
+    $f.Controls.Add((New-EtiquetteJed 'Empreinte de l''archive (.sha256), téléchargée avec elle :' 16 158 720 22))
     $tEmpreinte = New-Object System.Windows.Forms.TextBox
-    $tEmpreinte.Location = New-Object System.Drawing.Point(16, 134); $tEmpreinte.Size = New-Object System.Drawing.Size(560, 26)
-    $bEmpreinte = New-BoutonJed 'Choisir…' 586 132 140 30
-    $f.Controls.Add((New-EtiquetteJed 'Dossier des sauvegardes (une sauvegarde vérifiée y est copiée avant la mise à jour) :' 16 170 720 22))
+    $tEmpreinte.Location = New-Object System.Drawing.Point(16, 182); $tEmpreinte.Size = New-Object System.Drawing.Size(560, 26)
+    $bEmpreinte = New-BoutonJed 'Choisir…' 586 180 140 30
+    $f.Controls.Add((New-EtiquetteJed 'Dossier des sauvegardes (une sauvegarde vérifiée y est copiée avant la mise à jour) :' 16 218 720 22))
     $tSauv = New-Object System.Windows.Forms.TextBox
-    $tSauv.Location = New-Object System.Drawing.Point(16, 194); $tSauv.Size = New-Object System.Drawing.Size(560, 26)
+    $tSauv.Location = New-Object System.Drawing.Point(16, 242); $tSauv.Size = New-Object System.Drawing.Size(560, 26)
     $tSauv.Text = $i.DossierSauvegardes
     if (-not $tSauv.Text) { $tSauv.Text = [System.IO.Path]::Combine((Split-Path -Parent $i.Dossier), 'sauvegardes') }
-    $bSauv = New-BoutonJed 'Choisir…' 586 192 140 30
-    $controle = New-EtiquetteJed 'Choisissez l''archive.' 16 236 710 48
-    $bLancer = New-BoutonJed 'Lancer la mise à jour' 376 320 200
+    $bSauv = New-BoutonJed 'Choisir…' 586 240 140 30
+    $cProxy = New-Object System.Windows.Forms.CheckBox
+    $cProxy.Text = 'Mon réseau passe par un proxy : utiliser celui de Windows'
+    $cProxy.Location = New-Object System.Drawing.Point(16, 282); $cProxy.Size = New-Object System.Drawing.Size(500, 26)
+    $tProxy = New-Object System.Windows.Forms.TextBox
+    $tProxy.Location = New-Object System.Drawing.Point(36, 312); $tProxy.Size = New-Object System.Drawing.Size(320, 26)
+    $bInternet = New-BoutonJed 'Docker joint-il Internet ?' 366 310 220 30
+    $proxyDetecte = Get-ProxySystemeJed
+    if ($proxyDetecte) { $cProxy.Checked = $true; $tProxy.Text = $proxyDetecte }
+    $tProxy.Enabled = $cProxy.Checked
+    $cProxy.Add_CheckedChanged({ $tProxy.Enabled = $cProxy.Checked })
+    $controle = New-EtiquetteJed 'Choisissez l''archive, ou téléchargez la dernière version.' 16 352 710 48
+    $bLancer = New-BoutonJed 'Lancer la mise à jour' 376 500 200
     $bLancer.Enabled = $false
     $bLancer.DialogResult = 'OK'
-    $bAnnuler = New-BoutonJed 'Annuler' 586 320 140
+    $bAnnuler = New-BoutonJed 'Annuler' 586 500 140
     $bAnnuler.DialogResult = 'Cancel'
     $f.CancelButton = $bAnnuler
-    $f.Controls.AddRange(@($tArchive, $bArchive, $tEmpreinte, $bEmpreinte, $tSauv, $bSauv, $controle, $bLancer, $bAnnuler))
+    $f.Controls.AddRange(@($tArchive, $bArchive, $bGitHub, $infoGitHub, $tEmpreinte, $bEmpreinte, $tSauv, $bSauv,
+        $cProxy, $tProxy, $bInternet, $controle, $bLancer, $bAnnuler))
     $verifier = {
         $bLancer.Enabled = $false
         if (-not $tArchive.Text) { return }
@@ -441,7 +471,50 @@ function Show-MiseAJourJed {
         $d.Description = 'Dossier des sauvegardes'
         if ($d.ShowDialog() -eq 'OK') { $tSauv.Text = $d.SelectedPath }
     })
+    $bGitHub.Add_Click({
+        $f.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
+        $info = Get-DerniereVersionGitHubJed
+        $f.Cursor = [System.Windows.Forms.Cursors]::Default
+        if (-not $info.Ok) { $infoGitHub.Text = $info.Raison; $infoGitHub.ForeColor = $script:Couleurs['erreur']; return }
+        $date = $info.Date
+        try { $date = ([datetime]$info.Date).ToString('d MMMM yyyy', [System.Globalization.CultureInfo]::GetCultureInfo('fr-FR')) } catch { }
+        if ((Compare-VersionJed $info.Version $i.Version) -le 0) {
+            $infoGitHub.Text = "Dernière version publiée : $($info.Version) ($date). Votre installation est déjà à jour."
+            $infoGitHub.ForeColor = $script:Couleurs['ok']
+            return
+        }
+        $taille = Format-NombreJed ($info.Archive.Taille / 1MB)
+        $dossier = Get-DossierTelechargementsJed
+        if (-not (Confirm-ChoixJed "Télécharger J-ed $($info.Version), publiée le $date ($taille Mo), dans $dossier ?")) { return }
+        $f.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
+        $infoGitHub.Text = 'Téléchargement…'
+        [System.Windows.Forms.Application]::DoEvents()
+        $t = Save-DerniereVersionJed $info $dossier
+        $f.Cursor = [System.Windows.Forms.Cursors]::Default
+        if (-not $t.Archive -or -not (Test-Path -LiteralPath $t.Archive)) { $infoGitHub.Text = $t.Raison; $infoGitHub.ForeColor = $script:Couleurs['erreur']; return }
+        $infoGitHub.Text = "Version $($info.Version) téléchargée."
+        $infoGitHub.ForeColor = $script:Couleurs['ok']
+        $tArchive.Text = $t.Archive
+        $tEmpreinte.Text = $t.Empreinte
+        & $verifier
+    })
+    $bInternet.Add_Click({
+        [void](Start-OperationJed 'Docker joint-il Internet ?' {
+            param($surLigne, $surAttente, $surEtape)
+            & $surEtape 'Téléchargement de l''image de base de J-ed (python:3.12-slim-bookworm)…'
+            $d = Invoke-DockerJed $i.Dossier (Get-CommandeAccesRegistreJed) -SurAttente $surAttente -SurLigne $surLigne
+            if ($d.Code -eq 0) { return New-ResultatJed 'ok' 'Docker joint Internet' 'La construction de la nouvelle version pourra télécharger ce dont elle a besoin.' $null $null }
+            $res = New-ResultatJed 'erreur' 'Docker ne joint pas Internet' (Get-ConseilProxyDockerJed $tProxy.Text) $null $null
+            return $res
+        })
+    })
     if ($f.ShowDialog() -ne 'OK') { return }
+    if ($cProxy.Checked) {
+        $tp = Test-AdresseProxyJed $tProxy.Text
+        if (-not $tp.Ok) { Show-ErreurJed "Proxy : $($tp.Raison)"; return }
+        if (-not (Confirm-ChoixJed "Le proxy $($tProxy.Text) va être écrit dans le fichier .env de « $($i.Nom) » (une copie de l'ancien fichier est gardée à côté). La nouvelle version le reprendra.`n`nContinuer ?")) { return }
+        Set-ProxyEnvJed -Fichier ([System.IO.Path]::Combine($i.Dossier, '.env')) -Proxy $tProxy.Text
+    }
 
     if ($i.Protegee -and -not (Confirm-ChoixJed "« $($i.Nom) » est une installation protégée (sans doute votre installation principale).`n`nConseil : essayez d'abord la mise à jour sur une copie. Continuer quand même ?")) { return }
 
@@ -485,6 +558,7 @@ function Start-SauvegardeJed {
     [void](Start-OperationJed "Sauvegarder « $($i.Nom) »" {
         param($surLigne, $surAttente, $surEtape)
         & $surEtape 'Sauvegarde en cours (une à quelques minutes)…'
+        & $surLigne 'Sauvegarde en cours, patientez : J-ed affiche son résultat à la fin.'
         $s = Invoke-SauvegardeJed $i -SurAttente $surAttente -SurLigne $surLigne
         if ($s.Ok) { return New-ResultatJed 'ok' 'Sauvegarde faite' $s.Message $null $s.Copie }
         return Add-ExplicationJed (New-ResultatJed 'erreur' 'Sauvegarde impossible' $s.Message $null $null) @($s.Message)
@@ -496,7 +570,7 @@ function Show-MaintenanceJed {
     $f = New-FenetreJed 'Opérations de maintenance' 620 420
     $f.Controls.Add((New-EtiquetteJed 'Pour l''installation choisie dans la liste :' 16 14 570 24))
     $bSauver = New-BoutonJed 'Créer une sauvegarde' 16 46 270 36
-    $bDossier = New-BoutonJed 'Ouvrir le dossier des sauvegardes et des journaux' 296 46 290 36
+    $bDossier = New-BoutonJed 'Dossier des sauvegardes' 296 46 290 36
     $bRestaurer = New-BoutonJed 'Restaurer une sauvegarde' 16 92 270 36
     $bMotDePasse = New-BoutonJed 'Mot de passe oublié' 296 92 290 36
     $bMigration = New-BoutonJed 'Vérifier la migration' 16 138 270 36
@@ -538,7 +612,7 @@ function Start-CompteRenduJed {
 function Show-AssistantJed {
     $f = New-Object System.Windows.Forms.Form
     $f.Text = "Assistant J-ed $script:Version"
-    $f.Size = New-Object System.Drawing.Size(1000, 680)
+    Set-TailleJed $f 1000 680
     $f.StartPosition = 'CenterScreen'
     $f.Font = $script:Police
     $f.FormBorderStyle = 'FixedSingle'
