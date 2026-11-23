@@ -313,7 +313,7 @@ class UpdateScriptRunTests(SimpleTestCase):
         self.assertFalse(any(" | tag " in c for c in self.calls), "rien à remettre : étiquettes différentes")
         images = self.images()
         self.assertEqual(images["japon-explorateur:1.3.0"], "sha256:ancienne")
-        self.assertEqual(images["japon-explorateur:2.0.0"], "sha256:construite")
+        self.assertTrue(images["japon-explorateur:2.0.0"].startswith("sha256:construite-"))
 
     def test_answer_other_than_oui_cancels_with_code_2(self):
         result = self.run_script(oui=False, stdin="non\n")

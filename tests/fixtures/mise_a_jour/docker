@@ -68,7 +68,8 @@ case "$*" in
       echo "failed to solve: python:3.12-slim-bookworm: failed to resolve source metadata: context deadline exceeded" >&2
       exit "$FAKE_BUILD"
     fi
-    set_image "japon-explorateur:$(cat VERSION)" "sha256:construite"; exit 0 ;;
+    # Une image construite par dossier : deux constructions ne donnent jamais le même identifiant (comme Docker).
+    set_image "japon-explorateur:$(cat VERSION)" "sha256:construite-$(pwd | sha256sum | cut -c1-8)"; exit 0 ;;
   "compose pull --ignore-buildable")
     if [ "${FAKE_PULL:-ok}" = ok ]; then
       for absente in ${FAKE_IMAGES_ABSENTES:-}; do set_image "$absente" "sha256:telechargee"; done; exit 0
