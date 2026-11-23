@@ -1,8 +1,21 @@
 # Historique des versions
 
-## 2.0.2-rc3 — 23 novembre 2026
+## 2.0.2-rc4 — 23 novembre 2026
 
-**Version candidate rc3**, correction d'un défaut bloquant trouvé à la recette de la rc2 (après la première mise à
+**Version candidate rc4**, correction d'un défaut trouvé à la recette de la rc3 (essai T9, « Mot de passe oublié »
+sur une installation en 2.0.1) :
+
+- **l'assistant s'arrêtait sur une « exception non gérée »** au lieu d'afficher « demande J-ed 2.0.2 ou plus
+  récent » : sous Windows PowerShell 5.1, avec le réglage « Stop » de la fenêtre, une ligne écrite par docker sur
+  sa sortie d'erreur (ici « Unknown command ») devenait une exception. Le même risque touchait la liste des
+  installations et le contrôle « Docker démarré ? » lorsque Docker Desktop est arrêté. Ces messages sont
+  désormais lus comme du texte ; la liste des comptes passe par un processus à part, comme le changement du mot
+  de passe. Nouveaux tests (PowerShell 7, celui des tests, ne réagit pas ainsi : le code lui-même est vérifié).
+- 894 tests.
+
+### Version candidate rc3 (23 novembre 2026)
+
+Correction d'un défaut bloquant trouvé à la recette de la rc2 (après la première mise à
 jour réussie par l'assistant, essai T2) :
 
 - **la liste des installations plantait dès qu'il y en avait deux** (erreur « System.Object[] » de Windows Forms,
