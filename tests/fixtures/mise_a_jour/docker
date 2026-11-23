@@ -65,7 +65,10 @@ case "$*" in
     echo "$(printf 'contenu-fictif' | sha256sum | cut -d' ' -f1)  /data/backups/x.tar"; exit 0 ;;
   "compose config --format json")
     # Comme le vrai : la configuration complète contient les mots de passe du .env.
-    echo "{\"name\": \"$(env_value COMPOSE_PROJECT_NAME)\", \"services\": {\"web\": {\"build\": {\"context\": \".\"}, \"image\": \"japon-explorateur:$(cat VERSION)\"}, \"db\": {\"image\": \"postgres:15-bookworm\", \"environment\": {\"POSTGRES_PASSWORD\": \"$(env_value POSTGRES_PASSWORD)\"}}}}"
+    # 2.0.2-rc2 : avec les arguments de construction du vrai docker-compose.yml (FAKE_BUILD_ARGS) : deux noms qui
+    # ne diffèrent que par la casse rendent ce JSON illisible pour PowerShell (défaut de la rc1).
+    args=""; for a in ${FAKE_BUILD_ARGS:-}; do args="$args${args:+, }\"$a\": \"\""; done
+    echo "{\"name\": \"$(env_value COMPOSE_PROJECT_NAME)\", \"services\": {\"web\": {\"build\": {\"context\": \".\", \"args\": {$args}}, \"image\": \"japon-explorateur:$(cat VERSION)\"}, \"db\": {\"image\": \"postgres:15-bookworm\", \"environment\": {\"POSTGRES_PASSWORD\": \"$(env_value POSTGRES_PASSWORD)\"}}}}"
     exit 0 ;;
   "compose config --images")
     printf 'japon-explorateur:%s\npostgres:15-bookworm\nredis:7-alpine\n' "$(cat VERSION)"; exit 0 ;;

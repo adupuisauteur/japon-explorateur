@@ -25,6 +25,15 @@ SECRET_FICTIF = "mot-de-passe-fictif-a-ne-pas-journaliser"
 PWSH = shutil.which("pwsh") or ("/opt/pwsh/pwsh" if Path("/opt/pwsh/pwsh").exists() else None)
 
 
+def compose_build_args():
+    """Noms des arguments de construction du vrai docker-compose.yml (bloc x-app), pour une configuration simulée
+    réaliste (2.0.2-rc2 : la rc1 avait HTTP_PROXY et http_proxy, illisibles ensemble pour PowerShell)."""
+    import re
+    texte = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    bloc = texte.split("x-app: &app", 1)[1].split("\n  image:", 1)[0]
+    return re.findall(r"^      ([A-Za-z_]+):", bloc.split("    args:", 1)[1], re.M) if "    args:" in bloc else []
+
+
 class ScriptFileTests(SimpleTestCase):
     def test_bom_and_crlf_for_windows_powershell_51(self):
         raw = SCRIPT.read_bytes()
@@ -76,6 +85,7 @@ class UpdateScriptRunTests(SimpleTestCase):
 
     def run_script(self, *extra, oui=True, legacy=False, stdin=None, **fake):
         env = dict(os.environ, FAKE_DOCKER_LOG=str(self.log), FAKE_ACTUEL=str(self.current),
+                   FAKE_BUILD_ARGS=" ".join(compose_build_args()),
                    PATH=str(FAKE_DOCKER_DIR) + os.pathsep + os.environ.get("PATH", ""))
         env.update({f"FAKE_{k.upper()}": str(v) for k, v in fake.items()})
         # -DelaiStabilite 0 : pas d'attente de 15 s entre les deux interrogations de la page de santé.
@@ -116,6 +126,9 @@ class UpdateScriptRunTests(SimpleTestCase):
         self.assertIn("ARRÊT", result.stdout)
         self.assertIn(message, result.stdout)
         self.assertFalse(any(c.endswith("| compose down") for c in self.calls), "l'ancienne version reste en service")
+
+    def test_simulated_configuration_has_the_real_build_args(self):
+        self.assertEqual(compose_build_args(), ["HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"])
 
     def test_full_update(self):
         result = self.run_script()

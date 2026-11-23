@@ -598,8 +598,29 @@ class ProxyTests(AssistantTestCase):
             valeur = "${" + nom + ":-}"
             # arguments de construction (application et Argos, majuscules et minuscules), conteneurs Argos et Ollama
             self.assertEqual(texte.count(f"{nom}: {valeur}"), 4, nom)
-            self.assertEqual(texte.count(f"{nom.lower()}: {valeur}"), 2, nom)
+            self.assertNotIn(f"{nom.lower()}:", texte, "jamais la même clé en minuscules (2.0.2-rc1, recette T2)")
         self.assertIn("  env_file: .env\n", texte, "les conteneurs de J-ed reçoivent le .env")
+
+    def test_compose_never_has_two_keys_differing_only_by_case(self):
+        """2.0.2-rc1 (recette T2) : HTTP_PROXY et http_proxy dans un même bloc rendaient la configuration illisible
+        pour Windows PowerShell (ConvertFrom-Json), et toute mise à jour s'arrêtait."""
+        pile = []  # (indentation, clés déjà vues en minuscules)
+        for numero, ligne in enumerate((ROOT / "docker-compose.yml").read_text(encoding="utf-8").splitlines(), 1):
+            m = re.match(r"^( *)([A-Za-z0-9_.-]+):", ligne)
+            if not m or ligne.lstrip().startswith("#"):
+                continue
+            indent, cle = len(m.group(1)), m.group(2).lower()
+            while pile and pile[-1][0] > indent:
+                pile.pop()
+            if not pile or pile[-1][0] < indent:
+                pile.append((indent, set()))
+            self.assertNotIn(cle, pile[-1][1], f"ligne {numero} : clé « {m.group(2)} » en double (casse)")
+            pile[-1][1].add(cle)
+
+    def test_dockerfile_gives_the_proxy_to_apt(self):
+        dockerfile = (ROOT / "docker" / "Dockerfile").read_text(encoding="utf-8")
+        self.assertIn('export http_proxy="$HTTP_PROXY"', dockerfile)
+        self.assertNotIn("ENV HTTP_PROXY", dockerfile, "le proxy n'est jamais gardé dans l'image")
 
     def test_numbers_are_written_the_french_way(self):
         self.assertEqual(self.ps("Format-NombreJed 15.94"), "15,9")

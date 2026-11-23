@@ -1,8 +1,21 @@
 # Historique des versions
 
-## 2.0.2-rc1 — 23 novembre 2026
+## 2.0.2-rc2 — 23 novembre 2026
 
-**Version candidate rc1** de la 2.0.2 : l'**assistant graphique Windows**. Même application : **aucune migration de
+**Version candidate rc2**, correction d'un défaut bloquant trouvé à la recette de la rc1 (essai T2, mise à jour de
+l'installation d'essai depuis l'assistant) :
+
+- **la mise à jour vers la rc1 s'arrêtait à l'étape 4/7** (« nom de projet inattendu », code 1 ; rien n'était
+  modifié) : `docker-compose.yml` déclarait les arguments de construction du proxy en majuscules et en minuscules
+  (`HTTP_PROXY` et `http_proxy`…), et Windows PowerShell refuse de lire une configuration dont deux noms ne
+  diffèrent que par la casse. Seuls les noms en majuscules restent ; le Dockerfile donne les minuscules à `apt`,
+  pour sa seule commande. Nouveaux tests : configuration simulée avec les vrais arguments de construction, et
+  aucune clé en double (casse) dans `docker-compose.yml`.
+- 890 tests.
+
+### Version candidate rc1 (23 novembre 2026)
+
+Première version candidate de la 2.0.2 : l'**assistant graphique Windows**. Même application : **aucune migration de
 base, aucun changement des données** (seul ajout à l'application : la commande `mot_de_passe_oublie`).
 
 **Ordre des versions modifié le 23 novembre 2026** (décision de l'utilisateur) : l'assistant graphique, d'abord
