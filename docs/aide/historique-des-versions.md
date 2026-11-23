@@ -5,6 +5,19 @@ ordre: 20
 public: admin
 resume: Évolutions et améliorations de J-ed, version par version.
 ---
+## Version 2.0.1 (23 novembre 2026)
+
+Une petite version, sans changement de vos données : une mise à jour plus sûre et la licence de J-ed.
+
+- **Une mise à jour qui ne laisse plus J-ed arrêté.** Le script prépare la nouvelle version pendant que
+  l'ancienne fonctionne encore. Si Docker n'arrive pas à télécharger (pas d'Internet, proxy), il s'arrête sans
+  rien avoir arrêté. Si la nouvelle version ne démarre pas, il revient tout seul à l'ancienne (**retour
+  automatique**). Chaque mise à jour laisse un **journal** dans le dossier des sauvegardes, et un code qui dit ce
+  qui s'est passé (aide « Mettre à jour J-ed »).
+- **J-ed est un logiciel libre**, sous la licence **GNU AGPL v3 ou toute version ultérieure** : page « À propos »
+  et lien **Code source** en bas de chaque page.
+- **Tests automatiques** : à chaque modification publiée, GitHub relance tous les tests de J-ed.
+
 ## Version 2.0.0 (19 novembre 2026)
 
 Une version de consolidation : J-ed devient plus sûr, travaille seul la nuit, résume, et s'explique lui-même.

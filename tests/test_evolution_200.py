@@ -23,12 +23,15 @@ def read(name):
 
 
 class VersionTests(SimpleTestCase):
-    def test_version_is_200_everywhere(self):
-        self.assertEqual(read("VERSION").strip(), "2.0.0")
-        self.assertEqual(settings.APP_VERSION, "2.0.0")
+    def test_version_is_the_same_everywhere(self):
+        # 2.0.1 : ce test vérifiait « 2.0.0 » ; il vérifie désormais que le numéro est le même partout
+        # (le numéro exact de chaque version est vérifié par son propre test, ex. test_version_201).
+        version = read("VERSION").strip()
+        self.assertEqual(settings.APP_VERSION, version)
         compose = read("docker-compose.yml")
-        self.assertIn("image: japon-explorateur:2.0.0", compose)
-        self.assertIn("image: japon-explorateur-argos:2.0.0", compose)
+        self.assertIn(f"image: japon-explorateur:{version}", compose)
+        self.assertIn(f"image: japon-explorateur-argos:{version}", compose)
+        self.assertIn(f"## {version}", read("CHANGELOG.md"))
         self.assertIn("## 2.0.0", read("CHANGELOG.md"))
 
     def test_no_stale_install_values(self):

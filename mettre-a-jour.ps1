@@ -10,11 +10,33 @@
          et contrôle de l'empreinte de la copie ;
       3. décompression de l'archive dans un NOUVEAU dossier (l'ancien dossier n'est jamais modifié) ;
       4. reprise du fichier .env de l'installation actuelle ;
-      5. arrêt de l'ancienne version (sans effacer aucune donnée : « docker compose down » sans -v), puis
-         démarrage de la nouvelle ;
-      6. contrôle final : version attendue et base de données à jour (manage.py etat_installation).
+      5. construction de la nouvelle version PENDANT QUE L'ANCIENNE RESTE EN SERVICE (2.0.1) : si Docker ne
+         joint pas Internet, le script s'arrête ici et l'ancienne version n'a pas été touchée ;
+      6. arrêt de l'ancienne version (sans effacer aucune donnée : « docker compose down » sans -v), puis
+         démarrage de la nouvelle, sans reconstruire ;
+      7. contrôle final : version attendue et base de données à jour (manage.py etat_installation), puis le
+         serveur web lui-même : sa page de santé (/sante/) doit répondre deux fois de suite, à quelques secondes
+         d'intervalle (2.0.1-rc2 : un conteneur qui s'arrête juste après son démarrage n'est plus pris pour un
+         succès).
+    Si la nouvelle version ne démarre pas ou ne répond pas (étapes 6 et 7), le script revient tout seul à
+    l'ancienne version (2.0.1) : arrêt de la nouvelle, redémarrage de l'ancienne depuis l'ancien dossier.
     Les données (base, fichiers, paquets Argos) sont dans les volumes Docker du projet : elles sont reprises
     telles quelles parce que le nom du projet (COMPOSE_PROJECT_NAME) ne change pas.
+
+    Journal (2.0.1) : chaque mise à jour écrit le fichier mise-a-jour-AAAAMMJJ-HHMMSS.log dans le dossier des
+    sauvegardes. Chaque ligne commence par la date, l'heure et un repère fixe : ETAPE, INFO, ATTENTION, COMMANDE,
+    RESULTAT, ERREUR, FIN ; les lignes de suite commencent par « | ». La configuration complète de Docker (qui
+    contient les mots de passe) n'y est jamais écrite.
+
+    Codes de sortie (2.0.1) :
+      0  mise à jour réussie ;
+      1  arrêt pendant les contrôles, la sauvegarde, la décompression ou la reprise du .env : l'installation
+         actuelle n'a pas été modifiée ;
+      2  mise à jour annulée à votre demande (pas de « OUI ») : l'ancienne version est toujours en service ;
+      3  construction de la nouvelle version impossible : l'ancienne version est toujours en service ;
+      4  la nouvelle version n'a pas démarré correctement ; retour à l'ancienne version réussi ;
+      5  la nouvelle version n'a pas démarré correctement et le retour à l'ancienne a échoué : intervention
+         nécessaire (le message et le journal disent quoi faire).
 
 .PARAMETER Archive
     Chemin de l'archive de la nouvelle version (.zip). Le fichier d'empreinte (.sha256) doit être à côté.
@@ -26,14 +48,22 @@
     Dossier de la nouvelle version. Par défaut : à côté du dossier actuel, nommé comme l'archive.
 
 .PARAMETER DossierSauvegardes
-    Dossier de l'ordinateur où copier la sauvegarde faite avant la mise à jour. Par défaut :
-    DOSSIER_SAUVEGARDES du fichier .env s'il existe, sinon un dossier « sauvegardes » à côté du dossier actuel.
+    Dossier de l'ordinateur où copier la sauvegarde faite avant la mise à jour, et où écrire le journal. Par
+    défaut : DOSSIER_SAUVEGARDES du fichier .env s'il existe, sinon un dossier « sauvegardes » à côté du dossier
+    actuel.
 
 .PARAMETER Oui
     Ne pas demander de confirmation avant l'arrêt de l'ancienne version.
 
+.PARAMETER DelaiControle
+    Temps maximal, en secondes, laissé à la nouvelle version pour répondre au contrôle final, et à l'ancienne pour
+    répondre de nouveau en cas de retour automatique (300 par défaut).
+
+.PARAMETER DelaiStabilite
+    Secondes entre les deux interrogations de la page de santé du serveur web, au contrôle final (15 par défaut).
+
 .EXAMPLE
-    powershell -ExecutionPolicy Bypass -File .\mettre-a-jour.ps1 -Archive .\japon-explorateur-2.0.0.zip -Actuel D:\Exemple\japon-explorateur-1.3.0
+    powershell -ExecutionPolicy Bypass -File .\mettre-a-jour.ps1 -Archive .\japon-explorateur-2.0.1.zip -Actuel D:\Exemple\japon-explorateur-2.0.0
 #>
 [CmdletBinding()]
 param(
@@ -41,7 +71,9 @@ param(
     [Parameter(Mandatory = $true)][string]$Actuel,
     [string]$Destination,
     [string]$DossierSauvegardes,
-    [switch]$Oui
+    [switch]$Oui,
+    [int]$DelaiControle = 300,
+    [int]$DelaiStabilite = 15
 )
 
 # Les codes de retour de Docker sont contrôlés un par un (compatible Windows PowerShell 5.1).
@@ -52,36 +84,90 @@ try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 $OutputEncoding = [System.Text.Encoding]::UTF8
 $NomsProteges = @('japon-explorateur', 'japon-explorateur-essai')
 $VersionMinimale = [version]'1.3.0'   # première version qui accepte AUTORISER_NOM_PROJET
-$DelaiControleSecondes = 300
+
+# 2.0.1 : codes de sortie (voir l'aide du script), lus par l'aide et, plus tard, par l'assistant graphique.
+$CodeArret = 1
+$CodeAnnule = 2
+$CodeConstruction = 3
+$CodeRetourReussi = 4
+$CodeRetourImpossible = 5
 
 $script:AncienneArretee = $false
 $script:SauvegardeLocale = $null
+$script:Journal = $null
+$script:Tampon = New-Object System.Collections.Generic.List[string]
+$script:ImagesAnciennes = [ordered]@{}
+$script:Reserves = [ordered]@{}        # 2.0.1-rc3 : nom de réserve des images qui vont être remplacées
+$script:RemiseIncomplete = $false
+$Utf8SansBom = New-Object System.Text.UTF8Encoding($false)
 
-function Arreter([string]$Message) {
+# --- Journal (2.0.1) --------------------------------------------------------------------------------------
+function Ecrire-Journal([string]$Repere, [string]$Texte) {
+    # Une ligne par événement : « AAAA-MM-JJ HH:MM:SS REPERE texte » ; les lignes de suite commencent par « | ».
+    $heure = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+    $lignes = @(("$Texte" -replace "`r", '') -split "`n")
+    $bloc = "$heure $Repere $($lignes[0])`r`n"
+    for ($i = 1; $i -lt $lignes.Count; $i++) { $bloc += "    | $($lignes[$i])`r`n" }
+    if ($script:Journal) {
+        try { [System.IO.File]::AppendAllText($script:Journal, $bloc, $Utf8SansBom) } catch { }
+    } else {
+        $script:Tampon.Add($bloc)   # journal pas encore ouvert : écrit dès qu'il le sera
+    }
+}
+
+function Ouvrir-Journal([string]$Dossier) {
+    New-Item -ItemType Directory -Force -Path $Dossier -ErrorAction Stop | Out-Null
+    $chemin = [System.IO.Path]::Combine($Dossier, "mise-a-jour-$(Get-Date -Format 'yyyyMMdd-HHmmss').log")
+    [System.IO.File]::WriteAllText($chemin, ($script:Tampon -join ''), $Utf8SansBom)
+    $script:Journal = $chemin
+}
+
+function Dire([string]$Message, [string]$Couleur) {
+    if ($Couleur) { Write-Host $Message -ForegroundColor $Couleur } else { Write-Host $Message }
+    Ecrire-Journal 'INFO' $Message
+}
+
+function Avertir([string]$Message) {
+    Write-Host $Message -ForegroundColor Yellow
+    Ecrire-Journal 'ATTENTION' $Message
+}
+
+function Terminer([int]$Code, [string]$Resume) {
+    Ecrire-Journal 'FIN' "code=$Code $Resume"
+    if ($script:Journal) { Write-Host "Journal de la mise à jour : $script:Journal" }
+    exit $Code
+}
+
+function Arreter([string]$Message, [int]$Code = $CodeArret) {
+    # Arrêt AVANT l'arrêt de l'ancienne version. Après, c'est Revenir qui s'en charge.
+    if ($script:AncienneArretee) { Revenir $Message }
     Write-Host ''
     Write-Host "ARRÊT : $Message" -ForegroundColor Red
-    if ($script:AncienneArretee) {
-        Write-Host 'L''ancienne version a été arrêtée. Pour revenir en arrière :' -ForegroundColor Yellow
-        Write-Host "  1. dans « $Destination » : docker compose down" -ForegroundColor Yellow
-        Write-Host "  2. dans « $Actuel » : docker compose up -d" -ForegroundColor Yellow
-        if ($script:SauvegardeLocale) {
-            Write-Host "  3. si l'ancienne version ne démarre pas (base déjà mise à jour), restaurez la sauvegarde :" -ForegroundColor Yellow
-            Write-Host "     $script:SauvegardeLocale (guide d'installation, « Restaurer une sauvegarde »)" -ForegroundColor Yellow
+    Ecrire-Journal 'ERREUR' $Message
+    if ($Code -eq $CodeConstruction -or $Code -eq $CodeAnnule) {
+        Remettre-Images   # 2.0.1-rc2 : la construction a pu ré-étiqueter des images avant d'échouer
+        if ($script:RemiseIncomplete) {
+            Write-Host "Avant de redémarrer un jour cette installation, reconstruisez-la : « docker compose build » dans « $Actuel »." -ForegroundColor Yellow
         }
+        Write-Host 'L''ancienne version est toujours en service : rien n''a été arrêté.' -ForegroundColor Yellow
+        Write-Host "Le dossier de la nouvelle version ($Destination) peut être supprimé avant de relancer le script." -ForegroundColor Yellow
     } else {
         Write-Host 'L''installation actuelle n''a pas été modifiée.' -ForegroundColor Yellow
     }
-    exit 1
+    Terminer $Code 'arrêt sans changement de l''installation actuelle'
 }
 
 function Etape([string]$Message) {
     Write-Host ''
     Write-Host "== $Message" -ForegroundColor Cyan
+    Ecrire-Journal 'ETAPE' $Message
 }
 
 function Docker-Dans {
     # Exécute docker dans le dossier indiqué et renvoie le code et la sortie (standard et erreurs).
-    param([string]$Dossier, [string[]]$Arguments)
+    # -Discret : la sortie n'est pas écrite dans le journal (configuration complète, avec les mots de passe).
+    param([string]$Dossier, [string[]]$Arguments, [switch]$Discret)
+    Ecrire-Journal 'COMMANDE' "$Dossier > docker $($Arguments -join ' ')"
     Push-Location -LiteralPath $Dossier
     try {
         $sortie = & docker @Arguments 2>&1
@@ -89,7 +175,16 @@ function Docker-Dans {
     } finally {
         Pop-Location
     }
-    return [pscustomobject]@{ Code = $code; Texte = (($sortie | ForEach-Object { "$_" }) -join "`n").Trim() }
+    # 2.0.1-rc2 : une ligne de la sortie d'erreur arrive comme ErrorRecord ; convertie telle quelle, une ligne VIDE
+    # donnait « System.Management.Automation.RemoteException » (recette du 20/11/2026). On prend son texte.
+    $lignes = $sortie | ForEach-Object {
+        if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { "$_" }
+    }
+    $texte = (@($lignes) -join "`n").Trim()
+    if ($Discret) { Ecrire-Journal 'RESULTAT' "code=$code (sortie non journalisée)" }
+    elseif ($texte) { Ecrire-Journal 'RESULTAT' "code=$code`n$texte" }
+    else { Ecrire-Journal 'RESULTAT' "code=$code" }
+    return [pscustomobject]@{ Code = $code; Texte = $texte }
 }
 
 function Lire-Env([string]$Fichier, [string]$Nom) {
@@ -134,10 +229,122 @@ function Script-Different([string]$Zip) {
     return $dansArchive -ne $lance
 }
 
+function Images-Du-Dossier([string]$Dossier) {
+    # Noms des images utilisées par l'installation du dossier (services des profils actifs du .env).
+    $r = Docker-Dans $Dossier @('compose', 'config', '--images')
+    if ($r.Code -ne 0) { return $null }
+    $liste = @($r.Texte -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Select-Object -Unique)
+    return ,$liste   # la virgule garde un tableau, même vide ou d'un seul élément
+}
+
+function Id-Image([string]$Dossier, [string]$Nom) {
+    # Identifiant de l'image (sha256:…), ou $null si elle n'existe pas sur cet ordinateur.
+    # Format sans guillemets : Windows PowerShell 5.1 retire les guillemets doubles des arguments de docker.
+    $r = Docker-Dans $Dossier @('image', 'inspect', '--format', '{{.Id}}', $Nom)
+    if ($r.Code -ne 0) { return $null }
+    return (($r.Texte -split "`n")[0]).Trim()
+}
+
+function Nom-Reserve([string]$Nom) {
+    # « japon-explorateur:2.0.1 » → « japon-explorateur:2.0.1-avant-maj »
+    if ($Nom -match ':[^/:]+$') { return "$Nom-avant-maj" }
+    return "$($Nom):avant-maj"
+}
+
+function Remettre-Images {
+    # Même numéro de version (versions candidates) : la construction reprend l'étiquette des images de l'ancienne
+    # version, même si elle échoue ensuite (recette du 20/11/2026 : image Argos ré-étiquetée avant l'échec). On
+    # rend à chaque étiquette l'image d'avant la mise à jour, relevée à l'étape 5. Sans relevé : rien à faire.
+    # 2.0.1-rc3 : avec le stockage d'images récent de Docker (containerd, Docker 29), une image qui perd son
+    # étiquette n'est plus retrouvable par son identifiant (recette du 23/11/2026) : on la remet à partir de son
+    # nom de réserve (étape 5), à défaut par son identifiant.
+    $script:RemiseIncomplete = $false
+    foreach ($nom in @($script:ImagesAnciennes.Keys)) {
+        $avant = $script:ImagesAnciennes[$nom]
+        if ((Id-Image $Actuel $nom) -ne $avant) {
+            $source = $avant
+            if ($script:Reserves.Contains($nom)) { $source = $script:Reserves[$nom] }
+            $t = Docker-Dans $Actuel @('tag', $source, $nom)
+            if ($t.Code -eq 0) { Dire "Image $nom remise comme avant la mise à jour." }
+            else {
+                Avertir "Image $nom : impossible de remettre l'image d'avant la mise à jour ($($t.Texte))."
+                $script:RemiseIncomplete = $true
+            }
+        }
+    }
+}
+
+function Sante-Web([string]$Dossier) {
+    # 2.0.1-rc2 : le serveur web répond-il ? Page de santé interrogée depuis le conteneur (comme le contrôle de
+    # santé de Docker) : elle ne répond que si le serveur web tourne et joint la base (versions 2.0.0 et suivantes).
+    return Docker-Dans $Dossier @('compose', 'exec', '-T', 'web', 'curl', '-fsS', 'http://localhost:8000/sante/')
+}
+
+function Revenir([string]$Raison) {
+    # 2.0.1 : retour automatique à l'ancienne version, sans question. Aucune donnée n'est effacée.
+    Write-Host ''
+    Write-Host "ARRÊT : $Raison" -ForegroundColor Red
+    Ecrire-Journal 'ERREUR' $Raison
+    Etape 'Retour automatique à l''ancienne version'
+    $arretNouvelle = Docker-Dans $Destination @('compose', 'down')
+    if ($arretNouvelle.Code -ne 0) { Avertir "Arrêt de la nouvelle version incomplet : $($arretNouvelle.Texte)" }
+    Remettre-Images
+    if ($script:RemiseIncomplete) {
+        # 2.0.1-rc3 : sans l'image d'avant, l'ancienne version redémarrerait avec le code de la nouvelle. On la
+        # reconstruit depuis son propre dossier (le cache de Docker rend cela rapide, en général sans Internet).
+        Dire 'Reconstruction de l''ancienne version depuis son dossier (une à quelques minutes)…'
+        $reconstruction = Docker-Dans $Actuel @('compose', 'build')
+        if ($reconstruction.Code -ne 0) { Avertir "Reconstruction de l'ancienne version impossible : $($reconstruction.Texte)" }
+    }
+    $relance = Docker-Dans $Actuel @('compose', 'up', '-d')
+    $ok = $false
+    if ($relance.Code -eq 0) {
+        $fin = (Get-Date).AddSeconds($DelaiControle)
+        while ($true) {
+            if ($vA -ge [version]'2.0.0') {
+                # 2.0.1-rc3 : comme au contrôle final, le serveur web doit répondre deux fois.
+                if ((Sante-Web $Actuel).Code -eq 0) {
+                    Start-Sleep -Seconds $DelaiStabilite
+                    if ((Sante-Web $Actuel).Code -eq 0) { $ok = $true; break }
+                }
+            } else {
+                # Versions 1.x : pas de page de santé ; le service web doit être en marche.
+                $etatAncien = Docker-Dans $Actuel @('compose', 'ps', '--services', '--status', 'running')
+                $enMarche = @($etatAncien.Texte -split "`n" | ForEach-Object { $_.Trim() })
+                if ($etatAncien.Code -eq 0 -and $enMarche -contains 'web') { $ok = $true; break }
+            }
+            $reste = ($fin - (Get-Date)).TotalSeconds
+            if ($reste -le 0) { break }
+            Start-Sleep -Seconds ([int][Math]::Ceiling([Math]::Min(5, $reste)))
+        }
+    }
+    $PortAncien = Lire-Env $EnvActuel 'WEB_PORT'
+    if (-not $PortAncien) { $PortAncien = '8000' }
+    Write-Host ''
+    if ($ok) {
+        Write-Host "Retour réussi : l'ancienne version ($VersionActuelle) est de nouveau en service, http://localhost:$PortAncien" -ForegroundColor Green
+        Ecrire-Journal 'INFO' "Retour réussi : ancienne version $VersionActuelle en service."
+        Write-Host "Aucune donnée n'a été effacée. Sauvegarde faite avant la mise à jour : $script:SauvegardeLocale"
+        Write-Host "Le dossier de la nouvelle version ($Destination) peut être gardé pour comprendre l'échec, puis supprimé."
+        Terminer $CodeRetourReussi 'nouvelle version en échec, retour à l''ancienne réussi'
+    }
+    Write-Host 'Le retour automatique à l''ancienne version n''a pas abouti. Aucune donnée n''a été effacée.' -ForegroundColor Red
+    if ($relance.Code -ne 0) { Write-Host $relance.Texte }
+    Write-Host 'Pour remettre l''ancienne version en service :' -ForegroundColor Yellow
+    Write-Host "  1. dans « $Destination » : docker compose down" -ForegroundColor Yellow
+    Write-Host "  2. dans « $Actuel » : docker compose up -d" -ForegroundColor Yellow
+    if ($script:SauvegardeLocale) {
+        Write-Host "  3. si l'ancienne version ne démarre pas (base déjà mise à jour), restaurez la sauvegarde :" -ForegroundColor Yellow
+        Write-Host "     $script:SauvegardeLocale (guide d'installation, « Restaurer une sauvegarde »)" -ForegroundColor Yellow
+    }
+    Terminer $CodeRetourImpossible 'nouvelle version en échec, retour à l''ancienne impossible : intervention nécessaire'
+}
+
 Write-Host 'Mise à jour de J-ed' -ForegroundColor White
+Ecrire-Journal 'INFO' "Mise à jour de J-ed ; archive : $Archive ; installation actuelle : $Actuel"
 
 # --- 1. Contrôles ---------------------------------------------------------------------------------
-Etape '1/6 Contrôles'
+Etape '1/7 Contrôles'
 
 if (-not (Test-Path -LiteralPath $Archive -PathType Leaf)) { Arreter "archive introuvable : $Archive" }
 $Archive = (Resolve-Path -LiteralPath $Archive).Path
@@ -150,6 +357,16 @@ foreach ($f in @('docker-compose.yml', '.env', 'VERSION')) {
 }
 $EnvActuel = [System.IO.Path]::Combine($Actuel, '.env')
 
+# 2.0.1 : le dossier des sauvegardes est connu dès le début, pour y écrire le journal de la mise à jour.
+if (-not $DossierSauvegardes) { $DossierSauvegardes = Lire-Env $EnvActuel 'DOSSIER_SAUVEGARDES' }
+if (-not $DossierSauvegardes) { $DossierSauvegardes = [System.IO.Path]::Combine((Split-Path -Parent $Actuel), 'sauvegardes') }
+try {
+    Ouvrir-Journal $DossierSauvegardes
+} catch {
+    Arreter "impossible d'écrire dans le dossier des sauvegardes $DossierSauvegardes : $($_.Exception.Message)"
+}
+Write-Host "Journal de la mise à jour : $script:Journal"
+
 # Empreinte : « <archive>.sha256 » ou « <nom sans .zip>.sha256 », à côté de l'archive.
 $CandidatsEmpreinte = @("$Archive.sha256", ([System.IO.Path]::ChangeExtension($Archive, '.sha256')))
 $FichierEmpreinte = $CandidatsEmpreinte | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
@@ -161,13 +378,13 @@ $Calculee = (Get-FileHash -LiteralPath $Archive -Algorithm SHA256).Hash.ToLowerI
 if ($Attendue -ne $Calculee) {
     Arreter "empreinte de l'archive différente de celle attendue (archive incomplète, abîmée ou ancienne).`n  attendue : $Attendue`n  calculée : $Calculee"
 }
-Write-Host "Empreinte de l'archive vérifiée : $Calculee"
+Dire "Empreinte de l'archive vérifiée : $Calculee"
 
 $VersionNouvelle = Version-Archive $Archive
 $ScriptAncien = Script-Different $Archive
 if ($ScriptAncien) {
-    Write-Host ("Attention : ce script de mise à jour n'est pas celui de l'archive ; il peut contenir d'anciens défauts. " +
-        "Après la mise à jour, remplacez « $PSCommandPath » par le fichier mettre-a-jour.ps1 du nouveau dossier.") -ForegroundColor Yellow
+    Avertir ("Attention : ce script de mise à jour n'est pas celui de l'archive ; il peut contenir d'anciens défauts. " +
+        "Après la mise à jour, remplacez « $PSCommandPath » par le fichier mettre-a-jour.ps1 du nouveau dossier.")
 }
 if (-not $VersionNouvelle) { Arreter 'fichier VERSION introuvable dans l''archive : ce n''est pas une archive de J-ed.' }
 $VersionActuelle = (Get-Content -LiteralPath ([System.IO.Path]::Combine($Actuel, 'VERSION')) -Raw).Trim()
@@ -184,9 +401,9 @@ if ($vN -lt $vA) {
     Arreter "l'archive contient la version $VersionNouvelle, plus ancienne que la version installée ($VersionActuelle). Pour revenir en arrière, suivez la procédure de retour de la version installée."
 }
 if ($vN -eq $vA) {
-    Write-Host "Attention : l'archive contient la même version que l'installation actuelle ($VersionActuelle) : réinstallation." -ForegroundColor Yellow
+    Avertir "Attention : l'archive contient la même version que l'installation actuelle ($VersionActuelle) : réinstallation."
 }
-Write-Host "Version actuelle : $VersionActuelle ; nouvelle version : $VersionNouvelle"
+Dire "Version actuelle : $VersionActuelle ; nouvelle version : $VersionNouvelle"
 
 $Projet = Lire-Env $EnvActuel 'COMPOSE_PROJECT_NAME'
 if (-not $Projet) { Arreter 'COMPOSE_PROJECT_NAME absent du fichier .env actuel : impossible de retrouver les données.' }
@@ -195,9 +412,9 @@ if ($NomsProteges -contains $Projet) {
     if ($Autorisation -ne $Projet) {
         Arreter "le projet « $Projet » est protégé. Pour le mettre à jour en gardant ses données, ajoutez d'abord la ligne AUTORISER_NOM_PROJET=$Projet dans $EnvActuel, puis relancez ce script."
     }
-    Write-Host "Projet protégé « $Projet » : mise à jour autorisée par AUTORISER_NOM_PROJET." -ForegroundColor Yellow
+    Avertir "Projet protégé « $Projet » : mise à jour autorisée par AUTORISER_NOM_PROJET."
 }
-Write-Host "Projet Docker : $Projet (ses volumes de données seront repris)"
+Dire "Projet Docker : $Projet (ses volumes de données seront repris)"
 
 if (-not $Destination) {
     $Destination = [System.IO.Path]::Combine((Split-Path -Parent $Actuel), [System.IO.Path]::GetFileNameWithoutExtension($Archive))
@@ -218,7 +435,7 @@ try {
     Arreter "impossible d'écrire dans $Parent (dossier verrouillé ou protégé) : $($_.Exception.Message)"
 }
 
-if ((Docker-Dans $Actuel @('info')).Code -ne 0) {
+if ((Docker-Dans $Actuel @('info') -Discret).Code -ne 0) {
     Arreter 'Docker Desktop ne répond pas. Démarrez-le, attendez « Engine running », puis relancez ce script.'
 }
 $EnService = Docker-Dans $Actuel @('compose', 'ps', '--services', '--status', 'running')
@@ -230,7 +447,7 @@ if ($Services -notcontains 'web') {
 $AvecArgos = $Services -contains 'argos'
 
 # --- 2. Sauvegarde ----------------------------------------------------------------------------------
-Etape '2/6 Sauvegarde de l''installation actuelle'
+Etape '2/7 Sauvegarde de l''installation actuelle'
 
 $Sauvegarde = Docker-Dans $Actuel @('compose', 'exec', '-T', 'web', 'python', 'manage.py', 'backup', '--verify')
 Write-Host $Sauvegarde.Texte
@@ -243,9 +460,6 @@ if ($Sauvegarde.Texte -notmatch 'Termin.{1,3}e : (\S+\.tar)') { Arreter 'chemin 
 $CheminDocker = $Matches[1]
 $NomSauvegarde = Split-Path -Leaf $CheminDocker
 
-if (-not $DossierSauvegardes) { $DossierSauvegardes = Lire-Env $EnvActuel 'DOSSIER_SAUVEGARDES' }
-if (-not $DossierSauvegardes) { $DossierSauvegardes = [System.IO.Path]::Combine((Split-Path -Parent $Actuel), 'sauvegardes') }
-New-Item -ItemType Directory -Force -Path $DossierSauvegardes | Out-Null
 $CopieLocale = [System.IO.Path]::Combine($DossierSauvegardes, $NomSauvegarde)
 if (-not (Test-Path -LiteralPath $CopieLocale)) {
     $copie = Docker-Dans $Actuel @('compose', 'cp', "web:$CheminDocker", $CopieLocale)
@@ -259,10 +473,10 @@ if ($EmpreinteDocker.Code -ne 0 -or (($EmpreinteDocker.Texte -split '\s+')[0]).T
     Arreter "la copie de la sauvegarde ($CopieLocale) ne correspond pas à l'original."
 }
 $script:SauvegardeLocale = $CopieLocale
-Write-Host "Sauvegarde copiée et vérifiée : $CopieLocale" -ForegroundColor Green
+Dire "Sauvegarde copiée et vérifiée : $CopieLocale" 'Green'
 
 # --- 3. Décompression ---------------------------------------------------------------------------------
-Etape '3/6 Décompression de la nouvelle version'
+Etape '3/7 Décompression de la nouvelle version'
 
 $Partiel = "$Destination.partiel"
 if (Test-Path -LiteralPath $Partiel) { Remove-Item -LiteralPath $Partiel -Recurse -Force }
@@ -286,10 +500,10 @@ try {
 } catch {
     Arreter "impossible de créer $Destination : $($_.Exception.Message)"
 }
-Write-Host "Nouvelle version dans : $Destination"
+Dire "Nouvelle version dans : $Destination"
 
 # --- 4. Fichier .env ------------------------------------------------------------------------------------
-Etape '4/6 Reprise du fichier .env'
+Etape '4/7 Reprise du fichier .env'
 
 $EnvNouveau = [System.IO.Path]::Combine($Destination, '.env')
 Copy-Item -LiteralPath $EnvActuel -Destination $EnvNouveau
@@ -301,74 +515,162 @@ if ($PSBoundParameters.ContainsKey('DossierSauvegardes') -and -not (Lire-Env $En
 $LigneProfils = @(Get-Content -LiteralPath $EnvNouveau -Encoding UTF8 | Where-Object { $_ -match '^\s*COMPOSE_PROFILES\s*=' })
 $Profils = Lire-Env $EnvNouveau 'COMPOSE_PROFILES'
 if ($LigneProfils.Count -gt 1) {
-    Write-Host "Attention : la ligne COMPOSE_PROFILES figure $($LigneProfils.Count) fois dans .env ; seule la dernière compte (COMPOSE_PROFILES=$Profils). Gardez-en une seule." -ForegroundColor Yellow
+    Avertir "Attention : la ligne COMPOSE_PROFILES figure $($LigneProfils.Count) fois dans .env ; seule la dernière compte (COMPOSE_PROFILES=$Profils). Gardez-en une seule."
 }
 if ($LigneProfils.Count -eq 0) {
     Add-Content -LiteralPath $EnvNouveau -Value "`r`n# Ajouté par mettre-a-jour.ps1 : Argos (traduction hors ligne) démarre avec J-ed. Pour ne pas le démarrer`r`n# (poste à mémoire limitée), laissez la ligne vide : COMPOSE_PROFILES=`r`nCOMPOSE_PROFILES=argos" -Encoding UTF8
-    Write-Host 'Argos fait désormais partie de l''installation standard : ligne COMPOSE_PROFILES=argos ajoutée au nouveau .env.'
+    Dire 'Argos fait désormais partie de l''installation standard : ligne COMPOSE_PROFILES=argos ajoutée au nouveau .env.'
     $Profils = 'argos'
 } elseif ($Profils -notmatch '(^|,)\s*(argos|hors-ligne)\s*(,|$)') {
-    Write-Host "Argos reste désactivé (COMPOSE_PROFILES=$Profils dans .env) : il ne sera pas démarré." -ForegroundColor Yellow
-    if ($AvecArgos) { Write-Host 'Il était pourtant en service : ajoutez « argos » à cette ligne pour le garder.' -ForegroundColor Yellow }
+    Avertir "Argos reste désactivé (COMPOSE_PROFILES=$Profils dans .env) : il ne sera pas démarré."
+    if ($AvecArgos) { Avertir 'Il était pourtant en service : ajoutez « argos » à cette ligne pour le garder.' }
 }
-$Config = Docker-Dans $Destination @('compose', 'config', '--format', 'json')
-if ($Config.Code -ne 0) { Arreter "configuration de la nouvelle version invalide : $($Config.Texte)" }
-try { $Nom = [string](($Config.Texte | ConvertFrom-Json).name) } catch { $Nom = '' }
+# La configuration complète contient les mots de passe du .env : sa sortie n'est pas journalisée.
+$Config = Docker-Dans $Destination @('compose', 'config', '--format', 'json') -Discret
+if ($Config.Code -ne 0) { Arreter "configuration de la nouvelle version invalide (commande « docker compose config » dans $Destination)." }
+$ConfigNouvelle = $null
+try { $ConfigNouvelle = $Config.Texte | ConvertFrom-Json } catch { }
+$Nom = ''
+if ($ConfigNouvelle) { $Nom = [string]$ConfigNouvelle.name }
 if ($Nom -ne $Projet) { Arreter "nom de projet inattendu dans la nouvelle configuration (« $Nom » au lieu de « $Projet »)." }
-Write-Host 'Fichier .env repris ; configuration valide.'
+Dire 'Fichier .env repris ; configuration valide.'
 
-# --- 5. Arrêt de l'ancienne version, démarrage de la nouvelle -------------------------------------------------
-Etape '5/6 Arrêt de l''ancienne version et démarrage de la nouvelle'
+# --- 5. Construction, pendant que l'ancienne version reste en service (2.0.1) ----------------------------
+Etape '5/7 Construction de la nouvelle version (l''ancienne reste en service)'
+
+# Images de l'ancienne version, relevées pour pouvoir revenir en arrière sans rien reconstruire. Avec le même
+# numéro de version (versions candidates), la construction reprend l'étiquette : le retour la remettra.
+$ImagesActuelles = Images-Du-Dossier $Actuel
+if ($null -eq $ImagesActuelles) {
+    Avertir 'Images de la version actuelle impossibles à lister : en cas de retour, Docker devra peut-être les reconstruire.'
+} else {
+    $absentes = @()
+    foreach ($nom in $ImagesActuelles) {
+        $id = Id-Image $Actuel $nom
+        if ($id) { $script:ImagesAnciennes[$nom] = $id } else { $absentes += $nom }
+    }
+    if ($absentes.Count -gt 0) {
+        Avertir "Image(s) de la version actuelle introuvable(s) sur cet ordinateur : $($absentes -join ', '). En cas de retour, Docker devra les reconstruire ou les télécharger."
+    }
+}
+# 2.0.1-rc3 : images que la construction va remplacer (même nom des deux côtés : même numéro de version). Elles
+# reçoivent d'abord un nom de réserve, qui les garde sur l'ordinateur et permet de les remettre en cas de retour.
+$Construites = @()
+if ($ConfigNouvelle -and $ConfigNouvelle.services) {
+    foreach ($service in $ConfigNouvelle.services.PSObject.Properties) {
+        if ($service.Value.build -and $service.Value.image) { $Construites += [string]$service.Value.image }
+    }
+}
+foreach ($nom in @($script:ImagesAnciennes.Keys)) {
+    if ($Construites -contains $nom) {
+        $reserve = Nom-Reserve $nom
+        $t = Docker-Dans $Actuel @('tag', $nom, $reserve)
+        if ($t.Code -eq 0) {
+            $script:Reserves[$nom] = $reserve
+            Dire "Même numéro de version : l'image $nom est mise de côté sous le nom $reserve, pour un éventuel retour."
+        } else {
+            Avertir "Image $nom : nom de réserve impossible ($($t.Texte)). En cas de retour, l'ancienne version sera reconstruite."
+        }
+    }
+}
+
+Dire 'Construction de la nouvelle version (plusieurs minutes la première fois). L''ancienne version reste utilisable pendant ce temps…'
+$Construction = Docker-Dans $Destination @('compose', 'build')
+if ($Construction.Code -ne 0) {
+    $fin = $Construction.Texte
+    if ($fin.Length -gt 3000) { $fin = '…' + $fin.Substring($fin.Length - 3000) }
+    Write-Host $fin
+    Arreter ("construction de la nouvelle version impossible (message ci-dessus). Le plus souvent, Docker ne joint pas " +
+        "Internet : essayez « docker pull python:3.12-slim-bookworm » ; derrière un proxy, voyez l'aide « Mettre à jour J-ed ».") $CodeConstruction
+}
+$ImagesNouvelles = Images-Du-Dossier $Destination
+if ($null -eq $ImagesNouvelles) { Arreter 'images de la nouvelle version impossibles à lister (docker compose config --images).' $CodeConstruction }
+$Manquantes = @($ImagesNouvelles | Where-Object { -not (Id-Image $Destination $_) })
+if ($Manquantes.Count -gt 0) {
+    # Images fournies telles quelles (base de données, Redis, IA locale) absentes de cet ordinateur : téléchargées
+    # maintenant, avant d'arrêter quoi que ce soit.
+    Dire "Téléchargement des images manquantes : $($Manquantes -join ', ')…"
+    $null = Docker-Dans $Destination @('compose', 'pull', '--ignore-buildable')
+    $Manquantes = @($ImagesNouvelles | Where-Object { -not (Id-Image $Destination $_) })
+    if ($Manquantes.Count -gt 0) {
+        Arreter ("image(s) introuvable(s) : $($Manquantes -join ', '). Docker ne joint sans doute pas Internet : essayez " +
+            "« docker pull python:3.12-slim-bookworm » ; derrière un proxy, voyez l'aide « Mettre à jour J-ed ».") $CodeConstruction
+    }
+}
+Dire 'Nouvelle version prête : toutes ses images sont sur cet ordinateur.' 'Green'
+
+# --- 6. Arrêt de l'ancienne version, démarrage de la nouvelle -------------------------------------------------
+Etape '6/7 Arrêt de l''ancienne version et démarrage de la nouvelle'
 
 if (-not $Oui) {
     $reponse = Read-Host "L'ancienne version va être arrêtée (aucune donnée effacée). Taper OUI pour continuer"
-    if ($reponse.Trim() -ne 'OUI') { Arreter 'mise à jour annulée à votre demande. Le nouveau dossier peut être supprimé.' }
+    if ($reponse.Trim() -ne 'OUI') { Arreter 'mise à jour annulée à votre demande.' $CodeAnnule }
 }
-$arret = Docker-Dans $Actuel @('compose', 'down')
-if ($arret.Code -ne 0) { Arreter "arrêt de l'ancienne version impossible : $($arret.Texte)" }
 $script:AncienneArretee = $true
+$arret = Docker-Dans $Actuel @('compose', 'down')
+if ($arret.Code -ne 0) { Revenir "arrêt de l'ancienne version incomplet : $($arret.Texte)" }
 
-# Les services démarrés (Argos compris) sont ceux que décide le fichier .env (COMPOSE_PROFILES).
-$demarrage = @('compose', 'up', '-d', '--build')
-Write-Host 'Construction et démarrage (plusieurs minutes la première fois)…'
-$lancement = Docker-Dans $Destination $demarrage
-if ($lancement.Code -ne 0) { Arreter "démarrage de la nouvelle version impossible :`n$($lancement.Texte)" }
+# Les services démarrés (Argos compris) sont ceux que décide le fichier .env (COMPOSE_PROFILES). Pas de
+# reconstruction : les images ont été construites à l'étape 5.
+Dire 'Démarrage de la nouvelle version…'
+$lancement = Docker-Dans $Destination @('compose', 'up', '-d')
+if ($lancement.Code -ne 0) { Revenir "démarrage de la nouvelle version impossible :`n$($lancement.Texte)" }
 
-# --- 6. Contrôle final ------------------------------------------------------------------------------------
-Etape '6/6 Contrôle final'
+# --- 7. Contrôle final ------------------------------------------------------------------------------------
+Etape '7/7 Contrôle final'
 
-$fin = (Get-Date).AddSeconds($DelaiControleSecondes)
+# 2.0.1-rc2 : deux conditions. (1) etat_installation : version attendue et base à jour. (2) le serveur web lui-même
+# répond à sa page de santé, deux fois à $DelaiStabilite s d'intervalle. Recette du 20/11/2026 : (1) seule a répondu
+# « tout va bien » pendant les secondes où le conteneur préparait la base, juste avant de s'arrêter.
+$fin = (Get-Date).AddSeconds($DelaiControle)
 $etat = $null
+$reussi = $false
 $dernier = ''
-while ((Get-Date) -lt $fin) {
+while ($true) {
     $r = Docker-Dans $Destination @('compose', 'exec', '-T', 'web', 'python', 'manage.py', 'etat_installation', '--json')
+    $lu = $null
     $debut = $r.Texte.IndexOf('{')
     $finJson = $r.Texte.LastIndexOf('}')
     if ($debut -ge 0 -and $finJson -gt $debut) {
-        try { $etat = $r.Texte.Substring($debut, $finJson - $debut + 1) | ConvertFrom-Json } catch { $etat = $null }
+        try { $lu = $r.Texte.Substring($debut, $finJson - $debut + 1) | ConvertFrom-Json } catch { $lu = $null }
     }
-    if ($etat -and $etat.version -eq $VersionNouvelle) {
-        $base = $etat.controles | Where-Object { $_.cle -eq 'base' } | Select-Object -First 1
-        if ($base -and $base.niveau -eq 'ok') { break }
+    $etatOk = $false
+    if ($lu -and $lu.version -eq $VersionNouvelle) {
+        $base = $lu.controles | Where-Object { $_.cle -eq 'base' } | Select-Object -First 1
+        $etatOk = ($base -and $base.niveau -eq 'ok')
     }
-    $dernier = $r.Texte
-    $etat = $null
-    Start-Sleep -Seconds 10
+    if (-not $etatOk) {
+        $dernier = $r.Texte
+    } else {
+        $s1 = Sante-Web $Destination
+        if ($s1.Code -ne 0) {
+            $dernier = "le serveur web ne répond pas (page /sante/) : $($s1.Texte)"
+        } else {
+            Dire "Le serveur web répond ; nouveau contrôle dans $DelaiStabilite s…"
+            Start-Sleep -Seconds $DelaiStabilite
+            $s2 = Sante-Web $Destination
+            if ($s2.Code -eq 0) { $etat = $lu; $reussi = $true; break }
+            $dernier = "le serveur web a cessé de répondre (page /sante/) : $($s2.Texte)"
+        }
+    }
+    $reste = ($fin - (Get-Date)).TotalSeconds
+    if ($reste -le 0) { break }
+    Start-Sleep -Seconds ([int][Math]::Ceiling([Math]::Min(10, $reste)))
 }
-if (-not $etat) { Arreter "la nouvelle version ne répond pas correctement après $DelaiControleSecondes s. Dernière réponse :`n$dernier" }
+if (-not $reussi) { Revenir "la nouvelle version ne répond pas correctement après $DelaiControle s. Dernière réponse :`n$dernier" }
 
 foreach ($c in $etat.controles) {
     $couleur = 'Gray'
     if ($c.niveau -eq 'ok') { $couleur = 'Green' } elseif ($c.niveau -eq 'warning') { $couleur = 'Yellow' } elseif ($c.niveau -eq 'error') { $couleur = 'Red' }
-    Write-Host ("  {0} : {1}" -f $c.libelle, $c.resume) -ForegroundColor $couleur
+    Dire ("  {0} : {1}" -f $c.libelle, $c.resume) $couleur
 }
 $Port = Lire-Env $EnvNouveau 'WEB_PORT'
 if (-not $Port) { $Port = '8000' }
 Write-Host ''
-Write-Host "Mise à jour terminée : J-ed $VersionNouvelle, http://localhost:$Port" -ForegroundColor Green
-Write-Host "Sauvegarde faite avant la mise à jour : $CopieLocale"
-Write-Host "L'ancien dossier ($Actuel) n'a pas été modifié ; gardez-le jusqu'à ce que la nouvelle version vous convienne."
+Dire "Mise à jour terminée : J-ed $VersionNouvelle, http://localhost:$Port" 'Green'
+Dire "Sauvegarde faite avant la mise à jour : $CopieLocale"
+Dire "L'ancien dossier ($Actuel) n'a pas été modifié ; gardez-le jusqu'à ce que la nouvelle version vous convienne."
 if ($ScriptAncien) {
-    Write-Host "Rappel : copiez « $([System.IO.Path]::Combine($Destination, 'mettre-a-jour.ps1')) » à la place de « $PSCommandPath » pour les prochaines mises à jour." -ForegroundColor Yellow
+    Avertir "Rappel : copiez « $([System.IO.Path]::Combine($Destination, 'mettre-a-jour.ps1')) » à la place de « $PSCommandPath » pour les prochaines mises à jour."
 }
-exit 0
+Terminer 0 'mise à jour réussie'

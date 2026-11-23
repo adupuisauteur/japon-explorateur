@@ -75,6 +75,8 @@ ABOUT_COMPONENTS = [
     ("ReportLab et python-docx", "exports PDF et Word"), ("Argos Translate", "traduction hors ligne, licence MIT"),
     ("Ollama", "IA locale facultative, licence MIT ; modèles Qwen3 sous licence Apache 2.0"),
     ("Python-Markdown", "pages de l'aide intégrée, licence BSD"),
+    # 2.0.1 (lot 0) : lecture des kanji en kana et en rōmaji ; licence compatible avec l'AGPL de J-ed
+    ("pykakasi", "lecture du japonais (kana, rōmaji), licence GPL v3 ou ultérieure"),
 ]
 
 
@@ -84,6 +86,8 @@ def about(request):
         "instance_name": AppSettings.get().instance_name,
         "schema_version": settings.DATA_SCHEMA_VERSION,
         "components": ABOUT_COMPONENTS,
+        "license_name": settings.APP_LICENSE,
+        "license_spdx": settings.APP_LICENSE_SPDX,
     })
 
 

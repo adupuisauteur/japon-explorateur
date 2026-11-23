@@ -4,7 +4,7 @@ Anciennement « Japon — Explorateur documentaire ». Les noms techniques (dép
 
 Application web progressive (PWA) de recherche, de gestion et d'exploitation de ressources documentaires japonaises, développée d'après le cahier des charges v1.2 du 12 novembre 2026.
 
-**Version 2.0.0 — version candidate rc1 du 17 novembre 2026** (fichier `VERSION`), renommée **J-ed**, à partir de la 1.3.0-rc3 (étiquette `v1.3.0-rc3`, commit `d7296d4`). Détail des évolutions : `CHANGELOG.md` ; synthèse technique : `docs/evolution-2.0.0/rapport-technique-2.0.0.md` ; recette : `docs/evolution-2.0.0/06-recette.md`.
+**Version 2.0.1 du 23 novembre 2026** (fichier `VERSION`) : licence dans l'application, mise à jour sûre, tests automatiques ; aucun changement des données. Version précédente : **2.0.0** du 19 novembre 2026, renommée **J-ed**, à partir de la 1.3.0-rc3 (étiquette `v1.3.0-rc3`, commit `d7296d4`). Détail des évolutions : `CHANGELOG.md` ; synthèse technique de la 2.0.0 : `docs/evolution-2.0.0/rapport-technique-2.0.0.md`.
 
 **Nouveautés de la 2.0.0.** Trois statuts par notice (notice, document, IIIF), notifications, tâches et file de nuit, plafonds de dépense, Argos installé d'office, résumés par IA (en ligne ou locale avec Ollama), repérage du japonais ancien, aide intégrée, mise à jour et vérification par script, Aozora Bunko (texte intégral), Waseda, Kokusho dans sa vraie base, « Ouvrir le document », visionneuse IIIF facultative, accès des documents numérisés de la NDL, mesure des performances.
 
@@ -39,7 +39,7 @@ Au premier accès, un **assistant de première configuration** crée le compte a
 Services lancés : `web` (Gunicorn), `worker` (Celery : synchronisations, exports, IA), `worker-maintenant` (tâches lancées « maintenant »), `worker-traduction` (traductions et résumés), `beat` (planification : actualisations, file de nuit, purge des sessions temporaires, sauvegarde quotidienne), `db` (PostgreSQL, non exposé), `redis`. Profils facultatifs (`COMPOSE_PROFILES` dans `.env`) : `argos` (traduction hors ligne, activé par défaut) et `ollama` (IA locale pour les résumés).
 
 ### Windows : scripts fournis
-- `mettre-a-jour.ps1` : met à jour une installation existante (sauvegarde, empreinte de l'archive, reprise du `.env`, contrôle final). Il prévient si la copie lancée est plus ancienne que celle de l'archive.
+- `mettre-a-jour.ps1` : met à jour une installation existante (sauvegarde, empreinte de l'archive, reprise du `.env`, contrôle final). Il prévient si la copie lancée est plus ancienne que celle de l'archive. Depuis la 2.0.1 : construction de la nouvelle version pendant que l'ancienne reste en service, retour automatique à l'ancienne si la nouvelle ne démarre pas, journal `mise-a-jour-*.log` dans le dossier des sauvegardes, codes de sortie 0 à 5 (aide « Mettre à jour J-ed »).
 - `verifier-j-ed.ps1` : produit un rapport de vérification (dossier, conteneurs, adresse, fonctions de l'application sur données fictives) ; options `-AvecTests` et `-AvecSources`.
 - `reinitialiser-essai.ps1` : remet à zéro une installation **d'essai** seulement.
 - `verifier-migration.ps1` : après le passage sur un autre ordinateur, inventaire en lecture seule des installations présentes dans Docker (volumes, conteneurs, `.env`, sauvegardes, nombres de notices et de dossiers) ; option `-Dossiers` pour indiquer un dossier d'installation déplacé.
@@ -160,8 +160,9 @@ Dans le dossier de J-ed : `docker compose exec web python manage.py <commande>`.
 ## 8. Tests
 
 ```bash
-python manage.py test tests --parallel 4     # 750 tests environ ; PostgreSQL requis (DATABASE_URL)
+python manage.py test tests --parallel 4     # 796 tests (2.0.1) ; PostgreSQL requis (DATABASE_URL)
 ```
+**Tests automatiques (2.0.1)** : à chaque envoi sur `main` ou sur une branche `evolution-…`, GitHub Actions lance tous les tests sur une machine Ubuntu avec PostgreSQL 15 et les polices japonaises de l'image Docker (`.github/workflows/tests.yml`). Résultats dans l'onglet « Actions » du dépôt ; l'exécution échoue si un test est ignoré.
 Ils couvrent les critères d'acceptation AT-01 à AT-20 et AT-IA-01 à AT-IA-12 (correspondance détaillée dans `docs/conformite.md`), puis chaque évolution des versions 1.2.0, 1.3.0 et 2.0.0 (`tests/test_*_<lot>.py`). Les connecteurs et fournisseurs d'IA sont testés sur des réponses simulées, sans appel réseau ; pour la 2.0.0, les simulations reprennent les structures réelles relevées sur le poste de l'utilisateur. `tests/test_audit_corrections.py` reproduit chacune des anomalies relevées par l'audit et vérifie qu'elle ne se produit plus. Les scripts PowerShell sont testés avec PowerShell 7 (`tests/test_mise_a_jour_ps1.py`, `tests/test_verification_200.py`).
 
 ---
@@ -192,3 +193,15 @@ tests/               tests d'acceptation et de non-régression
 ```
 
 Licences des composants front embarqués : Bootstrap, Bootstrap Icons et htmx (MIT) ; fichiers `LICENSE` dans `static/vendor/`. Liste complète des composants et de leurs licences : page « À propos » de l'application.
+
+---
+
+## 10. Licence
+
+J-ed est un logiciel libre, publié sous la licence **GNU Affero General Public License, version 3 ou (à votre choix) toute version ultérieure** (identifiant SPDX `AGPL-3.0-or-later`). Le texte complet est dans le fichier [`LICENSE`](LICENSE).
+
+- Vous pouvez utiliser J-ed, étudier son code, le modifier et le redistribuer, sous la même licence.
+- Si vous mettez une **version modifiée** de J-ed à disposition d'autres personnes à travers un réseau, vous devez leur offrir son code source (article 13 de l'AGPL). L'application affiche un lien « Code source » (pied de page et page « À propos ») ; indiquez l'adresse de votre version dans la variable `CODE_SOURCE_URL` du fichier `.env`.
+- J-ed est fourni **sans aucune garantie**, dans les limites prévues par la licence.
+
+Les composants utilisés gardent leur propre licence (liste dans la page « À propos ») : des licences libres compatibles avec l'AGPL v3 (MIT, BSD, Apache 2.0, LGPL v3, GPL v3 ou ultérieure pour pykakasi). Pour proposer une contribution : [`CONTRIBUTING.md`](CONTRIBUTING.md).

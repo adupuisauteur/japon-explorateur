@@ -1,6 +1,6 @@
 # J-ed — Guide d'utilisation et de réglages
 
-J-ed 2.0.0. Ce guide reprend l'aide intégrée (menu à votre nom → Aide).
+J-ed 2.0.1. Ce guide reprend l'aide intégrée (menu à votre nom → Aide).
 
 # Premiers pas
 
@@ -42,6 +42,13 @@ action de votre part, et J-ed affiche le coût estimé avant de vous demander co
 
 Les notices restent la propriété de leurs institutions. Vérifiez-les auprès des catalogues d'origine.
 
+### Un logiciel libre
+
+J-ed est un logiciel libre, sous la licence **GNU AGPL v3 ou toute version ultérieure**. Vous pouvez l'utiliser,
+étudier son code, le modifier et le redistribuer, sous la même licence. Le lien **Code source**, en bas de chaque
+page, mène au dépôt du projet. La page **À propos** (en bas de page) donne la version, la licence et la liste des
+logiciels libres que J-ed utilise.
+
 ### Découvrir J-ed sans vos données
 
 L'administrateur peut charger un **jeu d'essai** : une quarantaine de notices fictives, un dossier et un projet de
@@ -61,39 +68,18 @@ Les nouveautés de la dernière version.
 Voici ce qui change dans la dernière version. Les versions précédentes sont décrites dans
 l'**Historique des versions** (Administration).
 
-### Version 2.0.0 (19 novembre 2026)
+### Version 2.0.1 (23 novembre 2026)
 
-Une version de consolidation : J-ed devient plus sûr, travaille seul la nuit, résume, et s'explique lui-même.
+Une petite version, sans changement de vos données : une mise à jour plus sûre et la licence de J-ed.
 
-- **Un nouveau nom, J-ed**, et un logo. Une page « À propos » donne la version et l'origine du projet.
-  Administration et Dysfonctionnements passent dans le menu à votre nom (administrateur).
-- **Trois statuts par notice**, sans confusion possible : notice disponible, document consultable, IIIF. Le
-  manifeste IIIF peut être vérifié d'un clic. Les statuts figurent dans les filtres, les tris et les exports.
-- **Notifications** : une fenêtre et un compteur vous préviennent quand une tâche se termine, se met en pause ou
-  échoue, et l'administrateur quand un dysfonctionnement apparaît.
-- **Tâches et file de nuit** : chaque traduction est une tâche que l'on peut lancer tout de suite, programmer, ou
-  placer dans la file de nuit ; pause, reprise sans rien renvoyer, compte rendu du matin. « Traduire maintenant »
-  sur la fiche et dans la Bibliothèque. Page « Traductions effectuées ».
-- **Plafonds** : un plafond atteint met la tâche en pause ; J-ed ne change jamais de moteur de lui-même.
-- **Argos installé d'office**, la traduction japonais → français s'installe en un clic, avec une traduction d'essai.
-- **Choix du modèle d'IA dans une liste** tirée du fournisseur, avec le tarif estimé quand il est connu.
-- **Résumés IA** : résumé court, détaillé ou fiche d'analyse, toujours dans votre langue, depuis la fiche, la
-  Bibliothèque ou l'atelier ; enchaînés aux traductions si vous le souhaitez.
-- **IA locale** facultative : une IA gratuite qui travaille sur votre ordinateur, pour les résumés.
-- **Japonais ancien** : repérage du bungo, du kanbun et du sōrōbun, et moteur choisi pour eux.
-- **Documents et nouvelles sources** : **Aozora Bunko** (plus de 17 000 œuvres) dont le texte intégral se lit
-  dans J-ed avec ses furigana et s'envoie vers un projet de traduction ; **Waseda** par le catalogue de la NDL ;
-  **Kokusho** interrogé dans sa vraie base ; bouton **« Ouvrir le document »** vers la visionneuse de la source ;
-  **visionneuse intégrée** facultative ; pour la NDL, J-ed dit si un document numérisé est en accès libre.
-- **Jeu d'essai fictif** et procédure « Essayer J-ed », pour découvrir l'application ou vérifier une nouvelle
-  version (Administration → Jeu d'essai).
-- **Rapidité mesurée** sur l'ordinateur (commande `mesurer_performances`) ; doublons trouvés aussi dans une
-  grande base.
-- **Aide intégrée** : une page d'aide par écran (bouton **?**), une recherche, un lexique, cet historique, et une
-  rubrique « Installation et mises à jour » (mettre à jour, vérifier, dépanner).
-- **Installation** : mise à jour en une commande (`mettre-a-jour.ps1`), vérification automatique
-  (`verifier-j-ed.ps1`), page « État de l'installation », sauvegardes copiées dans un dossier de Windows, réglage
-  automatique selon la puissance de l'ordinateur.
+- **Une mise à jour qui ne laisse plus J-ed arrêté.** Le script prépare la nouvelle version pendant que
+  l'ancienne fonctionne encore. Si Docker n'arrive pas à télécharger (pas d'Internet, proxy), il s'arrête sans
+  rien avoir arrêté. Si la nouvelle version ne démarre pas, il revient tout seul à l'ancienne (**retour
+  automatique**). Chaque mise à jour laisse un **journal** dans le dossier des sauvegardes, et un code qui dit ce
+  qui s'est passé (aide « Mettre à jour J-ed »).
+- **J-ed est un logiciel libre**, sous la licence **GNU AGPL v3 ou toute version ultérieure** : page « À propos »
+  et lien **Code source** en bas de chaque page.
+- **Tests automatiques** : à chaque modification publiée, GitHub relance tous les tests de J-ed.
 
 ## Les notifications
 
@@ -1044,15 +1030,16 @@ mise à jour** livré avec chaque version détaille chaque étape.
 
 #### Vérifier l'accès Internet de Docker avant de commencer
 
-Le script arrête l'ancienne version **avant** de construire la nouvelle. Si Docker ne peut pas télécharger, J-ed
-reste arrêté jusqu'au retour en arrière (plus bas). Vérifiez donc d'abord, dans PowerShell :
+Depuis la 2.0.1, le script construit la nouvelle version **pendant que l'ancienne reste en service**. Si Docker ne
+peut pas télécharger, le script s'arrête sans avoir rien arrêté : J-ed continue de fonctionner. La vérification
+reste utile pour savoir avant de commencer si la mise à jour pourra aboutir. Dans PowerShell :
 
 ```
 docker pull python:3.12-slim-bookworm
 ```
 
 [Résultat attendu : l'image se télécharge, ou « Image is up to date ». Un message contenant « deadline exceeded » ou
-« connecting to … » veut dire que Docker ne joint pas Internet : ne lancez pas la mise à jour.]
+« connecting to … » veut dire que Docker ne joint pas Internet : réglez d'abord ce point (proxy, ci-dessous).]
 
 **Derrière un proxy** (réseau d'entreprise ou d'établissement), déclarez-le dans Docker Desktop : Settings →
 Resources → Proxies → « Manual proxy configuration », la même adresse (par exemple `http://10.0.0.1:3128`) dans les
@@ -1077,8 +1064,9 @@ rappel à la fin.
 2. Vérifiez que Docker Desktop est démarré et que J-ed s'ouvre dans le navigateur.
 3. Lancez le script (commandes ci-dessous). Il vérifie l'archive, fait une **sauvegarde vérifiée** copiée dans votre
    dossier de sauvegardes, installe la nouvelle version dans un **nouveau dossier** (l'ancien n'est jamais modifié)
-   et reprend votre `.env`. Il demande ensuite de taper `OUI` avant d'arrêter l'ancienne version et de démarrer la
-   nouvelle.
+   et reprend votre `.env`. Il **construit** ensuite la nouvelle version pendant que l'ancienne reste en service
+   (plusieurs minutes la première fois). Il demande enfin de taper `OUI` avant d'arrêter l'ancienne version et de
+   démarrer la nouvelle.
 4. Vérifiez la nouvelle version, puis gardez l'ancien dossier quelques semaines : il permet de revenir en arrière.
 
 ### Les commandes
@@ -1109,11 +1097,43 @@ powershell -ExecutionPolicy Bypass -File .\mettre-a-jour.ps1 -Archive .\japon-ex
 À la moindre anomalie, le script s'arrête avec un message qui commence par **ARRÊT** et dit quoi faire. Avant
 l'étape `OUI`, l'installation actuelle n'a pas été touchée.
 
-**Si l'arrêt survient après `OUI`** (par exemple « démarrage de la nouvelle version impossible »), l'ancienne version
-est déjà arrêtée et J-ed ne répond plus. Vos données ne sont pas touchées. Suivez les lignes « Pour revenir en
-arrière » affichées par le script : `docker compose down` dans le **nouveau** dossier, puis `docker compose up -d`
-dans l'**ancien**. Gardez une copie du message d'erreur (copier-coller dans un fichier texte) avant de fermer la
-fenêtre.
+### Si la nouvelle version ne démarre pas : retour automatique
+
+Depuis la 2.0.1, si la nouvelle version ne démarre pas ou ne répond pas au contrôle final, le script **revient tout
+seul à l'ancienne version**. Le contrôle final vérifie la version, la base de données, puis que le serveur web
+répond vraiment : deux fois de suite, à quelques secondes d'intervalle. Le retour automatique : il arrête la nouvelle, puis redémarre l'ancienne depuis l'ancien dossier. Vos données
+ne sont pas touchées. Il affiche alors « Retour réussi : l'ancienne version … est de nouveau en service ».
+
+Le retour vérifie que l'ancienne version répond de nouveau. Quand l'ancienne et la nouvelle version portent le même
+numéro (réinstallation), le script a mis de côté les images de l'ancienne sous un nom de réserve qui se termine par
+`-avant-maj`, pour pouvoir les remettre : ce nom reste ensuite dans la liste des images de Docker, c'est normal.
+
+Si ce retour échoue lui aussi (cas rare), le script affiche les lignes « Pour remettre l'ancienne version en
+service » : `docker compose down` dans le **nouveau** dossier, puis `docker compose up -d` dans l'**ancien**.
+
+Ce comportement est celui du script **de la 2.0.1 ou plus récent** : c'est une raison de plus pour toujours
+utiliser le script de la nouvelle version (plus haut).
+
+### Le journal de la mise à jour
+
+Chaque mise à jour écrit un journal dans le dossier des sauvegardes, par exemple
+`C:\J-ed\sauvegardes\mise-a-jour-20261120-143000.log`. Son chemin est affiché au début et à la fin. Il contient
+chaque étape, chaque commande Docker et sa réponse. Il ne contient jamais vos mots de passe ni vos clés. En cas de
+problème, gardez-le : il permet de comprendre ce qui s'est passé.
+
+Le script se termine par un **code de sortie**, écrit aussi à la dernière ligne du journal (`FIN code=…`) :
+
+| Code | Ce qui s'est passé | État de J-ed |
+| --- | --- | --- |
+| 0 | Mise à jour réussie | Nouvelle version en service |
+| 1 | Arrêt pendant les contrôles, la sauvegarde, la décompression ou la reprise du `.env` | Ancienne version en service, rien de modifié |
+| 2 | Mise à jour annulée (réponse autre que `OUI`) | Ancienne version en service |
+| 3 | Construction de la nouvelle version impossible (le plus souvent : pas d'accès Internet pour Docker) | Ancienne version en service |
+| 4 | La nouvelle version n'a pas démarré correctement ; retour automatique réussi | Ancienne version en service |
+| 5 | La nouvelle version n'a pas démarré correctement et le retour a échoué | Arrêtée : suivez les lignes affichées |
+
+Après un code 1, 2, 3 ou 4, le nouveau dossier (par exemple `C:\J-ed\japon-explorateur-2.0.1`) peut être supprimé
+avant de relancer le script : celui-ci refuse d'écrire dans un dossier qui existe déjà.
 
 **Installation au nom protégé** (`japon-explorateur` ou `japon-explorateur-essai`) : son `.env` doit contenir
 `AUTORISER_NOM_PROJET=` suivi du même nom, sinon le script s'arrête. Il n'ajoute jamais cette ligne de lui-même.
@@ -1391,6 +1411,19 @@ Les mots de J-ed, en une phrase chacun.
 ## Historique des versions
 
 Évolutions et améliorations de J-ed, version par version.
+
+### Version 2.0.1 (23 novembre 2026)
+
+Une petite version, sans changement de vos données : une mise à jour plus sûre et la licence de J-ed.
+
+- **Une mise à jour qui ne laisse plus J-ed arrêté.** Le script prépare la nouvelle version pendant que
+  l'ancienne fonctionne encore. Si Docker n'arrive pas à télécharger (pas d'Internet, proxy), il s'arrête sans
+  rien avoir arrêté. Si la nouvelle version ne démarre pas, il revient tout seul à l'ancienne (**retour
+  automatique**). Chaque mise à jour laisse un **journal** dans le dossier des sauvegardes, et un code qui dit ce
+  qui s'est passé (aide « Mettre à jour J-ed »).
+- **J-ed est un logiciel libre**, sous la licence **GNU AGPL v3 ou toute version ultérieure** : page « À propos »
+  et lien **Code source** en bas de chaque page.
+- **Tests automatiques** : à chaque modification publiée, GitHub relance tous les tests de J-ed.
 
 ### Version 2.0.0 (19 novembre 2026)
 

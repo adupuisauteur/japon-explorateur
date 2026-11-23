@@ -1,5 +1,63 @@
 # Historique des versions
 
+## 2.0.1 — 23 novembre 2026
+
+**Version définitive**, déclarée par l'utilisateur le 23 novembre 2026 après la recette des versions candidates rc1,
+rc2 et rc3 sur l'installation d'essai (Docker 29) : mise à jour normale, vérification complète, construction
+impossible, démarrage impossible avec retour automatique. Même code que la rc3. Détail des versions candidates
+ci-dessous, de la plus récente à la plus ancienne.
+
+### Version candidate rc3 (23 novembre 2026)
+
+- **Version candidate rc3**, corrections issues de la recette courte de la rc2 (Docker 29, stockage d'images
+  containerd) :
+  - **retour à l'ancienne version avec le même numéro de version** (versions candidates) : avec ce stockage, une
+    image qui perd son étiquette n'est plus retrouvable par son identifiant (« No such image »). Avant la
+    construction, les images qui vont être remplacées reçoivent un **nom de réserve** (`…-avant-maj`), d'où elles
+    sont remises en cas d'arrêt ou de retour ; ce nom reste ensuite sur l'ordinateur (la mise à jour suivante le
+    remplace). Si la remise échoue malgré tout, le retour **reconstruit l'ancienne version** depuis son dossier ;
+  - **le retour vérifie que l'ancienne version répond** : pour une ancienne version 2.0.0 ou plus récente, sa page
+    de santé doit répondre deux fois, comme au contrôle final (versions 1.x : service web en marche).
+
+### Version candidate rc2 (20 novembre 2026)
+
+- **Version candidate rc2** (20 novembre 2026), corrections issues de la recette de la rc1 sur l'installation
+  d'essai (mise à jour normale, vérification complète, construction impossible, démarrage impossible) :
+  - **contrôle final de la mise à jour** : il interroge désormais le serveur web lui-même (page de santé
+    `/sante/`), deux fois à 15 secondes d'intervalle (paramètre `-DelaiStabilite`), après la version et la base.
+    Pendant la recette, un service web qui s'arrêtait juste après son démarrage avait été pris pour un succès : le
+    contrôle (`etat_installation`) avait répondu pendant les secondes où le conteneur préparait la base ;
+  - **messages de Docker** : les lignes vides de la sortie d'erreur s'affichaient « System.Management.Automation.
+    RemoteException » sous Windows PowerShell 5.1 ; elles s'affichent désormais telles quelles ;
+  - **étiquettes d'images** : quand la construction échoue (code 3) ou que la mise à jour est annulée (code 2), les
+    images de l'ancienne version reprennent leur étiquette (une construction qui échoue peut en avoir ré-étiqueté
+    une avant l'échec, avec le même numéro de version).
+
+### Version candidate rc1 (20 novembre 2026)
+
+Première des versions courtes décidées le 20 novembre 2026 (2.0.1 → 2.0.2 Linux → 2.0.3 assistant graphique
+Windows → 2.0.4 réseau local, proxy, migration, NDL). Même application que la 2.0.0 : **aucune migration de
+base, aucun changement des données**. Note de version validée par l'utilisateur le 20 novembre 2026.
+
+- **Licence dans l'application** (lot 0) : J-ed est publié sous la GNU AGPL v3.0 **ou toute version ultérieure**
+  (`AGPL-3.0-or-later`, fichier `LICENSE`). Page « À propos » : section « Licence et code source » (ce que la
+  licence permet, absence de garantie, lien « Code source », lien vers la licence) ; pykakasi (GPL v3 ou
+  ultérieure) ajouté aux composants. Lien « Code source » en bas de chaque page, y compris la page de connexion
+  (article 13 de l'AGPL). Réglage `CODE_SOURCE_URL` (`.env`) pour qu'une version modifiée indique son propre
+  dépôt. README : section « Licence » ; nouveau `CONTRIBUTING.md` ; aide « Bien démarrer » : « Un logiciel libre ».
+- **Mise à jour sûre** (lot 1, `mettre-a-jour.ps1`) : la nouvelle version est **construite pendant que l'ancienne
+  reste en service** ; les images manquantes sont téléchargées avant tout arrêt. Si Docker ne joint pas Internet,
+  le script s'arrête et l'ancienne version continue de fonctionner (constat du 19 novembre 2026 sur une machine
+  derrière un proxy : J-ed restait arrêté). La nouvelle version démarre ensuite sans reconstruire ; si elle ne
+  démarre pas ou ne répond pas au contrôle final, **retour automatique** à l'ancienne version. Même numéro de
+  version (versions candidates) : l'image d'avant la mise à jour est remise lors du retour. **Journal**
+  `mise-a-jour-AAAAMMJJ-HHMMSS.log` dans le dossier des sauvegardes (jamais de mot de passe) ; **codes de sortie**
+  0 à 5 ; paramètre `-DelaiControle`. Aide « Mettre à jour J-ed » complétée (retour automatique, journal, codes).
+- **Tests automatiques sur GitHub** (lot 2) : `.github/workflows/tests.yml` lance tous les tests à chaque envoi sur
+  `main` ou une branche `evolution-…` (Ubuntu, Python 3.12, PostgreSQL 15, polices japonaises de l'image Docker) ;
+  échec si un test est ignoré. Première exécution réussie le 20 novembre 2026 (781 tests).
+- Tests : 796 en 2.0.1 (759 en 2.0.0 ; 784 en rc1 ; 791 en rc2) ; `LICENSE` inclus dans l'archive de la version.
+
 ## 2.0.0 — 19 novembre 2026
 
 Version de consolidation, renommée **J-ed**. Base : version 1.3.0-rc3, étiquette `v1.3.0-rc3` (commit
