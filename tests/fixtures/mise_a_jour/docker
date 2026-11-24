@@ -17,6 +17,35 @@ set_image() { grep -v "^$1 " "$IMAGES" > "$IMAGES.tmp"; echo "$1 $2" >> "$IMAGES
 ici_actuel() { [ "$(pwd)" = "$FAKE_ACTUEL" ]; }
 case "$*" in
   "info") exit "${FAKE_DOCKER_INFO:-0}" ;;
+  "compose ls -a --format json")
+    # 2.0.2 (assistant) : projets Compose connus de Docker, au format JSON de « docker compose ls ».
+    printf '%s\n' "${FAKE_COMPOSE_LS:-[]}"; exit "${FAKE_COMPOSE_LS_CODE:-0}" ;;
+  "version --format {{.Server.Version}}") echo "29.9.3"; exit 0 ;;
+  "compose ps -a")
+    echo "NAME   SERVICE   STATUS"; echo "x-web-1   web   Up 2 minutes (healthy)"; exit 0 ;;
+  "compose logs --tail 150 --no-color")
+    # 2.0.2 (compte rendu) : des journaux qui contiennent un secret et une adresse, à masquer.
+    printf '%s\n' "${FAKE_LOGS:-web-1  | démarrage}"; exit 0 ;;
+  "compose exec -T web python manage.py mot_de_passe_oublie --liste")
+    echo '[{"identifiant": "auteur-fictif", "nom": "Auteur fictif", "role": "Administrateur", "actif": true}]'; exit 0 ;;
+  "compose exec -T web python manage.py mot_de_passe_oublie --utilisateur "*)
+    # 2.0.2 : le mot de passe arrive sur l'entrée standard ; il est gardé à part pour vérifier qu'il est bien reçu.
+    read -r mot; printf '%s' "$mot" > "${FAKE_DOCKER_LOG%/*}/mot-recu"
+    if [ "${#mot}" -lt 10 ]; then echo "CommandError: Mot de passe refusé : Ce mot de passe est trop court." >&2; exit 1; fi
+    echo "Mot de passe changé pour « $9 »."; exit 0 ;;
+  "compose cp "*" web:/data/"*) exit "${FAKE_CP:-0}" ;;
+  "compose exec -T web python manage.py restore_backup /data/"*" --yes")
+    echo "Sauvegarde de sécurité créée : /data/backups/sauvegarde-20261123-150000-full.tar"
+    if [ "${FAKE_RESTORE:-ok}" != ok ]; then echo "CommandError: Restauration impossible (ValueError : archive abîmée)." >&2; exit 1; fi
+    echo "Base restaurée."
+    # 2.0.2-rc5 (R17) : ligne technique réelle de restore_backup, traduite par l'assistant.
+    [ -n "${FAKE_RESTORE_TEXTE:-}" ] && echo "$FAKE_RESTORE_TEXTE"
+    exit 0 ;;
+  "compose restart") exit 0 ;;
+  "volume ls -q")
+    for v in ${FAKE_VOLUMES:-}; do echo "$v"; done; exit 0 ;;
+  "volume ls --format {{.Name}}")
+    for v in ${FAKE_VOLUMES:-}; do echo "$v"; done; exit 0 ;;
   "compose ps --services --status running")
     printf 'db\nredis\nweb\nworker\nbeat\n'; [ "${FAKE_ARGOS:-0}" = 1 ] && echo argos; exit 0 ;;
   "compose exec -T web python manage.py backup --verify")
@@ -39,7 +68,10 @@ case "$*" in
     echo "$(printf 'contenu-fictif' | sha256sum | cut -d' ' -f1)  /data/backups/x.tar"; exit 0 ;;
   "compose config --format json")
     # Comme le vrai : la configuration complète contient les mots de passe du .env.
-    echo "{\"name\": \"$(env_value COMPOSE_PROJECT_NAME)\", \"services\": {\"web\": {\"build\": {\"context\": \".\"}, \"image\": \"japon-explorateur:$(cat VERSION)\"}, \"db\": {\"image\": \"postgres:15-bookworm\", \"environment\": {\"POSTGRES_PASSWORD\": \"$(env_value POSTGRES_PASSWORD)\"}}}}"
+    # 2.0.2-rc2 : avec les arguments de construction du vrai docker-compose.yml (FAKE_BUILD_ARGS) : deux noms qui
+    # ne diffèrent que par la casse rendent ce JSON illisible pour PowerShell (défaut de la rc1).
+    args=""; for a in ${FAKE_BUILD_ARGS:-}; do args="$args${args:+, }\"$a\": \"\""; done
+    echo "{\"name\": \"$(env_value COMPOSE_PROJECT_NAME)\", \"services\": {\"web\": {\"build\": {\"context\": \".\", \"args\": {$args}}, \"image\": \"japon-explorateur:$(cat VERSION)\"}, \"db\": {\"image\": \"postgres:15-bookworm\", \"environment\": {\"POSTGRES_PASSWORD\": \"$(env_value POSTGRES_PASSWORD)\"}}}}"
     exit 0 ;;
   "compose config --images")
     printf 'japon-explorateur:%s\npostgres:15-bookworm\nredis:7-alpine\n' "$(cat VERSION)"; exit 0 ;;

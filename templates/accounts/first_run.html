@@ -6,9 +6,15 @@
     <h1>Bienvenue dans {{ APP_NAME }}</h1>
     <p class="text-muted">Assistant de première configuration : création du compte administrateur et réglages initiaux.</p></div>
   <div class="card-soft">
-    <form method="post">{% csrf_token %}
+    {# 2.0.2-rc5 (R12) : data-envoi-unique : bouton désactivé dès le premier envoi (app.js). #}
+    <form method="post" data-envoi-unique="Création du compte en cours…">{% csrf_token %}
       <h2 class="h5"><span class="step">1</span>Compte administrateur</h2>
       {% include "partials/form.html" %}
+      {% if form.argos_absent %}
+      {# 2.0.2-rc6 (N7) : installation faite sans Argos #}
+      <p class="form-text">Traduction hors ligne (Argos) : non installée sur cet ordinateur (choix fait dans l'assistant
+        J-ed). Pour l'ajouter plus tard, voir l'aide « Argos et IA locale ».</p>
+      {% endif %}
       <h2 class="h5 mt-4"><span class="step">2</span>Étapes suivantes</h2>
       <ul class="text-muted">
         <li>Les sources documentaires (CODH, Kokusho, NDL, Japan Search, archives…) seront répertoriées automatiquement.</li>

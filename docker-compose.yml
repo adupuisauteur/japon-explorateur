@@ -13,9 +13,16 @@ x-app: &app
   build:
     context: .
     dockerfile: docker/Dockerfile
+    # 2.0.2 : proxy éventuel, réglé par l'assistant J-ed dans .env (vide par défaut : sans effet sans proxy).
+    # Majuscules seulement : deux noms qui ne diffèrent que par la casse rendent la configuration illisible
+    # pour Windows PowerShell (recette 2.0.2-rc1) ; le Dockerfile donne les minuscules à apt.
+    args:
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-}
   # Étiquette d'image propre à chaque version (depuis la 2.0.0) : les images des versions précédentes ne sont pas
   # remplacées, et la mise à jour sûre (2.0.1) peut revenir à l'ancienne version sans rien reconstruire.
-  image: japon-explorateur:2.0.1
+  image: japon-explorateur:2.0.2
   env_file: .env
   environment:
     DATABASE_URL: postgres://japon:${POSTGRES_PASSWORD:?définir POSTGRES_PASSWORD dans .env}@db:5432/japon
@@ -125,7 +132,12 @@ services:
     profiles: ["argos", "hors-ligne"]
     build:
       context: docker/argos
-    image: japon-explorateur-argos:2.0.1
+      # 2.0.2 : proxy éventuel, réglé par l'assistant J-ed dans .env (vide par défaut : sans effet sans proxy).
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        NO_PROXY: ${NO_PROXY:-}
+    image: japon-explorateur-argos:2.0.2
     # Limites facultatives (.env) : nombre de cœurs et mémoire maximale du service. 0 (par défaut) = sans limite.
     cpus: ${ARGOS_COEURS:-0}
     mem_limit: ${ARGOS_MEMOIRE_MAX:-0}
@@ -138,6 +150,10 @@ services:
       # est réglé, sinon le réglage par défaut d'Argos.
       ARGOS_INTRA_THREADS: ${ARGOS_COEURS:-0}
       ARGOS_MEMOIRE_MAX: ${ARGOS_MEMOIRE_MAX:-0}
+      # 2.0.2 : proxy éventuel (.env, réglé par l'assistant J-ed ; vide par défaut).
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-}
     volumes:
       - argos-packages:/argos
       - argos-depot:/depot:ro
@@ -160,6 +176,10 @@ services:
       OLLAMA_MAX_LOADED_MODELS: "1"
       OLLAMA_NUM_PARALLEL: "1"
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-5m}
+      # 2.0.2 : proxy éventuel (.env, réglé par l'assistant J-ed ; vide par défaut).
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-}
     volumes:
       - ollama-models:/root/.ollama
     restart: unless-stopped

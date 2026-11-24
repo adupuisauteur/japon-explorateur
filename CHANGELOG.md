@@ -1,5 +1,149 @@
 # Historique des versions
 
+## 2.0.2 — 24 novembre 2026
+
+**L'assistant graphique Windows.** Un double-clic sur `J-ed.cmd` ouvre une fenêtre qui vérifie l'ordinateur,
+installe J-ed (même une deuxième fois, sur un autre port), le met à jour (au besoin en téléchargeant la dernière
+version sur GitHub), le vérifie, le sauvegarde et le restaure (aussi dans une nouvelle installation), retrouve un
+mot de passe oublié, réinitialise une installation d'essai et prépare un compte rendu sans aucun secret. Il reprend
+le proxy de Windows. Le guide « Avant de commencer » (HTML et PDF) mène d'un Windows neuf à J-ed installé. Aucun
+changement des données. Recette des versions candidates rc1 à rc6 les 23 et 24 novembre 2026, dont une
+installation complète sur un Windows 11 neuf (1 h 39, en suivant seulement le guide et l'assistant).
+
+Dernières corrections (recette de la rc6, remarques N13 à N16) :
+
+- la mise à jour ne demande plus d'écrire le proxy quand le fichier `.env` le contient déjà ;
+- après une mise à jour qui garde le même numéro de version, les raccourcis sont bien mis à jour (la nouvelle
+  installation est retrouvée par son dossier), et la liste des raccourcis écrits est affichée ;
+- après une installation qui n'a pas abouti, le message nomme le dossier à supprimer avant de recommencer ;
+- guide : « 10 à 30 minutes (en fonction de la vitesse de téléchargement) ».
+- 950 tests.
+
+### Version candidate rc6 (24 novembre 2026)
+
+Remarques N1 à N12 de la recette de la rc5 (installation complète sur un Windows 11 neuf
+réussie en 1 h 39 ; vérification courte de la rc5 réussie, sans défaut bloquant ; aucun changement des données) :
+
+- **« Avant de commencer »** (HTML et PDF) : fermer le Terminal puis redémarrer après WSL ; que faire si Docker
+  Desktop affiche « Virtual Machine Platform is not enabled » ; attendre l'assistant jusqu'à une demi-minute, sans
+  double-cliquer de nouveau ; **le réglage du proxy passe avant l'installation** (étape 7), avec « Manual proxy
+  configuration » si « System proxy » ne suffit pas et une vérification par `docker pull` ; les deux réglages du
+  proxy (Docker Desktop et `.env`) expliqués ; clés secrètes créées par l'assistant et conseil de garder une copie
+  du `.env` en lieu sûr. Mêmes précisions dans l'aide « L'assistant J-ed ».
+- **Assistant** : bouton « Docker joint-il Internet ? » aussi dans « Nouvelle installation » ; le titre d'une
+  opération indique depuis combien de minutes l'étape en cours dure ; après un échec, la nouvelle fenêtre reprend
+  les choix de la tentative précédente (Argos compris) ; fin guidée : rappel du fichier `.env` à garder ; Bureau
+  prévenu de l'ajout des raccourcis (et conseil F5) ; **icône de J-ed** sur les fenêtres, dans la barre des
+  tâches et sur le raccourci « Assistant J-ed » (faite à partir du logo vectoriel, `static/img/logo-j-ed.svg`,
+  fourni par l'auteur le 24/11) ; choix de restauration lisible sur deux lignes.
+- **Première configuration** : la case « Installer maintenant la traduction hors ligne » n'est plus proposée quand
+  l'installation a été faite sans Argos (lu dans `COMPOSE_PROFILES`).
+- Nouveaux tests (`tests/test_recette_202_rc6.py` et compléments) ; 943 tests.
+
+### Version candidate rc5 (24 novembre 2026)
+
+Corrections des remarques notées pendant la recette des rc1 à rc4 (essais T0 à T14
+réussis ; aucun changement des données) :
+
+- **Assistant, fenêtre principale** : bouton **Fermer** ; libellé « Aide : avant de commencer » ; liste relue dès
+  que les prérequis sont vérifiés de nouveau, et état « ? (Docker arrêté) » au lieu de « arrêtée » tant que Docker
+  Desktop ne répond pas ; l'installation choisie reste choisie quand la liste est relue (on pouvait la perdre
+  depuis « Opérations de maintenance ») ; après une mise à jour, l'**ancien dossier** gardé apparaît en gris
+  (« ancien dossier ») et l'assistant prévient avant d'agir dessus.
+- **Lancement** (`J-ed.cmd`) : PowerShell est lancé caché dès le départ, pour que Windows 11 ne laisse plus de
+  fenêtre vide derrière l'assistant (à vérifier à la recette ; le guide dit quoi faire si elle apparaît encore).
+- **Mise à jour** : l'avertissement « installation protégée » distingue l'installation principale de l'essai et
+  vient avant l'écriture du proxy dans le `.env` ; après un échec, le message nomme le **dossier de la nouvelle
+  version à supprimer** (il ne contient aucune donnée) ; la question de confirmation s'affiche avec la bonne étape
+  (6/7) ; le script n'affiche plus « Taper OUI » quand la réponse vient de l'assistant ; `pip` attend plus
+  longtemps et réessaie (réseau lent, proxy).
+- **Nouvelle installation, restauration** : le message « Version … téléchargée » s'efface quand on choisit une
+  autre archive ; bouton « Choisir… » de l'emplacement lisible ; avant une restauration, plus de consigne « créez le
+  compte administrateur » ; la ligne technique « Pensez à réintroduire DJANGO_SECRET_KEY… » devient une phrase
+  simple.
+- **Réinitialiser l'essai** : options présentées comme indépendantes (on peut cocher les deux) ; message juste
+  après une réinitialisation complète (l'essai reste arrêté) ; script : lettres accentuées lisibles dans
+  l'assistant (sortie UTF-8), nom J-ed, plus de « tapez REINITIALISER » quand la réponse vient de l'assistant,
+  annonce « images gardées si d'autres installations s'en servent ».
+- **Première configuration** : un double clic sur « Terminer la configuration » (page lente) ne provoque plus
+  d'erreur 500 ni de dysfonctionnement « critique » : bouton désactivé après le premier clic, création protégée
+  par un verrou, second envoi renvoyé vers la connexion avec un message clair.
+- Nouveaux tests (`tests/test_recette_202_rc5.py` et compléments) ; 924 tests.
+
+### Version candidate rc4 (23 novembre 2026)
+
+Correction d'un défaut trouvé à la recette de la rc3 (essai T9, « Mot de passe oublié »
+sur une installation en 2.0.1) :
+
+- **l'assistant s'arrêtait sur une « exception non gérée »** au lieu d'afficher « demande J-ed 2.0.2 ou plus
+  récent » : sous Windows PowerShell 5.1, avec le réglage « Stop » de la fenêtre, une ligne écrite par docker sur
+  sa sortie d'erreur (ici « Unknown command ») devenait une exception. Le même risque touchait la liste des
+  installations et le contrôle « Docker démarré ? » lorsque Docker Desktop est arrêté. Ces messages sont
+  désormais lus comme du texte ; la liste des comptes passe par un processus à part, comme le changement du mot
+  de passe. Nouveaux tests (PowerShell 7, celui des tests, ne réagit pas ainsi : le code lui-même est vérifié).
+- 894 tests.
+
+### Version candidate rc3 (23 novembre 2026)
+
+Correction d'un défaut bloquant trouvé à la recette de la rc2 (après la première mise à
+jour réussie par l'assistant, essai T2) :
+
+- **la liste des installations plantait dès qu'il y en avait deux** (erreur « System.Object[] » de Windows Forms,
+  ici l'ancien et le nouveau dossier de l'essai) : la fenêtre entourait d'un second tableau la liste déjà rendue
+  sous forme de tableau. Nouveaux tests : la liste telle que la fenêtre l'utilise, avec deux installations et
+  sans aucune.
+- 892 tests.
+
+### Version candidate rc2 (23 novembre 2026)
+
+Correction d'un défaut bloquant trouvé à la recette de la rc1 (essai T2, mise à jour de
+l'installation d'essai depuis l'assistant) :
+
+- **la mise à jour vers la rc1 s'arrêtait à l'étape 4/7** (« nom de projet inattendu », code 1 ; rien n'était
+  modifié) : `docker-compose.yml` déclarait les arguments de construction du proxy en majuscules et en minuscules
+  (`HTTP_PROXY` et `http_proxy`…), et Windows PowerShell refuse de lire une configuration dont deux noms ne
+  diffèrent que par la casse. Seuls les noms en majuscules restent ; le Dockerfile donne les minuscules à `apt`,
+  pour sa seule commande. Nouveaux tests : configuration simulée avec les vrais arguments de construction, et
+  aucune clé en double (casse) dans `docker-compose.yml`.
+- 890 tests.
+
+### Version candidate rc1 (23 novembre 2026)
+
+Première version candidate de la 2.0.2 : l'**assistant graphique Windows**. Même application : **aucune migration de
+base, aucun changement des données** (seul ajout à l'application : la commande `mot_de_passe_oublie`).
+
+**Ordre des versions modifié le 23 novembre 2026** (décision de l'utilisateur) : l'assistant graphique, d'abord
+prévu en 2.0.3 après Linux, devient la **2.0.2** ; **Linux** devient la **2.0.3** (avec le proxy sous Ubuntu) ; le
+**proxy sous Windows** passe de la 2.0.4 à la 2.0.2. La 2.0.4 garde le réseau local, la migration et la NDL.
+
+- **Assistant J-ed** (`J-ed.cmd`, `assistant/`, Windows PowerShell 5.1 et Windows Forms : rien à installer). Il ne
+  contient aucune logique d'installation : il lance les scripts (contrat `docs/contrat-scripts.md`, testé) et
+  montre leur déroulement en français.
+  - Écran d'accueil : « Mettre à jour une installation », « Nouvelle installation », liste des installations
+    (retrouvées par Docker et par une liste gardée ; « Ajouter une installation… »), dernière sauvegarde.
+  - Prérequis vérifiés (Windows, mémoire, virtualisation, WSL, Docker Desktop installé et démarré, place libre),
+    avec « Comment faire ? » vers `AVANT-DE-COMMENCER.html`.
+  - Mise à jour : archive choisie ou **dernière version publiée sur GitHub** (archive et `.sha256` téléchargés,
+    empreinte contrôlée), confirmation OUI dans une boîte de dialogue au moment où le script la pose, message
+    de chaque code de sortie, cause probable des erreurs Docker courantes.
+  - **Nouvelle installation** (`installer-j-ed.ps1`), aussi une deuxième instance : nom et port neufs contrôlés,
+    secrets neufs, fin guidée (compte administrateur, raccourcis, jeu d'essai).
+  - Opérations de maintenance : créer et **restaurer une sauvegarde** (dans une nouvelle installation, ou dans
+    l'installation choisie après saisie de `RESTAURER`), **mot de passe oublié**, vérifier la migration,
+    réinitialiser l'essai.
+  - **Proxy de Windows** (PAC compris) : case à cocher, vérification de l'accès de Docker à Internet, `HTTP_PROXY`,
+    `HTTPS_PROXY`, `NO_PROXY` écrits dans le `.env` et transmis par `docker-compose.yml` (vides par défaut).
+  - Raccourcis « J-ed » et « Assistant J-ed » ; compte rendu « Ça ne marche pas » sans aucun secret ; fenêtres
+    adaptées aux petits écrans.
+- `mettre-a-jour.ps1` : paramètre facultatif `-Empreinte` ; confirmation pilotable (repères `QUESTION` et `REPONSE`
+  du journal). `reinitialiser-essai.ps1` : réponses lues sur l'entrée standard quand un programme les fournit ;
+  avec `-Complet`, images gardées si une autre installation de J-ed existe.
+- Commande `mot_de_passe_oublie` (liste des comptes ; nouveau mot de passe lu sur l'entrée standard, vérifié, noté
+  dans le journal des actions sensibles).
+- **`AVANT-DE-COMMENCER.html` et `.pdf`** à la racine de l'archive : guide pas à pas pour un débutant complet.
+- Aide intégrée : nouvelle page « L'assistant J-ed » ; « Mettre à jour J-ed » présente d'abord l'assistant.
+- 887 tests.
+
 ## 2.0.1 — 23 novembre 2026
 
 **Version définitive**, déclarée par l'utilisateur le 23 novembre 2026 après la recette des versions candidates rc1,

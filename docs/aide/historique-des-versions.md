@@ -5,6 +5,21 @@ ordre: 20
 public: admin
 resume: Évolutions et améliorations de J-ed, version par version.
 ---
+## Version 2.0.2 (24 novembre 2026)
+
+Une version pour installer et entretenir J-ed **sans ouvrir PowerShell**. Aucun changement de vos données.
+
+- **L'assistant J-ed** : un double-clic sur `J-ed.cmd` ouvre une fenêtre qui vérifie l'ordinateur, installe J-ed
+  (même une deuxième fois, sur un autre port), le met à jour (au besoin en téléchargeant la dernière version sur
+  GitHub), le vérifie, le sauvegarde et le restaure, et retrouve un **mot de passe oublié** (aide « L'assistant
+  J-ed »).
+- **Proxy** : l'assistant reprend le proxy de Windows et vérifie que Docker joint Internet.
+- **Avant de commencer** : un guide pas à pas (fichier `AVANT-DE-COMMENCER.html` de l'archive) pour installer
+  WSL, Docker Desktop puis J-ed, même sans rien connaître à Docker.
+- **« Ça ne marche pas »** prépare un compte rendu à envoyer, sans aucun mot de passe.
+- **Première configuration** : un double clic sur le bouton de création du compte ne provoque plus d'erreur ; la
+  traduction hors ligne n'est plus proposée quand elle n'a pas été installée.
+
 ## Version 2.0.1 (23 novembre 2026)
 
 Une petite version, sans changement de vos données : une mise à jour plus sûre et la licence de J-ed.

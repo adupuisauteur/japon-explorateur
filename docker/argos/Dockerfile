@@ -16,7 +16,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /service
 COPY requirements.txt .
 # PyTorch « CPU » (sans CUDA) depuis l'index officiel de PyTorch ; le reste depuis PyPI. Versions figées.
-RUN pip install --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
+# 2.0.2-rc5 (R7) : réseau lent ou proxy : délai de 120 s et 10 nouvelles tentatives (pip : 15 s et 5 par défaut).
+RUN pip install --timeout 120 --retries 10 --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
 
 COPY server.py .
 RUN useradd --create-home --uid 1000 argos \

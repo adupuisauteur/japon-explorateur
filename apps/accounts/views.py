@@ -8,7 +8,7 @@ import hmac
 
 from django.conf import settings
 from django.core.cache import cache
-from django.db import transaction
+from django.db import IntegrityError, connection, transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.crypto import get_random_string
 
@@ -67,10 +67,37 @@ class LoginView(auth_views.LoginView):
         return form
 
 
+#: 2.0.2-rc5 (R12) : clé du verrou PostgreSQL de la première configuration (nombre fixe, propre à J-ed).
+FIRST_RUN_LOCK_KEY = 4_701_120_202
+
+FIRST_RUN_ALREADY_DONE = ("Le compte administrateur a déjà été créé (le formulaire a sans doute été envoyé deux fois) : "
+                          "connectez-vous avec l'identifiant et le mot de passe que vous venez de choisir.")
+
+
+def _compte_existe():
+    return User.objects.exists()
+
+
+def _first_run_already_done(request):
+    """2.0.2-rc5 (R12) : un second envoi du formulaire (double clic, page lente) ne provoque plus d'erreur 500 :
+    il mène à la connexion, avec un message clair (ou à l'accueil si la session est déjà ouverte)."""
+    if request.user.is_authenticated:
+        return redirect("core:home")
+    messages.info(request, FIRST_RUN_ALREADY_DONE)
+    return redirect("accounts:login")
+
+
 @transaction.atomic
 def first_run(request):
     """Assistant de première configuration (§17.1) : disponible uniquement tant qu'aucun compte n'existe."""
-    if User.objects.exists():
+    if request.method == "POST" and connection.vendor == "postgresql":
+        # 2.0.2-rc5 (R12) : deux envois simultanés sont traités l'un après l'autre (verrou levé à la fin de la
+        # transaction) ; le second voit alors le compte créé par le premier.
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_advisory_xact_lock(%s)", [FIRST_RUN_LOCK_KEY])
+    if _compte_existe():
+        if request.method == "POST":
+            return _first_run_already_done(request)
         return redirect("core:home")
     token_required = bool(settings.SETUP_TOKEN)
     form = FirstRunForm(request.POST or None, token_required=token_required)
@@ -83,7 +110,12 @@ def first_run(request):
         user.is_staff = True
         user.is_superuser = True
         user.display_name = form.cleaned_data["display_name"]
-        user.save()
+        try:
+            with transaction.atomic():
+                user.save()
+        except IntegrityError:
+            # Dernier filet (base sans verrou, ou envoi concurrent passé entre les contrôles) : jamais d'erreur 500.
+            return _first_run_already_done(request)
         settings_obj = AppSettings.get()
         settings_obj.default_search_mode = form.cleaned_data["default_search_mode"]
         settings_obj.backup_enabled = form.cleaned_data["backup_enabled"]
