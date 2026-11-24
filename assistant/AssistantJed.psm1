@@ -774,6 +774,19 @@ function Get-NomRaccourciJed($Installation) {
     return ($nom -replace '[\\/:*?"<>|]', '-')
 }
 
+function Send-AvisRaccourcisJed($Fichiers) {
+    <# 2.0.2-rc6 (N8) : prévient l'Explorateur de Windows de l'ajout des raccourcis, pour qu'ils apparaissent tout
+       de suite sur le Bureau (sinon, il fallait appuyer sur F5). Sans effet hors de Windows. #>
+    if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) { return }
+    try {
+        Add-Type -Namespace JedAssistant -Name Explorateur -MemberDefinition '[DllImport("shell32.dll", CharSet = CharSet.Unicode)] public static extern void SHChangeNotify(int eventId, uint flags, string item1, IntPtr item2);' -ErrorAction Stop
+        foreach ($f in $Fichiers) {
+            [JedAssistant.Explorateur]::SHChangeNotify(0x00000002, 0x0005, $f, [IntPtr]::Zero)              # SHCNE_CREATE, SHCNF_PATHW
+            [JedAssistant.Explorateur]::SHChangeNotify(0x00001000, 0x0005, (Split-Path -Parent $f), [IntPtr]::Zero)  # SHCNE_UPDATEDIR
+        }
+    } catch { }
+}
+
 function New-RaccourcisJed {
     <# Raccourci « J-ed - <nom> » (ouvre J-ed dans le navigateur) et « Assistant J-ed » (ouvre l'assistant), sur
        le Bureau et dans le menu Démarrer. Remplace seulement des raccourcis de ces mêmes noms. Renvoie les
@@ -799,10 +812,14 @@ function New-RaccourcisJed {
             $r.WorkingDirectory = $DossierAssistant
             $r.WindowStyle = 7
             $r.Description = 'Assistant J-ed : installer, mettre à jour, vérifier et sauvegarder J-ed'
+            # 2.0.2-rc6 (N11) : icône de J-ed (le fichier .cmd n'en a pas de propre).
+            $icone = Join-CheminJed $DossierAssistant (Join-CheminJed 'assistant' 'j-ed.ico')
+            if (Test-Path -LiteralPath $icone) { $r.IconLocation = "$icone,0" }
             $r.Save()
             $ecrits.Add($lnk)
         }
     }
+    Send-AvisRaccourcisJed $ecrits
     return ,$ecrits.ToArray()
 }
 
@@ -1190,6 +1207,12 @@ function New-ArgumentsReinitialisationJed([string]$Script, [switch]$Complet) {
     $a = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $Script, '-SansSauvegarde')
     if ($Complet) { $a += '-Complet' }
     return ,$a
+}
+
+function Format-TitreEtapeJed([string]$Titre, [int]$Minutes) {
+    <# 2.0.2-rc6 (N5) : titre de l'étape en cours, avec sa durée à partir d'une minute. #>
+    if ($Minutes -lt 1) { return $Titre }
+    return "$Titre — en cours depuis $Minutes min"
 }
 
 function Get-MessageReinitialisationJed {

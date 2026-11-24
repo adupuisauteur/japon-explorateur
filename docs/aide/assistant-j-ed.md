@@ -16,9 +16,8 @@ Double-cliquez sur **`J-ed.cmd`**, dans le dossier de J-ed (ou sur le raccourci 
 a été créé). La première fois, Windows peut afficher « Windows a protégé votre ordinateur » : cliquez sur
 **Informations complémentaires**, puis **Exécuter quand même**.
 
-Une fenêtre noire s'ouvre une seconde, puis se referme : c'est normal. Sur certains Windows 11, une fenêtre
-PowerShell **vide** peut rester ouverte derrière l'assistant : laissez-la, ne la fermez pas (la fermer ferme aussi
-l'assistant).
+Une fenêtre noire s'ouvre une seconde, puis se referme : c'est normal. L'assistant apparaît ensuite **au bout de
+quelques secondes** (jusqu'à une demi-minute la première fois) : patientez, sans double-cliquer une seconde fois.
 
 Pour une première installation, suivez d'abord le guide **Avant de commencer** (fichier `AVANT-DE-COMMENCER.html`
 de l'archive) : il explique comment installer WSL et Docker Desktop.
@@ -60,6 +59,15 @@ pouvez ainsi avoir une **deuxième instance** (par exemple un essai), sur un aut
 et un port libres et les vérifie pendant que vous tapez ; il refuse un nom déjà pris, même par d'anciennes données
 encore présentes dans Docker. Chaque installation reçoit ses propres secrets : rien n'est copié d'une autre.
 
+Aucune clé ni aucun mot de passe technique à inventer : l'assistant crée lui-même les clés secrètes de
+l'installation et les écrit dans le fichier `.env` de son dossier. **Gardez une copie de ce fichier en lieu sûr**
+(clé USB rangée, gestionnaire de mots de passe) : elle sera nécessaire pour passer J-ed sur un autre ordinateur, et
+elle ne figure pas dans les sauvegardes de J-ed. Ne l'envoyez à personne.
+
+Pendant l'installation, le titre de la fenêtre indique depuis combien de minutes l'étape en cours dure : la
+construction peut rester longtemps sans nouvelle ligne. Si l'installation n'aboutit pas, la fenêtre suivante reprend
+les choix de la tentative précédente.
+
 À la fin, l'assistant propose de **créer le compte administrateur**, de **créer les raccourcis** et de **charger le
 jeu d'essai** (notices fictives ; voir [Essayer J-ed](aide:essayer-j-ed)).
 
@@ -80,11 +88,19 @@ jeu d'essai** (notices fictives ; voir [Essayer J-ed](aide:essayer-j-ed)).
 
 ## Derrière un proxy
 
-Si Windows passe par un proxy, laissez cochée la case **« Mon réseau passe par un proxy : utiliser celui de
-Windows »** (cochée d'avance quand un proxy est détecté) ; **Docker joint-il Internet ?** vérifie que Docker
-Desktop est bien réglé (Settings → Resources → Proxies → « System proxy »). L'adresse du proxy est écrite dans le
-fichier `.env` de l'installation (une copie de l'ancien fichier est gardée). Un proxy avec identifiant et mot de
-passe se règle à la main.
+Sur un réseau qui passe par un proxy, il faut **deux réglages**, qui ont chacun leur rôle :
+
+1. **Docker Desktop** (à faire avant la première installation) : Settings → Resources → Proxies, « System proxy » ;
+   si Docker ne joint toujours pas Internet, « Manual proxy configuration » avec l'adresse du proxy pour HTTP et
+   HTTPS. Ce réglage sert à télécharger les images de base (Python, PostgreSQL…).
+2. **La case de l'assistant** « Mon réseau passe par un proxy : utiliser celui de Windows » (cochée d'avance quand un
+   proxy est détecté) : l'adresse est écrite dans le fichier `.env` de l'installation (une copie de l'ancien fichier
+   est gardée). J-ed s'en sert pendant la construction (ses bibliothèques) et pendant son fonctionnement (sources en
+   ligne, paquets de traduction).
+
+Le bouton **Docker joint-il Internet ?**, dans « Nouvelle installation » comme dans « Mettre à jour », vérifie le
+premier réglage. Sur un réseau **sans** proxy, décochez la case (ou videz les lignes `HTTP_PROXY` et `HTTPS_PROXY`
+du `.env` d'une installation existante). Un proxy avec identifiant et mot de passe se règle à la main.
 
 ## Ça ne marche pas
 

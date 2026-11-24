@@ -92,7 +92,7 @@ pas, avec le résultat attendu à chaque étape.</p>
 <li><a href="#signaler-un-probleme">Signaler un problème</a></li>
 </ul></section><section id='quoi-de-neuf'><h2>Quoi de neuf</h2><p class=lead>Les nouveautés de la dernière version.</p><p>Voici ce qui change dans la dernière version. Les versions précédentes sont décrites dans
 l'<strong>Historique des versions</strong> (Administration).</p>
-<h3 id="quoi-de-neuf--version-202-version-candidate-rc5-24-novembre-2026">Version 2.0.2 (version candidate rc5, 24 novembre 2026)</h3>
+<h3 id="quoi-de-neuf--version-202-version-candidate-rc6-24-novembre-2026">Version 2.0.2 (version candidate rc6, 24 novembre 2026)</h3>
 <p>Une version pour installer et entretenir J-ed <strong>sans ouvrir PowerShell</strong>. Aucun changement de vos données.</p>
 <ul>
 <li><strong>L'assistant J-ed</strong> : un double-clic sur <code>J-ed.cmd</code> ouvre une fenêtre qui vérifie l'ordinateur, installe J-ed
@@ -103,7 +103,8 @@ l'<strong>Historique des versions</strong> (Administration).</p>
 <li><strong>Avant de commencer</strong> : un guide pas à pas (fichier <code>AVANT-DE-COMMENCER.html</code> de l'archive) pour installer
   WSL, Docker Desktop puis J-ed, même sans rien connaître à Docker.</li>
 <li><strong>« Ça ne marche pas »</strong> prépare un compte rendu à envoyer, sans aucun mot de passe.</li>
-<li><strong>Première configuration</strong> : un double clic sur le bouton de création du compte ne provoque plus d'erreur.</li>
+<li><strong>Première configuration</strong> : un double clic sur le bouton de création du compte ne provoque plus d'erreur ; la
+  traduction hors ligne n'est plus proposée quand elle n'a pas été installée.</li>
 </ul></section><section id='notifications'><h2>Les notifications</h2><p class=lead>Être prévenu d&#x27;une tâche terminée, d&#x27;une pause ou d&#x27;un problème.</p><p>J-ed vous prévient quand une tâche (traduction, résumés, installation) se termine, se termine avec des erreurs ou
 se met en pause. L'administrateur est aussi prévenu des dysfonctionnements.</p>
 <h3 id="notifications--ou-les-voir">Où les voir</h3>
@@ -969,9 +970,8 @@ données sans votre accord).</p>
 <p>Double-cliquez sur <strong><code>J-ed.cmd</code></strong>, dans le dossier de J-ed (ou sur le raccourci « Assistant J-ed » du Bureau, s'il
 a été créé). La première fois, Windows peut afficher « Windows a protégé votre ordinateur » : cliquez sur
 <strong>Informations complémentaires</strong>, puis <strong>Exécuter quand même</strong>.</p>
-<p>Une fenêtre noire s'ouvre une seconde, puis se referme : c'est normal. Sur certains Windows 11, une fenêtre
-PowerShell <strong>vide</strong> peut rester ouverte derrière l'assistant : laissez-la, ne la fermez pas (la fermer ferme aussi
-l'assistant).</p>
+<p>Une fenêtre noire s'ouvre une seconde, puis se referme : c'est normal. L'assistant apparaît ensuite <strong>au bout de
+quelques secondes</strong> (jusqu'à une demi-minute la première fois) : patientez, sans double-cliquer une seconde fois.</p>
 <p>Pour une première installation, suivez d'abord le guide <strong>Avant de commencer</strong> (fichier <code>AVANT-DE-COMMENCER.html</code>
 de l'archive) : il explique comment installer WSL et Docker Desktop.</p>
 <h3 id="assistant-j-ed--lecran-daccueil">L'écran d'accueil</h3>
@@ -1009,6 +1009,13 @@ de l'archive) : il explique comment installer WSL et Docker Desktop.</p>
 pouvez ainsi avoir une <strong>deuxième instance</strong> (par exemple un essai), sur un autre port. L'assistant propose un nom
 et un port libres et les vérifie pendant que vous tapez ; il refuse un nom déjà pris, même par d'anciennes données
 encore présentes dans Docker. Chaque installation reçoit ses propres secrets : rien n'est copié d'une autre.</p>
+<p>Aucune clé ni aucun mot de passe technique à inventer : l'assistant crée lui-même les clés secrètes de
+l'installation et les écrit dans le fichier <code>.env</code> de son dossier. <strong>Gardez une copie de ce fichier en lieu sûr</strong>
+(clé USB rangée, gestionnaire de mots de passe) : elle sera nécessaire pour passer J-ed sur un autre ordinateur, et
+elle ne figure pas dans les sauvegardes de J-ed. Ne l'envoyez à personne.</p>
+<p>Pendant l'installation, le titre de la fenêtre indique depuis combien de minutes l'étape en cours dure : la
+construction peut rester longtemps sans nouvelle ligne. Si l'installation n'aboutit pas, la fenêtre suivante reprend
+les choix de la tentative précédente.</p>
 <p>À la fin, l'assistant propose de <strong>créer le compte administrateur</strong>, de <strong>créer les raccourcis</strong> et de <strong>charger le
 jeu d'essai</strong> (notices fictives ; voir <a href="#essayer-j-ed">Essayer J-ed</a>).</p>
 <h3 id="assistant-j-ed--operations-de-maintenance">Opérations de maintenance</h3>
@@ -1027,11 +1034,19 @@ jeu d'essai</strong> (notices fictives ; voir <a href="#essayer-j-ed">Essayer J-
   s'en sert ; l'essai reste alors arrêté : <strong>Démarrer</strong> le reconstruit).</li>
 </ul>
 <h3 id="assistant-j-ed--derriere-un-proxy">Derrière un proxy</h3>
-<p>Si Windows passe par un proxy, laissez cochée la case <strong>« Mon réseau passe par un proxy : utiliser celui de
-Windows »</strong> (cochée d'avance quand un proxy est détecté) ; <strong>Docker joint-il Internet ?</strong> vérifie que Docker
-Desktop est bien réglé (Settings → Resources → Proxies → « System proxy »). L'adresse du proxy est écrite dans le
-fichier <code>.env</code> de l'installation (une copie de l'ancien fichier est gardée). Un proxy avec identifiant et mot de
-passe se règle à la main.</p>
+<p>Sur un réseau qui passe par un proxy, il faut <strong>deux réglages</strong>, qui ont chacun leur rôle :</p>
+<ol>
+<li><strong>Docker Desktop</strong> (à faire avant la première installation) : Settings → Resources → Proxies, « System proxy » ;
+   si Docker ne joint toujours pas Internet, « Manual proxy configuration » avec l'adresse du proxy pour HTTP et
+   HTTPS. Ce réglage sert à télécharger les images de base (Python, PostgreSQL…).</li>
+<li><strong>La case de l'assistant</strong> « Mon réseau passe par un proxy : utiliser celui de Windows » (cochée d'avance quand un
+   proxy est détecté) : l'adresse est écrite dans le fichier <code>.env</code> de l'installation (une copie de l'ancien fichier
+   est gardée). J-ed s'en sert pendant la construction (ses bibliothèques) et pendant son fonctionnement (sources en
+   ligne, paquets de traduction).</li>
+</ol>
+<p>Le bouton <strong>Docker joint-il Internet ?</strong>, dans « Nouvelle installation » comme dans « Mettre à jour », vérifie le
+premier réglage. Sur un réseau <strong>sans</strong> proxy, décochez la case (ou videz les lignes <code>HTTP_PROXY</code> et <code>HTTPS_PROXY</code>
+du <code>.env</code> d'une installation existante). Un proxy avec identifiant et mot de passe se règle à la main.</p>
 <h3 id="assistant-j-ed--ca-ne-marche-pas">Ça ne marche pas</h3>
 <p>Le bouton <strong>Ça ne marche pas</strong> enregistre sur le Bureau un compte rendu (<code>compte-rendu-j-ed-….zip</code>) à envoyer à la
 personne qui vous aide : état de l'ordinateur, de Docker et de l'installation choisie, dernières lignes des
@@ -1560,7 +1575,7 @@ avec une capture d'écran si possible.</p>
 <td>Un problème enregistré par J-ed (source injoignable, erreur…), suivi par l'administrateur.</td>
 </tr>
 </tbody>
-</table></section><section id='historique-des-versions'><h2>Historique des versions <span class='badge'>administrateur</span></h2><p class=lead>Évolutions et améliorations de J-ed, version par version.</p><h3 id="historique-des-versions--version-202-version-candidate-rc5-24-novembre-2026">Version 2.0.2 (version candidate rc5, 24 novembre 2026)</h3>
+</table></section><section id='historique-des-versions'><h2>Historique des versions <span class='badge'>administrateur</span></h2><p class=lead>Évolutions et améliorations de J-ed, version par version.</p><h3 id="historique-des-versions--version-202-version-candidate-rc6-24-novembre-2026">Version 2.0.2 (version candidate rc6, 24 novembre 2026)</h3>
 <p>Une version pour installer et entretenir J-ed <strong>sans ouvrir PowerShell</strong>. Aucun changement de vos données.</p>
 <ul>
 <li><strong>L'assistant J-ed</strong> : un double-clic sur <code>J-ed.cmd</code> ouvre une fenêtre qui vérifie l'ordinateur, installe J-ed
@@ -1571,7 +1586,8 @@ avec une capture d'écran si possible.</p>
 <li><strong>Avant de commencer</strong> : un guide pas à pas (fichier <code>AVANT-DE-COMMENCER.html</code> de l'archive) pour installer
   WSL, Docker Desktop puis J-ed, même sans rien connaître à Docker.</li>
 <li><strong>« Ça ne marche pas »</strong> prépare un compte rendu à envoyer, sans aucun mot de passe.</li>
-<li><strong>Première configuration</strong> : un double clic sur le bouton de création du compte ne provoque plus d'erreur.</li>
+<li><strong>Première configuration</strong> : un double clic sur le bouton de création du compte ne provoque plus d'erreur ; la
+  traduction hors ligne n'est plus proposée quand elle n'a pas été installée.</li>
 </ul>
 <h3 id="historique-des-versions--version-201-23-novembre-2026">Version 2.0.1 (23 novembre 2026)</h3>
 <p>Une petite version, sans changement de vos données : une mise à jour plus sûre et la licence de J-ed.</p>

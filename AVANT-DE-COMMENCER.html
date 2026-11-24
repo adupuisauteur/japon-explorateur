@@ -43,10 +43,10 @@ et vérifie lui-même chacun des points ci-dessous : s'il manque quelque chose, 
   <li><a href="#docker">Docker Desktop</a></li>
   <li><a href="#docker-demarre">Démarrer Docker Desktop</a></li>
   <li><a href="#disque">Place sur le disque</a></li>
+  <li><a href="#proxy">Derrière un proxy</a></li>
   <li><a href="#telecharger">Télécharger J-ed</a></li>
   <li><a href="#assistant">Ouvrir l'assistant</a></li>
   <li><a href="#installer">Installer J-ed</a></li>
-  <li><a href="#proxy">Derrière un proxy</a></li>
   <li><a href="#problemes">En cas de problème</a></li>
 </ol>
 </nav>
@@ -84,7 +84,8 @@ l'hôte (par exemple le type de processeur « host » sous Proxmox).</div>
   <li>tapez la commande ci-dessous, puis Entrée :</li>
 </ol>
 <span class="commande">wsl --install</span>
-<p class="attendu">Attendu : l'installation se déroule, puis Windows demande de redémarrer. Redémarrez.</p>
+<p class="attendu">Attendu : l'installation se déroule et se termine par un message de réussite. Fermez alors le
+Terminal (croix de la fenêtre), puis <strong>redémarrez l'ordinateur</strong>, même si Windows ne le demande pas.</p>
 <p>Pour vérifier ensuite (dans un Terminal ordinaire) :</p>
 <span class="commande">wsl --version</span>
 <p class="attendu">Attendu : une ligne « Version WSL : 2.x.x ». Si la commande n'est pas reconnue, ou si la version
@@ -103,6 +104,13 @@ l'enseignement, les projets libres non commerciaux et les petites entreprises (m
     minutes.</li>
   <li>À la fin, cliquez sur <strong>Close</strong> (ou redémarrez si c'est demandé).</li>
 </ol>
+<div class="conseil">Si Docker Desktop affiche <em>« Virtual Machine Platform is not enabled »</em> : un composant de
+Windows dont WSL a besoin n'est pas encore activé. Ouvrez un <strong>Terminal (administrateur)</strong> (clic droit
+sur Démarrer), tapez la commande ci-dessous puis Entrée, et répondez <strong>O</strong> (ou <strong>Y</strong>) quand
+Windows propose de redémarrer.</div>
+<span class="commande">Enable-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -All</span>
+<p class="attendu">Attendu : « Voulez-vous redémarrer l'ordinateur maintenant ? » ; après le redémarrage, Docker
+Desktop démarre normalement.</p>
 
 <h2 id="docker-demarre">5. Démarrer Docker Desktop</h2>
 <ol>
@@ -120,7 +128,33 @@ ensuite tout seul avec Docker.</div>
 <p>Docker et J-ed occupent environ 10 Go ; prévoyez <strong>20 Go libres</strong> (plus si vous installez l'IA locale).
 Pour voir la place libre : ouvrez l'<strong>Explorateur de fichiers</strong>, puis <strong>Ce PC</strong>.</p>
 
-<h2 id="telecharger">7. Télécharger J-ed</h2>
+<h2 id="proxy">7. Derrière un proxy (réseau d'entreprise ou d'établissement)</h2>
+<p>Sur un réseau qui passe par un proxy, réglez Docker <strong>avant</strong> d'installer J-ed ; sinon,
+l'installation s'arrête à l'étape « Construction » (« Docker ne joint pas Internet »). Sans proxy : passez à
+l'étape 8.</p>
+<ol>
+  <li>dans Docker Desktop : <strong>Settings</strong> (roue dentée) → <strong>Resources</strong> →
+    <strong>Proxies</strong> ;</li>
+  <li>choisissez <strong>System proxy</strong> (Docker reprend le proxy de Windows) ; si la vérification ci-dessous
+    échoue, activez plutôt <strong>Manual proxy configuration</strong> et inscrivez l'adresse du proxy (par exemple
+    <code>http://proxy.exemple.fr:8080</code> ; l'assistant l'affiche dans la fenêtre « Nouvelle installation »)
+    dans <em>Web Server (HTTP)</em> et <em>Secure Web Server (HTTPS)</em> ;</li>
+  <li><strong>Apply &amp; restart</strong>, puis attendez la baleine immobile.</li>
+</ol>
+<p>Pour vérifier (Terminal ordinaire) :</p>
+<span class="commande">docker pull python:3.12-slim-bookworm</span>
+<p class="attendu">Attendu : quelques lignes « Pull complete », puis « Status: Downloaded newer image… ». Le bouton
+<strong>« Docker joint-il Internet ? »</strong> de l'assistant fait la même vérification.</p>
+<div class="conseil">Deux réglages, deux rôles. Celui de <strong>Docker Desktop</strong> sert à télécharger les
+images de base (Python, PostgreSQL…). La case de l'assistant <strong>« Mon réseau passe par un proxy : utiliser
+celui de Windows »</strong> écrit l'adresse dans le fichier <code>.env</code> de l'installation : J-ed s'en sert pour
+installer ses bibliothèques pendant la construction, puis pour interroger les sources en ligne et télécharger les
+paquets de traduction. Laissez donc les deux. Sur un réseau <strong>sans</strong> proxy, décochez la case (ou videz
+les lignes <code>HTTP_PROXY</code> et <code>HTTPS_PROXY</code> du <code>.env</code> d'une installation existante). Un
+proxy qui demande un identifiant et un mot de passe se règle à la main (l'assistant n'écrit jamais de mot de
+passe).</div>
+
+<h2 id="telecharger">8. Télécharger J-ed</h2>
 <ol>
   <li>Ouvrez la page des versions de J-ed :
     <a href="https://github.com/adupuisauteur/japon-explorateur/releases/latest">github.com/adupuisauteur/japon-explorateur/releases/latest</a>.</li>
@@ -133,20 +167,19 @@ Pour voir la place libre : ouvrez l'<strong>Explorateur de fichiers</strong>, pu
     <code>C:\J-ed</code>, puis <strong>Extraire</strong>.</li>
 </ol>
 
-<h2 id="assistant">8. Ouvrir l'assistant</h2>
+<h2 id="assistant">9. Ouvrir l'assistant</h2>
 <ol>
   <li>Dans le dossier extrait, double-cliquez sur <strong><code>J-ed.cmd</code></strong>.</li>
   <li>Si Windows affiche « Windows a protégé votre ordinateur » : cliquez sur <strong>Informations
     complémentaires</strong>, puis <strong>Exécuter quand même</strong> (J-ed n'a pas de signature payante ; son code
     est public).</li>
 </ol>
-<p class="attendu">Attendu : la fenêtre « Assistant J-ed » s'ouvre au bout de quelques secondes. Elle vérifie les
-points 1 à 6 : « Prérequis : tout est prêt » en vert, sinon la liste de ce qui reste à régler.</p>
-<div class="conseil">Une fenêtre noire s'ouvre une seconde puis se referme : c'est normal. Sur certains Windows 11,
-une fenêtre PowerShell <strong>vide</strong> peut rester ouverte derrière l'assistant : laissez-la, ne la fermez pas
-(la fermer ferme aussi l'assistant).</div>
+<p class="attendu">Attendu : une fenêtre noire s'ouvre une seconde puis se referme ; la fenêtre « Assistant J-ed »
+apparaît ensuite <strong>au bout de quelques secondes (jusqu'à une demi-minute la première fois)</strong> : patientez,
+sans double-cliquer une seconde fois. Elle vérifie les points 1 à 6 : « Prérequis : tout est prêt » en vert, sinon la
+liste de ce qui reste à régler.</p>
 
-<h2 id="installer">9. Installer J-ed</h2>
+<h2 id="installer">10. Installer J-ed</h2>
 <ol>
   <li>Cliquez sur <strong>Nouvelle installation</strong>.</li>
   <li>Archive : <strong>Choisir…</strong> et prenez le même fichier <code>.zip</code> (l'empreinte est trouvée
@@ -154,29 +187,21 @@ une fenêtre PowerShell <strong>vide</strong> peut rester ouverte derrière l'as
   <li>Gardez le nom, le port, l'emplacement et le dossier des sauvegardes proposés (ou changez-les), puis cliquez sur
     <strong>Installer</strong>.</li>
   <li>Attendez : la première installation prend <strong>10 à 30 minutes</strong> (téléchargements). La fenêtre
-    montre chaque étape ; elle se termine en vert.</li>
+    montre chaque étape et depuis combien de minutes elle dure ; la construction peut rester longtemps sans nouvelle
+    ligne : c'est normal. Elle se termine en vert.</li>
   <li>Cliquez sur <strong>1. Créer le compte administrateur</strong> : J-ed s'ouvre dans le navigateur ; choisissez
     un identifiant et un mot de passe (10 caractères au moins).</li>
   <li>Si vous voulez : <strong>Créer les raccourcis</strong> (Bureau et menu Démarrer) et <strong>Charger le jeu
     d'essai</strong> (des notices fictives pour découvrir J-ed ; l'aide « Essayer J-ed » guide la visite).</li>
 </ol>
-<div class="conseil">Le dossier extrait à l'étape 7 ne sert qu'à lancer l'assistant : J-ed est installé dans son
+<div class="conseil">Aucune clé ni aucun mot de passe technique à inventer : l'assistant crée lui-même les clés
+secrètes de l'installation (base de données, chiffrement des clés d'API des IA) et les écrit dans le fichier
+<code>.env</code> de son dossier. <strong>Gardez une copie de ce fichier <code>.env</code> en lieu sûr</strong> (clé USB
+rangée, gestionnaire de mots de passe) : elle sera nécessaire pour passer J-ed sur un autre ordinateur ; elle ne
+figure pas dans les sauvegardes de J-ed. Ne l'envoyez à personne.</div>
+<div class="conseil">Le dossier extrait à l'étape 8 ne sert qu'à lancer l'assistant : J-ed est installé dans son
 propre dossier (par exemple <code>C:\J-ed\jed-X.Y.Z</code>), qui contient aussi l'assistant. Pour les mises à jour,
 ouvrez l'assistant (raccourci « Assistant J-ed ») et cliquez sur <strong>Mettre à jour une installation</strong>.</div>
-
-<h2 id="proxy">10. Derrière un proxy (réseau d'entreprise ou d'établissement)</h2>
-<p>Si Windows passe par un proxy, Docker doit aussi y passer :</p>
-<ol>
-  <li>dans Docker Desktop : <strong>Settings</strong> (roue dentée) → <strong>Resources</strong> →
-    <strong>Proxies</strong> ;</li>
-  <li>choisissez <strong>System proxy</strong> pour Docker Desktop et pour les conteneurs (le proxy de Windows est
-    repris, y compris un fichier de configuration automatique « PAC » réglé dans Windows) ;</li>
-  <li><strong>Apply &amp; restart</strong>, puis attendez la baleine immobile.</li>
-</ol>
-<p>Dans l'assistant, laissez cochée la case <strong>« Mon réseau passe par un proxy : utiliser celui de Windows »</strong>
-(cochée d'avance si un proxy est détecté) : J-ed s'en servira aussi. Le bouton <strong>« Docker joint-il
-Internet ? »</strong> vérifie que tout est bien réglé. Un proxy qui demande un identifiant et un mot de passe se règle
-à la main (l'assistant n'écrit jamais de mot de passe).</p>
 
 <h2 id="problemes">11. En cas de problème</h2>
 <table>
@@ -186,12 +211,16 @@ Internet ? »</strong> vérifie que tout est bien réglé. Un proxy qui demande 
   <tr><td>« WSL » en rouge ; Docker Desktop parle de WSL au démarrage</td>
       <td>Refaites l'<a href="#wsl">étape 3</a> (<code>wsl --update</code>), puis redémarrez l'ordinateur.</td></tr>
   <tr><td>« Virtualisation » en rouge</td><td>Voir l'<a href="#virtualisation">étape 2</a>.</td></tr>
+  <tr><td>« Virtual Machine Platform is not enabled » (Docker Desktop)</td>
+      <td>Voir l'<a href="#docker">étape 4</a> (commande à taper dans un Terminal administrateur, puis redémarrage).</td></tr>
   <tr><td>« Docker ne joint pas Internet » ; « context deadline exceeded »</td>
-      <td>Vérifiez la connexion ; derrière un proxy, voir l'<a href="#proxy">étape 10</a>.</td></tr>
+      <td>Vérifiez la connexion ; derrière un proxy, voir l'<a href="#proxy">étape 7</a>, puis supprimez le dossier indiqué
+      par l'assistant et recommencez l'installation.</td></tr>
   <tr><td>« Le port … est déjà utilisé »</td><td>Choisissez un autre port dans l'assistant (il en propose un libre).</td></tr>
   <tr><td>Le disque est plein</td><td>Libérez de la place (voir l'<a href="#disque">étape 6</a>).</td></tr>
   <tr><td>Rien ne s'ouvre en double-cliquant sur <code>J-ed.cmd</code></td>
-      <td>Débloquez l'archive et extrayez-la de nouveau (<a href="#telecharger">étape 7</a>). Sinon, ouvrez un Terminal
+      <td>Patientez une demi-minute. Sinon, débloquez l'archive et extrayez-la de nouveau (<a href="#telecharger">étape 8</a>) ; en
+      dernier recours, ouvrez un Terminal
       dans le dossier (clic droit sur le fond du dossier, « Ouvrir dans le Terminal ») et tapez
       <code>powershell -ExecutionPolicy Bypass -File .\assistant\assistant-j-ed.ps1</code> : le message affiché dit
       pourquoi.</td></tr>

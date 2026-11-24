@@ -1,8 +1,28 @@
 # Historique des versions
 
-## 2.0.2-rc5 — 24 novembre 2026
+## 2.0.2-rc6 — 24 novembre 2026
 
-**Version candidate rc5**, corrections des remarques notées pendant la recette des rc1 à rc4 (essais T0 à T14
+**Version candidate rc6**, remarques N1 à N12 de la recette de la rc5 (installation complète sur un Windows 11 neuf
+réussie en 1 h 39 ; vérification courte de la rc5 réussie, sans défaut bloquant ; aucun changement des données) :
+
+- **« Avant de commencer »** (HTML et PDF) : fermer le Terminal puis redémarrer après WSL ; que faire si Docker
+  Desktop affiche « Virtual Machine Platform is not enabled » ; attendre l'assistant jusqu'à une demi-minute, sans
+  double-cliquer de nouveau ; **le réglage du proxy passe avant l'installation** (étape 7), avec « Manual proxy
+  configuration » si « System proxy » ne suffit pas et une vérification par `docker pull` ; les deux réglages du
+  proxy (Docker Desktop et `.env`) expliqués ; clés secrètes créées par l'assistant et conseil de garder une copie
+  du `.env` en lieu sûr. Mêmes précisions dans l'aide « L'assistant J-ed ».
+- **Assistant** : bouton « Docker joint-il Internet ? » aussi dans « Nouvelle installation » ; le titre d'une
+  opération indique depuis combien de minutes l'étape en cours dure ; après un échec, la nouvelle fenêtre reprend
+  les choix de la tentative précédente (Argos compris) ; fin guidée : rappel du fichier `.env` à garder ; Bureau
+  prévenu de l'ajout des raccourcis (et conseil F5) ; **icône de J-ed** sur les fenêtres, dans la barre des
+  tâches et sur le raccourci « Assistant J-ed » ; choix de restauration lisible sur deux lignes.
+- **Première configuration** : la case « Installer maintenant la traduction hors ligne » n'est plus proposée quand
+  l'installation a été faite sans Argos (lu dans `COMPOSE_PROFILES`).
+- Nouveaux tests (`tests/test_recette_202_rc6.py` et compléments) ; 943 tests.
+
+### Version candidate rc5 (24 novembre 2026)
+
+Corrections des remarques notées pendant la recette des rc1 à rc4 (essais T0 à T14
 réussis ; aucun changement des données) :
 
 - **Assistant, fenêtre principale** : bouton **Fermer** ; libellé « Aide : avant de commencer » ; liste relue dès

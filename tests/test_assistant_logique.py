@@ -877,3 +877,19 @@ class Recette202Rc5ModuleTests(AssistantTestCase):
         self.assertEqual(r["Code"], 0, r)
         self.assertEqual(r["Etapes"][:2], ["6/7 Arrêt et démarrage", "question"])
         self.assertIn("lu : OUI", r["Lignes"])
+
+
+class Recette202Rc6ModuleTests(AssistantTestCase):
+    """2.0.2-rc6 : remarques N1 à N12 (partie « module »)."""
+
+    def test_n5_step_title_with_elapsed_minutes(self):
+        self.assertEqual(self.ps("Format-TitreEtapeJed '4/6 Construction de J-ed' 0"), "4/6 Construction de J-ed")
+        self.assertEqual(self.ps("Format-TitreEtapeJed '4/6 Construction de J-ed' 7"),
+                         "4/6 Construction de J-ed — en cours depuis 7 min")
+
+    def test_n8_shortcuts_still_written_outside_windows(self):
+        d = self.make_install("raccourcis", "jed-r")
+        bureau = self.tmp / "Bureau"
+        faits = self.ps(f"New-RaccourcisJed (Get-InstallationJed '{d}') '{d}' -Dossiers @('{bureau}')")
+        self.assertEqual([Path(x).name for x in faits], ["J-ed - jed-r.url"])
+        self.assertIn("URL=http://localhost:", (bureau / "J-ed - jed-r.url").read_text(encoding="ascii"))

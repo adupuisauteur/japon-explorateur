@@ -5,6 +5,7 @@ Toute la configuration sensible passe par des variables d'environnement
 (fichier .env en local, secrets du serveur en production). Aucun secret
 ne doit être écrit dans ce fichier.
 """
+import os
 import sys
 from pathlib import Path
 
@@ -230,6 +231,12 @@ TRANSLATION_TIMEOUTS = {
 }
 # Adresse interne du service Argos (démarré avec J-ed depuis la 2.0.0 : COMPOSE_PROFILES=argos). Vide = non activé.
 TRANSLATION_ARGOS_URL = env("TRANSLATION_ARGOS_URL", default="")
+# 2.0.2-rc6 (N7) : le service Argos est-il installé ? Docker Compose transmet la ligne COMPOSE_PROFILES du .env aux
+# conteneurs (env_file) : « argos » ou « hors-ligne » = installé ; ligne présente mais sans ces profils = installation
+# faite sans Argos ; ligne absente (hors Docker, tests) = inconnu (None), on ne change rien.
+_profils = os.environ.get("COMPOSE_PROFILES")
+ARGOS_SERVICE_INSTALLE = (None if _profils is None else
+                          bool({p.strip() for p in _profils.split(",")} & {"argos", "hors-ligne"}))
 # Dossier partagé avec le service Argos (volume « argos-depot ») pour installer un paquet depuis un fichier.
 TRANSLATION_ARGOS_DEPOT_DIR = Path(env("TRANSLATION_ARGOS_DEPOT_DIR", default=str(DATA_DIR / "argos-depot")))
 TRANSLATION_ARGOS_INSTALL_TIMEOUT = env.float("TRANSLATION_ARGOS_INSTALL_TIMEOUT", default=1800.0)

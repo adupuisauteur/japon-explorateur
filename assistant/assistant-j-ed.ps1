@@ -36,6 +36,17 @@ try {
     exit 1
 }
 
+# 2.0.2-rc6 (N11) : icône de J-ed (fenêtres et barre des tâches) au lieu de celle de PowerShell. L'identifiant
+# d'application propre évite que Windows range l'assistant avec les autres fenêtres PowerShell (et leur icône).
+$script:IconeJed = $null
+$script:DerniersChoixInstallation = $null
+try {
+    $fichierIcone = [System.IO.Path]::Combine($Ici, 'j-ed.ico')
+    if (Test-Path -LiteralPath $fichierIcone) { $script:IconeJed = New-Object System.Drawing.Icon($fichierIcone) }
+    Add-Type -Namespace JedAssistant -Name Shell -MemberDefinition '[DllImport("shell32.dll", CharSet = CharSet.Unicode)] public static extern int SetCurrentProcessExplicitAppUserModelID(string id);' -ErrorAction Stop
+    [void][JedAssistant.Shell]::SetCurrentProcessExplicitAppUserModelID('J-ed.Assistant')
+} catch { }
+
 $script:Version = '?'
 $fichierVersion = [System.IO.Path]::Combine($Racine, 'VERSION')
 if (Test-Path -LiteralPath $fichierVersion) { $script:Version = ([System.IO.File]::ReadAllText($fichierVersion)).Trim() }
@@ -101,6 +112,7 @@ function Set-TailleJed($Fenetre, [int]$Largeur, [int]$Hauteur) {
 function New-FenetreJed([string]$Titre, [int]$Largeur, [int]$Hauteur) {
     $f = New-Object System.Windows.Forms.Form
     $f.Text = $Titre
+    if ($script:IconeJed) { $f.Icon = $script:IconeJed }   # 2.0.2-rc6 (N11)
     Set-TailleJed $f $Largeur $Hauteur
     $f.StartPosition = 'CenterParent'
     $f.Font = $script:Police
@@ -190,10 +202,21 @@ function Start-OperationJed {
         [System.Windows.Forms.Clipboard]::SetText((Protect-TexteJed $compte))
         Show-InfoJed 'Compte rendu copié (sans mot de passe ni adresse électronique) : collez-le dans un message.'
     })
+    # 2.0.2-rc6 (N5) : le titre dit depuis combien de minutes l'étape en cours dure (la construction peut rester
+    # longtemps sans nouvelle ligne).
+    $chrono = @{ Titre = 'Préparation…'; Debut = [DateTime]::Now; Minutes = 0 }
     $f.Add_Shown({
         $surLigne = { param($l) $texte.AppendText("$l`r`n"); [System.Windows.Forms.Application]::DoEvents() }
-        $surAttente = { [System.Windows.Forms.Application]::DoEvents() }
-        $surEtape = { param($t) $etape.Text = $t; [System.Windows.Forms.Application]::DoEvents() }
+        $surAttente = {
+            $m = [int][Math]::Floor(([DateTime]::Now - $chrono.Debut).TotalMinutes)
+            if ($m -ne $chrono.Minutes) { $chrono.Minutes = $m; $etape.Text = Format-TitreEtapeJed $chrono.Titre $m }
+            [System.Windows.Forms.Application]::DoEvents()
+        }
+        $surEtape = {
+            param($t)
+            $chrono.Titre = $t; $chrono.Debut = [DateTime]::Now; $chrono.Minutes = 0
+            $etape.Text = $t; [System.Windows.Forms.Application]::DoEvents()
+        }
         [System.Windows.Forms.Application]::DoEvents()
         try {
             $r = & $Travail $surLigne $surAttente $surEtape
@@ -595,18 +618,23 @@ function Get-NomLibreJed([string]$Base) {
 
 function Show-FinInstallationJed($Installation) {
     # Fin guidée (fonction pour un pur débutant) : compte administrateur, raccourcis, jeu d'essai.
-    $f = New-FenetreJed "« $($Installation.Nom) » est installée" 640 360
+    $f = New-FenetreJed "« $($Installation.Nom) » est installée" 640 440
     $f.Controls.Add((New-EtiquetteJed ("J-ed répond à l'adresse $(Get-AdresseJed $Installation)`n`n" +
         "1. Créez le compte administrateur (une seule fois).`n2. Si vous voulez, créez les raccourcis et chargez le jeu d'essai " +
         "pour découvrir J-ed avec des notices fictives (après l'étape 1).") 16 14 600 110))
     $bCompte = New-BoutonJed '1. Créer le compte administrateur' 16 132 600 36
     $bRaccourcis = New-BoutonJed 'Créer les raccourcis (Bureau, menu Démarrer)' 16 176 600 36
     $bEssai = New-BoutonJed 'Charger le jeu d''essai (notices fictives)' 16 220 600 36
-    $bFermer = New-BoutonJed 'Fermer' 446 272 170
+    # 2.0.2-rc6 (N10) : les clés ont été créées par l'assistant ; en garder une copie.
+    $cles = New-EtiquetteJed ("Aucune clé à inventer : l'assistant a créé les clés secrètes de cette installation dans son fichier .env :`n" +
+        "$([System.IO.Path]::Combine($Installation.Dossier, '.env'))`nGardez-en une copie en lieu sûr (clé USB rangée, gestionnaire de " +
+        "mots de passe) : elle servira pour passer J-ed sur un autre ordinateur. Ne l'envoyez à personne.") 16 266 600 96
+    $cles.ForeColor = [System.Drawing.Color]::DimGray
+    $bFermer = New-BoutonJed 'Fermer' 446 360 170
     $bCompte.Add_Click({ Start-Process (Get-AdressePremierDemarrageJed $Installation) })
     $bRaccourcis.Add_Click({
         $faits = New-RaccourcisJed $Installation $Installation.Dossier
-        Show-InfoJed ("Raccourcis créés :`n" + ($faits -join "`n"))
+        Show-InfoJed ("Raccourcis créés :`n" + ($faits -join "`n") + "`n`nSi une icône n'apparaît pas tout de suite sur le Bureau : cliquez sur le Bureau et appuyez sur F5.")
     })
     $bEssai.Add_Click({
         [void](Start-OperationJed 'Charger le jeu d''essai' {
@@ -618,7 +646,7 @@ function Show-FinInstallationJed($Installation) {
         })
     })
     $bFermer.Add_Click({ $f.Close() })
-    $f.Controls.AddRange(@($bCompte, $bRaccourcis, $bEssai, $bFermer))
+    $f.Controls.AddRange(@($bCompte, $bRaccourcis, $bEssai, $cles, $bFermer))
     [void]$f.ShowDialog()
 }
 
@@ -659,6 +687,8 @@ function Show-NouvelleInstallationJed {
     $cProxy.Text = 'Mon réseau passe par un proxy : utiliser celui de Windows'
     $cProxy.Location = New-Object System.Drawing.Point(16, 398); $cProxy.Size = New-Object System.Drawing.Size(500, 26)
     $tProxy = New-ZoneTexteJed 36 428 320
+    # 2.0.2-rc6 (N4) : vérifier Docker avant d'installer (sinon, derrière un proxy, échec à la construction).
+    $bInternet = New-BoutonJed 'Docker joint-il Internet ?' 366 426 220 30
     $proxyDetecte = Get-ProxySystemeJed
     if ($proxyDetecte) { $cProxy.Checked = $true; $tProxy.Text = $proxyDetecte }
     $tProxy.Enabled = $cProxy.Checked
@@ -671,8 +701,19 @@ function Show-NouvelleInstallationJed {
     $bAnnuler.DialogResult = 'Cancel'
     $f.CancelButton = $bAnnuler
     $f.Controls.AddRange(@($tArchive, $bArchive, $bGitHub, $infoGitHub, $tEmpreinte, $bEmpreinte, $tNom, $tPort, $infoNom,
-        $tDossier, $bDossier, $tSauv, $bSauv, $cArgos, $cProxy, $tProxy, $controle, $bInstaller, $bAnnuler))
-    $etat = @{ Version = ''; ArchiveOk = $false; DossierChoisi = $false; Parent = '' }
+        $tDossier, $bDossier, $tSauv, $bSauv, $cArgos, $cProxy, $tProxy, $bInternet, $controle, $bInstaller, $bAnnuler))
+    $etat = @{ Version = ''; ArchiveOk = $false; DossierChoisi = $false; Parent = ''; Repris = $false }
+    # 2.0.2-rc6 (N9) : après une installation qui n'a pas abouti, la fenêtre reprend les choix de la tentative
+    # précédente (l'utilisateur croyait refaire « les mêmes choix » ; Argos, décoché, était revenu coché).
+    $avant = $script:DerniersChoixInstallation
+    if ($avant -and [bool]$avant.PourRestauration -eq [bool]$PourRestauration) {
+        $tArchive.Text = $avant.Archive; $tEmpreinte.Text = $avant.Empreinte
+        $tNom.Text = $avant.Nom; $tPort.Text = $avant.Port; $tSauv.Text = $avant.Sauvegardes
+        $cArgos.Checked = $avant.Argos; $cProxy.Checked = $avant.Proxy; $tProxy.Text = $avant.ProxyTexte
+        $tProxy.Enabled = $cProxy.Checked
+        if ($avant.DossierChoisi) { $etat.DossierChoisi = $true; $etat.Parent = $avant.Parent }
+        $etat.Repris = $true
+    }
 
     $proposer = {
         # Emplacement et dossier des sauvegardes proposés d'après le nom et la version (sauf choix de l'utilisateur).
@@ -762,7 +803,19 @@ function Show-NouvelleInstallationJed {
         $d.Description = 'Dossier des sauvegardes de cette installation'
         if ($d.ShowDialog() -eq 'OK') { $tSauv.Text = $d.SelectedPath }
     })
-    $f.Add_Shown({ & $proposer; & $valider })
+    $bInternet.Add_Click({
+        [void](Start-OperationJed 'Docker joint-il Internet ?' {
+            param($surLigne, $surAttente, $surEtape)
+            & $surEtape 'Téléchargement de l''image de base de J-ed (python:3.12-slim-bookworm)…'
+            $d = Invoke-DockerJed '' (Get-CommandeAccesRegistreJed) -SurAttente $surAttente -SurLigne $surLigne
+            if ($d.Code -eq 0) { return New-ResultatJed 'ok' 'Docker joint Internet' 'L''installation pourra télécharger ce dont elle a besoin.' $null $null }
+            return New-ResultatJed 'erreur' 'Docker ne joint pas Internet' (Get-ConseilProxyDockerJed $tProxy.Text) $null $null
+        })
+    })
+    $f.Add_Shown({
+        if ($etat.Repris -and $tArchive.Text) { & $verifierArchive; $tSauv.Text = $avant.Sauvegardes } else { & $proposer; & $valider }
+        if ($etat.Repris -and $etat.ArchiveOk) { $controle.Text += ' Choix de la tentative précédente repris.' }
+    })
     if ($f.ShowDialog() -ne 'OK') { return $null }
 
     $proxy = ''
@@ -789,7 +842,14 @@ function Show-NouvelleInstallationJed {
         if ($x.Code -in @(1, 3, 5)) { $res = Add-ExplicationJed $res $x.Lignes }
         return $res
     }
-    if (-not $r -or $r.Niveau -ne 'ok') { return $null }
+    if (-not $r -or $r.Niveau -ne 'ok') {
+        $script:DerniersChoixInstallation = @{ PourRestauration = [bool]$PourRestauration; Archive = $tArchive.Text
+            Empreinte = $tEmpreinte.Text; Nom = $tNom.Text; Port = $tPort.Text; Sauvegardes = $tSauv.Text
+            Argos = $cArgos.Checked; Proxy = $cProxy.Checked; ProxyTexte = $tProxy.Text
+            DossierChoisi = $etat.DossierChoisi; Parent = $etat.Parent }
+        return $null
+    }
+    $script:DerniersChoixInstallation = $null
     Add-InstallationListeJed -Fichier $script:Liste -Dossier $destination
     Update-ListeJed
     $nouvelle = Get-InstallationJed $destination
@@ -834,16 +894,18 @@ function Show-RestaurationJed {
     $rNouvelle.Location = New-Object System.Drawing.Point(16, 66); $rNouvelle.Size = New-Object System.Drawing.Size(640, 26)
     $rNouvelle.Checked = $true
     $rExistante = New-Object System.Windows.Forms.RadioButton
-    $rExistante.Location = New-Object System.Drawing.Point(16, 96); $rExistante.Size = New-Object System.Drawing.Size(640, 26)
+    # 2.0.2-rc6 (N12) : libellé sur deux lignes (il était coupé).
+    $rExistante.Location = New-Object System.Drawing.Point(16, 94); $rExistante.Size = New-Object System.Drawing.Size(640, 44)
+    $rExistante.TextAlign = 'TopLeft'; $rExistante.CheckAlign = 'TopLeft'
     if ($choisie -and $choisie.Valide) {
-        $rExistante.Text = "Dans « $($choisie.Nom) » : sa base actuelle sera REMPLACÉE (sauvegarde de sécurité faite avant)"
+        $rExistante.Text = "Dans « $($choisie.Nom) » : sa base actuelle sera REMPLACÉE`n(une sauvegarde de sécurité est faite avant)"
     } else {
         $rExistante.Text = 'Dans une installation existante (choisissez-la d''abord dans la liste)'
         $rExistante.Enabled = $false
     }
     $note = New-EtiquetteJed ("Bon à savoir : dans une nouvelle installation, les clés d'API des IA enregistrées dans la sauvegarde ne sont pas " +
         "lisibles (elles restent chiffrées avec la clé de l'installation d'origine) : il faudra les saisir à nouveau. " +
-        "Une sauvegarde d'une version plus ancienne est mise à niveau au redémarrage.") 16 132 640 90
+        "Une sauvegarde d'une version plus ancienne est mise à niveau au redémarrage.") 16 146 640 90
     $bOk = New-BoutonJed 'Continuer' 316 280 160
     $bOk.DialogResult = 'OK'
     $bNon = New-BoutonJed 'Annuler' 496 280 160
@@ -1056,6 +1118,7 @@ function Start-CompteRenduJed {
 function Show-AssistantJed {
     $f = New-Object System.Windows.Forms.Form
     $f.Text = "Assistant J-ed $script:Version"
+    if ($script:IconeJed) { $f.Icon = $script:IconeJed }   # 2.0.2-rc6 (N11)
     Set-TailleJed $f 1000 680
     $f.StartPosition = 'CenterScreen'
     $f.Font = $script:Police

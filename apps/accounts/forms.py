@@ -1,4 +1,5 @@
 from django import forms
+from django.conf import settings
 from django.contrib.auth.forms import UserCreationForm
 
 from apps.core.forms import BootstrapMixin
@@ -38,6 +39,13 @@ class FirstRunForm(BootstrapMixin, UserCreationForm):
             self.fields["setup_token"].required = True
         else:
             del self.fields["setup_token"]
+        # 2.0.2-rc6 (N7) : installation faite sans Argos (case décochée dans l'assistant) : ne pas proposer de
+        # télécharger ses paquets, que rien ne pourrait utiliser.
+        if getattr(settings, "ARGOS_SERVICE_INSTALLE", None) is False:
+            del self.fields["install_argos"]
+            self.argos_absent = True
+        else:
+            self.argos_absent = False
 
 
 class UserCreateForm(BootstrapMixin, UserCreationForm):

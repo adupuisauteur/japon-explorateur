@@ -4,7 +4,7 @@ Anciennement « Japon — Explorateur documentaire ». Les noms techniques (dép
 
 Application web progressive (PWA) de recherche, de gestion et d'exploitation de ressources documentaires japonaises, développée d'après le cahier des charges v1.2 du 12 novembre 2026.
 
-**Version 2.0.2-rc5 du 24 novembre 2026** (version candidate ; fichier `VERSION` : 2.0.2) : **assistant graphique Windows** (`J-ed.cmd`) pour installer, mettre à jour, vérifier et sauvegarder J-ed sans ouvrir PowerShell, proxy de Windows, guide « Avant de commencer » ; aucun changement des données. Versions précédentes : **2.0.1** du 23 novembre 2026 (licence, mise à jour sûre, tests automatiques), **2.0.0** du 19 novembre 2026, renommée **J-ed**, à partir de la 1.3.0-rc3 (étiquette `v1.3.0-rc3`, commit `d7296d4`). Détail des évolutions : `CHANGELOG.md` ; synthèse technique de la 2.0.0 : `docs/evolution-2.0.0/rapport-technique-2.0.0.md`.
+**Version 2.0.2-rc6 du 24 novembre 2026** (version candidate ; fichier `VERSION` : 2.0.2) : **assistant graphique Windows** (`J-ed.cmd`) pour installer, mettre à jour, vérifier et sauvegarder J-ed sans ouvrir PowerShell, proxy de Windows, guide « Avant de commencer » ; aucun changement des données. Versions précédentes : **2.0.1** du 23 novembre 2026 (licence, mise à jour sûre, tests automatiques), **2.0.0** du 19 novembre 2026, renommée **J-ed**, à partir de la 1.3.0-rc3 (étiquette `v1.3.0-rc3`, commit `d7296d4`). Détail des évolutions : `CHANGELOG.md` ; synthèse technique de la 2.0.0 : `docs/evolution-2.0.0/rapport-technique-2.0.0.md`.
 
 **Nouveautés de la 2.0.0.** Trois statuts par notice (notice, document, IIIF), notifications, tâches et file de nuit, plafonds de dépense, Argos installé d'office, résumés par IA (en ligne ou locale avec Ollama), repérage du japonais ancien, aide intégrée, mise à jour et vérification par script, Aozora Bunko (texte intégral), Waseda, Kokusho dans sa vraie base, « Ouvrir le document », visionneuse IIIF facultative, accès des documents numérisés de la NDL, mesure des performances.
 
@@ -170,7 +170,7 @@ Dans le dossier de J-ed : `docker compose exec web python manage.py <commande>`.
 ## 8. Tests
 
 ```bash
-python manage.py test tests --parallel 4     # 924 tests (2.0.2-rc5) ; PostgreSQL requis (DATABASE_URL)
+python manage.py test tests --parallel 4     # 943 tests (2.0.2-rc6) ; PostgreSQL requis (DATABASE_URL)
 ```
 **Tests automatiques (2.0.1)** : à chaque envoi sur `main` ou sur une branche `evolution-…`, GitHub Actions lance tous les tests sur une machine Ubuntu avec PostgreSQL 15 et les polices japonaises de l'image Docker (`.github/workflows/tests.yml`). Résultats dans l'onglet « Actions » du dépôt ; l'exécution échoue si un test est ignoré.
 Ils couvrent les critères d'acceptation AT-01 à AT-20 et AT-IA-01 à AT-IA-12 (correspondance détaillée dans `docs/conformite.md`), puis chaque évolution des versions 1.2.0, 1.3.0 et 2.0.0 (`tests/test_*_<lot>.py`). Les connecteurs et fournisseurs d'IA sont testés sur des réponses simulées, sans appel réseau ; pour la 2.0.0, les simulations reprennent les structures réelles relevées sur le poste de l'utilisateur. `tests/test_audit_corrections.py` reproduit chacune des anomalies relevées par l'audit et vérifie qu'elle ne se produit plus. Les scripts PowerShell sont testés avec PowerShell 7 (`tests/test_mise_a_jour_ps1.py`, `tests/test_verification_200.py`).
