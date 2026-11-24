@@ -18,7 +18,8 @@ RUN if [ -n "$HTTP_PROXY" ]; then export http_proxy="$HTTP_PROXY"; fi \
 
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+# 2.0.2-rc5 (R7) : réseau lent ou proxy : délai de 120 s et 10 nouvelles tentatives (pip : 15 s et 5 par défaut).
+RUN pip install --timeout 120 --retries 10 -r requirements.txt
 
 COPY . .
 RUN chmod +x docker/entrypoint.sh \

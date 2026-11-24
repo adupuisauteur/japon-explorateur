@@ -1,8 +1,38 @@
 # Historique des versions
 
-## 2.0.2-rc4 — 23 novembre 2026
+## 2.0.2-rc5 — 24 novembre 2026
 
-**Version candidate rc4**, correction d'un défaut trouvé à la recette de la rc3 (essai T9, « Mot de passe oublié »
+**Version candidate rc5**, corrections des remarques notées pendant la recette des rc1 à rc4 (essais T0 à T14
+réussis ; aucun changement des données) :
+
+- **Assistant, fenêtre principale** : bouton **Fermer** ; libellé « Aide : avant de commencer » ; liste relue dès
+  que les prérequis sont vérifiés de nouveau, et état « ? (Docker arrêté) » au lieu de « arrêtée » tant que Docker
+  Desktop ne répond pas ; l'installation choisie reste choisie quand la liste est relue (on pouvait la perdre
+  depuis « Opérations de maintenance ») ; après une mise à jour, l'**ancien dossier** gardé apparaît en gris
+  (« ancien dossier ») et l'assistant prévient avant d'agir dessus.
+- **Lancement** (`J-ed.cmd`) : PowerShell est lancé caché dès le départ, pour que Windows 11 ne laisse plus de
+  fenêtre vide derrière l'assistant (à vérifier à la recette ; le guide dit quoi faire si elle apparaît encore).
+- **Mise à jour** : l'avertissement « installation protégée » distingue l'installation principale de l'essai et
+  vient avant l'écriture du proxy dans le `.env` ; après un échec, le message nomme le **dossier de la nouvelle
+  version à supprimer** (il ne contient aucune donnée) ; la question de confirmation s'affiche avec la bonne étape
+  (6/7) ; le script n'affiche plus « Taper OUI » quand la réponse vient de l'assistant ; `pip` attend plus
+  longtemps et réessaie (réseau lent, proxy).
+- **Nouvelle installation, restauration** : le message « Version … téléchargée » s'efface quand on choisit une
+  autre archive ; bouton « Choisir… » de l'emplacement lisible ; avant une restauration, plus de consigne « créez le
+  compte administrateur » ; la ligne technique « Pensez à réintroduire DJANGO_SECRET_KEY… » devient une phrase
+  simple.
+- **Réinitialiser l'essai** : options présentées comme indépendantes (on peut cocher les deux) ; message juste
+  après une réinitialisation complète (l'essai reste arrêté) ; script : lettres accentuées lisibles dans
+  l'assistant (sortie UTF-8), nom J-ed, plus de « tapez REINITIALISER » quand la réponse vient de l'assistant,
+  annonce « images gardées si d'autres installations s'en servent ».
+- **Première configuration** : un double clic sur « Terminer la configuration » (page lente) ne provoque plus
+  d'erreur 500 ni de dysfonctionnement « critique » : bouton désactivé après le premier clic, création protégée
+  par un verrou, second envoi renvoyé vers la connexion avec un message clair.
+- Nouveaux tests (`tests/test_recette_202_rc5.py` et compléments) ; 924 tests.
+
+### Version candidate rc4 (23 novembre 2026)
+
+Correction d'un défaut trouvé à la recette de la rc3 (essai T9, « Mot de passe oublié »
 sur une installation en 2.0.1) :
 
 - **l'assistant s'arrêtait sur une « exception non gérée »** au lieu d'afficher « demande J-ed 2.0.2 ou plus

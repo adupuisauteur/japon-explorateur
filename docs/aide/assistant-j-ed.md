@@ -16,6 +16,10 @@ Double-cliquez sur **`J-ed.cmd`**, dans le dossier de J-ed (ou sur le raccourci 
 a été créé). La première fois, Windows peut afficher « Windows a protégé votre ordinateur » : cliquez sur
 **Informations complémentaires**, puis **Exécuter quand même**.
 
+Une fenêtre noire s'ouvre une seconde, puis se referme : c'est normal. Sur certains Windows 11, une fenêtre
+PowerShell **vide** peut rester ouverte derrière l'assistant : laissez-la, ne la fermez pas (la fermer ferme aussi
+l'assistant).
+
 Pour une première installation, suivez d'abord le guide **Avant de commencer** (fichier `AVANT-DE-COMMENCER.html`
 de l'archive) : il explique comment installer WSL et Docker Desktop.
 
@@ -26,6 +30,11 @@ de l'archive) : il explique comment installer WSL et Docker Desktop.
   se colore au-delà de 7 jours) et dossier. L'assistant retrouve les installations que Docker connaît, et celles
   qu'il a déjà vues. Une installation arrêtée avec « docker compose down » n'est plus visible pour Docker :
   ajoutez-la avec **Ajouter une installation…** (choisissez son dossier, celui qui contient `.env`).
+- Après une mise à jour, l'ancien dossier est gardé : il apparaît en gris, avec l'état **« ancien dossier »**. Il
+  utilise les mêmes données que la version en service : n'agissez pas dessus (l'assistant le rappelle). Quand la
+  nouvelle version vous convient, vous pouvez le supprimer.
+- Si Docker Desktop n'est pas encore démarré, l'état des installations est inconnu (« ? (Docker arrêté) ») ; la liste
+  est relue dès que les prérequis sont de nouveau vérifiés.
 - Pour l'installation choisie : **Démarrer**, **Arrêter** (les données restent intactes), **Ouvrir J-ed**,
   **Vérifier** (avec ou sans tests et sources ; un rapport est écrit), **Créer les raccourcis**.
 - **Prérequis** : vérifiés au démarrage (Windows, mémoire, virtualisation, WSL, Docker Desktop, place libre). Ce
@@ -41,6 +50,8 @@ de l'archive) : il explique comment installer WSL et Docker Desktop.
    demande de confirmer l'arrêt de l'ancienne : répondez **Oui**.
 5. À la fin, un message dit ce qui s'est passé (les codes sont expliqués dans
    [Mettre à jour J-ed](aide:mettre-a-jour)) ; **Ouvrir le journal** montre le détail.
+6. Si la mise à jour n'a pas abouti, le message indique le **dossier de la nouvelle version à supprimer** avant de
+   recommencer : il ne contient aucune de vos données. L'assistant ne le supprime pas lui-même.
 
 ## Nouvelle installation
 
@@ -62,8 +73,10 @@ jeu d'essai** (notices fictives ; voir [Essayer J-ed](aide:essayer-j-ed)).
 - **Mot de passe oublié** : choisissez le compte, tapez deux fois le nouveau mot de passe (10 caractères au moins).
   Il n'est écrit nulle part. Si le compte était bloqué par trop d'essais, attendez 15 minutes.
 - **Vérifier la migration** : après un passage sur un autre ordinateur.
-- **Réinitialiser l'essai** : seulement pour une installation d'essai ; une sauvegarde est faite avant si possible,
-  et il faut taper `REINITIALISER`.
+- **Réinitialiser l'essai** : seulement pour une installation d'essai ; il faut taper `REINITIALISER`. Deux options,
+  que l'on peut cocher toutes les deux : **faire d'abord une sauvegarde** (conseillé) et **réinitialisation
+  complète** (efface aussi les paquets de langues Argos de l'essai, et ses images si aucune autre installation ne
+  s'en sert ; l'essai reste alors arrêté : **Démarrer** le reconstruit).
 
 ## Derrière un proxy
 

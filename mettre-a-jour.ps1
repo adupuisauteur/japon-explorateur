@@ -622,8 +622,10 @@ if (-not $Oui) {
     # PowerShell 5.1).
     $question = "L'ancienne version va être arrêtée (aucune donnée effacée). Taper OUI pour continuer"
     Ecrire-Journal 'QUESTION' 'OUI pour arrêter l''ancienne version et démarrer la nouvelle'
-    if ([Console]::IsInputRedirected) {
-        Write-Host "$($question) : " -NoNewline
+    $viaAssistant = [Console]::IsInputRedirected
+    if ($viaAssistant) {
+        # 2.0.2-rc5 (R11) : la question est posée par l'assistant J-ed (bouton « Oui ») : ne pas afficher
+        # « Taper OUI » ici, l'utilisateur n'a rien à taper.
         $reponse = [Console]::In.ReadLine()
     } else {
         $reponse = Read-Host $question
@@ -631,9 +633,11 @@ if (-not $Oui) {
     if ($null -eq $reponse) { $reponse = '' }
     if ($reponse.Trim() -ne 'OUI') {
         Ecrire-Journal 'REPONSE' 'refus'
+        if ($viaAssistant) { Write-Host 'Confirmation refusée dans l''assistant J-ed.' }
         Arreter 'mise à jour annulée à votre demande.' $CodeAnnule
     }
     Ecrire-Journal 'REPONSE' 'OUI'
+    if ($viaAssistant) { Write-Host 'Confirmation donnée dans l''assistant J-ed (clic sur « Oui »).' }
 }
 $script:AncienneArretee = $true
 $arret = Docker-Dans $Actuel @('compose', 'down')

@@ -37,7 +37,10 @@ case "$*" in
   "compose exec -T web python manage.py restore_backup /data/"*" --yes")
     echo "Sauvegarde de sécurité créée : /data/backups/sauvegarde-20261123-150000-full.tar"
     if [ "${FAKE_RESTORE:-ok}" != ok ]; then echo "CommandError: Restauration impossible (ValueError : archive abîmée)." >&2; exit 1; fi
-    echo "Base restaurée."; exit 0 ;;
+    echo "Base restaurée."
+    # 2.0.2-rc5 (R17) : ligne technique réelle de restore_backup, traduite par l'assistant.
+    [ -n "${FAKE_RESTORE_TEXTE:-}" ] && echo "$FAKE_RESTORE_TEXTE"
+    exit 0 ;;
   "compose restart") exit 0 ;;
   "volume ls -q")
     for v in ${FAKE_VOLUMES:-}; do echo "$v"; done; exit 0 ;;

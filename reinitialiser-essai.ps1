@@ -37,6 +37,10 @@ param(
 
 # Les messages d'erreur de Docker sont contrôlés par leur code de retour (compatible Windows PowerShell 5.1).
 $ErrorActionPreference = 'Continue'
+# 2.0.2-rc5 (R18) : sortie en UTF-8, comme les autres scripts lancés par l'assistant J-ed (sinon les lettres
+# accentuées y deviennent illisibles).
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
+$OutputEncoding = [System.Text.Encoding]::UTF8
 $NomPrincipal = 'japon-explorateur'
 $NomEssai120 = 'japon-explorateur-essai'
 $NomAttendu = 'japon-explorateur-essai-130'
@@ -60,10 +64,10 @@ function Lire-Reponse([string]$Question) {
     # 2.0.2 : la réponse peut venir de l'assistant J-ed (entrée standard fournie par un programme), sinon de
     # l'écran comme avant (Read-Host n'est pas fiable sur une entrée redirigée sous Windows PowerShell 5.1).
     if ([Console]::IsInputRedirected) {
-        Write-Host "$($Question) : " -NoNewline
+        # 2.0.2-rc5 (R19) : la question a été posée dans l'assistant ; ne pas afficher « tapez … » ici.
         $r = [Console]::In.ReadLine()
         if ($null -eq $r) { $r = '' }
-        Write-Host ''
+        Write-Host 'Réponse donnée dans l''assistant J-ed.'
         return $r
     }
     return Read-Host $Question
@@ -77,7 +81,7 @@ function Docker-Sortie {
 }
 
 Set-Location -LiteralPath $PSScriptRoot
-Write-Host 'Réinitialisation de l''installation d''essai — Japon · Explorateur documentaire' -ForegroundColor White
+Write-Host 'Réinitialisation d''une installation d''essai de J-ed' -ForegroundColor White
 Write-Host "Dossier : $PSScriptRoot"
 
 # --- 1. Contrôles de sécurité -------------------------------------------------------------------
@@ -165,7 +169,8 @@ if ($aEffacer.Count -gt 0) {
 }
 Write-Host '    soit : base de données, journal des dysfonctionnements, captures, sauvegardes internes de l''essai'
 if ($Complet) {
-    Write-Host "  - les images Docker japon-explorateur:$Version et japon-explorateur-argos:$Version"
+    Write-Host "  - les images Docker japon-explorateur:$Version et japon-explorateur-argos:$Version,"
+    Write-Host '    sauf si d''autres installations de J-ed s''en servent (elles sont alors gardées)'
     if ($paquets.Count -gt 0) { Write-Host '    (dont les paquets de langues Argos : à retélécharger ou réinstaller ensuite)' }
 } elseif ($paquets.Count -gt 0) {
     Write-Host ''
@@ -254,9 +259,14 @@ if ($Complet) {
         }
     }
     Write-Host ''
-    Write-Host 'Réinitialisation complète terminée.' -ForegroundColor Green
-    Write-Host 'Pour une installation neuve : supprimez ce dossier (après avoir mis de côté « sauvegardes-essai » si besoin),'
-    Write-Host 'puis reprenez le guide d''installation à l''étape 3. Pour réutiliser ce dossier : docker compose up -d --build'
+    Write-Host 'Réinitialisation complète terminée : l''essai est arrêté et vide.' -ForegroundColor Green
+    if ([Console]::IsInputRedirected) {
+        # 2.0.2-rc5 (R21) : lancé par l'assistant J-ed : consignes de l'assistant, pas de la ligne de commande.
+        Write-Host 'Pour vous en servir de nouveau : bouton « Démarrer » de l''assistant J-ed.'
+    } else {
+        Write-Host 'Pour une installation neuve : supprimez ce dossier (après avoir mis de côté « sauvegardes-essai » si besoin),'
+        Write-Host 'puis reprenez le guide d''installation à l''étape 3. Pour réutiliser ce dossier : docker compose up -d --build'
+    }
     exit 0
 }
 

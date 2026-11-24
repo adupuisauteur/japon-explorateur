@@ -59,7 +59,10 @@ sur la sortie, dans une ligne qui commence par `Journal de la mise à jour : `. 
 **Confirmation** : sans `-Oui`, le script écrit le repère `QUESTION` puis attend une ligne. Si l'entrée standard
 est fournie par un programme (l'assistant), la réponse y est lue ; sinon elle est demandée à l'écran. Seul `OUI`
 continue ; toute autre réponse, ou l'absence de réponse, annule (code 2). La question vient toujours **après** la
-construction de la nouvelle version (étape 6).
+construction de la nouvelle version (étape 6). Depuis la 2.0.2-rc5, quand la réponse vient d'un programme, la
+question n'est pas affichée sur la sortie (l'assistant la pose dans sa propre fenêtre) ; le script écrit ensuite
+« Confirmation donnée dans l'assistant J-ed … » ou « Confirmation refusée dans l'assistant J-ed. ». L'assistant
+lit l'étape en cours dans le journal (repère `ETAPE`) au moment de la question.
 
 **Empreinte** : sans `-Empreinte`, le fichier est cherché à côté de l'archive (`<archive>.sha256`, puis
 `<nom sans .zip>.sha256`).
@@ -82,7 +85,10 @@ l'essai est démarré), puis saisie de `REINITIALISER`. Depuis la 2.0.2, quand l
 programme, les réponses y sont lues ; l'assistant passe toujours `-SansSauvegarde` (il fait la sauvegarde lui-même
 avant) et répond `REINITIALISER`. Refuse de s'exécuter hors d'une installation d'essai ; agit sur SON dossier
 (celui du script) : l'assistant lance toujours le script du dossier de l'installation choisie. Avec `-Complet`,
-les images ne sont supprimées que si aucune autre installation de J-ed n'existe sur l'ordinateur (2.0.2).
+les images ne sont supprimées que si aucune autre installation de J-ed n'existe sur l'ordinateur (2.0.2), et
+l'essai reste arrêté. Depuis la 2.0.2-rc5 : sortie en UTF-8 comme les autres scripts ; quand les réponses viennent
+d'un programme, les questions ne sont pas affichées (ligne « Réponse donnée dans l'assistant J-ed. ») et les
+consignes de fin du mode complet renvoient au bouton « Démarrer » de l'assistant.
 
 ## `installer-j-ed.ps1` (depuis la 2.0.2)
 

@@ -6,7 +6,8 @@
     <h1>Bienvenue dans {{ APP_NAME }}</h1>
     <p class="text-muted">Assistant de première configuration : création du compte administrateur et réglages initiaux.</p></div>
   <div class="card-soft">
-    <form method="post">{% csrf_token %}
+    {# 2.0.2-rc5 (R12) : data-envoi-unique : bouton désactivé dès le premier envoi (app.js). #}
+    <form method="post" data-envoi-unique="Création du compte en cours…">{% csrf_token %}
       <h2 class="h5"><span class="step">1</span>Compte administrateur</h2>
       {% include "partials/form.html" %}
       <h2 class="h5 mt-4"><span class="step">2</span>Étapes suivantes</h2>

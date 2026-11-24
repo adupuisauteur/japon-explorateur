@@ -5,7 +5,7 @@ ordre: 20
 public: admin
 resume: Évolutions et améliorations de J-ed, version par version.
 ---
-## Version 2.0.2 (version candidate rc4, 23 novembre 2026)
+## Version 2.0.2 (version candidate rc5, 24 novembre 2026)
 
 Une version pour installer et entretenir J-ed **sans ouvrir PowerShell**. Aucun changement de vos données.
 
@@ -17,6 +17,7 @@ Une version pour installer et entretenir J-ed **sans ouvrir PowerShell**. Aucun 
 - **Avant de commencer** : un guide pas à pas (fichier `AVANT-DE-COMMENCER.html` de l'archive) pour installer
   WSL, Docker Desktop puis J-ed, même sans rien connaître à Docker.
 - **« Ça ne marche pas »** prépare un compte rendu à envoyer, sans aucun mot de passe.
+- **Première configuration** : un double clic sur le bouton de création du compte ne provoque plus d'erreur.
 
 ## Version 2.0.1 (23 novembre 2026)
 

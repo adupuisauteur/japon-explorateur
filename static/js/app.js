@@ -94,6 +94,21 @@
     if (msg && !window.confirm(msg)) { e.preventDefault(); }
   });
 
+  // 2.0.2-rc5 (R12) : formulaire à n'envoyer qu'une fois (double clic, page lente) : boutons désactivés dès l'envoi.
+  document.addEventListener("submit", function (e) {
+    var f = e.target;
+    if (e.defaultPrevented || !f.hasAttribute("data-envoi-unique")) { return; }
+    if (f.getAttribute("data-envoi-en-cours")) { e.preventDefault(); return; }
+    f.setAttribute("data-envoi-en-cours", "1");
+    var texte = f.getAttribute("data-envoi-unique");
+    window.setTimeout(function () {
+      f.querySelectorAll("button[type=submit], button:not([type]), input[type=submit]").forEach(function (b) {
+        b.disabled = true;
+        if (texte && b.tagName === "BUTTON") { b.textContent = texte; }
+      });
+    }, 0);
+  });
+
   // Mise en cache explicite d'une fiche pour consultation hors ligne
   document.addEventListener("click", function (e) {
     var btn = e.target.closest("[data-cache-offline]");

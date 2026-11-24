@@ -461,6 +461,11 @@ class FenetreFileTests(SimpleTestCase):
         self.assertIn('-ExecutionPolicy Bypass', texte)
         self.assertIn('-Sta', texte)
         self.assertIn('"%~dp0assistant\\assistant-j-ed.ps1"', texte)
+        # 2.0.2-rc5 (R6) : PowerShell lancé caché dès le départ (le Terminal de Windows 11 ignore -WindowStyle
+        # Hidden donné après coup), avec repli sur l'ancien lancement.
+        self.assertIn("Start-Process -FilePath powershell.exe -WindowStyle Hidden", texte)
+        self.assertIn('set "JED_ASSISTANT=%~dp0assistant\\assistant-j-ed.ps1"', texte)
+        self.assertIn("if errorlevel 1 start", texte)
 
     def test_scripts_parse_and_every_called_function_exists(self):
         if PWSH is None:
@@ -763,3 +768,112 @@ class MaintenanceTests(AssistantTestCase):
         self.assertTrue(Path(r["Journal"]).name.startswith("installation-"))
         self.assertEqual(r["Fin"]["Code"], 0)
         self.assertEqual(self.ps(f"(Get-InstallationJed '{dest}').Nom"), "jed-2")
+
+
+class Recette202Rc5ModuleTests(AssistantTestCase):
+    """2.0.2-rc5 : corrections des remarques de la recette (partie « module », testée avec PowerShell 7)."""
+
+    def test_r10_old_folder_after_an_update_is_flagged(self):
+        ancien = self.make_install("japon-explorateur-2.0.1-rc3", "japon-explorateur-essai", port=8001, version="2.0.1")
+        nouveau = self.make_install("japon-explorateur-2.0.2-rc2", "japon-explorateur-essai", port=8001, version="2.0.2")
+        autre = self.make_install("jed-2-2.0.1", "jed-2", port=8000, version="2.0.1")
+        ls = json.dumps([{"Name": "japon-explorateur-essai", "Status": "running(8)",
+                          "ConfigFiles": str(nouveau / "docker-compose.yml")}])
+        for d in (ancien, autre):
+            self.ps(f"Add-InstallationListeJed -Fichier '{self.liste}' -Dossier '{d}'")
+        r = {Path(i["Dossier"]).name: i for i in self.ps(f"Find-InstallationsJed -Fichier '{self.liste}'", compose_ls=ls)}
+        self.assertTrue(r["japon-explorateur-2.0.1-rc3"]["Ancien"])
+        self.assertEqual(r["japon-explorateur-2.0.1-rc3"]["Remplacant"], str(nouveau))
+        self.assertIn("ancien dossier", r["japon-explorateur-2.0.1-rc3"]["Etat"])
+        self.assertFalse(r["japon-explorateur-2.0.2-rc2"]["Ancien"])
+        self.assertEqual(r["japon-explorateur-2.0.2-rc2"]["Etat"], "en marche")
+        self.assertFalse(r["jed-2-2.0.1"]["Ancien"], "nom différent : pas un ancien dossier")
+
+    def test_r10_without_running_one_the_most_recent_version_is_current(self):
+        ancien = self.make_install("a-2.0.1", "jed-x", version="2.0.1")
+        nouveau = self.make_install("a-2.0.2", "jed-x", version="2.0.2")
+        for d in (ancien, nouveau):
+            self.ps(f"Add-InstallationListeJed -Fichier '{self.liste}' -Dossier '{d}'")
+        r = {Path(i["Dossier"]).name: i for i in self.ps(f"Find-InstallationsJed -Fichier '{self.liste}'")}
+        self.assertTrue(r["a-2.0.1"]["Ancien"])
+        self.assertFalse(r["a-2.0.2"]["Ancien"])
+        self.assertEqual(r["a-2.0.2"]["Etat"], "arrêtée")
+
+    def test_r22_state_is_unknown_when_docker_does_not_answer(self):
+        d = self.make_install("b", "jed-b")
+        self.ps(f"Add-InstallationListeJed -Fichier '{self.liste}' -Dossier '{d}'")
+        r = self.ps(f"Find-InstallationsJed -Fichier '{self.liste}'", compose_ls_code=1)
+        self.assertEqual(r[0]["Etat"], "? (Docker arrêté)")
+
+    def test_r3_protected_warning_names_each_installation(self):
+        principale = self.make_install("p", "japon-explorateur")
+        essai = self.make_install("e", "japon-explorateur-essai", port=8001)
+        self.assertIn("installation principale", self.ps(f"Get-TexteProtegeeJed (Get-InstallationJed '{principale}')"))
+        texte = self.ps(f"Get-TexteProtegeeJed (Get-InstallationJed '{essai}')")
+        self.assertIn("installation d'essai", texte)
+        self.assertNotIn("principale", texte)
+
+    def test_r8_folder_to_delete_is_named_after_a_failure(self):
+        lignes = "@('== 3/7 Préparation', 'Nouvelle version dans : D:\\JaponEssai\\japon-explorateur-2.0.2', 'ARRÊT : …')"
+        for code in (3, 4):
+            texte = self.ps(f"Get-ConseilDossierMiseAJourJed {code} {lignes}")
+            self.assertIn("D:\\JaponEssai\\japon-explorateur-2.0.2", texte)
+            self.assertIn("aucune de vos données", texte)
+            self.assertIn("ne le supprime pas", texte)
+        existe = ("@(\"ARRÊT : le dossier de destination existe déjà : D:\\J\\japon-explorateur-2.0.2. "
+                  "Supprimez-le ou choisissez-en un autre (-Destination).\")")
+        self.assertIn("D:\\J\\japon-explorateur-2.0.2\n", self.ps(f"Get-ConseilDossierMiseAJourJed 1 {existe}"))
+        self.assertEqual(self.ps(f"Get-ConseilDossierMiseAJourJed 5 {lignes}"), "", "code 5 : le dossier sert aux instructions")
+        self.assertEqual(self.ps(f"Get-ConseilDossierMiseAJourJed 0 {lignes}"), "")
+
+    def test_r16_r17_messages_around_a_restoration(self):
+        self.assertIn("aucun compte à créer", self.ps("(Get-MessageInstallationJed 0 -PourRestauration).Texte"))
+        self.assertIn("créer le compte administrateur", self.ps("(Get-MessageInstallationJed 0).Texte"))
+        ligne = "'Créez maintenant le compte administrateur : http://localhost:8002/comptes/premier-demarrage/'"
+        self.assertIn("restaurée", self.ps(f"Convert-LigneInstallationJed {ligne} -PourRestauration"))
+        self.assertIn("Créez maintenant", self.ps(f"Convert-LigneInstallationJed {ligne}"))
+        technique = "'Pensez à réintroduire DJANGO_SECRET_KEY et AI_KEYS_ENCRYPTION_KEY d''origine.'"
+        texte = self.ps(f"Convert-LigneRestaurationJed {technique}")
+        self.assertNotIn("DJANGO_SECRET_KEY", texte)
+        self.assertIn("clés d'API", texte)
+        self.assertEqual(self.ps("Convert-LigneRestaurationJed 'Base restaurée.'"), "Base restaurée.")
+
+    def test_r17_restoration_shows_the_simple_sentence(self):
+        d = self.make_install("r", "jed-r")
+        tar = self.tmp / "sauvegarde.tar"
+        tar.write_bytes(b"fictif")
+        code = (f"$vues = New-Object System.Collections.Generic.List[string]; "
+                f"$x = Invoke-RestaurationJed (Get-InstallationJed '{d}') '{tar}' -SurLigne {{ param($l) $vues.Add($l) }}; "
+                "[pscustomobject]@{ Ok = $x.Ok; Vues = @($vues) }")
+        r = self.ps(code, restore_texte="Pensez à réintroduire DJANGO_SECRET_KEY et AI_KEYS_ENCRYPTION_KEY d'origine.")
+        self.assertTrue(r["Ok"], r)
+        self.assertFalse(any("DJANGO_SECRET_KEY" in v for v in r["Vues"]), r["Vues"])
+
+    def test_r21_message_after_a_complete_reset(self):
+        r = self.ps("Get-MessageReinitialisationJed -Code 0 -Lignes @('Terminé') -Complet -Dossier 'D:\\J\\essai-copie'")
+        self.assertEqual(r["Niveau"], "ok")
+        self.assertIn("arrêté et vide", r["Texte"])
+        self.assertIn("Démarrer", r["Texte"])
+        self.assertIn("D:\\J\\essai-copie", r["Texte"])
+        self.assertNotIn("redémarre avec une base vide", r["Texte"])
+        self.assertIn("redémarre", self.ps("(Get-MessageReinitialisationJed -Code 0 -Lignes @('Terminé')).Texte"))
+        self.assertEqual(self.ps("(Get-MessageReinitialisationJed -Code 0 -Lignes @('Annulé : rien')).Niveau"), "attention")
+        self.assertEqual(self.ps("(Get-MessageReinitialisationJed -Code 1).Niveau"), "erreur")
+
+    def test_r9_current_step_is_taken_from_the_journal_before_the_question(self):
+        journal = self.tmp / "mise-a-jour-test.log"
+        script = self.tmp / "question.ps1"
+        script.write_text(
+            "\ufeff" + f"Write-Output 'Journal de la mise à jour : {journal}'\r\n"
+            f"Add-Content -LiteralPath '{journal}' -Value '2026-11-24 10:00:00 ETAPE 6/7 Arrêt et démarrage' -Encoding UTF8\r\n"
+            f"Add-Content -LiteralPath '{journal}' -Value '2026-11-24 10:00:01 QUESTION OUI pour continuer' -Encoding UTF8\r\n"
+            "$r = [Console]::In.ReadLine()\r\n"
+            "Write-Output \"lu : $r\"\r\n", encoding="utf-8")
+        code = ("$etapes = New-Object System.Collections.Generic.List[string]; "
+                f"$x = Invoke-ScriptJed -Moteur '{PWSH}' -Arguments @('-NoProfile', '-File', '{script}') "
+                "-SurQuestion { param($q) $etapes.Add('question'); $true } -SurEtape { param($e) $etapes.Add($e) }; "
+                "[pscustomobject]@{ Code = $x.Code; Etapes = @($etapes); Lignes = $x.Lignes }")
+        r = self.ps(code)
+        self.assertEqual(r["Code"], 0, r)
+        self.assertEqual(r["Etapes"][:2], ["6/7 Arrêt et démarrage", "question"])
+        self.assertIn("lu : OUI", r["Lignes"])

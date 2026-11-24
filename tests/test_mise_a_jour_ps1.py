@@ -344,6 +344,20 @@ class UpdateScriptRunTests(SimpleTestCase):
         self.assertLess(question, journal.index(" REPONSE OUI"))
         self.assertLess(journal.index(" REPONSE OUI"), journal.index("compose down"))
 
+    def test_question_asked_by_the_assistant_is_not_printed(self):
+        """2.0.2-rc5 (R11) : réponse donnée dans l'assistant (bouton « Oui ») : le script n'affiche pas « Taper OUI »,
+        il dit que la confirmation a été donnée dans l'assistant (ou refusée)."""
+        result = self.run_script(oui=False, stdin="OUI\n")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("Taper OUI", result.stdout)
+        self.assertIn("Confirmation donnée dans l'assistant J-ed", result.stdout)
+
+    def test_refusal_given_in_the_assistant_is_said(self):
+        result = self.run_script(oui=False, stdin="non\n")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertNotIn("Taper OUI", result.stdout)
+        self.assertIn("Confirmation refusée dans l'assistant J-ed", result.stdout)
+
     def test_refusal_is_written_in_the_journal(self):
         result = self.run_script(oui=False, stdin="non\n")
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)

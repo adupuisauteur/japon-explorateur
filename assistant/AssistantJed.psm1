@@ -76,7 +76,7 @@ function Get-InstallationJed {
     try { $d = [System.IO.Path]::GetFullPath($Dossier).TrimEnd('\', '/') } catch { $d = $Dossier }
     $res = [pscustomobject]@{
         Dossier = $d; Nom = ''; Port = 8000; Version = ''; DossierSauvegardes = ''; Essai = $false
-        Protegee = $false; Valide = $false; Probleme = ''; Etat = 'inconnu'
+        Protegee = $false; Valide = $false; Probleme = ''; Etat = 'inconnu'; Ancien = $false; Remplacant = ''
     }
     if (-not (Test-Path -LiteralPath $d -PathType Container)) {
         $res.Probleme = 'dossier introuvable (déplacé ou supprimé ?)'
@@ -110,6 +110,14 @@ function Get-InstallationJed {
     $res.Protegee = $script:NomsProteges -contains $nom
     $res.Valide = $true
     return $res
+}
+
+function Get-TexteProtegeeJed($Installation) {
+    <# 2.0.2-rc5 (R3) : phrase d'avertissement d'une installation protégée, propre à chacun des deux noms. #>
+    if ($Installation.Nom -eq 'japon-explorateur') {
+        return "« $($Installation.Nom) » est une installation protégée : c'est sans doute votre installation principale."
+    }
+    return "« $($Installation.Nom) » est une installation protégée : c'est votre installation d'essai de référence."
 }
 
 function Get-FichierListeJed {
@@ -152,6 +160,8 @@ function Find-InstallationsJed {
     $dossiers = New-Object System.Collections.Generic.List[string]
     $etats = @{}
     $ls = Invoke-DockerJed '' @('compose', 'ls', '-a', '--format', 'json')
+    # 2.0.2-rc5 (R22) : si Docker ne répond pas, l'état des installations est inconnu (et non « arrêtée »).
+    $dockerMuet = ($ls.Code -ne 0)
     if ($ls.Code -eq 0 -and $ls.Texte) {
         $projets = @()
         try { $projets = @(($ls.Texte | ConvertFrom-Json) | ForEach-Object { $_ }) } catch { $projets = @() }
@@ -177,11 +187,43 @@ function Find-InstallationsJed {
             if ($etats[$cle] -match 'running') { $inst.Etat = 'en marche' } else { $inst.Etat = 'arrêtée' }
             if ($inst.Valide -and $Fichier) { Add-InstallationListeJed $Fichier $inst.Dossier }
         } elseif ($inst.Valide) {
-            $inst.Etat = 'arrêtée'
+            if ($dockerMuet) { $inst.Etat = '? (Docker arrêté)' } else { $inst.Etat = 'arrêtée' }
         }
         $resultat.Add($inst)
     }
+    Set-AnciensDossiersJed $resultat
     return ,@($resultat | Sort-Object -Property Nom, Dossier)
+}
+
+function Set-AnciensDossiersJed {
+    <# 2.0.2-rc5 (R10) : après une mise à jour, l'ancien dossier (gardé exprès) porte le même nom de projet que la
+       nouvelle version. Dans chaque groupe de même nom, l'installation en service est celle qui est en marche ;
+       si aucune ne l'est, celle de la version la plus récente. Les autres sont marquées « ancien dossier ». #>
+    param($Installations)
+    $groupes = @{}
+    foreach ($i in $Installations) {
+        if (-not $i.Valide -or -not $i.Nom) { continue }
+        $cle = $i.Nom.ToLowerInvariant()
+        if (-not $groupes.ContainsKey($cle)) { $groupes[$cle] = New-Object System.Collections.Generic.List[object] }
+        $groupes[$cle].Add($i)
+    }
+    foreach ($g in $groupes.Values) {
+        if ($g.Count -lt 2) { continue }
+        $actuelle = $null
+        foreach ($i in $g) { if ($i.Etat -eq 'en marche') { $actuelle = $i; break } }
+        if (-not $actuelle) {
+            foreach ($i in $g) {
+                if (-not $actuelle -or (Compare-VersionJed $i.Version $actuelle.Version) -gt 0) { $actuelle = $i }
+            }
+        }
+        foreach ($i in $g) {
+            if ([object]::ReferenceEquals($i, $actuelle)) { continue }
+            if ($i.Etat -eq 'en marche') { continue }
+            $i.Ancien = $true
+            $i.Remplacant = $actuelle.Dossier
+            $i.Etat = "ancien dossier (en service : $($actuelle.Version))"
+        }
+    }
 }
 
 # --- Prérequis ---------------------------------------------------------------------------------------------
@@ -510,7 +552,7 @@ function Invoke-ScriptJed {
        -SurAttente est appelé pendant l'attente (la fenêtre y garde la main). Renvoie le code de sortie, les
        lignes affichées et le chemin du journal. #>
     param([string]$Moteur = 'powershell.exe', [string[]]$Arguments, [scriptblock]$SurLigne,
-          [scriptblock]$SurQuestion, [scriptblock]$SurAttente, [string]$Dossier, [string]$Entree)
+          [scriptblock]$SurQuestion, [scriptblock]$SurAttente, [string]$Dossier, [string]$Entree, [scriptblock]$SurEtape)
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = $Moteur
     if ($Dossier) { $psi.WorkingDirectory = $Dossier }
@@ -549,6 +591,9 @@ function Invoke-ScriptJed {
         if (-not $repondu -and $journal -and -not $PSBoundParameters.ContainsKey('Entree')) {
             $etat = Get-EtatJournalJed $journal
             if ($etat.QuestionEnAttente) {
+                # 2.0.2-rc5 (R9) : la dernière ligne affichée par le script peut arriver après la question ; l'étape en
+                # cours est donc prise dans le journal, écrit sans délai, avant d'afficher la question.
+                if ($SurEtape -and $etat.Etape) { & $SurEtape $etat.Etape }
                 $oui = $false
                 if ($SurQuestion) { $oui = [bool](& $SurQuestion $etat.Question) }
                 if ($oui) { $p.StandardInput.WriteLine('OUI') } else { $p.StandardInput.WriteLine('non') }
@@ -568,6 +613,24 @@ function Invoke-ScriptJed {
 }
 
 # --- Messages ------------------------------------------------------------------------------------------
+
+function Get-ConseilDossierMiseAJourJed {
+    <# 2.0.2-rc5 (R8) : après un échec, le dossier de la nouvelle version empêche de relancer la mise à jour.
+       Dire lequel supprimer, et qu'il ne contient aucune donnée. L'assistant ne supprime rien lui-même ; il ne
+       propose pas d'autre nom (décision du 23/11 : noms de dossiers cohérents). Pas de conseil pour le code 5 :
+       le dossier sert alors aux instructions affichées. #>
+    param([int]$Code, [string[]]$Lignes = @())
+    if ($Code -notin @(1, 3, 4)) { return '' }
+    $dossier = ''
+    foreach ($l in $Lignes) {
+        if ($l -match 'le dossier de destination existe déjà : (.+?)\. Supprimez') { $dossier = $Matches[1].Trim(); break }
+        if ($l -match 'Nouvelle version dans : (.+)$') { $dossier = $Matches[1].Trim() }
+    }
+    if (-not $dossier) { return '' }
+    return ("Avant de relancer la mise à jour, supprimez ce dossier (par exemple dans l'Explorateur de fichiers) :`n$dossier`n" +
+        "Il ne contient que les fichiers de la nouvelle version, aucune de vos données (elles sont gardées par Docker). " +
+        "L'assistant ne le supprime pas lui-même.")
+}
 
 function Get-MessageMiseAJourJed([int]$Code) {
     $m = @{
@@ -1000,9 +1063,12 @@ function New-ArgumentsInstallationJed {
     return ,$a
 }
 
-function Get-MessageInstallationJed([int]$Code) {
+function Get-MessageInstallationJed([int]$Code, [switch]$PourRestauration) {
+    $fin = "J-ed est installé et répond. Il reste à créer le compte administrateur dans le navigateur."
+    # 2.0.2-rc5 (R16) : avant une restauration, les comptes viendront de la sauvegarde.
+    if ($PourRestauration) { $fin = "J-ed est installé et répond. La sauvegarde va maintenant y être restaurée : les comptes viendront de la sauvegarde (aucun compte à créer)." }
     $m = @{
-        0 = @('ok', 'Installation réussie', "J-ed est installé et répond. Il reste à créer le compte administrateur dans le navigateur.")
+        0 = @('ok', 'Installation réussie', $fin)
         1 = @('attention', 'Installation arrêtée avant de commencer', "Rien n'a été créé. Le message affiché dit pourquoi (nom, port, archive, Docker).")
         3 = @('attention', 'Construction impossible', "Le plus souvent, Docker ne joint pas Internet (ou un proxy le bloque). Le dossier a été créé, rien n'a démarré : il peut être supprimé avant de recommencer.")
         5 = @('erreur', 'J-ed ne démarre pas', "L'installation est faite mais J-ed ne répond pas. Utilisez « Ça ne marche pas » pour préparer un compte rendu.")
@@ -1012,6 +1078,15 @@ function Get-MessageInstallationJed([int]$Code) {
         return [pscustomobject]@{ Code = $Code; Niveau = $v[0]; Titre = $v[1]; Texte = $v[2] }
     }
     return [pscustomobject]@{ Code = $Code; Niveau = 'erreur'; Titre = "Résultat inattendu (code $Code)"; Texte = 'Gardez le journal et utilisez « Ça ne marche pas ».' }
+}
+
+function Convert-LigneInstallationJed([string]$Ligne, [switch]$PourRestauration) {
+    <# 2.0.2-rc5 (R16) : avant une restauration, la consigne « Créez maintenant le compte administrateur » du script
+       d'installation ne vaut pas : elle est remplacée à l'affichage (le journal garde la ligne d'origine). #>
+    if ($PourRestauration -and $Ligne -match 'Cr.{1,3}ez maintenant le compte administrateur') {
+        return 'La sauvegarde va maintenant être restaurée dans cette installation (les comptes viendront de la sauvegarde).'
+    }
+    return $Ligne
 }
 
 function Get-AdressePremierDemarrageJed($Installation) {
@@ -1066,7 +1141,12 @@ function Invoke-RestaurationJed {
     $d = $Installation.Dossier
     $cp = Invoke-DockerJed $d @('compose', 'cp', $Fichier, "web:/data/$nom") -SurAttente $SurAttente -SurLigne $SurLigne
     if ($cp.Code -ne 0) { $res.Message = "Copie de la sauvegarde dans J-ed impossible (J-ed est-il démarré ?).`n$($cp.Texte)"; return $res }
-    $r = Invoke-DockerJed $d @('compose', 'exec', '-T', 'web', 'python', 'manage.py', 'restore_backup', "/data/$nom", '--yes') -SurAttente $SurAttente -SurLigne $SurLigne
+    # 2.0.2-rc5 (R17) : lignes techniques de restore_backup traduites pour l'affichage (nom de variable propre,
+    # pour ne pas être confondu avec le -SurLigne des fonctions appelées).
+    $afficherRestauration = $SurLigne
+    $filtre = $null
+    if ($afficherRestauration) { $filtre = { param($l) & $afficherRestauration (Convert-LigneRestaurationJed $l) } }
+    $r = Invoke-DockerJed $d @('compose', 'exec', '-T', 'web', 'python', 'manage.py', 'restore_backup', "/data/$nom", '--yes') -SurAttente $SurAttente -SurLigne $filtre
     if ($r.Texte -match 'Sauvegarde de s.{1,3}curit.{1,3} cr.{1,3}.{1,3}e : (\S+)') { $res.Securite = $Matches[1] }
     if ($r.Code -ne 0) {
         $res.Message = "La restauration a échoué.`n$($r.Texte)"
@@ -1079,6 +1159,17 @@ function Invoke-RestaurationJed {
     $res.Message = "Sauvegarde restaurée. J-ed redémarre (une minute environ)."
     if ($res.Securite) { $res.Message += "`nSauvegarde de sécurité faite juste avant : $($res.Securite)" }
     return $res
+}
+
+function Convert-LigneRestaurationJed([string]$Ligne) {
+    <# 2.0.2-rc5 (R17) : la consigne technique de restore_backup (variables du fichier .env) devient une phrase
+       simple : dans la même installation il n'y a rien à faire ; depuis une autre, seules les clés d'API des IA
+       sont à saisir de nouveau, et il faut se reconnecter. #>
+    if ($Ligne -match 'r.{1,3}introduire DJANGO_SECRET_KEY') {
+        return ("Si la sauvegarde vient d'une autre installation : reconnectez-vous, et saisissez de nouveau les clés d'API " +
+            "des services d'IA (elles restent illisibles ailleurs). Rien d'autre à faire.")
+    }
+    return $Ligne
 }
 
 # --- Vérifier la migration, réinitialiser l'essai --------------------------------------------------------
@@ -1099,6 +1190,25 @@ function New-ArgumentsReinitialisationJed([string]$Script, [switch]$Complet) {
     $a = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $Script, '-SansSauvegarde')
     if ($Complet) { $a += '-Complet' }
     return ,$a
+}
+
+function Get-MessageReinitialisationJed {
+    <# 2.0.2-rc5 (R21) : message de fin de la réinitialisation d'un essai. En mode complet, le script ne redémarre
+       pas l'essai : le dire, avec ce qu'il faut faire ensuite. #>
+    param([int]$Code, [string[]]$Lignes = @(), [switch]$Complet, [string]$Dossier)
+    if ($Code -ne 0) {
+        return [pscustomobject]@{ Niveau = 'erreur'; Titre = 'Réinitialisation arrêtée'; Texte = 'Le message affiché dit pourquoi.' }
+    }
+    if (@($Lignes | Where-Object { $_ -match '^Annul' }).Count -gt 0) {
+        return [pscustomobject]@{ Niveau = 'attention'; Titre = 'Annulée'; Texte = 'Rien n''a été effacé.' }
+    }
+    if ($Complet) {
+        return [pscustomobject]@{ Niveau = 'ok'; Titre = 'Essai réinitialisé (réinitialisation complète)'
+            Texte = ("L'essai est arrêté et vide. Pour vous en servir de nouveau : choisissez-le dans la liste et cliquez sur " +
+                "« Démarrer » (J-ed se reconstruit si besoin), puis créez le compte administrateur. Si vous n'en avez plus " +
+                "besoin, vous pouvez supprimer son dossier : $Dossier") }
+    }
+    return [pscustomobject]@{ Niveau = 'ok'; Titre = 'Essai réinitialisé'; Texte = 'L''essai redémarre avec une base vide : créez le compte administrateur dans le navigateur.' }
 }
 
 Export-ModuleMember -Function *-*Jed, Join-CheminJed

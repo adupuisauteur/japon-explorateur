@@ -162,8 +162,9 @@ function Start-OperationJed {
     $texte.ScrollBars = 'Vertical'
     $texte.Font = New-Object System.Drawing.Font('Consolas', 9)
     $texte.Location = New-Object System.Drawing.Point(16, 66)
-    $texte.Size = New-Object System.Drawing.Size(810, 330)
-    $bandeau = New-EtiquetteJed '' 16 404 810 100
+    $texte.Size = New-Object System.Drawing.Size(810, 280)
+    # 2.0.2-rc5 : bandeau plus haut, pour les conseils après un échec (dossier à supprimer, proxy…).
+    $bandeau = New-EtiquetteJed '' 16 354 810 150
     $bandeau.Padding = New-Object System.Windows.Forms.Padding(8)
     $bJournal = New-BoutonJed 'Ouvrir le journal' 16 512 170
     $bFichier = New-BoutonJed 'Afficher le fichier' 196 512 170
@@ -265,7 +266,9 @@ function Show-PrerequisJed {
     $bFermer.Add_Click({ $f.Close() })
     $f.Add_Shown({ & $remplir })
     [void]$f.ShowDialog()
-    Update-BilanJed
+    [void](Update-BilanJed)
+    # 2.0.2-rc5 (R22) : Docker a pu démarrer entre-temps : la liste est relue (états à jour).
+    Update-ListeJed
 }
 
 function Update-BilanJed {
@@ -283,6 +286,10 @@ function Update-BilanJed {
 # --- Liste des installations ---------------------------------------------------------------------------
 
 function Update-ListeJed {
+    # 2.0.2-rc5 (R14) : l'installation choisie reste choisie après la mise à jour de la liste (sinon, depuis la
+    # fenêtre « Opérations de maintenance », on ne pouvait plus en choisir une).
+    $choisie = ''
+    if ($script:ListeVue.SelectedItems.Count -gt 0) { $choisie = Get-CleCheminJed $script:ListeVue.SelectedItems[0].Tag.Dossier }
     $script:Fenetre.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
     try {
         # 2.0.2-rc3 : Find-InstallationsJed renvoie déjà un tableau (« return ,@(…) ») ; l'entourer de @( ) en faisait
@@ -316,9 +323,11 @@ function Update-ListeJed {
             [void]$item.SubItems.Add('')
             $item.ForeColor = [System.Drawing.Color]::Gray
         }
+        if ($i.Ancien) { $item.ForeColor = [System.Drawing.Color]::Gray }
         [void]$item.SubItems.Add($i.Dossier)
         $item.Tag = $i
         [void]$lv.Items.Add($item)
+        if ($choisie -and (Get-CleCheminJed $i.Dossier) -eq $choisie) { $item.Selected = $true }
     }
     $lv.EndUpdate()
     if ($lv.Items.Count -eq 1) { $lv.Items[0].Selected = $true }
@@ -333,6 +342,15 @@ function Get-ChoixJed {
     if (-not $i.Valide) {
         Show-ErreurJed "Cette installation n'est pas utilisable : $($i.Probleme)"
         return $null
+    }
+    if ($i.Ancien) {
+        # 2.0.2-rc5 (R10) : l'ancien dossier, gardé après une mise à jour, partage les données de la version en
+        # service (même nom) : le démarrer ou le mettre à jour remplacerait la version en service.
+        $texte = "Ce dossier contient une ancienne version de « $($i.Nom) » ($($i.Version)), gardée après une mise à jour.`n`n" +
+            "La version en service est dans :`n$($i.Remplacant)`n`n" +
+            "Les deux dossiers utilisent les mêmes données : démarrer ou mettre à jour l'ancien dossier remplacerait la version en service. " +
+            "Choisissez plutôt l'autre ligne de la liste.`n`nContinuer quand même avec l'ancien dossier ?"
+        if (-not (Confirm-ChoixJed $texte 'Ancien dossier')) { return $null }
     }
     return $i
 }
@@ -458,6 +476,7 @@ function Show-MiseAJourJed {
         $d.Title = 'Archive de la nouvelle version'
         if ($d.ShowDialog() -eq 'OK') {
             $tArchive.Text = $d.FileName
+            $infoGitHub.Text = ''   # 2.0.2-rc5 (R15) : le message du téléchargement ne vaut plus pour cette archive
             $trouvee = Find-FichierEmpreinteJed $d.FileName
             if ($trouvee) { $tEmpreinte.Text = $trouvee } else { $tEmpreinte.Text = '' }
             & $verifier
@@ -515,11 +534,13 @@ function Show-MiseAJourJed {
     if ($cProxy.Checked) {
         $tp = Test-AdresseProxyJed $tProxy.Text
         if (-not $tp.Ok) { Show-ErreurJed "Proxy : $($tp.Raison)"; return }
+    }
+    # 2.0.2-rc5 (R4) : l'avertissement « installation protégée » vient AVANT toute écriture dans le fichier .env.
+    if ($i.Protegee -and -not (Confirm-ChoixJed "$(Get-TexteProtegeeJed $i)`n`nConseil : essayez d'abord la mise à jour sur une copie. Continuer quand même ?")) { return }
+    if ($cProxy.Checked) {
         if (-not (Confirm-ChoixJed "Le proxy $($tProxy.Text) va être écrit dans le fichier .env de « $($i.Nom) » (une copie de l'ancien fichier est gardée à côté). La nouvelle version le reprendra.`n`nContinuer ?")) { return }
         Set-ProxyEnvJed -Fichier ([System.IO.Path]::Combine($i.Dossier, '.env')) -Proxy $tProxy.Text
     }
-
-    if ($i.Protegee -and -not (Confirm-ChoixJed "« $($i.Nom) » est une installation protégée (sans doute votre installation principale).`n`nConseil : essayez d'abord la mise à jour sur une copie. Continuer quand même ?")) { return }
 
     $archive = $tArchive.Text
     $empreinte = $tEmpreinte.Text
@@ -539,10 +560,12 @@ function Show-MiseAJourJed {
             Confirm-ChoixJed ("La nouvelle version est prête.`n`nL'ancienne version va maintenant être arrêtée, puis la nouvelle démarrée. " +
                 "Aucune donnée n'est effacée ; si la nouvelle version ne démarre pas, l'assistant revient tout seul à l'ancienne.`n`nContinuer ?") 'Confirmation'
         }
-        $x = Invoke-ScriptJed -Arguments $arguments -SurLigne $ligneEtEtape -SurAttente $surAttente -SurQuestion $question
+        $x = Invoke-ScriptJed -Arguments $arguments -SurLigne $ligneEtEtape -SurAttente $surAttente -SurQuestion $question -SurEtape $surEtape
         $m = Get-MessageMiseAJourJed $x.Code
         $res = New-ResultatJed $m.Niveau $m.Titre $m.Texte $x.Journal $null
         if ($x.Code -in @(1, 3, 5)) { $res = Add-ExplicationJed $res $x.Lignes }
+        $conseil = Get-ConseilDossierMiseAJourJed $x.Code $x.Lignes
+        if ($conseil) { $res.Texte += "`n`n$conseil" }
         return $res
     }
     Update-ListeJed
@@ -624,7 +647,7 @@ function Show-NouvelleInstallationJed {
     $infoNom = New-EtiquetteJed '' 456 196 280 44
     $f.Controls.Add((New-EtiquetteJed 'Emplacement (un dossier neuf) :' 16 244 720 22))
     $tDossier = New-ZoneTexteJed 16 268
-    $bDossier = New-BoutonJed 'Choisir l''emplacement…' 586 266 140 30
+    $bDossier = New-BoutonJed 'Choisir…' 586 266 140 30   # 2.0.2-rc5 (R23) : libellé coupé auparavant
     $f.Controls.Add((New-EtiquetteJed 'Dossier des sauvegardes de cette installation :' 16 306 720 22))
     $tSauv = New-ZoneTexteJed 16 330
     $bSauv = New-BoutonJed 'Choisir…' 586 328 140 30
@@ -698,6 +721,7 @@ function Show-NouvelleInstallationJed {
         $d.Filter = 'Archive de J-ed (*.zip)|*.zip'
         if ($d.ShowDialog() -eq 'OK') {
             $tArchive.Text = $d.FileName
+            $infoGitHub.Text = ''   # 2.0.2-rc5 (R15) : le message du téléchargement ne vaut plus pour cette archive
             $trouvee = Find-FichierEmpreinteJed $d.FileName
             if ($trouvee) { $tEmpreinte.Text = $trouvee } else { $tEmpreinte.Text = '' }
             & $verifierArchive
@@ -755,11 +779,12 @@ function Show-NouvelleInstallationJed {
     $arguments = New-ArgumentsInstallationJed -Script $scriptInst -Archive $tArchive.Text -Empreinte $tEmpreinte.Text `
         -Destination $tDossier.Text -Nom $tNom.Text -Port $port -DossierSauvegardes $tSauv.Text -Proxy $proxy -SansArgos:(-not $cArgos.Checked)
     $destination = $tDossier.Text
+    $restauration = [bool]$PourRestauration
     $r = Start-OperationJed "Installer « $($tNom.Text) »" {
         param($surLigne, $surAttente, $surEtape)
-        $ligneEtEtape = { param($l) & $surLigne $l; if ($l -match '^== (.+)$') { & $surEtape $Matches[1] } }
+        $ligneEtEtape = { param($l) & $surLigne (Convert-LigneInstallationJed $l -PourRestauration:$restauration); if ($l -match '^== (.+)$') { & $surEtape $Matches[1] } }
         $x = Invoke-ScriptJed -Arguments $arguments -SurLigne $ligneEtEtape -SurAttente $surAttente
-        $m = Get-MessageInstallationJed $x.Code
+        $m = Get-MessageInstallationJed $x.Code -PourRestauration:$restauration
         $res = New-ResultatJed $m.Niveau $m.Titre $m.Texte $x.Journal $null
         if ($x.Code -in @(1, 3, 5)) { $res = Add-ExplicationJed $res $x.Lignes }
         return $res
@@ -836,7 +861,7 @@ function Show-RestaurationJed {
         $cible = $choisie
         if ($cible.Etat -ne 'en marche') { Show-InfoJed "« $($cible.Nom) » est arrêtée : démarrez-la d'abord."; return }
         $texte = "La base actuelle de « $($cible.Nom) » va être remplacée par celle de la sauvegarde. J-ed fait d'abord une sauvegarde de sécurité de l'état actuel."
-        if ($cible.Protegee) { $texte = "ATTENTION : « $($cible.Nom) » est une installation protégée (sans doute votre installation principale).`n`n" + $texte + "`n`nConseil : restaurez plutôt dans une nouvelle installation." }
+        if ($cible.Protegee) { $texte = "ATTENTION : $(Get-TexteProtegeeJed $cible)`n`n" + $texte + "`n`nConseil : restaurez plutôt dans une nouvelle installation." }
         if (-not (Read-ConfirmationJed $texte 'RESTAURER' 'Restaurer une sauvegarde')) { return }
     }
     [void](Start-OperationJed "Restaurer dans « $($cible.Nom) »" {
@@ -916,27 +941,36 @@ function Start-ReinitialisationJed {
     if (-not $i.Essai) { Show-InfoJed "« $($i.Nom) » n'est pas une installation d'essai (son nom ne contient pas « essai ») : la réinitialisation est réservée aux essais."; return }
     $script = [System.IO.Path]::Combine($i.Dossier, 'reinitialiser-essai.ps1')
     if (-not (Test-Path -LiteralPath $script)) { Show-ErreurJed "reinitialiser-essai.ps1 est absent du dossier de « $($i.Nom) »."; return }
-    $f = New-FenetreJed "Réinitialiser l'essai « $($i.Nom) »" 640 340
+    $f = New-FenetreJed "Réinitialiser l'essai « $($i.Nom) »" 640 420
     $f.Controls.Add((New-EtiquetteJed ("La réinitialisation EFFACE les données de cet essai (base, notices, journaux) puis le redémarre vide. " +
         "Le script refuse toute installation qui n'est pas un essai.") 16 14 600 66))
+    # 2.0.2-rc5 (R20) : deux options indépendantes, présentées comme telles.
+    $options = New-EtiquetteJed 'Options (vous pouvez cocher les deux) :' 16 86 600 24
+    $options.Font = $script:PoliceGras
     $cSauver = New-Object System.Windows.Forms.CheckBox
     $cSauver.Text = 'Faire d''abord une sauvegarde de l''essai (conseillé)'
-    $cSauver.Location = New-Object System.Drawing.Point(16, 90); $cSauver.Size = New-Object System.Drawing.Size(600, 26)
+    $cSauver.Location = New-Object System.Drawing.Point(16, 114); $cSauver.Size = New-Object System.Drawing.Size(600, 26)
     $cSauver.Checked = ($i.Etat -eq 'en marche')
     $cSauver.Enabled = ($i.Etat -eq 'en marche')
+    $noteSauver = New-EtiquetteJed 'Pour pouvoir revenir en arrière. Possible seulement si l''essai est en marche.' 36 140 580 22
+    $noteSauver.ForeColor = [System.Drawing.Color]::DimGray
     $cComplet = New-Object System.Windows.Forms.CheckBox
-    $cComplet.Text = 'Réinitialisation complète (paquets de langues Argos et images aussi)'
-    $cComplet.Location = New-Object System.Drawing.Point(16, 120); $cComplet.Size = New-Object System.Drawing.Size(600, 26)
-    $bOk = New-BoutonJed 'Continuer' 296 240 160
+    $cComplet.Text = 'Réinitialisation complète'
+    $cComplet.Location = New-Object System.Drawing.Point(16, 172); $cComplet.Size = New-Object System.Drawing.Size(600, 26)
+    $noteComplet = New-EtiquetteJed ('Efface aussi les paquets de langues Argos de cet essai et, si aucune autre installation ne s''en sert, ' +
+        'les images de J-ed. L''essai reste alors arrêté : « Démarrer » le reconstruit.') 36 198 580 48
+    $noteComplet.ForeColor = [System.Drawing.Color]::DimGray
+    $bOk = New-BoutonJed 'Continuer' 296 310 160
     $bOk.DialogResult = 'OK'
-    $bNon = New-BoutonJed 'Annuler' 466 240 150
+    $bNon = New-BoutonJed 'Annuler' 466 310 150
     $bNon.DialogResult = 'Cancel'
     $f.CancelButton = $bNon
-    $f.Controls.AddRange(@($cSauver, $cComplet, $bOk, $bNon))
+    $f.Controls.AddRange(@($options, $cSauver, $noteSauver, $cComplet, $noteComplet, $bOk, $bNon))
     if ($f.ShowDialog() -ne 'OK') { return }
     if (-not (Read-ConfirmationJed "Les données de l'essai « $($i.Nom) » vont être effacées." 'REINITIALISER' 'Réinitialiser l''essai')) { return }
     $sauver = $cSauver.Checked
-    $arguments = New-ArgumentsReinitialisationJed $script -Complet:$cComplet.Checked
+    $complet = $cComplet.Checked
+    $arguments = New-ArgumentsReinitialisationJed $script -Complet:$complet
     [void](Start-OperationJed "Réinitialiser l'essai « $($i.Nom) »" {
         param($surLigne, $surAttente, $surEtape)
         if ($sauver) {
@@ -948,9 +982,10 @@ function Start-ReinitialisationJed {
         & $surEtape 'Réinitialisation…'
         $ligneEtEtape = { param($l) & $surLigne $l; if ($l -match '^== (.+)$') { & $surEtape $Matches[1] } }
         $x = Invoke-ScriptJed -Arguments $arguments -Dossier $i.Dossier -Entree "REINITIALISER`n" -SurLigne $ligneEtEtape -SurAttente $surAttente
-        if ($x.Code -ne 0) { return Add-ExplicationJed (New-ResultatJed 'erreur' 'Réinitialisation arrêtée' 'Le message affiché dit pourquoi.' $null $null) $x.Lignes }
-        if (@($x.Lignes | Where-Object { $_ -match '^Annul' }).Count -gt 0) { return New-ResultatJed 'attention' 'Annulée' 'Rien n''a été effacé.' $null $null }
-        return New-ResultatJed 'ok' 'Essai réinitialisé' 'L''essai redémarre avec une base vide.' $null $null
+        $m = Get-MessageReinitialisationJed -Code $x.Code -Lignes $x.Lignes -Complet:$complet -Dossier $i.Dossier
+        $res = New-ResultatJed $m.Niveau $m.Titre $m.Texte $null $null
+        if ($x.Code -ne 0) { $res = Add-ExplicationJed $res $x.Lignes }
+        return $res
     })
     Update-ListeJed
 }
@@ -1063,10 +1098,11 @@ function Show-AssistantJed {
     $script:EtiquettePrerequis = New-EtiquetteJed 'Prérequis : vérification…' 20 514 640 26
     $script:EtiquettePrerequis.Font = $script:PoliceGras
     $bPrerequis = New-BoutonJed 'Voir les prérequis' 680 510 280
-    $bMaintenance = New-BoutonJed 'Opérations de maintenance' 20 560 300 40
-    $bPanne = New-BoutonJed 'Ça ne marche pas' 340 560 300 40
-    $bAide = New-BoutonJed 'Aide : Avant de commencer' 660 560 300 40
-    $f.Controls.AddRange(@($titre, $sous, $bMaj, $bNouvelle, $groupe, $script:EtiquettePrerequis, $bPrerequis, $bMaintenance, $bPanne, $bAide))
+    $bMaintenance = New-BoutonJed 'Opérations de maintenance' 20 560 230 40
+    $bPanne = New-BoutonJed 'Ça ne marche pas' 260 560 210 40
+    $bAide = New-BoutonJed 'Aide : avant de commencer' 480 560 260 40
+    $bFermer = New-BoutonJed 'Fermer' 750 560 210 40
+    $f.Controls.AddRange(@($titre, $sous, $bMaj, $bNouvelle, $groupe, $script:EtiquettePrerequis, $bPrerequis, $bMaintenance, $bPanne, $bAide, $bFermer))
 
     $bMaj.Add_Click({ Show-MiseAJourJed })
     $bNouvelle.Add_Click({ [void](Show-NouvelleInstallationJed) })
@@ -1099,6 +1135,7 @@ function Show-AssistantJed {
     $bMaintenance.Add_Click({ Show-MaintenanceJed })
     $bPanne.Add_Click({ Start-CompteRenduJed })
     $bAide.Add_Click({ Open-AideJed '' })
+    $bFermer.Add_Click({ $f.Close() })
     $f.Add_Shown({
         [System.Windows.Forms.Application]::DoEvents()
         $bilan = Update-BilanJed
