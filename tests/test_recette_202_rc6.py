@@ -114,6 +114,7 @@ class FenetreRc6Tests(SimpleTestCase):
         ico = (ROOT / "assistant" / "j-ed.ico").read_bytes()
         self.assertEqual(ico[:4], b"\x00\x00\x01\x00", "fichier .ico")
         self.assertGreaterEqual(int.from_bytes(ico[4:6], "little"), 4, "plusieurs tailles")
+        self.assertIn("<svg", lire("static/img/logo-j-ed.svg"), "logo vectoriel de l'auteur, source de l'icône")
         self.assertIn("if ($script:IconeJed) { $f.Icon = $script:IconeJed }", self.fonction("New-FenetreJed"))
         self.assertIn("if ($script:IconeJed) { $f.Icon = $script:IconeJed }", self.fonction("Show-AssistantJed"))
         self.assertIn("SetCurrentProcessExplicitAppUserModelID('J-ed.Assistant')", self.code)

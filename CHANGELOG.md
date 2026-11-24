@@ -15,7 +15,8 @@ réussie en 1 h 39 ; vérification courte de la rc5 réussie, sans défaut bloqu
   opération indique depuis combien de minutes l'étape en cours dure ; après un échec, la nouvelle fenêtre reprend
   les choix de la tentative précédente (Argos compris) ; fin guidée : rappel du fichier `.env` à garder ; Bureau
   prévenu de l'ajout des raccourcis (et conseil F5) ; **icône de J-ed** sur les fenêtres, dans la barre des
-  tâches et sur le raccourci « Assistant J-ed » ; choix de restauration lisible sur deux lignes.
+  tâches et sur le raccourci « Assistant J-ed » (faite à partir du logo vectoriel, `static/img/logo-j-ed.svg`,
+  fourni par l'auteur le 24/11) ; choix de restauration lisible sur deux lignes.
 - **Première configuration** : la case « Installer maintenant la traduction hors ligne » n'est plus proposée quand
   l'installation a été faite sans Argos (lu dans `COMPOSE_PROFILES`).
 - Nouveaux tests (`tests/test_recette_202_rc6.py` et compléments) ; 943 tests.
