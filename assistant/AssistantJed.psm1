@@ -614,6 +614,35 @@ function Invoke-ScriptJed {
 
 # --- Messages ------------------------------------------------------------------------------------------
 
+function Test-ProxyEnvJed {
+    <# 2.0.2 (N13) : le fichier .env contient-il déjà ce proxy (HTTP_PROXY et HTTPS_PROXY) ? Alors rien à demander
+       ni à écrire. Ne renvoie qu'un booléen (le .env contient des secrets). #>
+    param([string]$Fichier, [string]$Proxy)
+    if (-not $Proxy -or -not (Test-Path -LiteralPath $Fichier)) { return $false }
+    $v = Read-EnvJed $Fichier
+    return ($v['HTTP_PROXY'] -eq $Proxy -and $v['HTTPS_PROXY'] -eq $Proxy)
+}
+
+function Get-DossierNouvelleVersionJed([string[]]$Lignes = @()) {
+    <# 2.0.2 (N14) : dossier de la nouvelle version, d'après la sortie de mettre-a-jour.ps1. #>
+    foreach ($l in $Lignes) { if ($l -match 'Nouvelle version dans : (.+)$') { return $Matches[1].Trim() } }
+    return ''
+}
+
+function Get-ConseilDossierInstallationJed {
+    <# 2.0.2 (N15) : après une installation qui n'a pas abouti, nommer le dossier à supprimer avant de recommencer
+       (comme pour la mise à jour, R8). #>
+    param([int]$Code, [string[]]$Lignes = @())
+    if ($Code -eq 0) { return '' }
+    foreach ($l in $Lignes) {
+        if ($l -match '^Le dossier (.+?) a .{1,3}t.{1,3} cr.{1,3}. ; il peut') {
+            return ("Avant de recommencer, supprimez ce dossier (par exemple dans l'Explorateur de fichiers) :`n$($Matches[1])`n" +
+                "Il ne contient aucune de vos données. L'assistant ne le supprime pas lui-même.")
+        }
+    }
+    return ''
+}
+
 function Get-ConseilDossierMiseAJourJed {
     <# 2.0.2-rc5 (R8) : après un échec, le dossier de la nouvelle version empêche de relancer la mise à jour.
        Dire lequel supprimer, et qu'il ne contient aucune donnée. L'assistant ne supprime rien lui-même ; il ne

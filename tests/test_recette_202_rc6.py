@@ -155,3 +155,33 @@ class PremiereConfigurationSansArgosTests(TestCase):
         self.assertIn('{"argos", "hors-ligne"}', source)
         compose = lire("docker-compose.yml")
         self.assertIn("env_file: .env", compose, "COMPOSE_PROFILES parvient aux conteneurs par le fichier .env")
+
+
+class Version202FinaleTests(SimpleTestCase):
+    """2.0.2 définitive : N13 à N16 (fenêtre et guide)."""
+
+    def setUp(self):
+        self.code = lire("assistant/assistant-j-ed.ps1")
+
+    def fonction(self, nom):
+        debut = self.code.index(f"function {nom}")
+        suite = self.code.find("\nfunction ", debut + 10)
+        return self.code[debut:suite if suite > 0 else len(self.code)]
+
+    def test_n13_no_proxy_question_when_already_written(self):
+        maj = self.fonction("Show-MiseAJourJed")
+        self.assertIn("-not (Test-ProxyEnvJed -Fichier $fichierEnv -Proxy $tProxy.Text)", maj)
+
+    def test_n14_shortcuts_found_by_folder(self):
+        maj = self.fonction("Show-MiseAJourJed")
+        self.assertIn("$suiteMaj.Dossier = Get-DossierNouvelleVersionJed $x.Lignes", maj)
+        self.assertIn("Get-InstallationJed $suiteMaj.Dossier", maj)
+        self.assertNotIn("$_.Version -ne $i.Version", maj)
+        self.assertIn("Raccourcis mis à jour", maj)
+
+    def test_n15_installation_failure_names_the_folder(self):
+        self.assertIn("Get-ConseilDossierInstallationJed $x.Code $x.Lignes", self.fonction("Show-NouvelleInstallationJed"))
+
+    def test_n16_download_speed(self):
+        self.assertIn("(en fonction de la vitesse de\n    téléchargement)", lire("AVANT-DE-COMMENCER.html"))
+        self.assertIn("(en fonction de la vitesse de téléchargement)", lire("docs/aide/assistant-j-ed.md"))

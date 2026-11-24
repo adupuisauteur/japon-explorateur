@@ -1,8 +1,27 @@
 # Historique des versions
 
-## 2.0.2-rc6 — 24 novembre 2026
+## 2.0.2 — 24 novembre 2026
 
-**Version candidate rc6**, remarques N1 à N12 de la recette de la rc5 (installation complète sur un Windows 11 neuf
+**L'assistant graphique Windows.** Un double-clic sur `J-ed.cmd` ouvre une fenêtre qui vérifie l'ordinateur,
+installe J-ed (même une deuxième fois, sur un autre port), le met à jour (au besoin en téléchargeant la dernière
+version sur GitHub), le vérifie, le sauvegarde et le restaure (aussi dans une nouvelle installation), retrouve un
+mot de passe oublié, réinitialise une installation d'essai et prépare un compte rendu sans aucun secret. Il reprend
+le proxy de Windows. Le guide « Avant de commencer » (HTML et PDF) mène d'un Windows neuf à J-ed installé. Aucun
+changement des données. Recette des versions candidates rc1 à rc6 les 23 et 24 novembre 2026, dont une
+installation complète sur un Windows 11 neuf (1 h 39, en suivant seulement le guide et l'assistant).
+
+Dernières corrections (recette de la rc6, remarques N13 à N16) :
+
+- la mise à jour ne demande plus d'écrire le proxy quand le fichier `.env` le contient déjà ;
+- après une mise à jour qui garde le même numéro de version, les raccourcis sont bien mis à jour (la nouvelle
+  installation est retrouvée par son dossier), et la liste des raccourcis écrits est affichée ;
+- après une installation qui n'a pas abouti, le message nomme le dossier à supprimer avant de recommencer ;
+- guide : « 10 à 30 minutes (en fonction de la vitesse de téléchargement) ».
+- 950 tests.
+
+### Version candidate rc6 (24 novembre 2026)
+
+Remarques N1 à N12 de la recette de la rc5 (installation complète sur un Windows 11 neuf
 réussie en 1 h 39 ; vérification courte de la rc5 réussie, sans défaut bloquant ; aucun changement des données) :
 
 - **« Avant de commencer »** (HTML et PDF) : fermer le Terminal puis redémarrer après WSL ; que faire si Docker

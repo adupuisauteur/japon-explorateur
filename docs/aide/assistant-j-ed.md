@@ -64,7 +64,8 @@ l'installation et les écrit dans le fichier `.env` de son dossier. **Gardez une
 (clé USB rangée, gestionnaire de mots de passe) : elle sera nécessaire pour passer J-ed sur un autre ordinateur, et
 elle ne figure pas dans les sauvegardes de J-ed. Ne l'envoyez à personne.
 
-Pendant l'installation, le titre de la fenêtre indique depuis combien de minutes l'étape en cours dure : la
+La première installation prend 10 à 30 minutes (en fonction de la vitesse de téléchargement). Pendant
+l'installation, le titre de la fenêtre indique depuis combien de minutes l'étape en cours dure : la
 construction peut rester longtemps sans nouvelle ligne. Si l'installation n'aboutit pas, la fenêtre suivante reprend
 les choix de la tentative précédente.
 

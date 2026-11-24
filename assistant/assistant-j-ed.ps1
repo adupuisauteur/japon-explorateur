@@ -560,9 +560,11 @@ function Show-MiseAJourJed {
     }
     # 2.0.2-rc5 (R4) : l'avertissement « installation protégée » vient AVANT toute écriture dans le fichier .env.
     if ($i.Protegee -and -not (Confirm-ChoixJed "$(Get-TexteProtegeeJed $i)`n`nConseil : essayez d'abord la mise à jour sur une copie. Continuer quand même ?")) { return }
-    if ($cProxy.Checked) {
+    $fichierEnv = [System.IO.Path]::Combine($i.Dossier, '.env')
+    # 2.0.2 (N13) : rien à demander ni à écrire quand le .env contient déjà ce proxy.
+    if ($cProxy.Checked -and -not (Test-ProxyEnvJed -Fichier $fichierEnv -Proxy $tProxy.Text)) {
         if (-not (Confirm-ChoixJed "Le proxy $($tProxy.Text) va être écrit dans le fichier .env de « $($i.Nom) » (une copie de l'ancien fichier est gardée à côté). La nouvelle version le reprendra.`n`nContinuer ?")) { return }
-        Set-ProxyEnvJed -Fichier ([System.IO.Path]::Combine($i.Dossier, '.env')) -Proxy $tProxy.Text
+        Set-ProxyEnvJed -Fichier $fichierEnv -Proxy $tProxy.Text
     }
 
     $archive = $tArchive.Text
@@ -575,6 +577,7 @@ function Show-MiseAJourJed {
         return
     }
     $arguments = New-ArgumentsMiseAJourJed -Script $scriptMaj -Archive $archive -Actuel $i.Dossier -DossierSauvegardes $sauvegardes -Empreinte $empreinte
+    $suiteMaj = @{ Dossier = '' }   # 2.0.2 (N14) : dossier de la nouvelle version, pour les raccourcis
     $r = Start-OperationJed "Mettre à jour « $($i.Nom) »" {
         param($surLigne, $surAttente, $surEtape)
         $ligneEtEtape = { param($l) & $surLigne $l; if ($l -match '^== (.+)$') { & $surEtape $Matches[1] } }
@@ -589,12 +592,24 @@ function Show-MiseAJourJed {
         if ($x.Code -in @(1, 3, 5)) { $res = Add-ExplicationJed $res $x.Lignes }
         $conseil = Get-ConseilDossierMiseAJourJed $x.Code $x.Lignes
         if ($conseil) { $res.Texte += "`n`n$conseil" }
+        $suiteMaj.Dossier = Get-DossierNouvelleVersionJed $x.Lignes
         return $res
     }
     Update-ListeJed
     if ($r -and $r.Niveau -eq 'ok' -and (Confirm-ChoixJed 'Mise à jour réussie. Mettre à jour les raccourcis « J-ed » du Bureau et du menu Démarrer ?')) {
-        $nouvelle = $script:Installations | Where-Object { $_.Nom -eq $i.Nom -and $_.Version -ne $i.Version } | Select-Object -First 1
-        if ($nouvelle) { [void](New-RaccourcisJed $nouvelle $nouvelle.Dossier) }
+        # 2.0.2 (N14) : la nouvelle installation est retrouvée par son dossier (et non par un numéro de version
+        # différent : une réinstallation garde le même numéro) ; la liste des raccourcis écrits est affichée.
+        $nouvelle = $null
+        if ($suiteMaj.Dossier -and (Test-Path -LiteralPath $suiteMaj.Dossier)) { $nouvelle = Get-InstallationJed $suiteMaj.Dossier }
+        if (-not $nouvelle -or -not $nouvelle.Valide) {
+            $nouvelle = $script:Installations | Where-Object { $_.Nom -eq $i.Nom -and -not $_.Ancien -and $_.Dossier -ne $i.Dossier } | Select-Object -First 1
+        }
+        if ($nouvelle) {
+            $faits = New-RaccourcisJed $nouvelle $nouvelle.Dossier
+            Show-InfoJed ("Raccourcis mis à jour :`n" + ($faits -join "`n") + "`n`nSi une icône n'apparaît pas tout de suite sur le Bureau : cliquez sur le Bureau et appuyez sur F5.")
+        } else {
+            Show-ErreurJed 'Nouvelle installation introuvable : raccourcis non modifiés. Utilisez « Créer les raccourcis » dans la fenêtre principale.'
+        }
     }
 }
 
@@ -840,6 +855,8 @@ function Show-NouvelleInstallationJed {
         $m = Get-MessageInstallationJed $x.Code -PourRestauration:$restauration
         $res = New-ResultatJed $m.Niveau $m.Titre $m.Texte $x.Journal $null
         if ($x.Code -in @(1, 3, 5)) { $res = Add-ExplicationJed $res $x.Lignes }
+        $conseil = Get-ConseilDossierInstallationJed $x.Code $x.Lignes   # 2.0.2 (N15)
+        if ($conseil) { $res.Texte += "`n`n$conseil" }
         return $res
     }
     if (-not $r -or $r.Niveau -ne 'ok') {

@@ -68,7 +68,7 @@ Les nouveautés de la dernière version.
 Voici ce qui change dans la dernière version. Les versions précédentes sont décrites dans
 l'**Historique des versions** (Administration).
 
-### Version 2.0.2 (version candidate rc6, 24 novembre 2026)
+### Version 2.0.2 (24 novembre 2026)
 
 Une version pour installer et entretenir J-ed **sans ouvrir PowerShell**. Aucun changement de vos données.
 
@@ -1076,7 +1076,8 @@ l'installation et les écrit dans le fichier `.env` de son dossier. **Gardez une
 (clé USB rangée, gestionnaire de mots de passe) : elle sera nécessaire pour passer J-ed sur un autre ordinateur, et
 elle ne figure pas dans les sauvegardes de J-ed. Ne l'envoyez à personne.
 
-Pendant l'installation, le titre de la fenêtre indique depuis combien de minutes l'étape en cours dure : la
+La première installation prend 10 à 30 minutes (en fonction de la vitesse de téléchargement). Pendant
+l'installation, le titre de la fenêtre indique depuis combien de minutes l'étape en cours dure : la
 construction peut rester longtemps sans nouvelle ligne. Si l'installation n'aboutit pas, la fenêtre suivante reprend
 les choix de la tentative précédente.
 
@@ -1535,7 +1536,7 @@ Les mots de J-ed, en une phrase chacun.
 
 Évolutions et améliorations de J-ed, version par version.
 
-### Version 2.0.2 (version candidate rc6, 24 novembre 2026)
+### Version 2.0.2 (24 novembre 2026)
 
 Une version pour installer et entretenir J-ed **sans ouvrir PowerShell**. Aucun changement de vos données.
 

@@ -893,3 +893,29 @@ class Recette202Rc6ModuleTests(AssistantTestCase):
         faits = self.ps(f"New-RaccourcisJed (Get-InstallationJed '{d}') '{d}' -Dossiers @('{bureau}')")
         self.assertEqual([Path(x).name for x in faits], ["J-ed - jed-r.url"])
         self.assertIn("URL=http://localhost:", (bureau / "J-ed - jed-r.url").read_text(encoding="ascii"))
+
+
+class Version202FinaleModuleTests(AssistantTestCase):
+    """2.0.2 définitive : remarques N13 à N15 de la recette de la rc6."""
+
+    def test_n13_proxy_already_in_env(self):
+        d = self.make_install("p", "jed-p")
+        env = d / ".env"
+        env.write_text(env.read_text(encoding="utf-8") + "HTTP_PROXY=http://proxy.exemple.fr:8080\n"
+                       "HTTPS_PROXY=http://proxy.exemple.fr:8080\n", encoding="utf-8")
+        self.assertTrue(self.ps(f"Test-ProxyEnvJed -Fichier '{env}' -Proxy 'http://proxy.exemple.fr:8080'"))
+        self.assertFalse(self.ps(f"Test-ProxyEnvJed -Fichier '{env}' -Proxy 'http://autre.exemple.fr:3128'"))
+        self.assertFalse(self.ps(f"Test-ProxyEnvJed -Fichier '{d / 'absent.env'}' -Proxy 'http://proxy.exemple.fr:8080'"))
+
+    def test_n14_new_folder_read_from_the_update_output(self):
+        lignes = "@('== 3/7 Décompression', 'Nouvelle version dans : D:\\JaponEssai\\japon-explorateur-2.0.2-rc6')"
+        self.assertEqual(self.ps(f"Get-DossierNouvelleVersionJed {lignes}"), "D:\\JaponEssai\\japon-explorateur-2.0.2-rc6")
+        self.assertEqual(self.ps("Get-DossierNouvelleVersionJed @('rien')"), "")
+
+    def test_n15_folder_named_after_a_failed_installation(self):
+        lignes = ("@('ARRÊT : construction impossible.', 'Le dossier D:\\JaponEssai\\jed-echec-2.0.2 a été créé ; il peut être "
+                  "supprimé avant de recommencer. Aucune autre installation n''a été touchée.')")
+        texte = self.ps(f"Get-ConseilDossierInstallationJed 3 {lignes}")
+        self.assertIn("D:\\JaponEssai\\jed-echec-2.0.2", texte)
+        self.assertIn("aucune de vos données", texte)
+        self.assertEqual(self.ps(f"Get-ConseilDossierInstallationJed 0 {lignes}"), "")
