@@ -1,5 +1,30 @@
 # Historique des versions
 
+## 2.0.3 — version candidate rc1 (26 novembre 2026)
+
+**J-ed sous Linux (Ubuntu 26.04 LTS).** Les **mêmes scripts** `.ps1` servent sous Windows (Windows PowerShell 5.1) et
+sous Linux (PowerShell 7) : une seule logique (décision D1 du 26 novembre 2026). Sous Linux, l'assistant est un
+**menu dans le Terminal** (`j-ed.sh`, `assistant/menu-j-ed.ps1`), jumeau de la fenêtre de Windows et appuyé sur le
+même module (`assistant/AssistantJed.psm1`). Aucun changement des données ; Windows inchangé.
+
+- Lot 0 : contrat des scripts commun aux deux systèmes (`docs/contrat-scripts.md`) ; sous Linux, le proxy du `.env`
+  est donné à la commande `docker` pendant une construction (sinon « failed to authorize: DeadlineExceeded »,
+  constaté sur une machine virtuelle derrière un proxy) ; messages Linux (Docker Engine, l'application Fichiers).
+- Lot 1 : menu texte (accueil, liste des installations, prérequis Linux, nouvelle installation, démarrer, arrêter,
+  ouvrir, vérifier, ajouter, sauvegarde) ; proxy des réglages d'Ubuntu ; refus de `root` ; avertissement quand le
+  conteneur (utilisateur 1000) ne peut pas écrire dans le dossier des sauvegardes.
+- Lot 2 : mise à jour sûre depuis le menu (script de la nouvelle version, question avant l'arrêt de l'ancienne,
+  retour automatique) ; dossier temporaire propre à chaque compte ; outil de recette
+  `tests/outils/archives-essai.ps1` (archives « construction impossible » et « démarrage impossible »).
+- Lot 3 : restauration (nouvelle installation ou installation choisie), mot de passe oublié, vérifier la migration,
+  réinitialiser l'essai, raccourcis du menu Applications, « Ça ne marche pas » ; tous les scripts refusent `root`.
+- Lot 4 : guide **« Avant de commencer (Linux) »** (`AVANT-DE-COMMENCER-LINUX.html` et `.pdf` : Terminal, proxy,
+  Docker Engine, groupe `docker`, PowerShell 7.6, puis J-ed) ; lien « Comment faire ? » de chaque prérequis ;
+  raccourcis rattachés à l'installation et mis à jour après une mise à jour ; aide « L'assistant J-ed » (partie
+  « Sous Linux ») ; `VERSION` 2.0.3.
+- 1027 tests, aussi sous un compte non `root` (comme sur GitHub). Essais réels sur une machine virtuelle
+  Ubuntu 26.04 : installation de la 2.0.2 par les scripts tels quels (26 novembre 2026) ; recette de la rc1 à venir.
+
 ## 2.0.2 — 24 novembre 2026
 
 **L'assistant graphique Windows.** Un double-clic sur `J-ed.cmd` ouvre une fenêtre qui vérifie l'ordinateur,

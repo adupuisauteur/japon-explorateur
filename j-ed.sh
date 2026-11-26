@@ -11,7 +11,7 @@ if [ "$UID_ACTUEL" = "0" ]; then
 fi
 if ! command -v pwsh >/dev/null 2>&1; then
   echo "PowerShell 7 n'est pas installé : l'assistant J-ed en a besoin sous Linux." >&2
-  echo "Voir « Avant de commencer (Linux) », partie PowerShell (paquet .deb de la page des versions de PowerShell sur GitHub)." >&2
+  echo "Voir « Avant de commencer (Linux) », étape 7 : $ICI/AVANT-DE-COMMENCER-LINUX.html#powershell" >&2
   exit 1
 fi
 exec pwsh -NoProfile -File "$ICI/assistant/menu-j-ed.ps1" "$@"

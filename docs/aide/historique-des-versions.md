@@ -5,6 +5,19 @@ ordre: 20
 public: admin
 resume: Évolutions et améliorations de J-ed, version par version.
 ---
+## Version 2.0.3 (version candidate, 26 novembre 2026)
+
+J-ed **sous Linux** (Ubuntu), avec les mêmes garde-fous que sous Windows. Aucun changement de vos données.
+
+- **L'assistant J-ed sous Linux** : un menu dans le Terminal (`j-ed.sh`), jumeau de la fenêtre de Windows (mêmes
+  fonctions, même ordre) : installer, mettre à jour (mise à jour sûre, retour automatique), vérifier, sauvegarder,
+  restaurer, mot de passe oublié, raccourcis du menu Applications, « Ça ne marche pas » (aide « L'assistant J-ed »).
+- **Les mêmes scripts sous Windows et sous Linux** (PowerShell 7 sous Linux) : une seule logique à entretenir.
+- **Proxy sous Ubuntu** : l'assistant reprend celui des réglages d'Ubuntu et le donne à Docker pendant la
+  construction.
+- **Avant de commencer (Linux)** : un guide pas à pas (fichier `AVANT-DE-COMMENCER-LINUX.html` de l'archive) pour
+  installer Docker Engine, PowerShell puis J-ed sous Ubuntu, même sans rien connaître à Linux.
+
 ## Version 2.0.2 (24 novembre 2026)
 
 Une version pour installer et entretenir J-ed **sans ouvrir PowerShell**. Aucun changement de vos données.

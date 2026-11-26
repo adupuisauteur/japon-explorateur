@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Avant de commencer (Linux) — installer J-ed sous Ubuntu</title>
+<style>
+  body { font-family: "Ubuntu", "Segoe UI", Arial, sans-serif; font-size: 16px; line-height: 1.55; color: #1d1d1f;
+         max-width: 820px; margin: 0 auto; padding: 24px 20px 60px; }
+  h1 { font-size: 28px; margin-bottom: 4px; }
+  h2 { font-size: 21px; margin-top: 36px; padding-top: 12px; border-top: 1px solid #ddd; }
+  h3 { font-size: 17px; margin-top: 22px; }
+  .chapeau { color: #444; font-size: 17px; }
+  ol li, ul li { margin: 6px 0; }
+  code, .commande { font-family: "Ubuntu Mono", Consolas, "Courier New", monospace; }
+  .commande { display: block; background: #f3f3f3; border: 1px solid #d0d0d0; border-radius: 6px; padding: 10px 12px;
+              margin: 8px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .attendu { color: #2f6b2f; }
+  .attention { background: #fdf0d7; border-left: 4px solid #be6e00; padding: 10px 14px; margin: 14px 0; }
+  .conseil { background: #e8f3e8; border-left: 4px solid #1e7828; padding: 10px 14px; margin: 14px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  th, td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: #f0f0f0; }
+  nav ol { columns: 2; }
+  @page { size: A4; margin: 16mm 14mm; }
+  @media print { body { max-width: none; font-size: 11pt; } h2 { break-before: auto; } a { color: inherit; }
+                 .commande { break-inside: avoid; } h2, h3 { break-after: avoid; } }
+</style>
+</head>
+<body>
+
+<h1>Avant de commencer (Linux)</h1>
+<p class="chapeau">Installer J-ed sous Ubuntu, pas à pas, sans rien connaître à Linux, à Docker ni à PowerShell.
+Comptez une à deux heures la première fois, surtout du temps d'attente. Chaque commande dit ce que vous devez
+voir.</p>
+
+<div class="conseil">L'<strong>assistant J-ed</strong> (le fichier <code>j-ed.sh</code>) est un menu dans le Terminal :
+il installe J-ed, le met à jour, le vérifie, le sauvegarde et le restaure, comme la fenêtre de l'assistant sous
+Windows (mêmes fonctions, même ordre). Il vérifie lui-même chacun des points ci-dessous ; s'il manque quelque chose,
+il l'affiche avec un lien « Comment faire ? » vers la bonne partie de cette page.</div>
+
+<nav>
+<ol>
+  <li><a href="#configuration">Ce qu'il faut</a></li>
+  <li><a href="#terminal">Le Terminal</a></li>
+  <li><a href="#proxy">Derrière un proxy</a></li>
+  <li><a href="#mises-a-jour">Mettre Ubuntu à jour</a></li>
+  <li><a href="#docker">Docker Engine</a></li>
+  <li><a href="#groupe-docker">Le groupe docker</a></li>
+  <li><a href="#powershell">PowerShell 7</a></li>
+  <li><a href="#disque">Place sur le disque</a></li>
+  <li><a href="#telecharger">Télécharger J-ed</a></li>
+  <li><a href="#assistant">Ouvrir l'assistant</a></li>
+  <li><a href="#installer">Installer J-ed</a></li>
+  <li><a href="#entretien">Mettre à jour, sauvegarder</a></li>
+  <li><a href="#problemes">En cas de problème</a></li>
+</ol>
+</nav>
+
+<h2 id="configuration">1. Ce qu'il faut</h2>
+<ul>
+  <li><strong>Ubuntu 26.04 LTS Desktop, en 64 bits, à jour</strong> (c'est la version essayée ; une autre version
+    récente d'Ubuntu devrait convenir, sans garantie).</li>
+  <li><strong>8 Go de mémoire</strong> conseillés (4 Go au minimum ; J-ed sera alors lent).</li>
+  <li><strong>20 Go de place libre</strong> sur le disque (voir <a href="#disque">plus bas</a>), en plus d'Ubuntu.</li>
+  <li id="processeur"><strong>Un processeur avec l'instruction AVX</strong> (presque tous les processeurs récents) :
+    elle sert à la traduction hors ligne Argos et à l'IA locale. Dans une <strong>machine virtuelle</strong>, choisissez
+    le type de processeur <strong>« host »</strong> (Proxmox : Hardware → Processors). Pour vérifier, dans le
+    Terminal (<a href="#terminal">étape 2</a>) :
+    <span class="commande">grep -c avx /proc/cpuinfo</span>
+    <span class="attendu">Attendu : un nombre plus grand que 0.</span></li>
+  <li id="compte"><strong>Votre compte habituel</strong>, qui a le droit d'utiliser <code>sudo</code> (c'est le cas du
+    compte créé à l'installation d'Ubuntu). <code>sudo</code> ne sert qu'aux étapes 3 à 7 ; l'assistant, lui, se lance
+    <strong>sans <code>sudo</code></strong> : il refuse de tourner en administrateur, sinon les fichiers de J-ed
+    appartiendraient à « root » et vous ne pourriez plus les modifier.</li>
+</ul>
+
+<h2 id="terminal">2. Le Terminal</h2>
+<p>Toutes les commandes de cette page se tapent dans le <strong>Terminal</strong>.</p>
+<ul>
+  <li><strong>L'ouvrir</strong> : Ctrl + Alt + T, ou « Afficher les applications » (en bas à gauche), puis tapez
+    <code>Terminal</code>.</li>
+  <li><strong>Coller une commande</strong> : <strong>Ctrl + Maj + V</strong> (Ctrl + V ne marche pas dans le
+    Terminal), ou clic droit → Coller. Puis Entrée. Copiez chaque commande en entier, d'un seul bloc.</li>
+  <li><strong><code>sudo</code></strong> devant une commande la lance en administrateur : Ubuntu demande
+    <strong>votre</strong> mot de passe. Pendant la frappe, rien ne s'affiche (pas même des étoiles) : c'est normal,
+    tapez-le puis Entrée.</li>
+  <li><strong>Pas de message = tout va bien.</strong> Beaucoup de commandes n'affichent rien quand elles
+    réussissent. Seuls « Erreur », « E: », « error » ou « Permission denied » signalent un problème : arrêtez-vous et
+    lisez la partie <a href="#problemes">En cas de problème</a>.</li>
+  <li><code>~</code> désigne votre dossier personnel (par exemple <code>/home/votre-nom</code>).</li>
+</ul>
+
+<h2 id="proxy">3. Derrière un proxy (réseau d'entreprise ou d'établissement)</h2>
+<p>Sans proxy, passez à l'<a href="#mises-a-jour">étape 4</a>. Derrière un proxy, rien ne joint Internet tant qu'il
+n'est pas réglé, et <strong>sous Linux chaque programme a son propre réglage</strong> : le bureau (navigateur), apt
+(les logiciels d'Ubuntu), curl (les téléchargements dans le Terminal), le service Docker, puis J-ed. Il vous faut
+l'<strong>adresse et le port</strong> du proxy (demandez-les à votre service informatique ; un fichier « PAC » ne
+suffit pas sous Linux). Dans cette page, remplacez partout <code>NOM-DU-PROXY:PORT</code> par ces valeurs, par exemple
+<code>proxy.exemple.fr:8080</code> (adresse fictive).</p>
+
+<h3>Le bureau (navigateur)</h3>
+<p><em>Paramètres → Réseau → Proxy réseau</em> → <strong>Manuel</strong> → l'adresse et le port pour HTTP et HTTPS ;
+dans « Ignorer les hôtes » : <code>localhost, 127.0.0.1</code>. L'assistant J-ed relira ce réglage et vous le
+proposera.</p>
+
+<h3>apt (les logiciels d'Ubuntu)</h3>
+<p>Gardez bien <code>http://</code> devant et le <code>/</code> final, <strong>sur les deux lignes</strong> (même celle
+de « https » : c'est voulu). La première commande crée le fichier, la seconde y ajoute une ligne :</p>
+<span class="commande">echo 'Acquire::http::Proxy "http://NOM-DU-PROXY:PORT/";' | sudo tee /etc/apt/apt.conf.d/95proxy</span>
+<p class="attendu">Attendu : la ligne est réaffichée.</p>
+<span class="commande">echo 'Acquire::https::Proxy "http://NOM-DU-PROXY:PORT/";' | sudo tee -a /etc/apt/apt.conf.d/95proxy</span>
+<p class="attendu">Attendu : la seconde ligne est réaffichée.</p>
+<span class="commande">cat /etc/apt/apt.conf.d/95proxy</span>
+<p class="attendu">Attendu : exactement les deux lignes, chacune avec <code>"http://…:PORT/"</code>.</p>
+
+<h3>curl (téléchargements dans le Terminal)</h3>
+<p>curl ne lit pas le proxy du bureau : les commandes <code>curl</code> des étapes 5 et 7 portent l'option
+<code>-x http://NOM-DU-PROXY:PORT</code>. <strong>Sans proxy, retirez simplement cette option</strong> (les deux mots
+<code>-x http://NOM-DU-PROXY:PORT</code>).</p>
+
+<h2 id="mises-a-jour">4. Mettre Ubuntu à jour</h2>
+<span class="commande">sudo apt update</span>
+<p class="attendu">Attendu : des lignes « Atteint » ou « Réception de », puis « Lecture des listes de paquets… Fait »,
+sans « Err » ; à la fin, « N paquets peuvent être mis à jour ».</p>
+<span class="commande">sudo apt full-upgrade -y</span>
+<p class="attendu">Attendu : téléchargements, « Paramétrage de … », puis retour à l'invite (5 à 15 minutes). À un écran
+de question en mode texte : Entrée (réponse par défaut). Fermez la fenêtre « Mise à jour de logiciels » si elle
+s'ouvre.</p>
+<span class="commande">sudo reboot</span>
+<p class="attendu">Attendu : l'ordinateur redémarre ; reconnectez-vous, puis rouvrez le Terminal.</p>
+
+<h2 id="docker">5. Docker Engine</h2>
+<p>J-ed fonctionne dans <strong>Docker</strong>. Sous Ubuntu, on installe <strong>Docker Engine</strong> depuis le dépôt
+officiel de Docker (pas Docker Desktop, plus lourd, ni le paquet <code>docker.io</code> d'Ubuntu, souvent ancien).
+Il faut d'abord la clé de Docker (pour qu'apt vérifie que les logiciels viennent bien de Docker), puis déclarer son
+dépôt, puis installer.</p>
+<span class="commande">sudo apt install -y ca-certificates curl</span>
+<p class="attendu">Attendu : « déjà la version la plus récente » ou installation faite.</p>
+<span class="commande">sudo install -m 0755 -d /etc/apt/keyrings</span>
+<p class="attendu">Attendu : rien ne s'affiche.</p>
+<span class="commande">sudo curl -fsSL -x http://NOM-DU-PROXY:PORT https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc</span>
+<p class="attendu">Attendu : rien ne s'affiche. (Sans proxy : sans <code>-x http://NOM-DU-PROXY:PORT</code>.)</p>
+<span class="commande">sudo chmod a+r /etc/apt/keyrings/docker.asc</span>
+<p class="attendu">Attendu : rien ne s'affiche.</p>
+<p>Déclaration du dépôt : une seule commande, à copier en entier d'un seul bloc :</p>
+<span class="commande">printf 'Types: deb\nURIs: https://download.docker.com/linux/ubuntu\nSuites: %s\nComponents: stable\nArchitectures: %s\nSigned-By: /etc/apt/keyrings/docker.asc\n' "$(. /etc/os-release &amp;&amp; echo "$VERSION_CODENAME")" "$(dpkg --print-architecture)" | sudo tee /etc/apt/sources.list.d/docker.sources</span>
+<p class="attendu">Attendu : six lignes, dont <code>Suites: resolute</code> (le nom de code d'Ubuntu 26.04) et
+<code>Architectures: amd64</code>.</p>
+<span class="commande">sudo apt update</span>
+<p class="attendu">Attendu : une ligne de plus avec <code>download.docker.com</code>, sans « Err ».</p>
+<span class="commande">sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin</span>
+<p class="attendu">Attendu : installation, puis retour à l'invite.</p>
+<span class="commande">docker --version</span>
+<p class="attendu">Attendu : <code>Docker version 29…</code> (ou plus récent).</p>
+
+<h3 id="docker-proxy">Le proxy du service Docker (seulement derrière un proxy)</h3>
+<p>Le service Docker (le programme qui télécharge les images) a son propre fichier de réglages :</p>
+<span class="commande">printf '{\n  "proxies": {\n    "http-proxy": "http://NOM-DU-PROXY:PORT",\n    "https-proxy": "http://NOM-DU-PROXY:PORT",\n    "no-proxy": "localhost,127.0.0.1"\n  }\n}\n' | sudo tee /etc/docker/daemon.json</span>
+<p class="attendu">Attendu : sept lignes, de <code>{</code> à <code>}</code>.</p>
+<span class="commande">sudo systemctl restart docker</span>
+<p class="attendu">Attendu : rien ne s'affiche.</p>
+<span class="commande">sudo docker info --format '{{.HTTPProxy}} {{.HTTPSProxy}} {{.NoProxy}}'</span>
+<p class="attendu">Attendu : deux fois l'adresse du proxy, puis <code>localhost,127.0.0.1</code>.</p>
+
+<h2 id="groupe-docker">6. Le groupe docker</h2>
+<p>Pour utiliser Docker sans taper <code>sudo</code> à chaque fois, ajoutez votre compte au groupe
+<code>docker</code> (<code>$USER</code> est remplacé tout seul par votre nom) :</p>
+<span class="commande">sudo usermod -aG docker $USER</span>
+<p class="attendu">Attendu : rien ne s'affiche.</p>
+<div class="attention">Le groupe <code>docker</code> donne en pratique des <strong>droits d'administrateur</strong> sur
+l'ordinateur (Docker peut tout faire). C'est normal sur votre propre ordinateur ; n'y mettez pas n'importe quel
+compte.</div>
+<p>L'appartenance à un groupe ne compte qu'à la session suivante : le plus simple est de redémarrer.</p>
+<span class="commande">sudo reboot</span>
+<p class="attendu">Attendu : l'ordinateur redémarre ; reconnectez-vous et rouvrez le Terminal.</p>
+<span class="commande">docker run --rm hello-world</span>
+<p class="attendu">Attendu : « Pull complete », puis « Hello from Docker! », <strong>sans <code>sudo</code></strong>.
+Docker a téléchargé une petite image (à travers le proxy s'il y en a un), l'a lancée puis effacée.</p>
+
+<h2 id="powershell">7. PowerShell 7</h2>
+<p>L'assistant J-ed et ses scripts sont écrits en <strong>PowerShell</strong>, le même programme sous Windows et sous
+Linux (une seule logique à entretenir). Pour Ubuntu 26.04, on prend le paquet de PowerShell 7.6 (version à support
+long) sur la page des versions de PowerShell sur GitHub.</p>
+<span class="commande">curl -fL -x http://NOM-DU-PROXY:PORT -o ~/powershell_7.6.10-1.deb_amd64.deb https://github.com/PowerShell/PowerShell/releases/download/v7.6.10/powershell_7.6.10-1.deb_amd64.deb</span>
+<p class="attendu">Attendu : une barre de progression jusqu'à 100 % (environ 54 Mo). (Sans proxy : sans
+<code>-x http://NOM-DU-PROXY:PORT</code>.)</p>
+<span class="commande">sha256sum ~/powershell_7.6.10-1.deb_amd64.deb</span>
+<p class="attendu">Attendu :
+<code>81a5a944702b116ea74c88b01ba5f1f46b1cd7c42c36d85e1bae90de1230b4d1</code> suivi du nom du fichier. Cette
+« empreinte » prouve que le fichier est complet et intact ; si elle est différente, supprimez le fichier et
+téléchargez-le de nouveau.</p>
+<span class="commande">cd ~ &amp;&amp; sudo apt install -y ./powershell_7.6.10-1.deb_amd64.deb</span>
+<p class="attendu">Attendu : « Paramétrage de powershell ».</p>
+<span class="commande">pwsh --version</span>
+<p class="attendu">Attendu : <code>PowerShell 7.6.10</code>. (Sous Linux, PowerShell se lance par la commande
+<code>pwsh</code> ; vous n'aurez pas à vous en servir : l'assistant le fait.)</p>
+
+<h2 id="disque">8. Place sur le disque</h2>
+<p>Docker et J-ed occupent environ 10 Go ; prévoyez <strong>20 Go libres</strong> (plus si vous installez l'IA
+locale).</p>
+<span class="commande">df -h ~</span>
+<p class="attendu">Attendu : la colonne « Disp. » (disponible) indique au moins 20G.</p>
+
+<h2 id="telecharger">9. Télécharger J-ed</h2>
+<ol>
+  <li>Dans Firefox, ouvrez la page des versions de J-ed :
+    <a href="https://github.com/adupuisauteur/japon-explorateur/releases/latest">github.com/adupuisauteur/japon-explorateur/releases/latest</a>.</li>
+  <li>En bas, dans <strong>Assets</strong>, téléchargez les <strong>deux</strong> fichiers :
+    <code>japon-explorateur-X.Y.Z.zip</code> et <code>japon-explorateur-X.Y.Z.zip.sha256</code> (l'empreinte). Ils
+    arrivent dans le dossier <strong>Téléchargements</strong>.</li>
+  <li>Ouvrez l'application <strong>Fichiers</strong>, dossier <strong>Téléchargements</strong> : clic droit sur le
+    <code>.zip</code> → <strong>Extraire</strong>. Un dossier <code>japon-explorateur-X.Y.Z</code> apparaît.</li>
+</ol>
+
+<h2 id="assistant">10. Ouvrir l'assistant</h2>
+<p>Dans le Terminal (remplacez <code>X.Y.Z</code> par le numéro de la version téléchargée, par exemple
+<code>2.0.3</code>) :</p>
+<span class="commande">bash ~/Téléchargements/japon-explorateur-X.Y.Z/j-ed.sh</span>
+<p class="attendu">Attendu : « J-ed — Assistant (Linux) », la liste de vos installations (aucune pour l'instant), la
+ligne « Prérequis : tout est prêt » en vert (sinon : choix <strong>9</strong> pour voir ce qui reste à régler, avec un
+lien « Comment faire ? » vers cette page), puis le menu.</p>
+<ul>
+  <li>Pour choisir, tapez le <strong>numéro</strong>, puis Entrée.</li>
+  <li>Une valeur entre crochets, par exemple <code>[8001]</code>, est proposée : <strong>Entrée</strong> seule la
+    garde. <code>(O/n)</code> : Entrée = oui ; <code>(o/N)</code> : Entrée = non.</li>
+  <li>Ne lancez jamais l'assistant avec <code>sudo</code> (il refuse, voir <a href="#compte">étape 1</a>).</li>
+  <li>Si PowerShell manque, l'assistant le dit et renvoie à l'<a href="#powershell">étape 7</a>.</li>
+</ul>
+
+<h2 id="installer">11. Installer J-ed</h2>
+<ol>
+  <li>Tapez <strong>2</strong> (Nouvelle installation).</li>
+  <li><strong>Proxy</strong> : s'il est réglé dans Ubuntu (<a href="#proxy">étape 3</a>), l'assistant le propose :
+    Entrée pour l'utiliser. Il l'écrit dans le fichier <code>.env</code> de l'installation : J-ed s'en sert pendant la
+    construction et pour interroger les sources en ligne.</li>
+  <li><strong>Archive</strong> : <strong>2</strong> (archive déjà téléchargée) et le chemin du <code>.zip</code>, par
+    exemple <code>~/Téléchargements/japon-explorateur-X.Y.Z.zip</code> (l'empreinte est trouvée à côté) ; ou
+    <strong>1</strong> pour télécharger la dernière version depuis GitHub.</li>
+  <li>Gardez le <strong>nom</strong>, le <strong>port</strong>, l'<strong>emplacement</strong>
+    (<code>~/J-ed/&lt;nom&gt;-&lt;version&gt;</code>) et le <strong>dossier des sauvegardes</strong>
+    (<code>~/J-ed/sauvegardes-&lt;nom&gt;</code>) proposés, ou changez-les ; répondez pour la traduction hors ligne
+    Argos (conseillée, environ 2 Go de plus).</li>
+  <li><strong>« Vérifier d'abord que Docker joint Internet ? »</strong> : Entrée (oui). Si la réponse est non, revoyez le
+    <a href="#docker-proxy">proxy du service Docker</a>.</li>
+  <li>Relisez le récapitulatif, puis Entrée (Installer).</li>
+  <li>Attendez : la première installation prend <strong>15 à 30 minutes</strong> (en fonction de la vitesse de
+    téléchargement). Le Terminal montre chaque étape ; la construction peut rester longtemps sans nouvelle ligne :
+    c'est normal. Elle se termine par « Installation réussie ».</li>
+  <li>Fin guidée : <strong>1</strong> ouvre Firefox pour <strong>créer le compte administrateur</strong> (identifiant et
+    mot de passe de 10 caractères au moins ; un seul clic sur le bouton) ; <strong>2</strong> charge le <strong>jeu
+    d'essai</strong> (des notices fictives ; l'aide « Essayer J-ed » guide la visite) ; <strong>3</strong> crée les
+    <strong>raccourcis</strong> du menu Applications ; <strong>0</strong> termine.</li>
+</ol>
+<div class="conseil">Aucune clé ni aucun mot de passe technique à inventer : l'assistant crée lui-même les clés
+secrètes de l'installation et les écrit dans le fichier <code>.env</code> de son dossier. <strong>Gardez une copie de
+ce fichier <code>.env</code> en lieu sûr</strong> (clé USB rangée, gestionnaire de mots de passe) : elle sera
+nécessaire pour passer J-ed sur un autre ordinateur ; elle ne figure pas dans les sauvegardes de J-ed. Ne l'envoyez à
+personne. (Le nom commence par un point : dans l'application Fichiers, Ctrl + H affiche ces fichiers
+« cachés ».)</div>
+<div class="conseil">Le dossier extrait à l'étape 9 ne sert qu'à lancer l'assistant la première fois : J-ed est
+installé dans son propre dossier (par exemple <code>~/J-ed/jed-X.Y.Z</code>), qui contient aussi l'assistant. Ensuite,
+ouvrez l'assistant par le raccourci <strong>« Assistant J-ed »</strong> du menu Applications (touche Super, puis
+tapez « J-ed »), ou par la commande <code>bash ~/J-ed/jed-X.Y.Z/j-ed.sh</code>.</div>
+
+<h2 id="entretien">12. Mettre à jour, sauvegarder</h2>
+<ul>
+  <li><strong>1. Mettre à jour une installation</strong> : même archive ou téléchargement depuis GitHub, puis
+    l'assistant construit la nouvelle version <strong>pendant que l'ancienne fonctionne encore</strong>, et pose une
+    question avant de l'arrêter : répondez <strong>o</strong>. Si la nouvelle version ne démarre pas, il revient tout
+    seul à l'ancienne. Aucune donnée n'est effacée ; l'ancien dossier est gardé.</li>
+  <li><strong>10. Opérations de maintenance</strong> : créer une sauvegarde, ouvrir le dossier des sauvegardes,
+    restaurer une sauvegarde (de préférence dans une nouvelle installation), mot de passe oublié, vérifier la migration,
+    réinitialiser une installation d'essai.</li>
+  <li id="sauvegardes"><strong>Dossier des sauvegardes</strong> : J-ed y copie lui-même chaque sauvegarde, depuis son
+    conteneur (utilisateur numéro 1000). Si votre compte n'est pas le premier de l'ordinateur, l'assistant peut
+    afficher « J-ed ne pourra pas écrire dans … » avec la commande qui le permet, par exemple
+    <code>chmod o+rwx ~/J-ed/sauvegardes-jed</code> ; l'assistant copie de toute façon la sauvegarde lui-même.</li>
+</ul>
+
+<h2 id="problemes">13. En cas de problème</h2>
+<table>
+  <tr><th>Ce que vous voyez</th><th>Que faire</th></tr>
+  <tr><td>apt : « Unsupported proxy configured »</td>
+      <td>L'adresse du proxy est mal écrite : revoyez l'<a href="#proxy">étape 3</a> (<code>http://</code> devant,
+      <code>:</code> avant le port, <code>/</code> à la fin), puis <code>cat /etc/apt/apt.conf.d/95proxy</code>.</td></tr>
+  <tr><td>apt ou curl : « Could not resolve host », « Connection timed out »</td>
+      <td>Pas d'accès à Internet : vérifiez la connexion ; derrière un proxy, l'<a href="#proxy">étape 3</a> (et
+      l'option <code>-x</code> de curl).</td></tr>
+  <tr><td>« permission denied while trying to connect to the Docker daemon socket »</td>
+      <td>Votre compte n'est pas encore dans le groupe docker : <a href="#groupe-docker">étape 6</a>, puis
+      redémarrez.</td></tr>
+  <tr><td>« Cannot connect to the Docker daemon » ; Docker « ne répond pas »</td>
+      <td>Démarrez-le : <code>sudo systemctl start docker</code>, puis recommencez.</td></tr>
+  <tr><td>« Docker ne joint pas Internet » ; « context deadline exceeded » ; « failed to authorize:
+      DeadlineExceeded »</td>
+      <td>Derrière un proxy : revoyez le <a href="#docker-proxy">proxy du service Docker</a> et acceptez le proxy
+      proposé par l'assistant ; puis recommencez (l'assistant dit quel dossier raté peut être supprimé).</td></tr>
+  <tr><td>« Ne lancez pas … en administrateur (sudo ou root) » ; « Compte : lancé en administrateur »</td>
+      <td>Relancez la commande <strong>sans</strong> <code>sudo</code>, depuis votre compte.</td></tr>
+  <tr><td>« PowerShell 7 n'est pas installé »</td><td><a href="#powershell">Étape 7</a>.</td></tr>
+  <tr><td>« Processeur : pas d'instruction AVX »</td>
+      <td>J-ed fonctionne, mais sans Argos ni IA locale. Machine virtuelle : type de processeur « host »
+      (<a href="#processeur">étape 1</a>).</td></tr>
+  <tr><td>« Le port … est déjà utilisé »</td><td>Gardez le port libre que propose l'assistant.</td></tr>
+  <tr><td>Le disque est plein</td><td>Libérez de la place (<a href="#disque">étape 8</a>).</td></tr>
+  <tr><td>Mot de passe de J-ed oublié</td><td>Assistant → 10 Opérations de maintenance → <strong>4 Mot de passe
+      oublié</strong>.</td></tr>
+  <tr><td>Autre chose</td><td>Assistant → <strong>11 Ça ne marche pas</strong> : un compte rendu (sans aucun mot de
+      passe) est enregistré sur le Bureau ; envoyez-le à la personne qui vous aide.</td></tr>
+</table>
+
+<p style="margin-top:40px;color:#666;font-size:14px">J-ed — logiciel libre (licence GNU AGPL v3 ou ultérieure).
+Code source : github.com/adupuisauteur/japon-explorateur. Guide pour Linux : version 2.0.3.</p>
+</body>
+</html>

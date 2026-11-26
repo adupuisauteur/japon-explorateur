@@ -16,8 +16,8 @@
     Vérifier, Ajouter une installation, Voir les prérequis, Créer une sauvegarde, Dossier des sauvegardes.
     Lot 2 : Mettre à jour une installation (mise à jour sûre, par le mettre-a-jour.ps1 de la nouvelle version).
     Lot 3 : Créer les raccourcis (menu Applications), Ça ne marche pas, et le reste des Opérations de maintenance
-    (Restaurer une sauvegarde, Mot de passe oublié, Vérifier la migration, Réinitialiser l'essai). L'aide Linux
-    arrive au lot 4 (le menu le dit).
+    (Restaurer une sauvegarde, Mot de passe oublié, Vérifier la migration, Réinitialiser l'essai). Lot 4 : Aide (page
+    AVANT-DE-COMMENCER-LINUX.html).
 #>
 [CmdletBinding()]
 param()
@@ -179,6 +179,8 @@ function Show-Prerequis {
     foreach ($c in (Get-Prerequis)) {
         Write-Niveau $c.Niveau ("  [{0}] {1} : {2}" -f $script:Etiquettes[$c.Niveau], $c.Libelle, $c.Detail)
         if ($c.Conseil -and $c.Niveau -ne 'ok') { Write-Host "      → $($c.Conseil)" }
+        # Comme le bouton « Comment faire ? » de la fenêtre : la partie du guide qui explique ce point (lot 4).
+        if ($c.Niveau -ne 'ok' -and $c.Aide) { Write-Host "      Comment faire ? file://$([System.IO.Path]::Combine($Racine, $c.Aide))" -ForegroundColor DarkGray }
     }
     Wait-Entree
 }
@@ -239,17 +241,10 @@ function Add-Installation {
     Wait-Entree
 }
 
-function Show-PasEncore([string]$Fonction, [string]$Lot) {
-    Write-Host ''
-    Write-Host "« $Fonction » arrive avec le $Lot de la version 2.0.3 pour Linux." -ForegroundColor Yellow
-    Write-Host 'En attendant, sous Linux, ce qui est prévu se fait avec les scripts (voir l''aide).'
-    Wait-Entree
-}
-
 function Show-Aide {
     $page = [System.IO.Path]::Combine($Racine, 'AVANT-DE-COMMENCER-LINUX.html')
     if (Test-Path -LiteralPath $page) { Write-Host 'Ouverture de l''aide :'; Open-AdresseJed $page; Wait-Entree }
-    else { Show-PasEncore 'Aide : avant de commencer (Linux)' 'lot 4' }
+    else { Show-Resultat 'attention' 'Aide absente' "Le fichier AVANT-DE-COMMENCER-LINUX.html manque dans $Racine : téléchargez de nouveau l'archive de J-ed."; Wait-Entree }
 }
 
 # --- Opérations de maintenance -----------------------------------------------------------------------------
@@ -464,12 +459,14 @@ function Reset-Essai {
 
 # --- Raccourcis, « Ça ne marche pas » (lot 3) ---------------------------------------------------------------
 
-function New-Raccourcis {
-    $i = Select-Installation 'pour laquelle créer les raccourcis'
+function New-Raccourcis($Installation) {
+    <# Comme la fenêtre : les raccourcis visent l'installation elle-même (son j-ed.sh), pas le dossier téléchargé. #>
+    $i = $Installation
+    if (-not $i) { $i = Select-Installation 'pour laquelle créer les raccourcis' }
     if (-not $i) { return }
     Write-Titre "Créer les raccourcis de « $($i.Nom) »"
     try {
-        $fichiers = New-RaccourcisLinuxJed -Installation $i -DossierAssistant $Racine
+        $fichiers = New-RaccourcisLinuxJed -Installation $i -DossierAssistant $i.Dossier
         Show-Resultat 'ok' 'Raccourcis créés' ("Dans le menu Applications d'Ubuntu (touche Super, puis tapez « J-ed ») :`n" +
             "« $(Get-NomRaccourciJed $i) » ouvre J-ed dans le navigateur ; « Assistant J-ed » ouvre ce menu.")
         foreach ($f in $fichiers) { Write-Host "  $f" -ForegroundColor DarkGray }
@@ -669,6 +666,7 @@ function Show-FinInstallation($Installation) {
         Write-Titre "« $($Installation.Nom) » est installée : encore deux étapes"
         Write-Host '   1. Créer le compte administrateur (ouvre le navigateur)'
         Write-Host '   2. Charger le jeu d''essai (notices fictives)'
+        Write-Host '   3. Créer les raccourcis (menu Applications)'
         Write-Host '   0. Terminé'
         switch (Read-Ligne 'Votre choix') {
             '1' { Write-Host 'Créez le compte dans le navigateur (un seul clic sur le bouton) :'; Open-AdresseJed (Get-AdressePremierDemarrageJed $Installation) }
@@ -678,6 +676,7 @@ function Show-FinInstallation($Installation) {
                 if ($d.Code -eq 0) { Show-Resultat 'ok' 'Jeu d''essai chargé' 'Ouvrez J-ed : l''aide « Essayer J-ed » guide la découverte.' }
                 else { Show-Resultat 'attention' 'Jeu d''essai non chargé' 'Créez d''abord le compte administrateur (choix 1), puis recommencez.' }
             }
+            '3' { New-Raccourcis $Installation }
             '0' { return }
             default { Write-Host 'Choix inconnu.' }
         }
@@ -753,6 +752,14 @@ function Update-InstallationJed {
         Add-InstallationListeJed -Fichier $script:Liste -Dossier $nouveau
         Write-Host "  Nouvelle version dans : $nouveau"
         Write-Host '  L''ancien dossier est gardé (il apparaît comme « ancien dossier » dans la liste).'
+        # Comme la fenêtre : les raccourcis visent maintenant la nouvelle version (seulement s'ils existaient).
+        $nouvelle = Get-InstallationJed $nouveau
+        if ($nouvelle.Valide -and (Test-RaccourcisLinuxJed $nouvelle) -and
+            (Read-OuiNon 'Mettre à jour les raccourcis « J-ed » du menu Applications ?' $true)) {
+            $faits = New-RaccourcisLinuxJed -Installation $nouvelle -DossierAssistant $nouvelle.Dossier
+            Write-Host '  Raccourcis mis à jour :'
+            foreach ($f in $faits) { Write-Host "    $f" }
+        }
     }
     if ($x.Journal) { Write-Host "  Journal : $($x.Journal)" }
     Wait-Entree

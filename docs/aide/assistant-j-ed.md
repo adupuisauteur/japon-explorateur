@@ -3,7 +3,7 @@ titre: L'assistant J-ed
 rubrique: Installation et mises à jour
 ordre: 5
 public: admin
-resume: Installer, mettre à jour, vérifier, sauvegarder et restaurer J-ed sous Windows, sans ouvrir PowerShell.
+resume: Installer, mettre à jour, vérifier, sauvegarder et restaurer J-ed sous Windows (fenêtre) ou sous Linux (menu dans le Terminal).
 ---
 L'**assistant J-ed** est une fenêtre Windows qui fait à votre place les opérations d'installation et d'entretien :
 plus besoin d'ouvrir PowerShell ni de taper des commandes. Il lance les mêmes scripts que la ligne de commande,
@@ -116,3 +116,32 @@ le message affiché dit pourquoi.
 ```
 powershell -ExecutionPolicy Bypass -File .\assistant\assistant-j-ed.ps1
 ```
+
+## Sous Linux
+
+Sous Linux (Ubuntu), l'assistant est un **menu dans le Terminal**, avec les mêmes fonctions, les mêmes noms et le
+même ordre que la fenêtre de Windows : il lance les mêmes scripts, avec les mêmes garde-fous. Pour une première
+installation, suivez le guide **Avant de commencer (Linux)** (fichier `AVANT-DE-COMMENCER-LINUX.html` de
+l'archive) : Terminal, proxy, Docker Engine, groupe `docker`, PowerShell 7.
+
+Pour l'ouvrir, tapez dans le Terminal (en remplaçant le dossier par celui de votre installation), ou choisissez le
+raccourci **Assistant J-ed** du menu Applications :
+
+```
+bash ~/J-ed/jed-2.0.3/j-ed.sh
+```
+
+- Tapez le **numéro** d'un choix, puis Entrée. Une valeur entre crochets, par exemple `[8001]`, est proposée :
+  Entrée seule la garde. `(O/n)` : Entrée vaut oui ; `(o/N)` : Entrée vaut non.
+- Ne le lancez jamais avec `sudo` : il refuse (les fichiers de J-ed appartiendraient à l'administrateur).
+- Les installations sont rangées dans `~/J-ed` (par exemple `~/J-ed/jed-2.0.3`), leurs sauvegardes à côté (par
+  exemple `~/J-ed/sauvegardes-jed`).
+- **Mettre à jour** : la question avant l'arrêt de l'ancienne version se répond par **o** (oui).
+- **Mot de passe oublié** : le mot de passe ne s'affiche pas pendant la saisie.
+- **Créer les raccourcis** : deux entrées dans le menu Applications (« J-ed - » suivi du nom de l'installation, qui
+  ouvre J-ed dans le navigateur, et « Assistant J-ed »).
+- **Ça ne marche pas** : le compte rendu est enregistré sur le Bureau.
+- **Proxy** : l'assistant propose celui des réglages d'Ubuntu (Paramètres → Réseau → Proxy réseau) ; le service
+  Docker a son propre réglage (`/etc/docker/daemon.json`, voir le guide).
+- Si J-ed ne peut pas écrire dans le dossier des sauvegardes (compte qui n'est pas le premier de l'ordinateur),
+  l'assistant affiche la commande qui le permet, par exemple `chmod o+rwx ~/J-ed/sauvegardes-jed`.

@@ -14,6 +14,7 @@ import socket
 import stat
 import subprocess
 import tempfile
+import time
 import zipfile
 from pathlib import Path
 
@@ -408,11 +409,21 @@ class MenuTests(LinuxTestCase):
         self.assertIn("Des prérequis ne sont pas remplis", self.sortie)
         self.assertIn("sudo systemctl start docker", self.sortie)
 
-    def test_help_says_it_comes_with_lot_4(self):
-        """Depuis le lot 3, seule l'aide Linux reste annoncée (lot 4)."""
+    def test_help_opens_the_linux_guide(self):
+        """Lot 4 : « 12. Aide » ouvre AVANT-DE-COMMENCER-LINUX.html (xdg-open), et l'adresse est affichée."""
+        recu = self.tmp / "ouvert.txt"
+        outil = self.outils / "xdg-open"
+        outil.write_text(f"#!/bin/sh\necho \"$1\" >> '{recu}'\n")
+        outil.chmod(0o755)
         self.menu("12", "", "0")
-        self.assertIn("« Aide : avant de commencer (Linux) » arrive avec le lot 4", self.sortie)
-        self.assertNotIn("arrive avec le lot 3", MENU.read_text(encoding="utf-8-sig"))
+        page = ROOT / "AVANT-DE-COMMENCER-LINUX.html"
+        self.assertIn(str(page), self.sortie)
+        for _ in range(50):   # xdg-open est lancé sans attendre
+            if recu.exists():
+                break
+            time.sleep(0.1)
+        self.assertEqual(recu.read_text().strip(), str(page))
+        self.assertNotIn("arrive avec le lot", MENU.read_text(encoding="utf-8-sig"))
 
     def test_add_installation(self):
         self.menu("8", str(self.tmp / "nulle-part"), "", "0")
@@ -571,6 +582,17 @@ class MiseAJourLinuxTests(LinuxTestCase):
         self.assertIn(" REPONSE OUI", journal)
         self.assertTrue(journal.rstrip().endswith("FIN code=0 mise à jour réussie"), journal[-300:])
         self.assertTrue(any(self.sauv.glob("sauvegarde-*.tar")), "sauvegarde copiée avant la mise à jour")
+
+    def test_existing_shortcuts_follow_the_new_version(self):
+        applications = self.home / ".local" / "share" / "applications"
+        applications.mkdir(parents=True)
+        ancien = applications / "j-ed-jed-essai.desktop"
+        ancien.write_text("[Desktop Entry]\nName=ancien\n", encoding="utf-8")
+        r = self.mise_a_jour("", "", "o", "o")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("Mettre à jour les raccourcis « J-ed » du menu Applications ?", self.sortie)
+        self.assertIn("Raccourcis mis à jour", self.sortie)
+        self.assertIn("Name=J-ed - jed-essai", ancien.read_text(encoding="utf-8"))
 
     def test_refusing_keeps_the_old_version(self):
         r = self.mise_a_jour("", "", "n")
@@ -757,6 +779,10 @@ class MaintenanceLinuxTests(LinuxTestCase):
 
     # Raccourcis
     def test_shortcuts_in_the_applications_menu(self):
+        # Comme la fenêtre : les raccourcis visent l'installation elle-même (son j-ed.sh et son logo).
+        (self.install / "j-ed.sh").write_text("#!/bin/sh\n")
+        (self.install / "static" / "img").mkdir(parents=True)
+        (self.install / "static" / "img" / "logo-j-ed.svg").write_text("<svg/>")
         r = self.menu("7", "", "0")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         applications = self.home / ".local" / "share" / "applications"
@@ -764,9 +790,10 @@ class MaintenanceLinuxTests(LinuxTestCase):
         self.assertIn("Name=J-ed - jed-essai\n", web)
         self.assertIn('Exec=xdg-open "http://localhost:8001/"\n', web)
         self.assertIn("Terminal=false", web)
-        self.assertIn(f"Icon={ROOT / 'static' / 'img' / 'logo-j-ed.svg'}", web)
+        self.assertIn(f"Icon={self.install / 'static' / 'img' / 'logo-j-ed.svg'}", web)
         assistant = (applications / "j-ed-assistant.desktop").read_text(encoding="utf-8")
-        self.assertIn(f'Exec=bash "{ROOT / "j-ed.sh"}"\n', assistant)
+        self.assertIn(f'Exec=bash "{self.install / "j-ed.sh"}"\n', assistant)
+        self.assertIn(f"Path={self.install}\n", assistant)
         self.assertIn("Terminal=true", assistant)
         self.assertIn("Raccourcis créés", self.sortie)
         self.assertIn("menu Applications", self.sortie)

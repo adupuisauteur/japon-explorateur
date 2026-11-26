@@ -4,7 +4,7 @@ Anciennement « Japon — Explorateur documentaire ». Les noms techniques (dép
 
 Application web progressive (PWA) de recherche, de gestion et d'exploitation de ressources documentaires japonaises, développée d'après le cahier des charges v1.2 du 12 novembre 2026.
 
-**Version 2.0.2 du 24 novembre 2026** : **assistant graphique Windows** (`J-ed.cmd`) pour installer, mettre à jour, vérifier et sauvegarder J-ed sans ouvrir PowerShell, proxy de Windows, guide « Avant de commencer » ; aucun changement des données. Versions précédentes : **2.0.1** du 23 novembre 2026 (licence, mise à jour sûre, tests automatiques), **2.0.0** du 19 novembre 2026, renommée **J-ed**, à partir de la 1.3.0-rc3 (étiquette `v1.3.0-rc3`, commit `d7296d4`). Détail des évolutions : `CHANGELOG.md` ; synthèse technique de la 2.0.0 : `docs/evolution-2.0.0/rapport-technique-2.0.0.md`.
+**Version 2.0.3 — version candidate rc1 du 26 novembre 2026** : **J-ed sous Linux** (Ubuntu 26.04 LTS) avec les mêmes scripts que sous Windows (PowerShell 7), assistant en menu texte (`j-ed.sh`), proxy sous Ubuntu, guide « Avant de commencer (Linux) » ; aucun changement des données. Versions précédentes : **2.0.2** du 24 novembre 2026 (**assistant graphique Windows** `J-ed.cmd`, proxy de Windows, guide « Avant de commencer »), **2.0.1** du 23 novembre 2026 (licence, mise à jour sûre, tests automatiques), **2.0.0** du 19 novembre 2026, renommée **J-ed**, à partir de la 1.3.0-rc3 (étiquette `v1.3.0-rc3`, commit `d7296d4`). Détail des évolutions : `CHANGELOG.md` ; synthèse technique de la 2.0.0 : `docs/evolution-2.0.0/rapport-technique-2.0.0.md`.
 
 **Nouveautés de la 2.0.0.** Trois statuts par notice (notice, document, IIIF), notifications, tâches et file de nuit, plafonds de dépense, Argos installé d'office, résumés par IA (en ligne ou locale avec Ollama), repérage du japonais ancien, aide intégrée, mise à jour et vérification par script, Aozora Bunko (texte intégral), Waseda, Kokusho dans sa vraie base, « Ouvrir le document », visionneuse IIIF facultative, accès des documents numérisés de la NDL, mesure des performances.
 
@@ -23,6 +23,11 @@ autre port), le met à jour (archive choisie ou dernière version de GitHub), le
 règle le proxy de Windows, et prépare un compte rendu « Ça ne marche pas » sans aucun secret. Les opérations restent
 possibles en ligne de commande (ci-dessous et scripts `.ps1`) ; le contrat entre l'assistant et les scripts est dans
 `docs/contrat-scripts.md`.
+
+**Sous Linux (Ubuntu), depuis la 2.0.3 : le menu de l'assistant.** Lisez d'abord `AVANT-DE-COMMENCER-LINUX.html`
+(ou sa version PDF) : Terminal, proxy, Docker Engine (dépôt officiel de Docker), groupe `docker`, PowerShell 7.6,
+puis `bash j-ed.sh` dans le dossier extrait. Le menu (dans le Terminal) offre les mêmes fonctions que la fenêtre de
+Windows, dans le même ordre, et lance les mêmes scripts `.ps1` (avec `pwsh`). Il refuse d'être lancé avec `sudo`.
 
 Prérequis : [Docker Desktop](https://www.docker.com/products/docker-desktop/) (ou Docker Engine sous Linux).
 

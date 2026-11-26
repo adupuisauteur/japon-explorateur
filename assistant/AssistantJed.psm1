@@ -1017,11 +1017,7 @@ function New-RaccourcisLinuxJed {
        « Assistant J-ed » (ouvre le menu j-ed.sh dans un terminal). Remplace seulement des fichiers de ces mêmes
        noms. Renvoie les fichiers écrits. #>
     param($Installation, [string]$DossierAssistant, [string]$Dossier)
-    if (-not $Dossier) {
-        $base = $env:XDG_DATA_HOME
-        if (-not $base) { $base = Join-CheminJed (Join-CheminJed ([Environment]::GetFolderPath('UserProfile')) '.local') 'share' }
-        $Dossier = Join-CheminJed $base 'applications'
-    }
+    if (-not $Dossier) { $Dossier = Get-DossierApplicationsJed }
     New-Item -ItemType Directory -Force -Path $Dossier | Out-Null
     $icone = Join-CheminJed $DossierAssistant (Join-CheminJed 'static' (Join-CheminJed 'img' 'logo-j-ed.svg'))
     $ligneIcone = ''
@@ -1046,6 +1042,19 @@ function New-RaccourcisLinuxJed {
         $ecrits.Add($assistant)
     }
     return ,$ecrits.ToArray()
+}
+
+function Get-DossierApplicationsJed {
+    <# 2.0.3 : dossier des raccourcis du menu Applications (~/.local/share/applications, ou $XDG_DATA_HOME). #>
+    $base = $env:XDG_DATA_HOME
+    if (-not $base) { $base = Join-CheminJed (Join-CheminJed ([Environment]::GetFolderPath('UserProfile')) '.local') 'share' }
+    return Join-CheminJed $base 'applications'
+}
+
+function Test-RaccourcisLinuxJed($Installation) {
+    <# 2.0.3 : vrai si le raccourci « J-ed - <nom> » existe déjà dans le menu Applications. #>
+    $id = ("$($Installation.Nom)" -replace '[^A-Za-z0-9-]', '-')
+    return (Test-Path -LiteralPath (Join-CheminJed (Get-DossierApplicationsJed) "j-ed-$id.desktop"))
 }
 
 function Get-DossierBureauJed {
