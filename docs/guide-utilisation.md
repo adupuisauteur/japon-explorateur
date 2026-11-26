@@ -80,6 +80,8 @@ J-ed **sous Linux** (Ubuntu), avec les mêmes garde-fous que sous Windows. Aucun
   construction.
 - **Avant de commencer (Linux)** : un guide pas à pas (fichier `AVANT-DE-COMMENCER-LINUX.html` de l'archive) pour
   installer Docker Engine, PowerShell puis J-ed sous Ubuntu, même sans rien connaître à Linux.
+- **Plus robuste** : les journaux de Docker ne peuvent plus remplir le disque (taille limitée) ; sous Linux, le
+  fichier de réglages `.env`, qui contient les secrets de l'installation, est réservé à votre compte.
 
 ## Les notifications
 
@@ -1575,6 +1577,8 @@ J-ed **sous Linux** (Ubuntu), avec les mêmes garde-fous que sous Windows. Aucun
   construction.
 - **Avant de commencer (Linux)** : un guide pas à pas (fichier `AVANT-DE-COMMENCER-LINUX.html` de l'archive) pour
   installer Docker Engine, PowerShell puis J-ed sous Ubuntu, même sans rien connaître à Linux.
+- **Plus robuste** : les journaux de Docker ne peuvent plus remplir le disque (taille limitée) ; sous Linux, le
+  fichier de réglages `.env`, qui contient les secrets de l'installation, est réservé à votre compte.
 
 ### Version 2.0.2 (24 novembre 2026)
 

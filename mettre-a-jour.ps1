@@ -133,6 +133,12 @@ $Utf8SansBom = New-Object System.Text.UTF8Encoding($false)
 # 2.0.3 (Linux, décisions D4 et D5) : jamais en root (les fichiers de J-ed appartiendraient à root) ; le conteneur
 # (utilisateur 1000) copie lui-même chaque sauvegarde dans le dossier des sauvegardes : il doit pouvoir y écrire.
 # JED_UID_ACTUEL et JED_UID_CONTENEUR : réservés aux tests automatiques.
+function Proteger-Fichier([string]$Chemin) {
+    # 2.0.3 (Linux) : le fichier .env contient les secrets de l'installation ; il est réservé au compte de
+    # l'utilisateur (lecture et écriture), comme le ferait « chmod 600 ». Sans effet sous Windows.
+    if (-not $SousLinux -or -not (Test-Path -LiteralPath $Chemin)) { return }
+    & chmod 600 -- $Chemin 2>$null
+}
 function Get-UidLinux {
     if ("$env:JED_UID_ACTUEL" -match '^\d+$') { return [int]$env:JED_UID_ACTUEL }
     $u = "$(& id -u 2>$null)".Trim()
@@ -580,6 +586,7 @@ Etape '4/7 Reprise du fichier .env'
 
 $EnvNouveau = [System.IO.Path]::Combine($Destination, '.env')
 Copy-Item -LiteralPath $EnvActuel -Destination $EnvNouveau
+Proteger-Fichier $EnvNouveau
 if ($PSBoundParameters.ContainsKey('DossierSauvegardes') -and -not (Lire-Env $EnvNouveau 'DOSSIER_SAUVEGARDES')) {
     $ouVisible = 'visible dans Windows'
     if ($SousLinux) { $ouVisible = 'visible sur l''ordinateur' }   # 2.0.3

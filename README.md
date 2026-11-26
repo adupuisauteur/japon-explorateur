@@ -14,7 +14,7 @@ Application web progressive (PWA) de recherche, de gestion et d'exploitation de 
 
 ---
 
-## 1. Installation (Windows, macOS, Linux)
+## 1. Installation (Windows et Linux ; macOS non essayé)
 
 **Sous Windows, le plus simple (2.0.2) : l'assistant graphique.** Lisez d'abord `AVANT-DE-COMMENCER.html` (ou sa
 version PDF), à la racine de l'archive : prérequis (WSL, Docker Desktop), téléchargement, puis un double-clic sur

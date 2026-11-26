@@ -25,6 +25,16 @@ même module (`assistant/AssistantJed.psm1`). Aucun changement des données ; Wi
 - 1027 tests, aussi sous un compte non `root` (comme sur GitHub). Essais réels sur une machine virtuelle
   Ubuntu 26.04 : installation de la 2.0.2 par les scripts tels quels (26 novembre 2026) ; recette de la rc1 à venir.
 
+### Après la rc1 (26 novembre 2026, avant la recette)
+
+- **Journaux de Docker limités** : 3 fichiers de 10 Mo au plus par service (sans limite, ils pouvaient remplir le
+  disque au fil des mois) ; appliqué quand les conteneurs sont recréés, par exemple à la mise à jour.
+- **Sous Linux, le fichier `.env` est réservé au compte de l'utilisateur** (il contient les secrets de
+  l'installation) ; « Vérifier » signale un `.env` lisible par d'autres comptes.
+- **Essais Docker sur GitHub** (outil de recette) : installation, mises à jour réussie et ratées, sauvegarde,
+  restauration, réinitialisation et menu, avec le vrai Docker sous Linux, lancés à la main.
+- README : macOS indiqué comme non essayé.
+
 ## 2.0.2 — 24 novembre 2026
 
 **L'assistant graphique Windows.** Un double-clic sur `J-ed.cmd` ouvre une fenêtre qui vérifie l'ordinateur,

@@ -1338,9 +1338,19 @@ function Set-ProxyEnvJed {
     $lignes.Add("NO_PROXY=$($script:ExceptionsProxy)")
     $nouveau = ($lignes -join $fin) + $fin
     # Copie de l'ancien .env à côté de lui, avant toute modification (jamais rien perdu).
-    Copy-Item -LiteralPath $Fichier -Destination "$Fichier.avant-proxy-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+    $copie = "$Fichier.avant-proxy-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+    Copy-Item -LiteralPath $Fichier -Destination $copie
     $encodage = New-Object System.Text.UTF8Encoding($bom)
     [System.IO.File]::WriteAllText($Fichier, $nouveau, $encodage)
+    Protect-FichierSecretJed $copie   # 2.0.3 : la copie contient les mêmes secrets
+    Protect-FichierSecretJed $Fichier
+}
+
+function Protect-FichierSecretJed([string]$Chemin) {
+    <# 2.0.3 (Linux) : fichier réservé au compte de l'utilisateur (comme « chmod 600 ») ; sans effet sous Windows. #>
+    if (-not $script:SousLinux -or -not (Test-Path -LiteralPath $Chemin)) { return }
+    $ErrorActionPreference = 'Continue'
+    & chmod 600 -- $Chemin 2>$null
 }
 
 function Get-CommandeAccesRegistreJed {

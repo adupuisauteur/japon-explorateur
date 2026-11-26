@@ -81,6 +81,12 @@ $Utf8SansBom = New-Object System.Text.UTF8Encoding($false)
 # 2.0.3 (Linux, décisions D4 et D5) : jamais en root (les fichiers de J-ed appartiendraient à root) ; le conteneur
 # (utilisateur 1000) copie lui-même chaque sauvegarde dans le dossier des sauvegardes : il doit pouvoir y écrire.
 # JED_UID_ACTUEL et JED_UID_CONTENEUR : réservés aux tests automatiques.
+function Proteger-Fichier([string]$Chemin) {
+    # 2.0.3 (Linux) : le fichier .env contient les secrets de l'installation ; il est réservé au compte de
+    # l'utilisateur (lecture et écriture), comme le ferait « chmod 600 ». Sans effet sous Windows.
+    if (-not $SousLinux -or -not (Test-Path -LiteralPath $Chemin)) { return }
+    & chmod 600 -- $Chemin 2>$null
+}
 function Get-UidLinux {
     if ("$env:JED_UID_ACTUEL" -match '^\d+$') { return [int]$env:JED_UID_ACTUEL }
     $u = "$(& id -u 2>$null)".Trim()
@@ -351,6 +357,7 @@ if ($reste.Count -gt 0) {
 }
 $FichierEnv = [System.IO.Path]::Combine($Destination, '.env')
 [System.IO.File]::WriteAllText($FichierEnv, (($lignes -join "`r`n") + "`r`n"), $Utf8SansBom)
+Proteger-Fichier $FichierEnv
 Dire 'Fichier .env créé avec des secrets neufs (jamais écrits dans ce journal).'
 if ($Proxy) { Dire "Proxy : $Proxy (services internes de J-ed exclus)." }
 Donner-Proxy-A-Docker $Proxy

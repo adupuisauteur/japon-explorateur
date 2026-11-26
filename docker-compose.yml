@@ -9,7 +9,16 @@
 # autorisation explicite AUTORISER_NOM_PROJET=<même nom> dans .env, pour mettre à jour cette installation.
 name: ${COMPOSE_PROJECT_NAME:?définir COMPOSE_PROJECT_NAME dans .env (voir .env.example)}
 
+# 2.0.3 : taille des journaux de chaque service limitée (3 fichiers de 10 Mo au plus) ; sans limite, ils grossissent
+# sans fin et peuvent remplir le disque. S'applique quand les conteneurs sont recréés (mise à jour, « up -d »).
+x-journaux: &journaux
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 x-app: &app
+  logging: *journaux
   build:
     context: .
     dockerfile: docker/Dockerfile
@@ -54,6 +63,7 @@ x-app: &app
 services:
   db:
     image: postgres:15-bookworm
+    logging: *journaux
     environment:
       POSTGRES_DB: japon
       POSTGRES_USER: japon
@@ -66,6 +76,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    logging: *journaux
     restart: unless-stopped
 
   web:
@@ -130,6 +141,7 @@ services:
   # « argos-packages », conservé lors d'une réinitialisation normale de l'essai (décision E6).
   argos:
     profiles: ["argos", "hors-ligne"]
+    logging: *journaux
     build:
       context: docker/argos
       # 2.0.2 : proxy éventuel, réglé par l'assistant J-ed dans .env (vide par défaut : sans effet sans proxy).
@@ -167,6 +179,7 @@ services:
   # confirmation). Modèles dans le volume « ollama-models ». Aucun port publié : joignable par J-ed seulement.
   ollama:
     profiles: ["ollama"]
+    logging: *journaux
     image: ollama/ollama:${OLLAMA_VERSION:-0.30.9}
     cpus: ${OLLAMA_COEURS:-0}
     mem_limit: ${OLLAMA_MEMOIRE_MAX:-0}

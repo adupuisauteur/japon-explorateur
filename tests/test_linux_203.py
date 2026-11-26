@@ -282,6 +282,24 @@ class ScriptsLinuxTests(LinuxTestCase):
         self.assertIn("chmod o+rwx", r.stdout)
 
 
+    # 2.0.3 (avant la version définitive, accord de l'utilisateur du 26/11) : le .env est réservé au compte.
+    def test_installer_keeps_env_for_the_user_only(self):
+        r, dest = self.installer()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(stat.S_IMODE((dest / ".env").stat().st_mode), 0o600)
+
+    def test_verification_flags_an_env_readable_by_others(self):
+        self.make_install("installation", "jed-essai", sauvegardes=str(self.tmp / "sauvegardes"))
+        env = self.tmp / "installation" / ".env"
+        env.chmod(0o644)
+        r = self.verifier()
+        self.assertIn("[À surveiller] Fichier .env : lisible par d'autres comptes", r.stdout)
+        self.assertIn(f'chmod 600 "{env}"', r.stdout)
+        env.chmod(0o600)
+        r = self.verifier()
+        self.assertNotIn("lisible par d'autres comptes", r.stdout)
+
+
 # --- Lanceur j-ed.sh ----------------------------------------------------------------------------------------
 
 class LanceurTests(LinuxTestCase):
@@ -582,6 +600,7 @@ class MiseAJourLinuxTests(LinuxTestCase):
         self.assertIn(" REPONSE OUI", journal)
         self.assertTrue(journal.rstrip().endswith("FIN code=0 mise à jour réussie"), journal[-300:])
         self.assertTrue(any(self.sauv.glob("sauvegarde-*.tar")), "sauvegarde copiée avant la mise à jour")
+        self.assertEqual(stat.S_IMODE((self.nouveau() / ".env").stat().st_mode), 0o600, ".env réservé au compte")
 
     def test_existing_shortcuts_follow_the_new_version(self):
         applications = self.home / ".local" / "share" / "applications"
@@ -999,3 +1018,42 @@ class EssaisDockerTests(LinuxTestCase):
         self.assertNotIn("down -v", source)
         self.assertNotIn("'--volumes'", source)
         self.assertNotIn("volume', 'rm", source)
+
+
+class RobustesseTests(LinuxTestCase):
+    """2.0.3 (avant la version définitive, accord de l'utilisateur du 26/11) : journaux limités, .env protégé."""
+
+    def test_every_service_has_a_log_size_limit(self):
+        d = self.tmp / "compose"
+        d.mkdir()
+        shutil.copy(ROOT / "docker-compose.yml", d / "docker-compose.yml")
+        (d / ".env").write_text("COMPOSE_PROJECT_NAME=jed-essai-journaux\nPOSTGRES_PASSWORD=fictif\n", encoding="utf-8")
+        docker = shutil.which("docker", path="/usr/bin:/usr/local/bin:/bin")
+        self.assertIsNotNone(docker, "client docker absent")
+        r = subprocess.run([docker, "compose", "--profile", "argos", "--profile", "ollama", "config", "--format", "json"],
+                           cwd=d, capture_output=True, text=True, timeout=120)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        services = json.loads(r.stdout)["services"]
+        self.assertEqual(set(services), {"db", "redis", "web", "worker", "worker-traduction", "worker-maintenant", "beat",
+                                         "argos", "ollama"})
+        for nom, service in services.items():
+            self.assertEqual(service.get("logging"), {"driver": "json-file",
+                                                      "options": {"max-size": "10m", "max-file": "3"}}, nom)
+
+    def test_proxy_written_by_the_assistant_keeps_env_private(self):
+        d = self.make_install("installation", "jed-essai")
+        env = d / ".env"
+        env.chmod(0o644)
+        r = subprocess.run([PWSH, "-NoProfile", "-NonInteractive", "-Command",
+                            f"Import-Module '{MODULE}'; Set-ProxyEnvJed -Fichier '{env}' -Proxy '{PROXY}'"],
+                           capture_output=True, text=True, timeout=120, env=self.env())
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(stat.S_IMODE(env.stat().st_mode), 0o600)
+        copies = list(d.glob(".env.avant-proxy-*"))
+        self.assertEqual(len(copies), 1)
+        self.assertEqual(stat.S_IMODE(copies[0].stat().st_mode), 0o600, "la copie contient les mêmes secrets")
+        self.assertIn(f"HTTPS_PROXY={PROXY}", env.read_text(encoding="utf-8"))
+
+    def test_readme_says_macos_was_never_tried(self):
+        self.assertIn("## 1. Installation (Windows et Linux ; macOS non essayé)",
+                      (ROOT / "README.md").read_text(encoding="utf-8"))

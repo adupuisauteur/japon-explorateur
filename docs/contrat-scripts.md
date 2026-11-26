@@ -67,6 +67,11 @@ Les tests `tests/test_contrat_scripts.py` vérifient que les scripts et ce docum
   `REINITIALISER` sur l'entrée standard après que l'utilisateur l'a tapé). Raccourcis : fichiers `.desktop` du menu
   Applications (`~/.local/share/applications/j-ed-<nom>.desktop` et `j-ed-assistant.desktop`). Compte rendu : sur
   le Bureau (`xdg-user-dir DESKTOP`, sinon le dossier personnel), mêmes contrôles qu'avec Windows (aucun secret).
+- **Fichier `.env` réservé au compte** (Linux, 2.0.3, après la rc1) : `installer-j-ed.ps1` (création),
+  `mettre-a-jour.ps1` (copie dans la nouvelle version) et l'assistant (proxy écrit dans le `.env`, et la copie
+  `.env.avant-proxy-…` qu'il garde) le laissent lisible par son seul propriétaire (`chmod 600`) ;
+  `verifier-j-ed.ps1` écrit « À surveiller » quand d'autres comptes peuvent le lire, avec la commande qui corrige.
+  Sans effet sous Windows.
 - **Archives d'essai** (outil de recette, pas une fonction de J-ed) : `tests/outils/archives-essai.ps1 -Version <n>`
   fabrique trois archives avec leur `.sha256` (normale ; construction impossible : code 3 ; démarrage impossible du
   serveur web : code 4), à n'utiliser que sur une installation d'essai.

@@ -180,6 +180,14 @@ if (-not (Test-Path -LiteralPath '.env')) {
     exit 1
 }
 $script:EnvLignes = Get-Content -LiteralPath '.env' -Encoding UTF8
+if ($SousLinux) {
+    # 2.0.3 : le .env contient les secrets de l'installation ; il ne doit être lisible que par son propriétaire.
+    $modeEnv = "$(& stat -c '%a' .env 2>$null)".Trim()
+    if ($modeEnv -match '^[0-7]{3,4}$' -and ([Convert]::ToInt32($modeEnv.Substring($modeEnv.Length - 2), 8) -ne 0)) {
+        Noter 'warning' 'Fichier .env' "lisible par d'autres comptes de l'ordinateur (droits $modeEnv) : il contient les secrets de l'installation" @(
+            "Pour le réserver à votre compte : chmod 600 `"$([System.IO.Path]::Combine($PWD.Path, '.env'))`"")
+    }
+}
 $Projet = Lire-Env 'COMPOSE_PROJECT_NAME'
 $Port = Lire-Env 'WEB_PORT'
 if (-not $Port) { $Port = '8000' }
