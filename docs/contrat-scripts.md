@@ -35,6 +35,24 @@ Les tests `tests/test_contrat_scripts.py` vérifient que les scripts et ce docum
   le terminal est gardé. Rien ne change sous Windows (Docker Desktop s'en charge).
 - Aucun script ne supprime de volume Docker (`down -v` interdit).
 
+## Linux : lanceur, menu et contrôles (depuis la 2.0.3, lot 1)
+
+- **`j-ed.sh`** (racine du dossier de J-ed, bash, fins de ligne LF, exécutable) : refuse root, vérifie que
+  PowerShell 7 (`pwsh`) est installé, puis lance **`assistant/menu-j-ed.ps1`** par `pwsh -NoProfile -File`. Se lance
+  par `bash <dossier de J-ed>/j-ed.sh`.
+- **`assistant/menu-j-ed.ps1`** : menu texte « jumeau » de la fenêtre Windows (décision D2), mêmes fonctions, mêmes
+  noms, même ordre ; il s'appuie sur le même module `assistant/AssistantJed.psm1` et lance les scripts ci-dessous
+  exactement comme la fenêtre (mêmes paramètres, mêmes codes, même journal). Réponses lisibles depuis l'entrée
+  standard (tests) ; fin de l'entrée : il se ferme (code 0). Refuse root (code 1) et ne sert que sous Linux.
+- **Refus de root** (décision D4) : sous Linux, `installer-j-ed.ps1` s'arrête (code 1, rien n'est créé) et
+  `verifier-j-ed.ps1` aussi (code 1) quand ils sont lancés en root.
+- **Dossier des sauvegardes** (décision D5) : sous Linux, J-ed copie lui-même chaque sauvegarde dans ce dossier
+  depuis son conteneur (utilisateur 1000). `installer-j-ed.ps1` écrit un avertissement (repère `ATTENTION`, pas un
+  arrêt) et `verifier-j-ed.ps1` une ligne « À surveiller » quand cet utilisateur ne peut pas y écrire, avec la
+  commande qui le permet (`chmod o+rwx <dossier>`).
+- Réglages **réservés aux tests automatiques** : `JED_UID_ACTUEL` (numéro de l'utilisateur, pour simuler root ou
+  non) et `JED_UID_CONTENEUR` (numéro de l'utilisateur du conteneur, 1000 par défaut).
+
 ## `mettre-a-jour.ps1`
 
 **Paramètres**

@@ -1,0 +1,507 @@
+"""2.0.3, lot 1 — Linux : module de l'assistant, menu texte « jumeau » (assistant/menu-j-ed.ps1), lanceur j-ed.sh,
+refus de root et droits du dossier des sauvegardes (installer-j-ed.ps1, verifier-j-ed.ps1).
+
+Tout tourne avec PowerShell 7 sous Linux et le faux « docker » (tests/fixtures/mise_a_jour/docker). L'essai réel
+se fait sur la machine virtuelle Ubuntu de l'utilisateur. Les tests tournent parfois en root : JED_UID_ACTUEL
+simule l'utilisateur, JED_UID_CONTENEUR l'utilisateur du conteneur (réglages réservés aux tests).
+"""
+import hashlib
+import json
+import os
+import re
+import shutil
+import socket
+import stat
+import subprocess
+import tempfile
+import zipfile
+from pathlib import Path
+
+from django.conf import settings
+from django.test import SimpleTestCase
+
+ROOT = Path(settings.BASE_DIR)
+MODULE = ROOT / "assistant" / "AssistantJed.psm1"
+MENU = ROOT / "assistant" / "menu-j-ed.ps1"
+LANCEUR = ROOT / "j-ed.sh"
+FAKE_DOCKER_DIR = ROOT / "tests" / "fixtures" / "mise_a_jour"
+PWSH = shutil.which("pwsh") or ("/opt/pwsh/pwsh" if Path("/opt/pwsh/pwsh").exists() else None)
+PROXY = "http://proxy.exemple.fr:8080"   # adresse fictive
+
+
+def free_port():
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+class LinuxTestCase(SimpleTestCase):
+    def setUp(self):
+        if PWSH is None:
+            self.skipTest("PowerShell (pwsh) absent")
+        self.tmp = Path(tempfile.mkdtemp(prefix="linux-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.home = self.tmp / "maison"
+        self.home.mkdir()
+        self.log = self.tmp / "docker.log"
+        self.outils = self.tmp / "outils"   # faux gsettings, faux xdg-open
+        self.outils.mkdir()
+
+    def env(self, **extra):
+        env = {k: v for k, v in os.environ.items()
+               if k.lower() not in ("http_proxy", "https_proxy", "all_proxy", "no_proxy", "xdg_data_home")}
+        env.update(HOME=str(self.home), FAKE_DOCKER_LOG=str(self.log), FAKE_ACTUEL=str(self.tmp),
+                   JED_UID_ACTUEL="1000", JED_UID_CONTENEUR=str(os.getuid()),
+                   PATH=os.pathsep.join([str(self.outils), str(FAKE_DOCKER_DIR), os.environ.get("PATH", "")]))
+        for k, v in extra.items():
+            env[k if not k.startswith("fake_") else k.upper()] = str(v)
+        return env
+
+    def calls(self):
+        return self.log.read_text().splitlines() if self.log.exists() else []
+
+    def make_install(self, folder, name, port=8001, version="2.0.2", sauvegardes=None):
+        d = self.tmp / folder
+        d.mkdir(parents=True)
+        (d / "docker-compose.yml").write_text("name: x\n")
+        (d / "VERSION").write_text(f"{version}\n")
+        env = f"COMPOSE_PROJECT_NAME={name}\nWEB_PORT={port}\nPOSTGRES_PASSWORD=mot-de-passe-fictif\n"
+        if sauvegardes:
+            env += f"DOSSIER_SAUVEGARDES={sauvegardes}\n"
+        (d / ".env").write_text(env, encoding="utf-8")
+        return d
+
+    def gsettings(self, mode="manual", host="proxy.exemple.fr", port=8080):
+        script = self.outils / "gsettings"
+        script.write_text(
+            "#!/bin/sh\n"
+            f'case "$2 $3" in\n'
+            f'  "org.gnome.system.proxy mode") echo "\'{mode}\'" ;;\n'
+            f'  "org.gnome.system.proxy.https host"|"org.gnome.system.proxy.http host") echo "\'{host}\'" ;;\n'
+            f'  "org.gnome.system.proxy.https port"|"org.gnome.system.proxy.http port") echo "{port}" ;;\n'
+            '  *) echo "" ;;\n'
+            "esac\n")
+        script.chmod(0o755)
+
+
+# --- Module -----------------------------------------------------------------------------------------------
+
+class ModuleLinuxTests(LinuxTestCase):
+    def ps(self, code, **env):
+        full = ("$ErrorActionPreference = 'Stop'; "
+                f"Import-Module '{MODULE}' -Force; $r = & {{ {code} }}; ConvertTo-Json -InputObject $r -Depth 6 -Compress")
+        r = subprocess.run([PWSH, "-NoProfile", "-NonInteractive", "-Command", full], capture_output=True, text=True,
+                           timeout=120, env=self.env(**env))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        out = r.stdout.strip().splitlines()
+        return json.loads(out[-1]) if out else None
+
+    def test_module_knows_it_runs_under_linux(self):
+        self.assertTrue(self.ps("Test-LinuxJed"))
+        self.assertTrue(self.ps("Get-MoteurPowerShellJed").endswith("pwsh"))
+        self.assertEqual(self.ps("Get-UidJed"), 1000)
+
+    def test_list_of_installations_lives_in_local_share(self):
+        self.assertEqual(Path(self.ps("Get-FichierListeJed")), self.home / ".local" / "share" / "J-ed" / "installations.txt")
+        autre = self.tmp / "donnees"
+        self.assertEqual(Path(self.ps("Get-FichierListeJed", XDG_DATA_HOME=str(autre))), autre / "J-ed" / "installations.txt")
+
+    def test_default_places_follow_decision_d5(self):
+        self.assertEqual(Path(self.ps("Get-EmplacementParDefautJed -Nom 'jed' -Version '2.0.3'")),
+                         self.home / "J-ed" / "jed-2.0.3")
+        self.assertEqual(Path(self.ps("Get-DossierTelechargementsJed")).name, "J-ed")
+
+    def test_proposed_name_skips_existing_ones(self):
+        d = self.make_install("a", "jed")
+        self.assertEqual(self.ps(f"Get-NomProposeJed 'jed' @(Get-InstallationJed '{d}') @()"), "jed-2")
+        self.assertEqual(self.ps("Get-NomProposeJed 'jed' @() @()"), "jed")
+
+    def faits(self, **changes):
+        base = {"Linux": True, "Windows": False, "Bits64": True, "MemoireGo": 15.5, "Avx": True, "DockerInstalle": True,
+                "DockerDemarre": True, "DockerDroits": True, "Root": False, "PowerShell": "'7.6.10'", "DisqueLibreGo": 100}
+        base.update(changes)
+
+        def lit(v):
+            if v is None:
+                return "$null"
+            if isinstance(v, bool):
+                return "$true" if v else "$false"
+            return str(v)
+        lignes = "; ".join(f"{k} = {lit(v)}" for k, v in base.items())
+        return {c["Cle"]: c for c in self.ps(f"Test-PrerequisJed -Faits ([pscustomobject]@{{ {lignes} }})")}
+
+    def test_linux_prerequisites(self):
+        tout = self.faits()
+        self.assertEqual({k: c["Niveau"] for k, c in tout.items()},
+                         {k: "ok" for k in ("systeme", "memoire", "avx", "docker", "powershell", "disque")})
+        self.assertTrue(all(c["Aide"].startswith("AVANT-DE-COMMENCER-LINUX.html#") for c in tout.values()))
+        self.assertEqual(tout["docker"]["Libelle"], "Docker Engine")
+        c = self.faits(DockerDroits=False, DockerDemarre=False)["docker"]
+        self.assertEqual(c["Niveau"], "erreur")
+        self.assertIn("sudo usermod -aG docker $USER", c["Conseil"])
+        self.assertIn("sudo systemctl start docker", self.faits(DockerDemarre=False)["docker"]["Conseil"])
+        self.assertEqual(self.faits(DockerInstalle=False, DockerDemarre=False)["docker"]["Niveau"], "erreur")
+        self.assertEqual(self.faits(Root=True)["root"]["Niveau"], "erreur")
+        self.assertEqual(self.faits(Avx=False)["avx"]["Niveau"], "attention")
+        self.assertIn("host", self.faits(Avx=False)["avx"]["Conseil"])
+        self.assertEqual(self.faits(PowerShell="'7.2.1'")["powershell"]["Niveau"], "attention")
+        self.assertEqual(self.faits(MemoireGo=6)["memoire"]["Niveau"], "attention")
+        self.assertEqual(self.faits(DisqueLibreGo=5)["disque"]["Niveau"], "erreur")
+
+    def test_facts_under_linux(self):
+        r = self.ps(f"Get-FaitsSystemeJed -Dossier '{self.tmp}'")
+        self.assertTrue(r["Linux"])
+        self.assertFalse(r["Root"])
+        self.assertTrue(r["DockerDemarre"])
+        self.assertTrue(r["DockerDroits"])
+        self.assertIsNotNone(r["Avx"])
+        self.assertGreater(r["MemoireGo"], 0)
+        r = self.ps(f"Get-FaitsSystemeJed -Dossier '{self.tmp}'", fake_docker_info="droits")
+        self.assertFalse(r["DockerDroits"])
+        self.assertTrue(self.ps(f"(Get-FaitsSystemeJed -Dossier '{self.tmp}').Root", JED_UID_ACTUEL="0"))
+
+    def test_docker_errors_explained_for_linux(self):
+        def erreur(texte):
+            return self.ps(f"Convert-ErreurDockerJed @'\n{texte}\n'@")
+        r = erreur("permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock")
+        self.assertEqual(r["Cle"], "droits")
+        self.assertIn("usermod -aG docker", r["Solution"])
+        r = erreur("Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?")
+        self.assertEqual(r["Cle"], "docker-arrete")
+        self.assertIn("systemctl start docker", r["Solution"])
+        self.assertNotIn("Docker Desktop", r["Explication"] + r["Solution"])
+        r = erreur("failed to authorize: DeadlineExceeded: context deadline exceeded")
+        self.assertEqual(r["Cle"], "internet")
+        self.assertIn("/etc/docker/daemon.json", r["Solution"])
+        conseil = self.ps(f"Get-ConseilProxyDockerJed '{PROXY}'")
+        self.assertIn("/etc/docker/daemon.json", conseil)
+        self.assertIn("sudo systemctl restart docker", conseil)
+
+    def test_ubuntu_proxy_settings_are_found(self):
+        self.assertIsNone(self.ps("Get-ProxySystemeJed"))
+        self.gsettings()
+        self.assertEqual(self.ps("Get-ProxySystemeJed"), PROXY)
+        self.gsettings(host="http://proxy.exemple.fr/")
+        self.assertEqual(self.ps("Get-ProxySystemeJed"), PROXY)
+        self.gsettings(mode="none")
+        self.assertIsNone(self.ps("Get-ProxySystemeJed"))
+        # Le proxy du terminal passe avant celui des réglages.
+        self.gsettings()
+        self.assertEqual(self.ps("Get-ProxySystemeJed", HTTPS_PROXY="http://autre.exemple.fr:3128/"),
+                         "http://autre.exemple.fr:3128")
+
+    def test_windows_texts_are_kept(self):
+        code = MODULE.read_text(encoding="utf-8-sig")
+        self.assertIn("Docker Desktop n'est pas installé.", code)
+        self.assertIn("Lancez Docker Desktop, attendez que la baleine soit immobile", code)
+        self.assertIn("$base = $env:LOCALAPPDATA", code)
+        self.assertIn("return 'powershell.exe'", code)
+
+
+# --- Scripts : root et dossier des sauvegardes ----------------------------------------------------------
+
+class ScriptsLinuxTests(LinuxTestCase):
+    def archive(self, version="2.0.3", avec_installateur=False):
+        archive = self.tmp / f"japon-explorateur-{version}.zip"
+        exemple = (ROOT / ".env.example").read_text(encoding="utf-8")
+        with zipfile.ZipFile(archive, "w") as z:
+            z.writestr(f"japon-explorateur-{version}/VERSION", f"{version}\n")
+            z.writestr(f"japon-explorateur-{version}/docker-compose.yml", "name: ${COMPOSE_PROJECT_NAME}\n")
+            z.writestr(f"japon-explorateur-{version}/.env.example", exemple)
+        Path(f"{archive}.sha256").write_text(hashlib.sha256(archive.read_bytes()).hexdigest() + f"  {archive.name}\n")
+        return archive
+
+    def installer(self, **env):
+        dest = self.tmp / "J-ed" / "jed-2.0.3"
+        args = [PWSH, "-NoProfile", "-NonInteractive", "-File", str(ROOT / "installer-j-ed.ps1"),
+                "-Archive", str(self.archive()), "-Destination", str(dest), "-Nom", "jed", "-Port", str(free_port()),
+                "-DossierSauvegardes", str(self.tmp / "sauvegardes"), "-DelaiStabilite", "0", "-DelaiControle", "5"]
+        return subprocess.run(args, capture_output=True, text=True, timeout=300, env=self.env(**env)), dest
+
+    def test_installer_refuses_root(self):
+        r, dest = self.installer(JED_UID_ACTUEL="0")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("en administrateur (sudo ou root)", r.stdout)
+        self.assertFalse(dest.exists())
+        self.assertFalse((self.tmp / "sauvegardes").exists(), "rien créé au nom de root")
+        self.assertEqual(self.calls(), [])
+
+    def test_installer_warns_when_the_container_cannot_write_backups(self):
+        r, dest = self.installer(JED_UID_CONTENEUR="4242")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("ne pourra pas écrire dans", r.stdout)
+        self.assertIn("chmod o+rwx", r.stdout)
+        journal = next((self.tmp / "sauvegardes").glob("installation-*.log")).read_text(encoding="utf-8")
+        self.assertIn(" ATTENTION dossier des sauvegardes non accessible", journal)
+        # Rien à signaler quand le conteneur peut écrire.
+        shutil.rmtree(dest)
+        shutil.rmtree(self.tmp / "sauvegardes")
+        r, dest = self.installer()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn("ne pourra pas écrire", r.stdout)
+
+    def test_folder_rights_are_read_like_linux(self):
+        d = self.tmp / "droits"
+        d.mkdir()
+        fonction = re.search(r"function Test-EcritureConteneur.*?\r?\n}\r?\n",
+                             (ROOT / "installer-j-ed.ps1").read_text(encoding="utf-8-sig"), flags=re.S).group(0)
+
+        def peut(mode, uid):
+            os.chmod(d, mode)
+            r = subprocess.run([PWSH, "-NoProfile", "-NonInteractive", "-Command", f"{fonction}; Test-EcritureConteneur '{d}'"],
+                               capture_output=True, text=True, timeout=60, env=self.env(JED_UID_CONTENEUR=str(uid)))
+            return r.stdout.strip()
+        moi = os.getuid()
+        if moi == 0:   # en root (environnement de développement), le dossier est donné à un autre numéro
+            os.chown(d, 4242, 4242)
+            moi = 4242
+        autre = moi + 1
+        self.assertEqual(peut(0o755, moi), "True")
+        self.assertEqual(peut(0o555, moi), "False")
+        self.assertEqual(peut(0o755, autre), "False")
+        self.assertEqual(peut(0o757, autre), "True")
+        self.assertEqual(peut(0o777, autre), "True")
+        self.assertEqual(peut(0o700, 0), "True", "root écrit partout")
+
+    def verifier(self, **env):
+        install = self.tmp / "installation"
+        if not install.exists():
+            self.make_install("installation", "jed-essai", sauvegardes=str(self.tmp / "sauvegardes"))
+        (self.tmp / "sauvegardes").mkdir(exist_ok=True)
+        args = [PWSH, "-NoProfile", "-NonInteractive", "-File", str(ROOT / "verifier-j-ed.ps1"), "-Dossier", str(install)]
+        return subprocess.run(args, capture_output=True, text=True, timeout=300, env=self.env(**env))
+
+    def test_verification_refuses_root_and_flags_unwritable_backups(self):
+        r = self.verifier(JED_UID_ACTUEL="0")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("en administrateur (sudo ou root)", r.stdout)
+        r = self.verifier(JED_UID_CONTENEUR="4242")
+        self.assertIn("[À surveiller] Dossier des sauvegardes", r.stdout)
+        self.assertIn("ne peut pas y écrire", r.stdout)
+        self.assertIn("chmod o+rwx", r.stdout)
+
+
+# --- Lanceur j-ed.sh ----------------------------------------------------------------------------------------
+
+class LanceurTests(LinuxTestCase):
+    def test_file_is_a_bash_script_with_unix_line_endings(self):
+        data = LANCEUR.read_bytes()
+        self.assertTrue(data.startswith(b"#!/usr/bin/env bash\n"))
+        self.assertNotIn(b"\r", data)
+        self.assertEqual(subprocess.run(["bash", "-n", str(LANCEUR)]).returncode, 0)
+        mode = subprocess.run(["git", "ls-files", "-s", "j-ed.sh"], cwd=ROOT, capture_output=True, text=True).stdout
+        if mode:   # dépôt git présent (environnement de développement, GitHub)
+            self.assertTrue(mode.startswith("100755"), "exécutable dans le dépôt")
+
+    def test_refuses_root(self):
+        r = subprocess.run(["bash", str(LANCEUR)], capture_output=True, text=True, timeout=60,
+                           env=self.env(JED_UID_ACTUEL="0"), input="0\n")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("sans sudo", r.stderr)
+
+    def test_explains_missing_powershell(self):
+        # PATH réduit aux seuls outils du lanceur (pwsh est parfois dans /usr/bin, comme sur GitHub).
+        bin_ = self.tmp / "bin"
+        bin_.mkdir()
+        for outil in ("readlink", "dirname", "id"):
+            (bin_ / outil).symlink_to(shutil.which(outil))
+        env = self.env()
+        env["PATH"] = str(bin_)
+        r = subprocess.run([shutil.which("bash"), str(LANCEUR)], capture_output=True, text=True, timeout=60, env=env)
+        self.assertEqual(r.returncode, 1, r.stderr)
+        self.assertIn("PowerShell 7 n'est pas installé", r.stderr)
+
+    def test_starts_the_menu(self):
+        r = subprocess.run(["bash", str(LANCEUR)], capture_output=True, text=True, timeout=120, env=self.env(), input="0\n")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("J-ed — Assistant (Linux)", r.stdout)
+        self.assertIn("Au revoir.", r.stdout)
+
+
+# --- Menu texte -------------------------------------------------------------------------------------------
+
+class MenuTests(LinuxTestCase):
+    MENU_ACCUEIL = ["1. Mettre à jour une installation", "2. Nouvelle installation", "3. Démarrer", "4. Arrêter",
+                    "5. Ouvrir J-ed", "6. Vérifier", "7. Créer les raccourcis", "8. Ajouter une installation…",
+                    "9. Voir les prérequis", "10. Opérations de maintenance", "11. Ça ne marche pas",
+                    "12. Aide : avant de commencer", "0. Fermer"]
+
+    def menu(self, *reponses, **env):
+        entree = "".join(f"{r}\n" for r in reponses)
+        r = subprocess.run([PWSH, "-NoProfile", "-File", str(MENU)], capture_output=True, text=True, timeout=300,
+                           env=self.env(**env), input=entree)
+        self.sortie = r.stdout
+        return r
+
+    def liste(self):
+        return self.home / ".local" / "share" / "J-ed" / "installations.txt"
+
+    def ajouter(self, *dossiers):
+        self.liste().parent.mkdir(parents=True, exist_ok=True)
+        self.liste().write_text("".join(f"{d}\n" for d in dossiers), encoding="utf-8")
+
+    def test_home_screen_is_the_twin_of_the_windows_window(self):
+        r = self.menu("0")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        menu = self.sortie[self.sortie.index("Prérequis :"):]
+        positions = [menu.index(item) for item in self.MENU_ACCUEIL]
+        self.assertEqual(positions, sorted(positions), "même ordre que la fenêtre Windows")
+        self.assertIn("aucune pour l'instant", self.sortie)
+        # Selon la machine des tests (place sur le disque…), « prêt » avec ou sans points à surveiller.
+        self.assertRegex(self.sortie, r"Prérequis : (tout est prêt\.|prêt, \d+ point)")
+        # Mêmes libellés que les boutons de la fenêtre Windows.
+        fenetre = (ROOT / "assistant" / "assistant-j-ed.ps1").read_text(encoding="utf-8-sig")
+        for libelle in ("Mettre à jour une installation", "Nouvelle installation", "Démarrer", "Arrêter", "Ouvrir J-ed",
+                        "Vérifier", "Créer les raccourcis", "Ajouter une installation…", "Voir les prérequis",
+                        "Opérations de maintenance", "Ça ne marche pas", "Aide : avant de commencer", "Fermer",
+                        "Créer une sauvegarde", "Dossier des sauvegardes", "Restaurer une sauvegarde",
+                        "Mot de passe oublié", "Vérifier la migration", "Réinitialiser l''essai"):
+            self.assertIn(f"'{libelle}'", fenetre, libelle)
+
+    def test_refuses_root_and_ends_cleanly_without_input(self):
+        r = self.menu(JED_UID_ACTUEL="0")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("sans sudo", self.sortie)
+        r = self.menu()   # aucune réponse : fin propre, pas de boucle sans fin
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("Fin de l'assistant.", self.sortie)
+
+    def test_lists_installations_and_starts_or_stops_the_chosen_one(self):
+        a = self.make_install("jed-a-2.0.2", "jed-a", port=8001)
+        b = self.make_install("jed-b-2.0.2", "jed-b", port=8002)
+        self.ajouter(a, b)
+        r = self.menu("3", "2", "", "4", "1", "", "0")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertRegex(self.sortie, r"\[1\] jed-a\s+2\.0\.2\s+port 8001")
+        self.assertRegex(self.sortie, r"\[2\] jed-b\s+2\.0\.2\s+port 8002")
+        self.assertIn(f"{b} | compose up -d", self.calls())
+        self.assertIn(f"{a} | compose stop", self.calls())
+        self.assertFalse(any("down" in c for c in self.calls()), "Arrêter = stop, jamais down")
+        self.assertIn("J-ed est arrêté. Ses données sont intactes.", self.sortie)
+
+    def test_open_needs_a_running_installation(self):
+        a = self.make_install("jed-a-2.0.2", "jed-a", port=8001)
+        self.ajouter(a)
+        self.menu("5", "", "0")
+        self.assertIn("est arrêtée : choisissez d'abord « 3. Démarrer »", self.sortie)
+        ls = json.dumps([{"Name": "jed-a", "Status": "running(8)", "ConfigFiles": str(a / "docker-compose.yml")}])
+        ouvert = self.tmp / "ouvert.txt"
+        xdg = self.outils / "xdg-open"
+        xdg.write_text(f'#!/bin/sh\necho "$1" > "{ouvert}"\n')
+        xdg.chmod(0o755)
+        self.menu("5", "", "0", fake_compose_ls=ls)
+        self.assertIn("http://localhost:8001/", self.sortie)
+        for _ in range(50):
+            if ouvert.exists():
+                break
+            subprocess.run(["sleep", "0.1"])
+        self.assertEqual(ouvert.read_text().strip(), "http://localhost:8001/")
+
+    def test_prerequisites_give_the_linux_advice(self):
+        self.menu("9", "", "0", fake_docker_info="droits")
+        self.assertIn("[Problème] Docker Engine", self.sortie)
+        self.assertIn("sudo usermod -aG docker $USER", self.sortie)
+        self.assertIn("point(s) à régler avant d'installer", self.sortie)
+
+    def test_new_installation_stops_when_prerequisites_are_missing(self):
+        self.menu("2", "", "0", fake_docker_info="1")
+        self.assertIn("Des prérequis ne sont pas remplis", self.sortie)
+        self.assertIn("sudo systemctl start docker", self.sortie)
+
+    def test_features_of_later_lots_say_so(self):
+        self.menu("1", "", "7", "", "11", "", "10", "3", "", "4", "", "5", "", "6", "", "0", "0")
+        for fonction, lot in (("Mettre à jour une installation", "lot 2"), ("Créer les raccourcis", "lot 3"),
+                              ("Ça ne marche pas", "lot 3"), ("Restaurer une sauvegarde", "lot 3"),
+                              ("Mot de passe oublié", "lot 3"), ("Vérifier la migration", "lot 3"),
+                              ("Réinitialiser l'essai", "lot 3")):
+            self.assertIn(f"« {fonction} » arrive avec le {lot}", self.sortie)
+
+    def test_add_installation(self):
+        self.menu("8", str(self.tmp / "nulle-part"), "", "0")
+        self.assertIn("Dossier non ajouté", self.sortie)
+        a = self.make_install("jed-a-2.0.2", "jed-a")
+        self.menu("8", str(a), "", "0")
+        self.assertIn("Installation « jed-a » ajoutée", self.sortie)
+        self.assertEqual(self.liste().read_text(encoding="utf-8").split(), [str(a)])
+
+    def test_backup_is_copied_into_the_backups_folder(self):
+        sauv = self.tmp / "sauvegardes-jed-a"
+        a = self.make_install("jed-a-2.0.2", "jed-a", sauvegardes=str(sauv))
+        self.ajouter(a)
+        r = self.menu("10", "1", "", "0", "0")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("Sauvegarde faite", self.sortie)
+        self.assertTrue((sauv / "sauvegarde-20261114-220000-full.tar").exists())
+        self.assertIn("sauvegarde : aujourd'hui", self.sortie)
+
+    def test_verification_runs_the_installation_script(self):
+        a = self.make_install("jed-a-2.0.2", "jed-a")
+        self.ajouter(a)
+        recu = self.tmp / "arguments.txt"
+        (a / "verifier-j-ed.ps1").write_text(
+            "param([string]$Dossier, [switch]$AvecSources, [switch]$AvecTests)\n"
+            f"\"$Dossier|$AvecTests|$AvecSources\" | Set-Content '{recu}'\n"
+            "Write-Host '[OK] Conteneurs : en service'\nWrite-Host 'Rapport enregistré : /tmp/rapport-fictif.txt'\nexit 0\n",
+            encoding="utf-8")
+        r = self.menu("6", "o", "n", "", "0")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(recu.read_text().strip(), f"{a}|True|False")
+        self.assertIn("[OK] Conteneurs : en service", self.sortie)
+        self.assertIn("Tout va bien", self.sortie)
+        self.assertIn("Rapport : /tmp/rapport-fictif.txt", self.sortie)
+
+    def archive(self, version="2.0.3"):
+        archive = self.tmp / "telechargements" / f"japon-explorateur-{version}.zip"
+        archive.parent.mkdir()
+        exemple = (ROOT / ".env.example").read_text(encoding="utf-8")
+        with zipfile.ZipFile(archive, "w") as z:
+            z.writestr(f"japon-explorateur-{version}/VERSION", f"{version}\n")
+            z.writestr(f"japon-explorateur-{version}/docker-compose.yml", "name: ${COMPOSE_PROJECT_NAME}\n")
+            z.writestr(f"japon-explorateur-{version}/.env.example", exemple)
+        Path(f"{archive}.sha256").write_text(hashlib.sha256(archive.read_bytes()).hexdigest() + f"  {archive.name}\n")
+        return archive
+
+    def test_new_installation_from_start_to_end(self):
+        """Comme la fenêtre Windows : proxy, archive et empreinte, nom, port, emplacement, sauvegardes, Argos,
+        « Docker joint-il Internet ? », récapitulatif, installation par installer-j-ed.ps1, fin guidée."""
+        archive = self.archive()
+        self.gsettings()   # proxy réglé dans Ubuntu : proposé d'office
+        port = free_port()
+        r = self.menu("2",
+                      "",              # utiliser le proxy trouvé
+                      "2", str(archive),  # archive déjà téléchargée (empreinte trouvée à côté)
+                      "",              # nom proposé : jed
+                      str(port),
+                      "",              # emplacement proposé : ~/J-ed/jed-2.0.3
+                      "",              # sauvegardes proposées : ~/J-ed/sauvegardes-jed
+                      "n",             # sans Argos
+                      "",              # Docker joint-il Internet ? oui
+                      "",              # Installer ? oui
+                      "2", "0",        # fin guidée : jeu d'essai, puis terminé
+                      "0")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        dest = self.home / "J-ed" / "jed-2.0.3"
+        self.assertIn(f"Proxy trouvé dans les réglages : {PROXY}", self.sortie)
+        self.assertIn("Archive de la version 2.0.3 : empreinte conforme.", self.sortie)
+        self.assertIn("pull python:3.12-slim-bookworm", "\n".join(self.calls()))
+        self.assertIn("OK — Installation réussie", self.sortie)
+        self.assertIn("Jeu d'essai chargé", self.sortie)
+        valeurs = dict(l.split("=", 1) for l in (dest / ".env").read_text(encoding="utf-8").splitlines()
+                       if re.match(r"^[A-Z_]+=", l))
+        self.assertEqual(valeurs["COMPOSE_PROJECT_NAME"], "jed")
+        self.assertEqual(valeurs["WEB_PORT"], str(port))
+        self.assertEqual(valeurs["HTTPS_PROXY"], PROXY)
+        self.assertEqual(valeurs["COMPOSE_PROFILES"], "")
+        self.assertEqual(Path(valeurs["DOSSIER_SAUVEGARDES"]), self.home / "J-ed" / "sauvegardes-jed")
+        self.assertIn(str(dest), self.liste().read_text(encoding="utf-8"))
+        # La construction a vu le proxy (commande docker, essai réel du 26/11).
+        proxy = (self.tmp / "proxy.log").read_text().splitlines()
+        self.assertIn(f"compose build | {PROXY}", proxy)
+
+    def test_menu_file_format(self):
+        data = MENU.read_bytes()
+        self.assertTrue(data.startswith(b"\xef\xbb\xbf"))
+        self.assertNotIn(b"\n", data.replace(b"\r\n", b""))
+        code = re.sub(r"<#.*?#>", "", data.decode("utf-8-sig"), flags=re.S)
+        self.assertIn("Import-Module ([System.IO.Path]::Combine($PSScriptRoot, 'AssistantJed.psm1'))", code)
+        self.assertNotRegex(code, r"'down'|down -v|'-v'|--volumes|'-Oui'")

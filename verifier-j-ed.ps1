@@ -47,6 +47,29 @@ $SousLinux = ((Get-Variable -Name IsLinux -ValueOnly -ErrorAction SilentlyContin
 $NomDocker = 'Docker Desktop'
 $ConseilDocker = 'ne répond pas : démarrez-le, attendez « Engine running », puis relancez'
 $OuSontLesCopies = 'invisibles dans Windows'
+# 2.0.3 (Linux, décisions D4 et D5) : jamais en root (les fichiers de J-ed appartiendraient à root) ; le conteneur
+# (utilisateur 1000) copie lui-même chaque sauvegarde dans le dossier des sauvegardes : il doit pouvoir y écrire.
+# JED_UID_ACTUEL et JED_UID_CONTENEUR : réservés aux tests automatiques.
+function Get-UidLinux {
+    if ("$env:JED_UID_ACTUEL" -match '^\d+$') { return [int]$env:JED_UID_ACTUEL }
+    $u = "$(& id -u 2>$null)".Trim()
+    if ($u -match '^\d+$') { return [int]$u }
+    return $null
+}
+function Test-EcritureConteneur([string]$Chemin) {
+    # Vrai si l'utilisateur du conteneur peut écrire dans ce dossier, faux sinon, $null si on ne sait pas.
+    $uidConteneur = 1000
+    if ("$env:JED_UID_CONTENEUR" -match '^\d+$') { $uidConteneur = [int]$env:JED_UID_CONTENEUR }
+    if ($uidConteneur -eq 0) { return $true }
+    $s = "$(& stat -c '%u %g %a' $Chemin 2>$null)".Trim()
+    if ($s -notmatch '^(\d+) (\d+) ([0-7]{3,4})$') { return $null }
+    $uid = [int]$Matches[1]; $gid = [int]$Matches[2]
+    $mode = [Convert]::ToInt32($Matches[3].Substring($Matches[3].Length - 3), 8)
+    if ($uid -eq $uidConteneur) { return (($mode -band 0x80) -ne 0 -and ($mode -band 0x40) -ne 0) }   # u+w, u+x
+    if ($gid -eq $uidConteneur) { return (($mode -band 0x10) -ne 0 -and ($mode -band 0x8) -ne 0) }    # g+w, g+x
+    return (($mode -band 0x2) -ne 0 -and ($mode -band 0x1) -ne 0)                                      # o+w, o+x
+}
+$TexteRoot = 'ne lancez pas ce script en administrateur (sudo ou root) : les fichiers de J-ed appartiendraient à root. Relancez-le depuis votre compte, sans sudo.'
 if ($SousLinux) {
     $NomDocker = 'Docker'
     $ConseilDocker = 'ne répond pas : vérifiez qu''il est démarré (« sudo systemctl start docker ») et que votre compte est dans le groupe docker, puis relancez'
@@ -132,6 +155,10 @@ if (-not (Test-Path -LiteralPath $Dossier -PathType Container)) {
     exit 1
 }
 $Dossier = (Resolve-Path -LiteralPath $Dossier).Path
+if ($SousLinux -and (Get-UidLinux) -eq 0) {
+    Write-Host "ARRÊT : $TexteRoot" -ForegroundColor Red
+    exit 1
+}
 Set-Location -LiteralPath $Dossier
 Write-Host "Vérification de J-ed — $Dossier" -ForegroundColor White
 $script:Lignes.Add("Vérification de J-ed — $(Get-Date -Format 'dd/MM/yyyy HH:mm')")
@@ -198,6 +225,9 @@ if (-not $DossierSauv) {
     Noter 'warning' 'Dossier des sauvegardes' "DOSSIER_SAUVEGARDES absent de .env : les copies restent dans Docker, $OuSontLesCopies"
 } elseif (-not (Test-Path -LiteralPath $DossierSauv -PathType Container)) {
     Noter 'warning' 'Dossier des sauvegardes' "$DossierSauv n'existe pas encore (il sera créé à la première sauvegarde)"
+} elseif ($SousLinux -and (Test-EcritureConteneur $DossierSauv) -eq $false) {
+    # 2.0.3 (Linux) : le conteneur ne peut pas y copier les sauvegardes (« Copie externe » en échec).
+    Noter 'warning' 'Dossier des sauvegardes' "$DossierSauv : J-ed (utilisateur 1000 de son conteneur) ne peut pas y écrire" @("Pour le lui permettre : chmod o+rwx `"$DossierSauv`"")
 } else {
     $copies = @(Get-ChildItem -LiteralPath $DossierSauv -Filter 'sauvegarde-*.tar' -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending)

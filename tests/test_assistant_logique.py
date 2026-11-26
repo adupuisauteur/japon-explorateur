@@ -82,7 +82,9 @@ class AssistantTestCase(SimpleTestCase):
             if not actuel.exists():
                 self.make_install("actuel-par-defaut", "jed-defaut")
         env = {k: v for k, v in os.environ.items() if k.lower() not in ("http_proxy", "https_proxy", "all_proxy")}
-        env.update(FAKE_DOCKER_LOG=str(self.log), FAKE_ACTUEL=str(actuel),
+        # 2.0.3 : les tests tournent parfois en root ; les scripts refusent root sous Linux (JED_UID_ACTUEL le simule).
+        env.update(FAKE_DOCKER_LOG=str(self.log), FAKE_ACTUEL=str(actuel), JED_UID_ACTUEL="1000",
+                   JED_UID_CONTENEUR=str(os.getuid()),
                    PATH=str(FAKE_DOCKER_DIR) + os.pathsep + os.environ.get("PATH", ""))
         env.update({f"FAKE_{k.upper()}": str(v) for k, v in fake.items()})
         full = ("$ErrorActionPreference = 'Stop'; $PSNativeCommandArgumentPassing = 'Legacy'; "
@@ -266,7 +268,9 @@ class NouvelleInstallationTests(AssistantTestCase):
         r = self.ps(self.installs() + "Get-EmplacementParDefautJed -Installations $i -Nom 'jed-c' -Version '2.0.2'")
         self.assertEqual(Path(r), self.tmp / "parent" / "jed-c-2.0.2")
         r = self.ps("Get-EmplacementParDefautJed -Nom 'jed-c' -Version '2.0.2'")
-        self.assertTrue(r.startswith("C:\\J-ed"), r)
+        # 2.0.3 : sous Linux (où tournent les tests), ~/J-ed (décision D5) ; C:\J-ed sous Windows (lu dans le code).
+        self.assertEqual(Path(r), Path.home() / "J-ed" / "jed-c-2.0.2")
+        self.assertIn("$parent = 'C:\\J-ed'", MODULE.read_text(encoding="utf-8-sig"))
 
 
 class ArchiveTests(AssistantTestCase):

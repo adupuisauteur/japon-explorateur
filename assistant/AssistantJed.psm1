@@ -15,6 +15,13 @@
 $script:NomsProteges = @('japon-explorateur', 'japon-explorateur-essai')
 $script:Utf8SansBom = New-Object System.Text.UTF8Encoding($false)
 $script:PageAide = 'AVANT-DE-COMMENCER.html'
+# 2.0.3 (Linux, décisions D1 et D2) : le même module sert à la fenêtre Windows et au menu texte de Linux
+# (assistant/menu-j-ed.ps1, lancé par j-ed.sh). La variable IsLinux n'existe pas sous Windows PowerShell 5.1 : lue
+# ainsi, elle vaut faux. Seuls des textes et des emplacements propres à Linux en dépendent.
+$script:SousLinux = ((Get-Variable -Name IsLinux -ValueOnly -ErrorAction SilentlyContinue) -eq $true)
+$script:Explorateur = "l'Explorateur de fichiers"
+$script:PageAideLinux = 'AVANT-DE-COMMENCER-LINUX.html'
+if ($script:SousLinux) { $script:Explorateur = "l'application Fichiers" }
 
 # --- Outils ------------------------------------------------------------------------------------------------
 
@@ -29,11 +36,35 @@ function Get-CleCheminJed([string]$Chemin) {
     return $plein.TrimEnd('\', '/').ToLowerInvariant()
 }
 
+function Test-LinuxJed {
+    <# 2.0.3 : vrai sous Linux (PowerShell 7). #>
+    return $script:SousLinux
+}
+
+function Get-UidJed {
+    <# 2.0.3 (Linux) : numéro de l'utilisateur qui lance l'assistant (0 = root), ou $null (Windows, inconnu).
+       JED_UID_ACTUEL : réservé aux tests automatiques (qui tournent parfois en root). #>
+    if (-not $script:SousLinux) { return $null }
+    if ("$env:JED_UID_ACTUEL" -match '^\d+$') { return [int]$env:JED_UID_ACTUEL }
+    $ErrorActionPreference = 'Continue'
+    $u = "$(& id -u 2>$null)".Trim()
+    if ($u -match '^\d+$') { return [int]$u }
+    return $null
+}
+
+function Get-MoteurPowerShellJed {
+    <# Programme qui lance les scripts de J-ed : Windows PowerShell 5.1 sous Windows, ce même PowerShell 7 sous Linux. #>
+    if ($script:SousLinux) { return [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName }
+    return 'powershell.exe'
+}
+
 function Invoke-DockerJed {
     <# Lance docker (dans un dossier si demandé) ; renvoie le code et le texte (sortie et erreurs). #>
     param([string]$Dossier, [string[]]$Arguments, [scriptblock]$SurAttente, [scriptblock]$SurLigne)
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-        return [pscustomobject]@{ Code = 127; Texte = "docker n'est pas reconnu : Docker Desktop n'est pas installé." }
+        $absent = "docker n'est pas reconnu : Docker Desktop n'est pas installé."
+        if ($script:SousLinux) { $absent = "docker n'est pas reconnu : Docker n'est pas installé." }
+        return [pscustomobject]@{ Code = 127; Texte = $absent }
     }
     if ($SurAttente -or $SurLigne) {
         # Depuis la fenêtre : processus à part, pour qu'elle reste active pendant une longue commande.
@@ -122,6 +153,12 @@ function Get-TexteProtegeeJed($Installation) {
 
 function Get-FichierListeJed {
     <# Fichier où l'assistant garde les dossiers d'installation déjà vus (chemins seulement). #>
+    if ($script:SousLinux) {
+        # 2.0.3 : emplacement habituel des données d'un programme sous Linux (~/.local/share).
+        $base = $env:XDG_DATA_HOME
+        if (-not $base) { $base = Join-CheminJed (Join-CheminJed ([Environment]::GetFolderPath('UserProfile')) '.local') 'share' }
+        return Join-CheminJed (Join-CheminJed $base 'J-ed') 'installations.txt'
+    }
     $base = $env:LOCALAPPDATA
     if (-not $base) { $base = [System.IO.Path]::GetTempPath() }
     return Join-CheminJed (Join-CheminJed $base 'J-ed') 'installations.txt'
@@ -238,6 +275,18 @@ function Get-FaitsSystemeJed {
         MemoireGo = $null; Virtualisation = $null; Wsl = $null
         DockerInstalle = [bool](Get-Command docker -ErrorAction SilentlyContinue)
         DockerDemarre = $false; DisqueLibreGo = $null
+        # 2.0.3 (Linux)
+        Linux = $script:SousLinux; Avx = $null; DockerDroits = $null; Root = $null
+        PowerShell = "$($PSVersionTable.PSVersion)"
+    }
+    if ($faits.Linux) {
+        try {
+            foreach ($l in [System.IO.File]::ReadAllLines('/proc/meminfo')) {
+                if ($l -match '^MemTotal:\s+(\d+) kB') { $faits.MemoireGo = [Math]::Round([double]$Matches[1] / 1MB, 1) }
+            }
+        } catch { }
+        try { $faits.Avx = ([System.IO.File]::ReadAllText('/proc/cpuinfo') -match '(?m)^flags\s*:.*\bavx\b') } catch { }
+        $faits.Root = ((Get-UidJed) -eq 0)
     }
     if ($faits.Windows) {
         try {
@@ -260,7 +309,12 @@ function Get-FaitsSystemeJed {
             $faits.Wsl = $false
         }
     }
-    if ($faits.DockerInstalle) { $faits.DockerDemarre = ((Invoke-DockerJed '' @('info')).Code -eq 0) }
+    if ($faits.DockerInstalle) {
+        $info = Invoke-DockerJed '' @('info')
+        $faits.DockerDemarre = ($info.Code -eq 0)
+        # 2.0.3 (Linux) : compte hors du groupe docker (« permission denied … docker.sock »).
+        if ($faits.Linux) { $faits.DockerDroits = -not ($info.Texte -match '(?i)permission denied') }
+    }
     try {
         $racine = [System.IO.Path]::GetPathRoot([System.IO.Path]::GetFullPath($(if ($Dossier) { $Dossier } else { '.' })))
         $faits.DisqueLibreGo = [Math]::Round((New-Object System.IO.DriveInfo($racine)).AvailableFreeSpace / 1GB, 1)
@@ -273,15 +327,74 @@ function Format-NombreJed([double]$Nombre) {
     return $Nombre.ToString('0.#', [System.Globalization.CultureInfo]::GetCultureInfo('fr-FR'))
 }
 
-function New-ControleJed([string]$Cle, [string]$Libelle, [string]$Niveau, [string]$Detail, [string]$Ancre) {
+function New-ControleJed([string]$Cle, [string]$Libelle, [string]$Niveau, [string]$Detail, [string]$Ancre, [string]$Conseil = '') {
+    <# 2.0.3 : -Conseil, ce qu'il faut faire, en une ou deux lignes (affiché par le menu texte de Linux). #>
     return [pscustomobject]@{
-        Cle = $Cle; Libelle = $Libelle; Niveau = $Niveau; Detail = $Detail; Aide = "$($script:PageAide)#$Ancre"
+        Cle = $Cle; Libelle = $Libelle; Niveau = $Niveau; Detail = $Detail; Aide = "$($script:PageAide)#$Ancre"; Conseil = $Conseil
     }
+}
+
+function Test-PrerequisLinuxJed {
+    <# 2.0.3 : prérequis sous Linux (Ubuntu) : mêmes niveaux, autres points (Docker Engine, groupe docker,
+       PowerShell, AVX, pas de root). #>
+    param([Parameter(Mandatory = $true)]$Faits)
+    $c = New-Object System.Collections.Generic.List[object]
+    if ($Faits.Root) {
+        $c.Add((New-ControleJed 'root' 'Compte' 'erreur' 'Lancé en administrateur (sudo ou root).' 'compte' 'Fermez, puis relancez j-ed.sh depuis votre compte, sans sudo.'))
+    }
+    if (-not $Faits.Bits64) {
+        $c.Add((New-ControleJed 'systeme' 'Linux 64 bits' 'erreur' 'Docker et J-ed demandent un Linux 64 bits.' 'configuration'))
+    } else {
+        $c.Add((New-ControleJed 'systeme' 'Linux' 'ok' 'Linux 64 bits.' 'configuration'))
+    }
+    if ($null -eq $Faits.MemoireGo) {
+        $c.Add((New-ControleJed 'memoire' 'Mémoire' 'attention' 'Mémoire inconnue : 8 Go sont conseillés.' 'configuration'))
+    } elseif ($Faits.MemoireGo -lt 4) {
+        $c.Add((New-ControleJed 'memoire' 'Mémoire' 'erreur' "$(Format-NombreJed $Faits.MemoireGo) Go : trop peu pour Docker et J-ed (8 Go conseillés)." 'configuration'))
+    } elseif ($Faits.MemoireGo -lt 7.5) {
+        $c.Add((New-ControleJed 'memoire' 'Mémoire' 'attention' "$(Format-NombreJed $Faits.MemoireGo) Go : J-ed fonctionnera, lentement ; 8 Go sont conseillés." 'configuration'))
+    } else {
+        $c.Add((New-ControleJed 'memoire' 'Mémoire' 'ok' "$(Format-NombreJed $Faits.MemoireGo) Go." 'configuration'))
+    }
+    if ($null -eq $Faits.Avx) {
+        $c.Add((New-ControleJed 'avx' 'Processeur' 'attention' 'Impossible de savoir si le processeur a l''instruction AVX.' 'processeur'))
+    } elseif ($Faits.Avx) {
+        $c.Add((New-ControleJed 'avx' 'Processeur' 'ok' 'Instruction AVX présente (Argos, IA locale).' 'processeur'))
+    } else {
+        $c.Add((New-ControleJed 'avx' 'Processeur' 'attention' 'Pas d''instruction AVX : la traduction Argos et l''IA locale ne fonctionneront pas.' 'processeur' 'Machine virtuelle : choisissez le type de processeur « host » (Proxmox : Hardware → Processors).'))
+    }
+    if (-not $Faits.DockerInstalle) {
+        $c.Add((New-ControleJed 'docker' 'Docker Engine' 'erreur' 'Pas installé.' 'docker' 'Installez Docker Engine depuis le dépôt de Docker (voir « Avant de commencer (Linux) »).'))
+    } elseif ($Faits.DockerDroits -eq $false) {
+        $c.Add((New-ControleJed 'docker' 'Docker Engine' 'erreur' 'Installé, mais votre compte n''a pas le droit de l''utiliser.' 'groupe-docker' 'Tapez « sudo usermod -aG docker $USER », puis déconnectez-vous et reconnectez-vous (ou redémarrez).'))
+    } elseif (-not $Faits.DockerDemarre) {
+        $c.Add((New-ControleJed 'docker' 'Docker Engine' 'erreur' 'Installé mais ne répond pas.' 'docker' 'Tapez « sudo systemctl start docker », puis recommencez.'))
+    } else {
+        $c.Add((New-ControleJed 'docker' 'Docker Engine' 'ok' 'Démarré.' 'docker'))
+    }
+    $vps = ConvertTo-VersionJed $Faits.PowerShell
+    if ($vps -and $vps -lt [version]'7.4') {
+        $c.Add((New-ControleJed 'powershell' 'PowerShell' 'attention' "Version $($Faits.PowerShell) : 7.4 ou plus récente conseillée." 'powershell' 'Installez PowerShell 7.6 (voir « Avant de commencer (Linux) »).'))
+    } else {
+        $c.Add((New-ControleJed 'powershell' 'PowerShell' 'ok' "Version $($Faits.PowerShell)." 'powershell'))
+    }
+    if ($null -eq $Faits.DisqueLibreGo) {
+        $c.Add((New-ControleJed 'disque' 'Place sur le disque' 'attention' 'Place libre inconnue : 20 Go sont conseillés.' 'disque'))
+    } elseif ($Faits.DisqueLibreGo -lt 10) {
+        $c.Add((New-ControleJed 'disque' 'Place sur le disque' 'erreur' "$(Format-NombreJed $Faits.DisqueLibreGo) Go libres : trop peu (20 Go conseillés)." 'disque'))
+    } elseif ($Faits.DisqueLibreGo -lt 20) {
+        $c.Add((New-ControleJed 'disque' 'Place sur le disque' 'attention' "$(Format-NombreJed $Faits.DisqueLibreGo) Go libres : juste (20 Go conseillés)." 'disque'))
+    } else {
+        $c.Add((New-ControleJed 'disque' 'Place sur le disque' 'ok' "$(Format-NombreJed $Faits.DisqueLibreGo) Go libres." 'disque'))
+    }
+    foreach ($x in $c) { $x.Aide = $x.Aide -replace '^[^#]*', $script:PageAideLinux }   # aide propre à Linux
+    return ,$c.ToArray()
 }
 
 function Test-PrerequisJed {
     <# Évalue les faits relevés : un contrôle par point, niveau ok, attention ou erreur. #>
     param([Parameter(Mandatory = $true)]$Faits)
+    if ($Faits.Linux) { return Test-PrerequisLinuxJed $Faits }
     $c = New-Object System.Collections.Generic.List[object]
     if (-not $Faits.Windows) {
         $c.Add((New-ControleJed 'windows' 'Windows' 'erreur' "L'assistant fonctionne sous Windows 10 ou 11." 'configuration'))
@@ -382,6 +495,16 @@ function Test-PortJed {
     return [pscustomobject]@{ Ok = $true; Raison = '' }
 }
 
+function Get-NomProposeJed {
+    <# Nom libre proposé pour une nouvelle installation : « jed », sinon « jed-2 », « jed-3 »… ('' si aucun). #>
+    param([string]$Base = 'jed', $Installations = @(), $Volumes = @())
+    if ((Test-NomProjetJed $Base $Installations $Volumes).Ok) { return $Base }
+    for ($n = 2; $n -lt 100; $n++) {
+        if ((Test-NomProjetJed "$Base-$n" $Installations $Volumes).Ok) { return "$Base-$n" }
+    }
+    return ''
+}
+
 function Get-PortLibreJed {
     param($Installations = @(), [int]$Debut = 8000)
     for ($p = $Debut; $p -lt $Debut + 200; $p++) {
@@ -396,6 +519,7 @@ function Get-EmplacementParDefautJed {
     $parents = @(@($Installations) | Where-Object { $_.Valide } |
         ForEach-Object { Split-Path -Parent $_.Dossier } | Sort-Object -Unique)
     $parent = 'C:\J-ed'
+    if ($script:SousLinux) { $parent = Join-CheminJed ([Environment]::GetFolderPath('UserProfile')) 'J-ed' }   # 2.0.3 (D5)
     if ($parents.Count -eq 1) { $parent = $parents[0] }
     $feuille = $Nom
     if ($Version) { $feuille = "$Nom-$Version" }
@@ -551,7 +675,7 @@ function Invoke-ScriptJed {
        question du journal (repère QUESTION) par ce que renvoie -SurQuestion : OUI si vrai, sinon refus.
        -SurAttente est appelé pendant l'attente (la fenêtre y garde la main). Renvoie le code de sortie, les
        lignes affichées et le chemin du journal. #>
-    param([string]$Moteur = 'powershell.exe', [string[]]$Arguments, [scriptblock]$SurLigne,
+    param([string]$Moteur = (Get-MoteurPowerShellJed), [string[]]$Arguments, [scriptblock]$SurLigne,
           [scriptblock]$SurQuestion, [scriptblock]$SurAttente, [string]$Dossier, [string]$Entree, [scriptblock]$SurEtape)
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = $Moteur
@@ -636,7 +760,7 @@ function Get-ConseilDossierInstallationJed {
     if ($Code -eq 0) { return '' }
     foreach ($l in $Lignes) {
         if ($l -match '^Le dossier (.+?) a .{1,3}t.{1,3} cr.{1,3}. ; il peut') {
-            return ("Avant de recommencer, supprimez ce dossier (par exemple dans l'Explorateur de fichiers) :`n$($Matches[1])`n" +
+            return ("Avant de recommencer, supprimez ce dossier (par exemple dans $($script:Explorateur)) :`n$($Matches[1])`n" +
                 "Il ne contient aucune de vos données. L'assistant ne le supprime pas lui-même.")
         }
     }
@@ -656,7 +780,7 @@ function Get-ConseilDossierMiseAJourJed {
         if ($l -match 'Nouvelle version dans : (.+)$') { $dossier = $Matches[1].Trim() }
     }
     if (-not $dossier) { return '' }
-    return ("Avant de relancer la mise à jour, supprimez ce dossier (par exemple dans l'Explorateur de fichiers) :`n$dossier`n" +
+    return ("Avant de relancer la mise à jour, supprimez ce dossier (par exemple dans $($script:Explorateur)) :`n$dossier`n" +
         "Il ne contient que les fichiers de la nouvelle version, aucune de vos données (elles sont gardées par Docker). " +
         "L'assistant ne le supprime pas lui-même.")
 }
@@ -683,6 +807,9 @@ function Get-MessageVerificationJed([int]$Code) {
 }
 
 $script:ErreursDocker = @(
+    # 2.0.3 (Linux) : compte hors du groupe docker. Ne se produit pas sous Windows.
+    @('droits', '(?i)permission denied[^\n]*docker\.sock|docker\.sock[^\n]*permission denied',
+      "Votre compte n'a pas le droit d'utiliser Docker.", "Tapez « sudo usermod -aG docker `$USER », puis déconnectez-vous et reconnectez-vous (ou redémarrez)."),
     @('docker-absent', "(?i)docker.{0,40}(not recognized|n'est pas reconnu|introuvable)|command not found",
       "Docker Desktop n'est pas installé.", "Installez-le (voir « Avant de commencer »), puis relancez l'assistant."),
     @('docker-arrete', '(?i)error during connect|dockerDesktopLinuxEngine|Cannot connect to the Docker daemon|daemon is not running|The system cannot find the file specified',
@@ -697,12 +824,23 @@ $script:ErreursDocker = @(
       "Docker ne joint pas Internet.", "Vérifiez la connexion. Derrière un proxy, réglez-le dans Docker Desktop (Settings → Resources → Proxies).")
 )
 
+# 2.0.3 : explication et solution sous Linux (Docker Engine), quand elles diffèrent de Windows.
+$script:ErreursDockerLinux = @{
+    'docker-absent' = @("Docker n'est pas installé.", "Installez Docker Engine (voir « Avant de commencer (Linux) »), puis relancez l'assistant.")
+    'docker-arrete' = @("Docker ne répond pas.", "Tapez « sudo systemctl start docker », puis recommencez.")
+    'internet' = @("Docker ne joint pas Internet.", "Vérifiez la connexion. Derrière un proxy, réglez-le pour le service Docker (/etc/docker/daemon.json) et indiquez-le à l'installation.")
+}
+
 function Convert-ErreurDockerJed([string]$Texte) {
     <# Explication en français de l'erreur Docker reconnue dans le texte, ou $null. #>
     if (-not $Texte) { return $null }
     foreach ($e in $script:ErreursDocker) {
         if ($Texte -match $e[1]) {
-            return [pscustomobject]@{ Cle = $e[0]; Explication = $e[2]; Solution = $e[3] }
+            $explication = $e[2]; $solution = $e[3]
+            if ($script:SousLinux -and $script:ErreursDockerLinux.ContainsKey($e[0])) {
+                $explication = $script:ErreursDockerLinux[$e[0]][0]; $solution = $script:ErreursDockerLinux[$e[0]][1]
+            }
+            return [pscustomobject]@{ Cle = $e[0]; Explication = $explication; Solution = $solution }
         }
     }
     return $null
@@ -999,6 +1137,16 @@ function Compare-VersionJed([string]$A, [string]$B) {
 
 function Get-DossierTelechargementsJed {
     $profil = [Environment]::GetFolderPath('UserProfile')
+    if ($script:SousLinux) {
+        # 2.0.3 : dossier « Téléchargements » d'Ubuntu (son nom dépend de la langue), sinon ~/Downloads.
+        $d = ''
+        if (Get-Command xdg-user-dir -ErrorAction SilentlyContinue) {
+            $ErrorActionPreference = 'Continue'
+            $d = "$(& xdg-user-dir DOWNLOAD 2>$null)".Trim()
+        }
+        if (-not $d -or $d -eq $profil) { $d = Join-CheminJed $profil 'Downloads' }
+        return Join-CheminJed $d 'J-ed'
+    }
     return Join-CheminJed (Join-CheminJed $profil 'Downloads') 'J-ed'
 }
 
@@ -1028,9 +1176,37 @@ function Save-DerniereVersionJed {
 
 $script:ExceptionsProxy = 'localhost,127.0.0.1,db,redis,argos,ollama,web'
 
+function Get-ProxyGnomeJed {
+    <# 2.0.3 (Linux) : proxy réglé dans Ubuntu (Paramètres → Réseau → Proxy réseau, mode « Manuel »), ou $null. #>
+    if (-not (Get-Command gsettings -ErrorAction SilentlyContinue)) { return $null }
+    $ErrorActionPreference = 'Continue'
+    $mode = "$(& gsettings get org.gnome.system.proxy mode 2>$null)".Trim().Trim("'")
+    if ($mode -ne 'manual') { return $null }
+    foreach ($schema in @('org.gnome.system.proxy.https', 'org.gnome.system.proxy.http')) {
+        $hote = "$(& gsettings get $schema host 2>$null)".Trim().Trim("'").Trim()
+        $port = "$(& gsettings get $schema port 2>$null)".Trim()
+        if ($port -match '(\d+)$') { $port = [int]$Matches[1] } else { $port = 0 }
+        if ($hote -and $port -gt 0) {
+            $hote = $hote -replace '^https?://', '' -replace '/+$', ''
+            return "http://$($hote):$port"
+        }
+    }
+    return $null
+}
+
 function Get-ProxySystemeJed {
-    <# Adresse réelle du proxy que Windows utilise pour cette adresse (un fichier PAC est appliqué), ou $null. #>
+    <# Adresse réelle du proxy que Windows utilise pour cette adresse (un fichier PAC est appliqué), ou $null.
+       2.0.3 (Linux) : proxy du terminal (HTTPS_PROXY, HTTP_PROXY), sinon celui des réglages d'Ubuntu. #>
     param([string]$Url = 'https://registry-1.docker.io/')
+    if ($script:SousLinux) {
+        foreach ($nom in @('HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy')) {
+            $v = [Environment]::GetEnvironmentVariable($nom)
+            if ($v) {
+                try { $u = New-Object System.Uri($v); return "$($u.Scheme)://$($u.Authority)" } catch { return $v }
+            }
+        }
+        return Get-ProxyGnomeJed
+    }
     try {
         $uri = New-Object System.Uri($Url)
         $p = [System.Net.WebRequest]::GetSystemWebProxy().GetProxy($uri)
@@ -1086,6 +1262,14 @@ function Get-CommandeAccesRegistreJed {
 }
 
 function Get-ConseilProxyDockerJed([string]$Proxy) {
+    if ($script:SousLinux) {
+        # 2.0.3 : le service Docker de Linux lit son proxy dans /etc/docker/daemon.json.
+        $t = "Le service Docker doit passer par le proxy :`n" +
+            "1. écrivez son adresse dans /etc/docker/daemon.json (voir « Avant de commencer (Linux) », partie Proxy)"
+        if ($Proxy) { $t += " : $Proxy" }
+        $t += " ;`n2. redémarrez Docker : sudo systemctl restart docker ;`n3. recommencez « Docker joint-il Internet ? »."
+        return $t
+    }
     $t = "Docker Desktop doit passer par le proxy :`n" +
         "1. ouvrez Docker Desktop, puis Settings (roue dentée) → Resources → Proxies ;`n" +
         "2. choisissez « System proxy » pour Docker Desktop et pour les conteneurs ;`n"

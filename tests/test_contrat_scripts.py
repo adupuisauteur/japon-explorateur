@@ -162,3 +162,16 @@ class ContratLinuxTests(SimpleTestCase):
             self.assertIn("if (-not $SousLinux -or -not $Adresse) { return }", source, script)
             appel = source.index("Donner-Proxy-A-Docker $")
             self.assertLess(appel, source.rindex("@('compose', 'build')"), script)  # construction principale
+
+    def test_linux_launcher_menu_and_checks_are_documented(self):
+        """2.0.3, lot 1."""
+        texte = CONTRAT.read_text(encoding="utf-8")
+        for mot in ("`j-ed.sh`", "`assistant/menu-j-ed.ps1`", "Refus de root", "`chmod o+rwx <dossier>`",
+                    "`JED_UID_ACTUEL`", "`JED_UID_CONTENEUR`"):
+            self.assertIn(mot, texte)
+        self.assertTrue((ROOT / "j-ed.sh").exists())
+        self.assertTrue((ROOT / "assistant" / "menu-j-ed.ps1").exists())
+        for script in ("installer-j-ed.ps1", "verifier-j-ed.ps1"):
+            source = lire(script)
+            self.assertIn("(Get-UidLinux) -eq 0", source, script)
+            self.assertIn("Test-EcritureConteneur", source, script)

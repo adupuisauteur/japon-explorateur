@@ -18,7 +18,12 @@ fi
 set_image() { grep -v "^$1 " "$IMAGES" > "$IMAGES.tmp"; echo "$1 $2" >> "$IMAGES.tmp"; mv "$IMAGES.tmp" "$IMAGES"; }
 ici_actuel() { [ "$(pwd)" = "$FAKE_ACTUEL" ]; }
 case "$*" in
-  "info") exit "${FAKE_DOCKER_INFO:-0}" ;;
+  "info")
+    # 2.0.3 (Linux) : compte hors du groupe docker.
+    if [ "${FAKE_DOCKER_INFO:-0}" = droits ]; then
+      echo "permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock" >&2; exit 1
+    fi
+    exit "${FAKE_DOCKER_INFO:-0}" ;;
   "compose ls -a --format json")
     # 2.0.2 (assistant) : projets Compose connus de Docker, au format JSON de « docker compose ls ».
     printf '%s\n' "${FAKE_COMPOSE_LS:-[]}"; exit "${FAKE_COMPOSE_LS_CODE:-0}" ;;
@@ -110,6 +115,10 @@ case "$*" in
     fi
     echo "Error response from daemon: Get https://registry-1.docker.io/v2/: context deadline exceeded" >&2; exit 1 ;;
   "compose down") exit 0 ;;
+  # 2.0.3 (menu Linux) : Arrêter, « Docker joint-il Internet ? », jeu d'essai.
+  "compose stop") exit "${FAKE_STOP:-0}" ;;
+  "pull python:3.12-slim-bookworm") echo "3.12-slim-bookworm: Pulling from library/python"; exit "${FAKE_PULL_BASE:-0}" ;;
+  "compose exec -T web python manage.py jeu_essai --charger") echo "Jeu d'essai chargé."; exit 0 ;;
   "compose up -d")
     if ici_actuel; then exit "${FAKE_UP_ANCIENNE:-0}"; fi
     exit "${FAKE_UP:-0}" ;;

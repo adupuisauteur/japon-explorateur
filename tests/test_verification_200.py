@@ -155,10 +155,12 @@ class VerifyScriptRunTests(SimpleTestCase):
         values.update(extra)
         (self.install / ".env").write_text("".join(f"{k}={v}\n" for k, v in values.items()), encoding="utf-8")
 
-    def run_script(self, *extra, **fake):
+    def run_script(self, *extra, env_terminal=None, **fake):
+        # 2.0.3 : les tests tournent parfois en root ; le script refuse root sous Linux (JED_UID_ACTUEL le simule).
         env = dict(os.environ, FAKE_DOCKER_LOG=str(self.tmp / "docker.log"), FAKE_PORT=str(self.port),
-                   FAKE_VERIF_JSON=str(self.verif),
+                   FAKE_VERIF_JSON=str(self.verif), JED_UID_ACTUEL="1000", JED_UID_CONTENEUR=str(os.getuid()),
                    PATH=str(FAKE_DOCKER_DIR) + os.pathsep + os.environ.get("PATH", ""))
+        env.update(env_terminal or {})
         env.update({f"FAKE_{k.upper()}": str(v) for k, v in fake.items()})
         result = subprocess.run([PWSH, "-NoProfile", "-NonInteractive", "-File", str(SCRIPT), "-Dossier",
                                  str(self.install), *extra], capture_output=True, text=True, timeout=300, env=env)

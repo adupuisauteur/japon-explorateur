@@ -78,6 +78,29 @@ $script:Journal = $null
 $script:Tampon = New-Object System.Collections.Generic.List[string]
 $script:DossierCree = $false
 $Utf8SansBom = New-Object System.Text.UTF8Encoding($false)
+# 2.0.3 (Linux, décisions D4 et D5) : jamais en root (les fichiers de J-ed appartiendraient à root) ; le conteneur
+# (utilisateur 1000) copie lui-même chaque sauvegarde dans le dossier des sauvegardes : il doit pouvoir y écrire.
+# JED_UID_ACTUEL et JED_UID_CONTENEUR : réservés aux tests automatiques.
+function Get-UidLinux {
+    if ("$env:JED_UID_ACTUEL" -match '^\d+$') { return [int]$env:JED_UID_ACTUEL }
+    $u = "$(& id -u 2>$null)".Trim()
+    if ($u -match '^\d+$') { return [int]$u }
+    return $null
+}
+function Test-EcritureConteneur([string]$Chemin) {
+    # Vrai si l'utilisateur du conteneur peut écrire dans ce dossier, faux sinon, $null si on ne sait pas.
+    $uidConteneur = 1000
+    if ("$env:JED_UID_CONTENEUR" -match '^\d+$') { $uidConteneur = [int]$env:JED_UID_CONTENEUR }
+    if ($uidConteneur -eq 0) { return $true }
+    $s = "$(& stat -c '%u %g %a' $Chemin 2>$null)".Trim()
+    if ($s -notmatch '^(\d+) (\d+) ([0-7]{3,4})$') { return $null }
+    $uid = [int]$Matches[1]; $gid = [int]$Matches[2]
+    $mode = [Convert]::ToInt32($Matches[3].Substring($Matches[3].Length - 3), 8)
+    if ($uid -eq $uidConteneur) { return (($mode -band 0x80) -ne 0 -and ($mode -band 0x40) -ne 0) }   # u+w, u+x
+    if ($gid -eq $uidConteneur) { return (($mode -band 0x10) -ne 0 -and ($mode -band 0x8) -ne 0) }    # g+w, g+x
+    return (($mode -band 0x2) -ne 0 -and ($mode -band 0x1) -ne 0)                                      # o+w, o+x
+}
+$TexteRoot = 'ne lancez pas ce script en administrateur (sudo ou root) : les fichiers de J-ed appartiendraient à root. Relancez-le depuis votre compte, sans sudo.'
 
 function Ecrire-Journal([string]$Repere, [string]$Texte) {
     $heure = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
@@ -180,6 +203,7 @@ Ecrire-Journal 'INFO' "Nouvelle installation ; archive : $Archive ; dossier : $D
 # --- 1. Contrôles ---------------------------------------------------------------------------------------
 Etape '1/6 Contrôles'
 
+if ($SousLinux -and (Get-UidLinux) -eq 0) { Arreter $TexteRoot }
 $Destination = [System.IO.Path]::GetFullPath($Destination).TrimEnd('\', '/')
 $DossierJournal = $DossierSauvegardes
 if (-not $DossierJournal) { $DossierJournal = Split-Path -Parent $Destination }
@@ -192,6 +216,13 @@ try {
     exit $CodeArret
 }
 Write-Host "Journal de l'installation : $script:Journal"
+if ($SousLinux -and $DossierSauvegardes -and (Test-EcritureConteneur $DossierSauvegardes) -eq $false) {
+    # Pas un arrêt : J-ed garde la sauvegarde dans Docker et l'assistant sait la copier lui-même ; mais la copie
+    # automatique de J-ed (« Copie externe ») échouerait.
+    Write-Host ("Attention : J-ed (utilisateur 1000 de son conteneur) ne pourra pas écrire dans $DossierSauvegardes. " +
+        "Pour le lui permettre : chmod o+rwx `"$DossierSauvegardes`"") -ForegroundColor Yellow
+    Ecrire-Journal 'ATTENTION' "dossier des sauvegardes non accessible en écriture à l'utilisateur 1000 du conteneur : $DossierSauvegardes"
+}
 
 if (-not (Test-Path -LiteralPath $Archive -PathType Leaf)) { Arreter "archive introuvable : $Archive" }
 $Archive = (Resolve-Path -LiteralPath $Archive).Path

@@ -63,6 +63,8 @@ class InstallerRunTests(SimpleTestCase):
 
     def run_script(self, *extra, nom="jed-2", port=None, env_terminal=None, **fake):
         env = {k: v for k, v in os.environ.items() if k.lower() not in ("http_proxy", "https_proxy", "no_proxy")}
+        # 2.0.3 : les tests tournent parfois en root ; le script refuse root sous Linux (JED_UID_ACTUEL le simule).
+        env.update(JED_UID_ACTUEL="1000", JED_UID_CONTENEUR=str(os.getuid()))
         env.update(env_terminal or {})
         env.update(FAKE_DOCKER_LOG=str(self.log), FAKE_ACTUEL=str(self.autre),
                    PATH=str(FAKE_DOCKER_DIR) + os.pathsep + os.environ.get("PATH", ""))
