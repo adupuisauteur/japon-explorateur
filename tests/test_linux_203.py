@@ -998,6 +998,14 @@ class EssaisDockerTests(LinuxTestCase):
     OUTIL = ROOT / "tests" / "outils" / "essai-docker.ps1"
     FLUX = ROOT / ".github" / "workflows" / "essais-docker.yml"
 
+    def test_workflow_runs_the_tool_on_demand_only(self):
+        texte = self.FLUX.read_text(encoding="utf-8")
+        self.assertIn("workflow_dispatch:", texte)
+        self.assertNotIn("push:", texte)          # trop long pour chaque envoi (construction des images)
+        self.assertIn("pwsh -NoProfile -File tests/outils/essai-docker.ps1", texte)
+        self.assertIn("permissions:\n  contents: read", texte)
+        self.assertIn("if: always()", texte)       # journaux joints même en cas d'échec
+
     def test_tool_refuses_to_run_outside_github(self):
         env = self.env()
         env.pop("GITHUB_ACTIONS", None)

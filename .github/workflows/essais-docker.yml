@@ -1,0 +1,53 @@
+# J-ed 2.0.3 — « Essais Docker » : J-ed installé, mis à jour, sauvegardé et restauré avec le VRAI Docker, sous Linux.
+#
+# Une machine Ubuntu de GitHub (Docker Engine, Docker Compose et PowerShell 7 déjà installés, compte ordinaire,
+# gratuite pour un dépôt public) suit tests/outils/essai-docker.ps1 : installation, jeu d'essai, vérification,
+# sauvegarde, mises à jour « construction impossible » (code 3), « démarrage impossible » (code 4) et réussie
+# (code 0), restauration dans une nouvelle installation, vérification après migration, réinitialisation de l'essai,
+# menu texte. Données fictives uniquement ; aucun secret ; tout est effacé avec la machine à la fin.
+# Ne remplace pas les essais chez l'utilisateur : Windows, proxy du réseau, affichage (Firefox, raccourcis).
+#
+# Lancement : à la main (Actions → Essais Docker → Run workflow), en particulier avant chaque version candidate.
+# Les journaux (scripts, mises à jour, docker compose logs) sont joints au résultat (« Artifacts »).
+
+name: Essais Docker
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: essais-docker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  essais-docker:
+    name: Essais Docker (Ubuntu, sans Argos)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v6
+
+      - name: Afficher les versions utilisées
+        run: |
+          docker version --format 'Docker Engine {{.Server.Version}}'
+          docker compose version
+          pwsh -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'
+          id
+          df -h "$RUNNER_TEMP" /var/lib/docker
+
+      - name: Essai complet
+        run: pwsh -NoProfile -File tests/outils/essai-docker.ps1 -Dossier "$RUNNER_TEMP/essai-docker"
+
+      - name: Joindre les journaux
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: journaux-essais-docker
+          path: ${{ runner.temp }}/essai-docker/journaux
+          if-no-files-found: warn
+          retention-days: 14
