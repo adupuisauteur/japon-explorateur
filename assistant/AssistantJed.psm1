@@ -46,7 +46,12 @@ function Get-DossierTemporaireJed {
        comptes : le dossier porte le numéro de l'utilisateur (J-ed-1000), pour ne jamais tomber sur celui d'un autre. #>
     param([string]$Nom)
     $base = 'J-ed'
-    if ($script:SousLinux) { $u = Get-UidJed; if ($null -ne $u) { $base = "J-ed-$u" } }
+    if ($script:SousLinux) {
+        # Numéro réel du compte (jamais JED_UID_ACTUEL, réglage des tests : le dossier doit appartenir à ce compte).
+        $ErrorActionPreference = 'Continue'
+        $u = "$(& id -u 2>$null)".Trim()
+        if ($u -match '^\d+$') { $base = "J-ed-$u" }
+    }
     return [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), $base, $Nom)
 }
 
@@ -999,6 +1004,64 @@ function New-RaccourcisJed {
     return ,$ecrits.ToArray()
 }
 
+function ConvertTo-ArgumentDesktopJed([string]$Texte) {
+    <# 2.0.3 : un argument de la ligne Exec d'un fichier .desktop, entre guillemets (spécification freedesktop :
+       \ " ` $ précédés d'une barre oblique inverse ; % doublé). #>
+    $t = $Texte.Replace('\', '\\').Replace('"', '\"').Replace('`', '\`').Replace('$', '\$').Replace('%', '%%')
+    return '"' + $t + '"'
+}
+
+function New-RaccourcisLinuxJed {
+    <# 2.0.3 (lot 3) : raccourcis du menu Applications d'Ubuntu (fichiers .desktop dans ~/.local/share/applications,
+       ou $XDG_DATA_HOME/applications) : « J-ed - <nom> » (ouvre J-ed dans le navigateur par xdg-open) et
+       « Assistant J-ed » (ouvre le menu j-ed.sh dans un terminal). Remplace seulement des fichiers de ces mêmes
+       noms. Renvoie les fichiers écrits. #>
+    param($Installation, [string]$DossierAssistant, [string]$Dossier)
+    if (-not $Dossier) {
+        $base = $env:XDG_DATA_HOME
+        if (-not $base) { $base = Join-CheminJed (Join-CheminJed ([Environment]::GetFolderPath('UserProfile')) '.local') 'share' }
+        $Dossier = Join-CheminJed $base 'applications'
+    }
+    New-Item -ItemType Directory -Force -Path $Dossier | Out-Null
+    $icone = Join-CheminJed $DossierAssistant (Join-CheminJed 'static' (Join-CheminJed 'img' 'logo-j-ed.svg'))
+    $ligneIcone = ''
+    if (Test-Path -LiteralPath $icone) { $ligneIcone = "Icon=$icone`n" }
+    $ecrits = New-Object System.Collections.Generic.List[string]
+    $id = ("$($Installation.Nom)" -replace '[^A-Za-z0-9-]', '-')
+    $web = Join-CheminJed $Dossier "j-ed-$id.desktop"
+    $texte = "[Desktop Entry]`nType=Application`nVersion=1.0`nName=$(Get-NomRaccourciJed $Installation)`n" +
+        "Comment=Ouvrir J-ed ($($Installation.Nom)) dans le navigateur`n" +
+        "Exec=xdg-open $(ConvertTo-ArgumentDesktopJed (Get-AdresseJed $Installation))`n$ligneIcone" +
+        "Terminal=false`nCategories=Education;Office;`n"
+    [System.IO.File]::WriteAllText($web, $texte, $script:Utf8SansBom)
+    $ecrits.Add($web)
+    $lanceur = Join-CheminJed $DossierAssistant 'j-ed.sh'
+    if (Test-Path -LiteralPath $lanceur) {
+        $assistant = Join-CheminJed $Dossier 'j-ed-assistant.desktop'
+        $texte = "[Desktop Entry]`nType=Application`nVersion=1.0`nName=Assistant J-ed`n" +
+            "Comment=Installer, mettre à jour, vérifier et sauvegarder J-ed`n" +
+            "Exec=bash $(ConvertTo-ArgumentDesktopJed $lanceur)`nPath=$DossierAssistant`n$ligneIcone" +
+            "Terminal=true`nCategories=Utility;`n"
+        [System.IO.File]::WriteAllText($assistant, $texte, $script:Utf8SansBom)
+        $ecrits.Add($assistant)
+    }
+    return ,$ecrits.ToArray()
+}
+
+function Get-DossierBureauJed {
+    <# Bureau de l'utilisateur. 2.0.3 : sous Linux, celui d'Ubuntu (son nom dépend de la langue), sinon le dossier
+       personnel. #>
+    $profil = [Environment]::GetFolderPath('UserProfile')
+    if (-not $script:SousLinux) { return [Environment]::GetFolderPath('Desktop') }
+    $d = ''
+    if (Get-Command xdg-user-dir -ErrorAction SilentlyContinue) {
+        $ErrorActionPreference = 'Continue'
+        $d = "$(& xdg-user-dir DESKTOP 2>$null)".Trim()
+    }
+    if (-not $d -or -not (Test-Path -LiteralPath $d)) { $d = $profil }
+    return $d
+}
+
 # --- Compte rendu « Ça ne marche pas » --------------------------------------------------------------------
 
 function Protect-TexteJed {
@@ -1039,6 +1102,12 @@ function New-CompteRenduJed {
     $faits = Get-FaitsSystemeJed -Dossier $(if ($Installation) { $Installation.Dossier } else { '' })
     foreach ($p in $faits.PSObject.Properties) { $l.Add("$($p.Name) : $($p.Value)") }
     $l.Add("Système : $([Environment]::OSVersion.VersionString)")
+    if ($script:SousLinux -and (Test-Path -LiteralPath '/etc/os-release')) {
+        # 2.0.3 : nom de la distribution (par exemple « Ubuntu 26.04.1 LTS »).
+        foreach ($ligne in [System.IO.File]::ReadAllLines('/etc/os-release')) {
+            if ($ligne -match '^PRETTY_NAME="?([^"]*)"?$') { $l.Add("Distribution : $($Matches[1])") }
+        }
+    }
     $l.Add('')
     $l.Add('== Prérequis')
     foreach ($c in (Test-PrerequisJed $faits)) { $l.Add("[$($c.Niveau)] $($c.Libelle) : $($c.Detail)") }
@@ -1075,7 +1144,7 @@ function New-CompteRenduJed {
     }
     New-Item -ItemType Directory -Force -Path $Destination | Out-Null
     $nom = "compte-rendu-j-ed-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-    $temp = Join-CheminJed ([System.IO.Path]::GetTempPath()) $nom
+    $temp = Get-DossierTemporaireJed $nom   # 2.0.3 : propre à chaque compte sous Linux
     New-Item -ItemType Directory -Force -Path $temp | Out-Null
     try {
         [System.IO.File]::WriteAllText((Join-CheminJed $temp 'compte-rendu.txt'), $texte, $script:Utf8SansBom)
@@ -1356,7 +1425,11 @@ function Set-MotDePasseJed {
     param($Installation, [string]$Utilisateur, [string]$MotDePasse, [scriptblock]$SurAttente)
     if (-not $MotDePasse) { return [pscustomobject]@{ Ok = $false; Message = 'Aucun mot de passe saisi.' } }
     $moteur = (Get-Command docker -ErrorAction SilentlyContinue)
-    if (-not $moteur) { return [pscustomobject]@{ Ok = $false; Message = "Docker Desktop n'est pas installé." } }
+    if (-not $moteur) {
+        $texteDocker = "Docker Desktop n'est pas installé."
+        if ($script:SousLinux) { $texteDocker = "Docker n'est pas installé." }
+        return [pscustomobject]@{ Ok = $false; Message = $texteDocker }
+    }
     $r = Invoke-ScriptJed -Moteur $moteur.Source -Dossier $Installation.Dossier -Entree "$MotDePasse`n" -SurAttente $SurAttente `
         -Arguments @('compose', 'exec', '-T', 'web', 'python', 'manage.py', 'mot_de_passe_oublie', '--utilisateur', $Utilisateur)
     $texte = Protect-TexteJed ((@($r.Lignes) -join "`n").Trim()) @($MotDePasse)

@@ -44,6 +44,14 @@ if ($SousLinux) {
     $ConseilDocker = 'ne répond pas : vérifiez qu''il est démarré (« sudo systemctl start docker ») et que votre compte est dans le groupe docker, puis relancez ce script'
     $ConseilMemoire = 'Sous Linux, Docker utilise la mémoire de l''ordinateur : en ajouter à la machine (ou à la machine virtuelle).'
 }
+# 2.0.3 (Linux, décision D4) : refus de root. JED_UID_ACTUEL : réservé aux tests automatiques.
+function Get-UidLinux {
+    if ("$env:JED_UID_ACTUEL" -match '^\d+$') { return [int]$env:JED_UID_ACTUEL }
+    $u = "$(& id -u 2>$null)".Trim()
+    if ($u -match '^\d+$') { return [int]$u }
+    return $null
+}
+$TexteRoot = 'ne lancez pas ce script en administrateur (sudo ou root) : les fichiers de J-ed appartiendraient à root. Relancez-le depuis votre compte, sans sudo.'
 $NomsProteges = @('japon-explorateur', 'japon-explorateur-essai')
 $script:Lignes = New-Object System.Collections.Generic.List[string]
 $script:Bilan = @{ ok = 0; warning = 0; error = 0; skipped = 0 }
@@ -104,6 +112,11 @@ function Taille([double]$Octets) {
     return '{0:N0} Ko' -f ($Octets / 1KB)
 }
 
+if ($SousLinux -and (Get-UidLinux) -eq 0) {
+    Write-Host ''
+    Write-Host "ARRÊT : $TexteRoot" -ForegroundColor Red
+    exit 1
+}
 $debut = Get-Date
 $script:Lignes.Add("Vérification après migration de J-ed — $($debut.ToString('dd/MM/yyyy HH:mm'))")
 $script:Lignes.Add("Ordinateur : $([Environment]::MachineName)")
@@ -364,9 +377,11 @@ foreach ($projet in $projets) {
     }
 
     if ($dossier -and (Existe (Chemin $dossier 'verifier-j-ed.ps1')) -and $web -and $web.Etat -eq 'running') {
-        $script:Lignes.Add("    Ensuite, pour essayer chaque fonction : cd `"$dossier`" puis powershell -ExecutionPolicy Bypass -File .\verifier-j-ed.ps1")
+        $commandeVerif = 'powershell -ExecutionPolicy Bypass -File .\verifier-j-ed.ps1'
+        if ($SousLinux) { $commandeVerif = 'pwsh -NoProfile -File ./verifier-j-ed.ps1 (ou le menu : bash j-ed.sh, choix 6)' }
+        $script:Lignes.Add("    Ensuite, pour essayer chaque fonction : cd `"$dossier`" puis $commandeVerif")
         Write-Host "    Ensuite, pour essayer chaque fonction : cd `"$dossier`"" -ForegroundColor Gray
-        Write-Host '    puis : powershell -ExecutionPolicy Bypass -File .\verifier-j-ed.ps1' -ForegroundColor Gray
+        Write-Host "    puis : $commandeVerif" -ForegroundColor Gray
     }
 }
 

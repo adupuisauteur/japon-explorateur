@@ -14,8 +14,10 @@
 
     Lot 1 de la 2.0.3 : accueil, liste des installations, Nouvelle installation, Démarrer, Arrêter, Ouvrir J-ed,
     Vérifier, Ajouter une installation, Voir les prérequis, Créer une sauvegarde, Dossier des sauvegardes.
-    Lot 2 : Mettre à jour une installation (mise à jour sûre, par le mettre-a-jour.ps1 de la nouvelle version). Les
-    autres fonctions arrivent au lot 3 (le menu le dit).
+    Lot 2 : Mettre à jour une installation (mise à jour sûre, par le mettre-a-jour.ps1 de la nouvelle version).
+    Lot 3 : Créer les raccourcis (menu Applications), Ça ne marche pas, et le reste des Opérations de maintenance
+    (Restaurer une sauvegarde, Mot de passe oublié, Vérifier la migration, Réinitialiser l'essai). L'aide Linux
+    arrive au lot 4 (le menu le dit).
 #>
 [CmdletBinding()]
 param()
@@ -137,10 +139,12 @@ function Show-Installations {
     }
 }
 
-function Select-Installation([string]$Pour) {
-    <# Installation choisie (valide), ou $null. Une seule installation : elle est prise d'office. #>
+function Select-Installation([string]$Pour, [switch]$Facultatif) {
+    <# Installation choisie (valide), ou $null. Une seule installation : elle est prise d'office.
+       -Facultatif (« Ça ne marche pas ») : aucune installation n'est pas une erreur. #>
     $valides = @($script:Installations | Where-Object { $_.Valide -and -not $_.Ancien })
     if ($valides.Count -eq 0) {
+        if ($Facultatif) { return $null }
         Write-Host 'Aucune installation : choisissez d''abord « 2. Nouvelle installation » ou « 8. Ajouter une installation… ».' -ForegroundColor Yellow
         return $null
     }
@@ -267,10 +271,10 @@ function Show-Maintenance {
                     Wait-Entree
                 }
             }
-            '3' { Show-PasEncore 'Restaurer une sauvegarde' 'lot 3' }
-            '4' { Show-PasEncore 'Mot de passe oublié' 'lot 3' }
-            '5' { Show-PasEncore 'Vérifier la migration' 'lot 3' }
-            '6' { Show-PasEncore 'Réinitialiser l''essai' 'lot 3' }
+            '3' { Restore-Sauvegarde }
+            '4' { Reset-MotDePasse }
+            '5' { Start-VerificationMigration }
+            '6' { Reset-Essai }
             '0' { return }
             default { Write-Host 'Choix inconnu.' }
         }
@@ -285,6 +289,215 @@ function New-Sauvegarde {
     if ($r.Ok) { Show-Resultat 'ok' 'Sauvegarde faite' $r.Message }
     else { Show-Resultat 'erreur' 'Sauvegarde impossible' $r.Message }
     Wait-Entree
+}
+
+function Read-Confirmation([string]$Texte, [string]$Mot) {
+    <# Confirmation forte, comme la fenêtre : il faut taper le mot demandé (RESTAURER, REINITIALISER), en majuscules. #>
+    Write-Host ''
+    foreach ($l in ($Texte -split "`n")) { Write-Host $l -ForegroundColor Yellow }
+    $r = Read-Ligne "Pour confirmer, tapez $Mot (autre réponse : annuler)"
+    if ($r -ceq $Mot) { return $true }
+    Write-Host 'Annulé : rien n''a changé.' -ForegroundColor Yellow
+    return $false
+}
+
+function Read-Secret([string]$Question) {
+    <# Saisie cachée (mot de passe). Réponses venant d'un programme (tests) : lues telles quelles, jamais réaffichées. #>
+    if ([Console]::IsInputRedirected) {
+        Write-Host -NoNewline "$Question : "
+        $l = [Console]::In.ReadLine()
+        Write-Host ''
+        if ($null -eq $l) { Write-Host 'Fin de l''assistant.'; exit 0 }
+        return $l
+    }
+    $s = Read-Host -Prompt $Question -AsSecureString
+    return (ConvertFrom-SecureString -SecureString $s -AsPlainText)
+}
+
+function Restore-Sauvegarde {
+    <# Comme la fenêtre : sauvegarde à restaurer, puis « dans une nouvelle installation » (conseillé) ou « dans
+       l'installation choisie » (sa base est remplacée, sauvegarde de sécurité avant ; il faut taper RESTAURER). #>
+    Write-Titre 'Restaurer une sauvegarde'
+    $choisie = Select-Installation 'dont vient la sauvegarde (son dossier des sauvegardes est proposé)' -Facultatif
+    $proposee = ''
+    if ($choisie -and $choisie.DossierSauvegardes -and (Test-Path -LiteralPath $choisie.DossierSauvegardes)) {
+        $derniere = Get-ChildItem -LiteralPath $choisie.DossierSauvegardes -Filter '*.tar' -File -ErrorAction SilentlyContinue |
+            Sort-Object -Property LastWriteTime -Descending | Select-Object -First 1
+        if ($derniere) { $proposee = $derniere.FullName }
+    }
+    $fichier = Read-Chemin 'Fichier de sauvegarde (.tar ; 0 : retour)' $proposee
+    if (-not $fichier -or $fichier -eq '0') { return }
+    if (-not (Test-Path -LiteralPath $fichier -PathType Leaf) -or $fichier -notmatch '\.tar$') {
+        Show-Resultat 'attention' 'Fichier introuvable' "Un fichier de sauvegarde .tar est attendu : $fichier"
+        Wait-Entree
+        return
+    }
+    Write-Host ''
+    Write-Host 'Où restaurer cette sauvegarde ?'
+    Write-Host '   1. Dans une nouvelle installation (conseillé : rien d''existant n''est touché)'
+    if ($choisie) { Write-Host "   2. Dans « $($choisie.Nom) » : sa base actuelle sera REMPLACÉE (une sauvegarde de sécurité est faite avant)" }
+    Write-Host '   0. Retour'
+    Write-Host ("  Bon à savoir : dans une nouvelle installation, les clés d'API des IA enregistrées dans la sauvegarde ne sont pas " +
+        "lisibles (elles restent chiffrées avec la clé de l'installation d'origine) : il faudra les saisir à nouveau. " +
+        "Une sauvegarde d'une version plus ancienne est mise à niveau au redémarrage.") -ForegroundColor DarkGray
+    $choix = Read-Ligne 'Votre choix' '1'
+    if ($choix -eq '1') {
+        $base = 'jed'
+        if ($choisie -and $choisie.Nom) { $base = "$($choisie.Nom)-copie" }
+        $script:InstallationCreee = $null
+        New-Installation -NomPropose $base -PourRestauration
+        $cible = $script:InstallationCreee
+        if (-not $cible) { return }
+    } elseif ($choix -eq '2' -and $choisie) {
+        $cible = $choisie
+        if ($cible.Etat -ne 'en marche') {
+            Write-Host "« $($cible.Nom) » est arrêtée : choisissez d'abord « 3. Démarrer »." -ForegroundColor Yellow
+            Wait-Entree
+            return
+        }
+        $texte = "La base actuelle de « $($cible.Nom) » va être remplacée par celle de la sauvegarde. J-ed fait d'abord une sauvegarde de sécurité de l'état actuel."
+        if ($cible.Protegee) { $texte = "ATTENTION : $(Get-TexteProtegeeJed $cible)`n" + $texte + "`nConseil : restaurez plutôt dans une nouvelle installation." }
+        if (-not (Read-Confirmation $texte 'RESTAURER')) { Wait-Entree; return }
+    } else {
+        return
+    }
+    Write-Titre "Restaurer dans « $($cible.Nom) » (une à quelques minutes)"
+    $x = Invoke-RestaurationJed $cible $fichier -SurLigne { param($l) Write-Ligne $l }
+    if ($x.Ok) { Show-Resultat 'ok' 'Sauvegarde restaurée' $x.Message }
+    else { Show-Resultat 'erreur' 'Restauration impossible' $x.Message }
+    Wait-Entree
+}
+
+function Reset-MotDePasse {
+    <# Comme la fenêtre : compte choisi dans la liste, nouveau mot de passe saisi deux fois (caché), transmis à J-ed
+       par l'entrée standard ; il n'est écrit nulle part. #>
+    $i = Select-Installation 'dont un compte a perdu son mot de passe'
+    if (-not $i) { return }
+    if ($i.Etat -ne 'en marche') {
+        Write-Host "« $($i.Nom) » est arrêtée : choisissez d'abord « 3. Démarrer »." -ForegroundColor Yellow
+        Wait-Entree
+        return
+    }
+    Write-Titre "Mot de passe oublié — « $($i.Nom) »"
+    $c = Get-ComptesJed $i
+    if (-not $c.Ok) { Show-Resultat 'erreur' 'Comptes illisibles' $c.Raison; Wait-Entree; return }
+    if ($c.Comptes.Count -eq 0) {
+        Show-Resultat 'attention' 'Aucun compte' "Créez le compte administrateur : $(Get-AdressePremierDemarrageJed $i)"
+        Wait-Entree
+        return
+    }
+    $n = 1
+    foreach ($compte in $c.Comptes) {
+        $libelle = "$($compte.identifiant)"
+        if ($compte.nom) { $libelle += " — $($compte.nom)" }
+        Write-Host ("   {0}. {1} ({2})" -f $n, $libelle, $compte.role)
+        $n++
+    }
+    $num = 0
+    $r = Read-Ligne 'Numéro du compte (0 : retour)' '1'
+    if (-not [int]::TryParse($r, [ref]$num) -or $num -lt 1 -or $num -gt $c.Comptes.Count) { return }
+    $identifiant = $c.Comptes[$num - 1].identifiant
+    Write-Host 'Nouveau mot de passe : 10 caractères au moins, pas trop simple. Il ne s''affiche pas pendant la saisie et n''est écrit nulle part.'
+    $mot = Read-Secret 'Nouveau mot de passe'
+    $mot2 = Read-Secret 'Le même, une seconde fois'
+    if ($mot -cne $mot2) {
+        $mot = $null; $mot2 = $null
+        Show-Resultat 'attention' 'Les deux saisies sont différentes' 'Rien n''a changé.'
+        Wait-Entree
+        return
+    }
+    $x = Set-MotDePasseJed $i $identifiant $mot
+    $mot = $null; $mot2 = $null
+    if ($x.Ok) { Show-Resultat 'ok' "Mot de passe changé pour « $identifiant »" 'Si le compte était bloqué par trop d''essais, attendez 15 minutes.' }
+    else { Show-Resultat 'erreur' 'Rien n''a changé' $x.Message }
+    Wait-Entree
+}
+
+function Start-VerificationMigration {
+    $i = Select-Installation 'à vérifier après une migration'
+    if (-not $i) { return }
+    Write-Titre "Vérifier la migration de « $($i.Nom) » (rien n'est modifié)"
+    $script = Get-ScriptInstallationJed $i 'verifier-migration.ps1' $Racine
+    $arguments = New-ArgumentsMigrationJed $script $i.Dossier
+    $x = Invoke-ScriptJed -Arguments $arguments -Dossier $i.Dossier -SurLigne { param($l) Write-Ligne $l }
+    $m = Get-MessageVerificationJed $x.Code
+    Show-Resultat $m.Niveau $m.Titre $m.Texte
+    Wait-Entree
+}
+
+function Reset-Essai {
+    <# Comme la fenêtre : seulement une installation d'essai ; sauvegarde avant (conseillée, si l'essai est en
+       marche) ; réinitialisation simple ou complète ; il faut taper REINITIALISER. #>
+    $i = Select-Installation 'd''essai à réinitialiser'
+    if (-not $i) { return }
+    if (-not $i.Essai) {
+        Show-Resultat 'attention' 'Réservé aux essais' "« $($i.Nom) » n'est pas une installation d'essai (son nom ne contient pas « essai ») : la réinitialisation est réservée aux essais."
+        Wait-Entree
+        return
+    }
+    $script = [System.IO.Path]::Combine($i.Dossier, 'reinitialiser-essai.ps1')
+    if (-not (Test-Path -LiteralPath $script)) { Show-Resultat 'erreur' 'Script absent' "reinitialiser-essai.ps1 est absent du dossier de « $($i.Nom) »."; Wait-Entree; return }
+    Write-Titre "Réinitialiser l'essai « $($i.Nom) »"
+    Write-Host 'La réinitialisation EFFACE les données de cet essai (base, notices, journaux) puis le redémarre vide.'
+    Write-Host 'Le script refuse toute installation qui n''est pas un essai.'
+    $sauver = $false
+    if ($i.Etat -eq 'en marche') { $sauver = Read-OuiNon 'Faire d''abord une sauvegarde de l''essai (conseillé, pour pouvoir revenir en arrière) ?' $true }
+    else { Write-Host 'L''essai est arrêté : pas de sauvegarde possible avant l''effacement.' -ForegroundColor Yellow }
+    Write-Host ("Réinitialisation complète : efface aussi les paquets de langues Argos de cet essai et, si aucune autre installation " +
+        "ne s'en sert, les images de J-ed. L'essai reste alors arrêté : « Démarrer » le reconstruit.") -ForegroundColor DarkGray
+    $complet = Read-OuiNon 'Réinitialisation complète ?' $false
+    if (-not (Read-Confirmation "Les données de l'essai « $($i.Nom) » vont être effacées." 'REINITIALISER')) { Wait-Entree; return }
+    if ($sauver) {
+        Write-Titre 'Sauvegarde avant effacement'
+        $s = Invoke-SauvegardeJed -Installation $i -SurLigne { param($l) Write-Ligne $l }
+        if (-not $s.Ok) { Show-Resultat 'erreur' 'Sauvegarde impossible : rien n''a été effacé' $s.Message; Wait-Entree; return }
+        Write-Host $s.Message
+    }
+    Write-Titre 'Réinitialisation'
+    $arguments = New-ArgumentsReinitialisationJed $script -Complet:$complet
+    $x = Invoke-ScriptJed -Arguments $arguments -Dossier $i.Dossier -Entree "REINITIALISER`n" -SurLigne { param($l) Write-Ligne $l }
+    $m = Get-MessageReinitialisationJed -Code $x.Code -Lignes $x.Lignes -Complet:$complet -Dossier $i.Dossier
+    $texte = $m.Texte.Replace('choisissez-le dans la liste et cliquez sur « Démarrer »', 'choisissez « 3. Démarrer »')
+    Show-Resultat $m.Niveau $m.Titre $texte
+    Wait-Entree
+}
+
+# --- Raccourcis, « Ça ne marche pas » (lot 3) ---------------------------------------------------------------
+
+function New-Raccourcis {
+    $i = Select-Installation 'pour laquelle créer les raccourcis'
+    if (-not $i) { return }
+    Write-Titre "Créer les raccourcis de « $($i.Nom) »"
+    try {
+        $fichiers = New-RaccourcisLinuxJed -Installation $i -DossierAssistant $Racine
+        Show-Resultat 'ok' 'Raccourcis créés' ("Dans le menu Applications d'Ubuntu (touche Super, puis tapez « J-ed ») :`n" +
+            "« $(Get-NomRaccourciJed $i) » ouvre J-ed dans le navigateur ; « Assistant J-ed » ouvre ce menu.")
+        foreach ($f in $fichiers) { Write-Host "  $f" -ForegroundColor DarkGray }
+    } catch {
+        Show-Resultat 'erreur' 'Raccourcis impossibles' $_.Exception.Message
+    }
+    Wait-Entree
+}
+
+function New-CompteRendu {
+    <# « Ça ne marche pas » : compte rendu sans aucun secret (le module le contrôle), sur le Bureau. #>
+    $i = Select-Installation 'qui pose problème' -Facultatif
+    Write-Titre 'Ça ne marche pas : compte rendu'
+    Write-Host 'Préparation du compte rendu (une minute environ)…'
+    try {
+        $zip = New-CompteRenduJed -Installation $i -Destination (Get-DossierBureauJed) -VersionAssistant (Get-VersionAssistant)
+        Show-Resultat 'ok' 'Compte rendu prêt' ("Fichier : $zip`n" +
+            'Il ne contient ni mot de passe, ni clé, ni adresse électronique. Envoyez-le à la personne qui vous aide.')
+    } catch {
+        Show-Resultat 'erreur' 'Compte rendu impossible' $_.Exception.Message
+    }
+    Wait-Entree
+}
+
+function Get-VersionAssistant {
+    $f = [System.IO.Path]::Combine($Racine, 'VERSION')
+    if (Test-Path -LiteralPath $f) { return "$((Get-Content -LiteralPath $f -Raw).Trim()) (Linux)" }
+    return '? (Linux)'
 }
 
 # --- Nouvelle installation ---------------------------------------------------------------------------------
@@ -363,7 +576,12 @@ function Select-Archive {
 }
 
 function New-Installation {
-    Write-Titre 'Nouvelle installation'
+    <# -PourRestauration (lot 3) : installation neuve pour y restaurer une sauvegarde ; pas de fin guidée (les comptes
+       viendront de la sauvegarde). L'installation créée est rangée dans $script:InstallationCreee. #>
+    param([string]$NomPropose = 'jed', [switch]$PourRestauration)
+    $script:InstallationCreee = $null
+    if ($PourRestauration) { Write-Titre 'Nouvelle installation pour y restaurer la sauvegarde' }
+    else { Write-Titre 'Nouvelle installation' }
     $erreurs = @(Get-Prerequis | Where-Object { $_.Niveau -eq 'erreur' })
     if ($erreurs.Count) {
         Write-Niveau 'erreur' 'Des prérequis ne sont pas remplis :'
@@ -378,7 +596,7 @@ function New-Installation {
     $volumes = Get-VolumesDockerJed
     $nom = ''
     while ($true) {
-        $nom = Read-Ligne 'Nom de l''installation (lettres minuscules, chiffres, tirets)' (Get-NomProposeJed 'jed' $script:Installations $volumes)
+        $nom = Read-Ligne 'Nom de l''installation (lettres minuscules, chiffres, tirets)' (Get-NomProposeJed $NomPropose $script:Installations $volumes)
         $n = Test-NomProjetJed $nom $script:Installations $volumes
         if ($n.Ok) { break }
         Write-Host $n.Raison -ForegroundColor Yellow
@@ -426,8 +644,9 @@ function New-Installation {
     $arguments = New-ArgumentsInstallationJed -Script $scriptInst -Archive $a.Archive -Empreinte $a.Empreinte `
         -Destination $destination -Nom $nom -Port $port -DossierSauvegardes $sauvegardes -Proxy $proxy -SansArgos:(-not $argos)
     Write-Titre "Installer « $nom » (la construction prend 15 à 30 minutes la première fois)"
-    $x = Invoke-ScriptJed -Arguments $arguments -SurLigne { param($l) Write-Ligne $l }
-    $m = Get-MessageInstallationJed $x.Code
+    $restauration = [bool]$PourRestauration
+    $x = Invoke-ScriptJed -Arguments $arguments -SurLigne { param($l) Write-Ligne (Convert-LigneInstallationJed $l -PourRestauration:$restauration) }
+    $m = Get-MessageInstallationJed $x.Code -PourRestauration:$restauration
     Show-Resultat $m.Niveau $m.Titre $m.Texte
     if ($x.Code -ne 0) {
         if ($x.Code -in @(1, 3, 5)) { Show-ErreurDocker (@($x.Lignes) -join "`n") }
@@ -439,7 +658,9 @@ function New-Installation {
     }
     Add-InstallationListeJed -Fichier $script:Liste -Dossier $destination
     $nouvelle = Get-InstallationJed $destination
-    Show-FinInstallation $nouvelle
+    $nouvelle.Etat = 'en marche'
+    $script:InstallationCreee = $nouvelle
+    if (-not $PourRestauration) { Show-FinInstallation $nouvelle }
 }
 
 function Show-FinInstallation($Installation) {
@@ -574,11 +795,11 @@ while ($true) {
         '4' { Invoke-Action 'Arreter' 'Arrêter' 'J-ed est arrêté. Ses données sont intactes.' }
         '5' { Open-Installation }
         '6' { Start-Verification }
-        '7' { Show-PasEncore 'Créer les raccourcis' 'lot 3' }
+        '7' { New-Raccourcis }
         '8' { Add-Installation }
         '9' { Show-Prerequis }
         '10' { Show-Maintenance }
-        '11' { Show-PasEncore 'Ça ne marche pas' 'lot 3' }
+        '11' { New-CompteRendu }
         '12' { Show-Aide }
         '0' { Write-Host 'Au revoir.'; exit 0 }
         default { Write-Host 'Choix inconnu : tapez un numéro du menu.' }

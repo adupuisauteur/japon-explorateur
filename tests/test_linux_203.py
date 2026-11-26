@@ -1,4 +1,4 @@
-"""2.0.3, lots 1 et 2 — Linux : module de l'assistant, menu texte « jumeau » (assistant/menu-j-ed.ps1), lanceur j-ed.sh,
+"""2.0.3, lots 1 à 3 — Linux : module de l'assistant, menu texte « jumeau » (assistant/menu-j-ed.ps1), lanceur j-ed.sh,
 refus de root et droits du dossier des sauvegardes (installer-j-ed.ps1, verifier-j-ed.ps1).
 
 Tout tourne avec PowerShell 7 sous Linux et le faux « docker » (tests/fixtures/mise_a_jour/docker). L'essai réel
@@ -408,13 +408,11 @@ class MenuTests(LinuxTestCase):
         self.assertIn("Des prérequis ne sont pas remplis", self.sortie)
         self.assertIn("sudo systemctl start docker", self.sortie)
 
-    def test_features_of_later_lots_say_so(self):
-        self.menu("7", "", "11", "", "10", "3", "", "4", "", "5", "", "6", "", "0", "0")
-        for fonction, lot in (("Créer les raccourcis", "lot 3"),
-                              ("Ça ne marche pas", "lot 3"), ("Restaurer une sauvegarde", "lot 3"),
-                              ("Mot de passe oublié", "lot 3"), ("Vérifier la migration", "lot 3"),
-                              ("Réinitialiser l'essai", "lot 3")):
-            self.assertIn(f"« {fonction} » arrive avec le {lot}", self.sortie)
+    def test_help_says_it_comes_with_lot_4(self):
+        """Depuis le lot 3, seule l'aide Linux reste annoncée (lot 4)."""
+        self.menu("12", "", "0")
+        self.assertIn("« Aide : avant de commencer (Linux) » arrive avec le lot 4", self.sortie)
+        self.assertNotIn("arrive avec le lot 3", MENU.read_text(encoding="utf-8-sig"))
 
     def test_add_installation(self):
         self.menu("8", str(self.tmp / "nulle-part"), "", "0")
@@ -729,5 +727,220 @@ class DossierTemporaireTests(LinuxTestCase):
                             f"Import-Module '{MODULE}'; Get-DossierTemporaireJed 'mise-a-jour-1'"],
                            capture_output=True, text=True, timeout=120, env=self.env(JED_UID_ACTUEL="4242"))
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(r.stdout.strip(), str(self.tmp / "J-ed-4242" / "mise-a-jour-1"))
+        # Numéro RÉEL du compte, pas celui que simulent les tests (le dossier doit lui appartenir).
+        self.assertEqual(r.stdout.strip(), str(self.tmp / f"J-ed-{os.getuid()}" / "mise-a-jour-1"))
         self.assertNotIn("GetTempPath(), 'J-ed'", MENU.read_text(encoding="utf-8-sig"))
+
+
+# --- Lot 3 : maintenance, raccourcis, « Ça ne marche pas » --------------------------------------------------
+
+class MaintenanceLinuxTests(LinuxTestCase):
+    """2.0.3, lot 3 — mêmes opérations que la fenêtre Windows, dans le menu texte."""
+
+    liste = MenuTests.liste
+    ajouter = MenuTests.ajouter
+    archive = MenuTests.archive
+
+    def setUp(self):
+        super().setUp()
+        self.sauv = self.tmp / "sauvegardes-jed-essai"
+        self.sauv.mkdir()
+        self.install = self.make_install("jed-essai-2.0.2", "jed-essai", port=8001, sauvegardes=str(self.sauv))
+        self.ajouter(self.install)
+        self.en_marche = json.dumps([{"Name": "jed-essai", "Status": "running(8)",
+                                      "ConfigFiles": str(self.install / "docker-compose.yml")}])
+
+    def menu(self, *reponses, **env):
+        env.setdefault("fake_compose_ls", self.en_marche)
+        env.setdefault("FAKE_ACTUEL", str(self.install))   # images de départ du faux docker (fichier VERSION)
+        return MenuTests.menu(self, *reponses, **env)
+
+    # Raccourcis
+    def test_shortcuts_in_the_applications_menu(self):
+        r = self.menu("7", "", "0")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        applications = self.home / ".local" / "share" / "applications"
+        web = (applications / "j-ed-jed-essai.desktop").read_text(encoding="utf-8")
+        self.assertIn("Name=J-ed - jed-essai\n", web)
+        self.assertIn('Exec=xdg-open "http://localhost:8001/"\n', web)
+        self.assertIn("Terminal=false", web)
+        self.assertIn(f"Icon={ROOT / 'static' / 'img' / 'logo-j-ed.svg'}", web)
+        assistant = (applications / "j-ed-assistant.desktop").read_text(encoding="utf-8")
+        self.assertIn(f'Exec=bash "{ROOT / "j-ed.sh"}"\n', assistant)
+        self.assertIn("Terminal=true", assistant)
+        self.assertIn("Raccourcis créés", self.sortie)
+        self.assertIn("menu Applications", self.sortie)
+
+    def test_desktop_exec_argument_is_escaped(self):
+        r = subprocess.run([PWSH, "-NoProfile", "-NonInteractive", "-Command",
+                            f"Import-Module '{MODULE}'; ConvertTo-ArgumentDesktopJed '/home/a b/$x\\\"%`'"],
+                           capture_output=True, text=True, timeout=120, env=self.env())
+        self.assertEqual(r.stdout.strip(), '"/home/a b/\\$x\\\\\\"%%\\`"', r.stderr)
+
+    # « Ça ne marche pas »
+    def test_report_without_secret(self):
+        bureau = self.home / "Bureau"
+        bureau.mkdir()
+        outil = self.outils / "xdg-user-dir"
+        outil.write_text(f"#!/bin/sh\n[ \"$1\" = DESKTOP ] && echo '{bureau}'\n")
+        outil.chmod(0o755)
+        r = self.menu("11", "", "0", fake_logs="web-1 | POSTGRES_PASSWORD=mot-de-passe-fictif ecrit@exemple.fr")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        zips = list(bureau.glob("compte-rendu-j-ed-*.zip"))
+        self.assertEqual(len(zips), 1, self.sortie)
+        texte = zipfile.ZipFile(zips[0]).read("compte-rendu.txt").decode("utf-8")
+        self.assertNotIn("mot-de-passe-fictif", texte)
+        self.assertNotIn("ecrit@exemple.fr", texte)
+        self.assertIn("Nom : jed-essai", texte)
+        self.assertIn("[ok] Linux", texte)
+        if Path("/etc/os-release").exists():
+            self.assertIn("Distribution : ", texte)
+        self.assertIn("Compte rendu prêt", self.sortie)
+        self.assertEqual(list(self.tmp.glob("J-ed-*/compte-rendu-*")), [])   # dossier temporaire effacé
+
+    def test_report_without_any_installation(self):
+        self.liste().unlink()
+        r = self.menu("11", "", "0", fake_compose_ls="[]")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(len(list(self.home.glob("compte-rendu-j-ed-*.zip"))), 1, self.sortie)
+
+    # Mot de passe oublié
+    def test_forgotten_password(self):
+        mot = "Motdepasse-solide-42"
+        r = self.menu("10", "4", "", mot, mot, "", "0", "0")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("1. auteur-fictif — Auteur fictif (Administrateur)", self.sortie)
+        self.assertIn("Mot de passe changé pour « auteur-fictif »", self.sortie)
+        self.assertEqual((self.tmp / "mot-recu").read_text(), mot)
+        self.assertNotIn(mot, self.sortie + r.stderr)                      # jamais affiché
+        self.assertNotIn(mot, "\n".join(self.calls()))                     # ni en argument de docker
+
+    def test_forgotten_password_two_different_entries(self):
+        self.menu("10", "4", "", "Motdepasse-solide-42", "Motdepasse-solide-43", "", "0", "0")
+        self.assertIn("Les deux saisies sont différentes", self.sortie)
+        self.assertNotIn("--utilisateur", "\n".join(self.calls()))
+
+    def test_forgotten_password_refused_when_stopped(self):
+        self.menu("10", "4", "", "0", "0", fake_compose_ls="[]")
+        self.assertIn("est arrêtée", self.sortie)
+        self.assertNotIn("mot_de_passe_oublie", "\n".join(self.calls()))
+
+    # Restaurer une sauvegarde
+    def tar(self):
+        f = self.sauv / "sauvegarde-20261126-120000-full.tar"
+        f.write_bytes(b"contenu-fictif")
+        return f
+
+    def test_restore_into_the_chosen_installation(self):
+        f = self.tar()
+        r = self.menu("10", "3", "", "2", "RESTAURER", "", "0", "0")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn(f"[{f}]", self.sortie)                                # dernière sauvegarde proposée
+        appels = "\n".join(self.calls())
+        self.assertIn(f"{self.install} | compose cp {f} web:/data/restauration-{f.name}", appels)
+        self.assertIn(f"restore_backup /data/restauration-{f.name} --yes", appels)
+        self.assertIn(f"{self.install} | compose restart", appels)
+        self.assertIn("Sauvegarde restaurée", self.sortie)
+        self.assertIn("Sauvegarde de sécurité faite juste avant", self.sortie)
+
+    def test_restore_needs_the_exact_word(self):
+        self.tar()
+        self.menu("10", "3", "", "2", "restaurer", "", "0", "0")
+        self.assertIn("Annulé : rien n'a changé.", self.sortie)
+        self.assertNotIn("restore_backup", "\n".join(self.calls()))
+
+    def test_restore_into_a_new_installation(self):
+        f = self.tar()
+        archive = self.archive()
+        port = free_port()
+        r = self.menu("10", "3", "", "1",
+                      "",                  # pas de proxy
+                      "2", str(archive),   # archive déjà téléchargée
+                      "",                  # nom proposé : jed-essai-copie
+                      str(port), "", "", "n", "", "",
+                      "", "0", "0")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("Nouvelle installation pour y restaurer la sauvegarde", self.sortie)
+        self.assertIn("[jed-essai-copie]", self.sortie)
+        self.assertIn("les comptes viendront de la sauvegarde", self.sortie)
+        self.assertNotIn("encore deux étapes", self.sortie)                # pas de fin guidée
+        dest = self.tmp / "jed-essai-copie-2.0.3"   # à côté de l'installation existante
+        appels = "\n".join(self.calls())
+        self.assertIn(f"{dest} | compose cp {f} web:/data/restauration-{f.name}", appels)
+        self.assertIn(f"{dest} | compose restart", appels)
+        self.assertNotIn(f"{self.install} | compose restart", appels)      # l'installation d'origine n'est pas touchée
+        self.assertIn("Sauvegarde restaurée", self.sortie)
+
+    # Vérifier la migration
+    def test_migration_check_runs_the_installation_script(self):
+        recu = self.tmp / "migration.txt"
+        (self.install / "verifier-migration.ps1").write_text(
+            f"param([string[]]$Dossiers)\n($Dossiers -join ';') | Set-Content '{recu}'\n"
+            "Write-Host '[OK] Données : présentes'\nexit 0\n", encoding="utf-8")
+        r = self.menu("10", "5", "", "0", "0")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(recu.read_text().strip(), str(self.install))
+        self.assertIn("[OK] Données : présentes", self.sortie)
+        self.assertIn("Tout va bien", self.sortie)
+
+    # Réinitialiser l'essai
+    def faux_reinitialiser(self):
+        recu = self.tmp / "reinit.txt"
+        (self.install / "reinitialiser-essai.ps1").write_text(
+            "param([switch]$SansSauvegarde, [switch]$Complet)\n$l = [Console]::In.ReadLine()\n"
+            f"\"$SansSauvegarde|$Complet|$l|$((Get-Location).Path)\" | Set-Content '{recu}'\n"
+            "Write-Host '== Arrêt et effacement'\nexit 0\n", encoding="utf-8")
+        return recu
+
+    def test_reset_trial_with_backup_and_complete(self):
+        recu = self.faux_reinitialiser()
+        r = self.menu("10", "6", "", "o", "REINITIALISER", "", "0", "0")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(recu.read_text().strip(), f"True|True|REINITIALISER|{self.install}")
+        appels = "\n".join(self.calls())
+        self.assertIn("backup --verify", appels)
+        self.assertIn("Essai réinitialisé (réinitialisation complète)", self.sortie)
+        self.assertIn("choisissez « 3. Démarrer »", self.sortie)
+
+    def test_reset_trial_needs_the_exact_word(self):
+        recu = self.faux_reinitialiser()
+        self.menu("10", "6", "n", "n", "non", "", "0", "0")
+        self.assertIn("Annulé : rien n'a changé.", self.sortie)
+        self.assertFalse(recu.exists())
+        self.assertNotIn("backup --verify", "\n".join(self.calls()))
+
+    def test_reset_refused_outside_a_trial(self):
+        autre = self.make_install("jed-2.0.2", "jed", port=8002)
+        self.ajouter(autre)
+        self.menu("10", "6", "", "", "0", "0", fake_compose_ls="[]")
+        self.assertIn("n'est pas une installation d'essai", self.sortie)
+
+
+class ScriptsLot3Tests(LinuxTestCase):
+    """2.0.3, lot 3 — refus de root dans reinitialiser-essai.ps1 et verifier-migration.ps1 (D4)."""
+
+    def lancer(self, script, *args, **env):
+        return subprocess.run([PWSH, "-NoProfile", "-NonInteractive", "-File", str(ROOT / script), *args],
+                              capture_output=True, text=True, timeout=120, cwd=self.tmp, env=self.env(**env))
+
+    def test_reset_refuses_root(self):
+        r = self.lancer("reinitialiser-essai.ps1", "-SansSauvegarde", JED_UID_ACTUEL="0")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("sans sudo", r.stdout)
+        self.assertIn("Rien n'a été effacé.", r.stdout)
+        self.assertEqual(self.calls(), [])
+
+    def test_migration_check_refuses_root(self):
+        r = self.lancer("verifier-migration.ps1", "-Dossiers", str(self.tmp), JED_UID_ACTUEL="0")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("sans sudo", r.stdout)
+        self.assertEqual(self.calls(), [])
+
+    def test_reset_backup_copy_uses_the_system_separator(self):
+        source = (ROOT / "reinitialiser-essai.ps1").read_text(encoding="utf-8-sig")
+        self.assertNotIn("'.\\sauvegardes-essai\\'", source)
+        self.assertIn("[System.IO.Path]::DirectorySeparatorChar", source)
+
+    def test_migration_check_gives_the_linux_command(self):
+        source = (ROOT / "verifier-migration.ps1").read_text(encoding="utf-8-sig")
+        self.assertIn("pwsh -NoProfile -File ./verifier-j-ed.ps1", source)

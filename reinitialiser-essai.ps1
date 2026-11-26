@@ -51,6 +51,14 @@ $NomAttendu = 'japon-explorateur-essai-130'
 $PortAttendu = '8002'
 # Volume des paquets Argos (décision E6) : conservé sauf avec -Complet.
 $SuffixePaquets = '_argos-packages'
+# 2.0.3 (Linux, décision D4) : refus de root. JED_UID_ACTUEL : réservé aux tests automatiques.
+function Get-UidLinux {
+    if ("$env:JED_UID_ACTUEL" -match '^\d+$') { return [int]$env:JED_UID_ACTUEL }
+    $u = "$(& id -u 2>$null)".Trim()
+    if ($u -match '^\d+$') { return [int]$u }
+    return $null
+}
+$TexteRoot = 'ne lancez pas ce script en administrateur (sudo ou root) : les fichiers de J-ed appartiendraient à root. Relancez-le depuis votre compte, sans sudo.'
 
 function Arreter([string]$Message) {
     Write-Host ''
@@ -90,6 +98,7 @@ Write-Host "Dossier : $PSScriptRoot"
 
 # --- 1. Contrôles de sécurité -------------------------------------------------------------------
 Etape 'Contrôles de sécurité'
+if ($SousLinux -and (Get-UidLinux) -eq 0) { Arreter $TexteRoot }
 
 if (-not (Test-Path -LiteralPath 'docker-compose.yml') -or -not (Test-Path -LiteralPath 'VERSION')) {
     Arreter 'ce script doit se trouver dans le dossier de l''installation d''essai (à côté de docker-compose.yml et VERSION).'
@@ -201,9 +210,11 @@ if (-not $SansSauvegarde -and ($enMarche -contains 'web')) {
         $chemin = (Docker-Sortie @('compose', 'exec', '-T', 'web', 'sh', '-c', 'ls -t /data/backups/*.tar 2>/dev/null | head -n 1')).Texte
         if (-not $chemin) { Arreter 'fichier de sauvegarde introuvable dans le conteneur.' }
         New-Item -ItemType Directory -Force -Path 'sauvegardes-essai' | Out-Null
-        & docker compose cp "web:$chemin" '.\sauvegardes-essai\'
+        # 2.0.3 : séparateur du système (sous Linux, « .\…\ » serait un nom de fichier, pas un dossier).
+        $cibleCopie = 'sauvegardes-essai' + [System.IO.Path]::DirectorySeparatorChar
+        & docker compose cp "web:$chemin" $cibleCopie
         if ($LASTEXITCODE -ne 0) { Arreter 'la copie de la sauvegarde hors du conteneur a échoué.' }
-        Write-Host "Sauvegarde copiée dans : $PSScriptRoot\sauvegardes-essai" -ForegroundColor Green
+        Write-Host "Sauvegarde copiée dans : $([System.IO.Path]::Combine($PSScriptRoot, 'sauvegardes-essai'))" -ForegroundColor Green
     }
 } elseif (-not $SansSauvegarde) {
     Write-Host ''

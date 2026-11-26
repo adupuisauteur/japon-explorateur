@@ -186,3 +186,13 @@ class ContratLinuxTests(SimpleTestCase):
         self.assertIn("Test-EcritureConteneur", source)
         self.assertLess(source.index("Arreter $TexteRoot"), source.index("Etape '2/7"))
         self.assertTrue((ROOT / "tests" / "outils" / "archives-essai.ps1").exists())
+
+    def test_every_script_refuses_root_under_linux(self):
+        """2.0.3, lot 3 (décision D4) : tous les scripts refusent root sous Linux."""
+        texte = CONTRAT.read_text(encoding="utf-8")
+        self.assertIn("tous les scripts refusent root sous Linux", texte)
+        for script in ("installer-j-ed.ps1", "mettre-a-jour.ps1", "verifier-j-ed.ps1", "verifier-migration.ps1",
+                       "reinitialiser-essai.ps1"):
+            self.assertIn("(Get-UidLinux) -eq 0", lire(script), script)
+        for mot in ("Maintenance, raccourcis", "`RESTAURER`", "`REINITIALISER`", "j-ed-assistant.desktop"):
+            self.assertIn(mot, texte)
