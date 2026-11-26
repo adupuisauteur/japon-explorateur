@@ -13,8 +13,9 @@
     Les réponses peuvent venir d'un autre programme (entrée standard) : c'est ainsi qu'il est testé.
 
     Lot 1 de la 2.0.3 : accueil, liste des installations, Nouvelle installation, Démarrer, Arrêter, Ouvrir J-ed,
-    Vérifier, Ajouter une installation, Voir les prérequis, Créer une sauvegarde, Dossier des sauvegardes. Les
-    autres fonctions arrivent aux lots 2 et 3 (le menu le dit).
+    Vérifier, Ajouter une installation, Voir les prérequis, Créer une sauvegarde, Dossier des sauvegardes.
+    Lot 2 : Mettre à jour une installation (mise à jour sûre, par le mettre-a-jour.ps1 de la nouvelle version). Les
+    autres fonctions arrivent au lot 3 (le menu le dit).
 #>
 [CmdletBinding()]
 param()
@@ -317,7 +318,9 @@ function Use-Proxy {
 }
 
 function Select-Archive {
-    <# Archive vérifiée (empreinte conforme, fichier VERSION) : objet Archive, Empreinte, Version ; ou $null. #>
+    <# Archive vérifiée (empreinte conforme, fichier VERSION) : objet Archive, Empreinte, Version ; ou $null.
+       -VersionActuelle (mise à jour) : la dernière version publiée n'est pas proposée si elle n'est pas plus récente. #>
+    param([string]$VersionActuelle = '')
     while ($true) {
         Write-Host ''
         Write-Host 'Archive de J-ed :'
@@ -331,6 +334,10 @@ function Select-Archive {
             Write-Host 'Recherche de la dernière version sur GitHub…'
             $info = Get-DerniereVersionGitHubJed
             if (-not $info.Ok) { Show-Resultat 'erreur' 'GitHub ne répond pas' $info.Raison; continue }
+            if ($VersionActuelle -and (Compare-VersionJed $info.Version $VersionActuelle) -le 0) {
+                Show-Resultat 'ok' "Dernière version publiée : $($info.Version)" 'Votre installation est déjà à jour.'
+                continue
+            }
             $dossier = Get-DossierTelechargementsJed
             $taille = Format-NombreJed ($info.Archive.Taille / 1MB)
             if (-not (Read-OuiNon "Télécharger J-ed $($info.Version) ($taille Mo) dans $dossier ?" $true)) { continue }
@@ -413,7 +420,7 @@ function New-Installation {
     if (-not (Read-OuiNon 'Installer ?' $true)) { return }
 
     # Le script de l'archive s'il existe (2.0.2 et suivantes), sinon celui de l'assistant (comme la fenêtre).
-    $temp = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), 'J-ed', "installation-$(Get-Date -Format 'yyyyMMdd-HHmmss')")
+    $temp = Get-DossierTemporaireJed "installation-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
     $scriptInst = Export-ScriptArchiveJed -Archive $a.Archive -Nom 'installer-j-ed.ps1' -Dossier $temp
     if (-not $scriptInst) { $scriptInst = [System.IO.Path]::Combine($Racine, 'installer-j-ed.ps1') }
     $arguments = New-ArgumentsInstallationJed -Script $scriptInst -Archive $a.Archive -Empreinte $a.Empreinte `
@@ -456,6 +463,80 @@ function Show-FinInstallation($Installation) {
     }
 }
 
+# --- Mettre à jour une installation (lot 2) ----------------------------------------------------------------
+
+function Update-InstallationJed {
+    <# Comme la fenêtre Windows : installation en marche, archive et empreinte, dossier des sauvegardes, proxy,
+       « Docker joint-il Internet ? », installation protégée, puis le mettre-a-jour.ps1 de la NOUVELLE version ;
+       la confirmation OUI est demandée ici quand la nouvelle version est prête (jamais -Oui). #>
+    $i = Select-Installation 'à mettre à jour'
+    if (-not $i) { return }
+    Write-Titre "Mettre à jour « $($i.Nom) » (version $($i.Version))"
+    Write-Host "  Installation : $($i.Dossier)"
+    if ($i.Etat -ne 'en marche') {
+        if (-not (Read-OuiNon "« $($i.Nom) » est arrêtée. Elle doit être en marche pour que sa sauvegarde soit faite avant la mise à jour. La démarrer maintenant ?" $true)) { return }
+        $d = Invoke-DockerJed $i.Dossier (Get-CommandeActionJed 'Demarrer') -SurLigne { param($l) Write-Ligne $l }
+        if ($d.Code -ne 0) { Show-Resultat 'erreur' 'Démarrage impossible' ''; Show-ErreurDocker $d.Texte; Wait-Entree; return }
+    }
+    $proxy = Use-Proxy
+    if ($null -eq $proxy) { Wait-Entree; return }
+    $a = Select-Archive -VersionActuelle $i.Version
+    if (-not $a) { return }
+    $defaut = $i.DossierSauvegardes
+    if (-not $defaut) { $defaut = [System.IO.Path]::Combine((Split-Path -Parent $i.Dossier), 'sauvegardes') }
+    $sauvegardes = Read-Chemin 'Dossier des sauvegardes (une sauvegarde vérifiée y est copiée avant la mise à jour)' $defaut
+    if (Read-OuiNon 'Vérifier d''abord que Docker joint Internet (téléchargement de l''image de base) ?' $true) {
+        Write-Titre 'Docker joint-il Internet ?'
+        $d = Invoke-DockerJed $i.Dossier (Get-CommandeAccesRegistreJed) -SurLigne { param($l) Write-Ligne $l }
+        if ($d.Code -eq 0) { Show-Resultat 'ok' 'Docker joint Internet' 'La construction de la nouvelle version pourra télécharger ce dont elle a besoin.' }
+        else {
+            Show-Resultat 'erreur' 'Docker ne joint pas Internet' (Get-ConseilProxyDockerJed $proxy)
+            if (-not (Read-OuiNon 'Lancer la mise à jour quand même ?' $false)) { return }
+        }
+    }
+    # Comme la fenêtre (2.0.2-rc5, R4) : l'avertissement « installation protégée » vient AVANT toute écriture du .env.
+    if ($i.Protegee) {
+        Write-Host (Get-TexteProtegeeJed $i) -ForegroundColor Yellow
+        if (-not (Read-OuiNon 'Conseil : essayez d''abord la mise à jour sur une copie. Continuer quand même ?' $false)) { return }
+    }
+    $fichierEnv = [System.IO.Path]::Combine($i.Dossier, '.env')
+    if ($proxy -and -not (Test-ProxyEnvJed -Fichier $fichierEnv -Proxy $proxy)) {
+        if (-not (Read-OuiNon "Le proxy $proxy va être écrit dans le fichier .env de « $($i.Nom) » (une copie de l'ancien fichier est gardée à côté). La nouvelle version le reprendra. Continuer ?" $true)) { return }
+        Set-ProxyEnvJed -Fichier $fichierEnv -Proxy $proxy
+    }
+    $temp = Get-DossierTemporaireJed "mise-a-jour-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+    $scriptMaj = Export-ScriptArchiveJed -Archive $a.Archive -Dossier $temp
+    if (-not $scriptMaj) {
+        Show-Resultat 'erreur' 'Archive refusée' "mettre-a-jour.ps1 est absent de l'archive : ce n'est pas une archive de J-ed 2.0 ou plus récente."
+        Wait-Entree
+        return
+    }
+    $arguments = New-ArgumentsMiseAJourJed -Script $scriptMaj -Archive $a.Archive -Actuel $i.Dossier -DossierSauvegardes $sauvegardes -Empreinte $a.Empreinte
+    Write-Titre "Mettre à jour « $($i.Nom) » vers la version $($a.Version) (la construction prend plusieurs minutes)"
+    $question = {
+        param($q)
+        Write-Host ''
+        Write-Host 'La nouvelle version est prête.' -ForegroundColor Green
+        Write-Host 'L''ancienne version va maintenant être arrêtée, puis la nouvelle démarrée. Aucune donnée n''est effacée ;'
+        Write-Host 'si la nouvelle version ne démarre pas, l''assistant revient tout seul à l''ancienne.'
+        Read-OuiNon 'Continuer ?' $false
+    }
+    $x = Invoke-ScriptJed -Arguments $arguments -SurLigne { param($l) Write-Ligne $l } -SurQuestion $question
+    $m = Get-MessageMiseAJourJed $x.Code
+    Show-Resultat $m.Niveau $m.Titre $m.Texte
+    if ($x.Code -in @(1, 3, 5)) { Show-ErreurDocker (@($x.Lignes) -join "`n") }
+    $conseil = Get-ConseilDossierMiseAJourJed $x.Code $x.Lignes
+    if ($conseil) { Write-Host ''; foreach ($l in ($conseil -split "`n")) { Write-Host "  $l" } }
+    $nouveau = Get-DossierNouvelleVersionJed $x.Lignes
+    if ($x.Code -eq 0 -and $nouveau) {
+        Add-InstallationListeJed -Fichier $script:Liste -Dossier $nouveau
+        Write-Host "  Nouvelle version dans : $nouveau"
+        Write-Host '  L''ancien dossier est gardé (il apparaît comme « ancien dossier » dans la liste).'
+    }
+    if ($x.Journal) { Write-Host "  Journal : $($x.Journal)" }
+    Wait-Entree
+}
+
 # --- Accueil -----------------------------------------------------------------------------------------------
 
 if (-not (Test-LinuxJed)) {
@@ -487,7 +568,7 @@ while ($true) {
     Write-Host '  12. Aide : avant de commencer'
     Write-Host '   0. Fermer'
     switch (Read-Ligne 'Votre choix') {
-        '1' { Show-PasEncore 'Mettre à jour une installation' 'lot 2' }
+        '1' { Update-InstallationJed }
         '2' { New-Installation }
         '3' { Invoke-Action 'Demarrer' 'Démarrer' 'J-ed démarre : il répond en général au bout d''une minute.' }
         '4' { Invoke-Action 'Arreter' 'Arrêter' 'J-ed est arrêté. Ses données sont intactes.' }

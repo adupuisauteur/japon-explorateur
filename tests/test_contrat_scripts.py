@@ -175,3 +175,14 @@ class ContratLinuxTests(SimpleTestCase):
             source = lire(script)
             self.assertIn("(Get-UidLinux) -eq 0", source, script)
             self.assertIn("Test-EcritureConteneur", source, script)
+
+    def test_linux_update_is_documented(self):
+        """2.0.3, lot 2 : mise à jour sous Linux (refus de root, dossier des sauvegardes, choix 1 du menu)."""
+        texte = CONTRAT.read_text(encoding="utf-8")
+        for mot in ("`mettre-a-jour.ps1` aussi (code 1", "Mise à jour depuis le menu", "`tests/outils/archives-essai.ps1"):
+            self.assertIn(mot, texte)
+        source = lire("mettre-a-jour.ps1")
+        self.assertIn("(Get-UidLinux) -eq 0) { Arreter $TexteRoot }", source)
+        self.assertIn("Test-EcritureConteneur", source)
+        self.assertLess(source.index("Arreter $TexteRoot"), source.index("Etape '2/7"))
+        self.assertTrue((ROOT / "tests" / "outils" / "archives-essai.ps1").exists())

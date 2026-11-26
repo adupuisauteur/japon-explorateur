@@ -130,6 +130,29 @@ $script:ImagesAnciennes = [ordered]@{}
 $script:Reserves = [ordered]@{}        # 2.0.1-rc3 : nom de réserve des images qui vont être remplacées
 $script:RemiseIncomplete = $false
 $Utf8SansBom = New-Object System.Text.UTF8Encoding($false)
+# 2.0.3 (Linux, décisions D4 et D5) : jamais en root (les fichiers de J-ed appartiendraient à root) ; le conteneur
+# (utilisateur 1000) copie lui-même chaque sauvegarde dans le dossier des sauvegardes : il doit pouvoir y écrire.
+# JED_UID_ACTUEL et JED_UID_CONTENEUR : réservés aux tests automatiques.
+function Get-UidLinux {
+    if ("$env:JED_UID_ACTUEL" -match '^\d+$') { return [int]$env:JED_UID_ACTUEL }
+    $u = "$(& id -u 2>$null)".Trim()
+    if ($u -match '^\d+$') { return [int]$u }
+    return $null
+}
+function Test-EcritureConteneur([string]$Chemin) {
+    # Vrai si l'utilisateur du conteneur peut écrire dans ce dossier, faux sinon, $null si on ne sait pas.
+    $uidConteneur = 1000
+    if ("$env:JED_UID_CONTENEUR" -match '^\d+$') { $uidConteneur = [int]$env:JED_UID_CONTENEUR }
+    if ($uidConteneur -eq 0) { return $true }
+    $s = "$(& stat -c '%u %g %a' $Chemin 2>$null)".Trim()
+    if ($s -notmatch '^(\d+) (\d+) ([0-7]{3,4})$') { return $null }
+    $uid = [int]$Matches[1]; $gid = [int]$Matches[2]
+    $mode = [Convert]::ToInt32($Matches[3].Substring($Matches[3].Length - 3), 8)
+    if ($uid -eq $uidConteneur) { return (($mode -band 0x80) -ne 0 -and ($mode -band 0x40) -ne 0) }   # u+w, u+x
+    if ($gid -eq $uidConteneur) { return (($mode -band 0x10) -ne 0 -and ($mode -band 0x8) -ne 0) }    # g+w, g+x
+    return (($mode -band 0x2) -ne 0 -and ($mode -band 0x1) -ne 0)                                      # o+w, o+x
+}
+$TexteRoot = 'ne lancez pas ce script en administrateur (sudo ou root) : les fichiers de J-ed appartiendraient à root. Relancez-le depuis votre compte, sans sudo.'
 
 # --- Journal (2.0.1) --------------------------------------------------------------------------------------
 function Ecrire-Journal([string]$Repere, [string]$Texte) {
@@ -376,6 +399,7 @@ Ecrire-Journal 'INFO' "Mise à jour de J-ed ; archive : $Archive ; installation 
 # --- 1. Contrôles ---------------------------------------------------------------------------------
 Etape '1/7 Contrôles'
 
+if ($SousLinux -and (Get-UidLinux) -eq 0) { Arreter $TexteRoot }
 if (-not (Test-Path -LiteralPath $Archive -PathType Leaf)) { Arreter "archive introuvable : $Archive" }
 $Archive = (Resolve-Path -LiteralPath $Archive).Path
 if (-not (Test-Path -LiteralPath $Actuel -PathType Container)) { Arreter "dossier de l'installation actuelle introuvable : $Actuel" }
@@ -396,6 +420,12 @@ try {
     Arreter "impossible d'écrire dans le dossier des sauvegardes $DossierSauvegardes : $($_.Exception.Message)"
 }
 Write-Host "Journal de la mise à jour : $script:Journal"
+if ($SousLinux -and (Test-EcritureConteneur $DossierSauvegardes) -eq $false) {
+    # 2.0.3 (Linux, D5) : pas un arrêt (la sauvegarde est copiée ici par ce script lui-même) ; mais la copie
+    # automatique de J-ed (« Copie externe ») échouerait.
+    Avertir ("Attention : J-ed (utilisateur 1000 de son conteneur) ne pourra pas écrire dans $DossierSauvegardes. " +
+        "Pour le lui permettre : chmod o+rwx `"$DossierSauvegardes`"")
+}
 
 # Empreinte : « <archive>.sha256 » ou « <nom sans .zip>.sha256 », à côté de l'archive.
 # 2.0.2 : ou le fichier donné par -Empreinte.
@@ -551,7 +581,9 @@ Etape '4/7 Reprise du fichier .env'
 $EnvNouveau = [System.IO.Path]::Combine($Destination, '.env')
 Copy-Item -LiteralPath $EnvActuel -Destination $EnvNouveau
 if ($PSBoundParameters.ContainsKey('DossierSauvegardes') -and -not (Lire-Env $EnvNouveau 'DOSSIER_SAUVEGARDES')) {
-    Add-Content -LiteralPath $EnvNouveau -Value "`r`n# Ajouté par mettre-a-jour.ps1 : copie des sauvegardes visible dans Windows`r`nDOSSIER_SAUVEGARDES=$DossierSauvegardes" -Encoding UTF8
+    $ouVisible = 'visible dans Windows'
+    if ($SousLinux) { $ouVisible = 'visible sur l''ordinateur' }   # 2.0.3
+    Add-Content -LiteralPath $EnvNouveau -Value "`r`n# Ajouté par mettre-a-jour.ps1 : copie des sauvegardes $ouVisible`r`nDOSSIER_SAUVEGARDES=$DossierSauvegardes" -Encoding UTF8
 }
 # 2.0.0 (lot 7) : Argos fait partie de l'installation standard. La ligne COMPOSE_PROFILES le démarre avec J-ed ;
 # elle n'est ajoutée que si elle manque. Laissée vide (« COMPOSE_PROFILES= »), elle désactive Argos : respecté.
@@ -666,7 +698,11 @@ if (-not $Oui) {
         Arreter 'mise à jour annulée à votre demande.' $CodeAnnule
     }
     Ecrire-Journal 'REPONSE' 'OUI'
-    if ($viaAssistant) { Write-Host 'Confirmation donnée dans l''assistant J-ed (clic sur « Oui »).' }
+    if ($viaAssistant) {
+        # 2.0.3 : sous Linux, la réponse est tapée dans le menu de l'assistant (« o »), pas un clic.
+        if ($SousLinux) { Write-Host 'Confirmation donnée dans l''assistant J-ed (réponse « oui »).' }
+        else { Write-Host 'Confirmation donnée dans l''assistant J-ed (clic sur « Oui »).' }
+    }
 }
 $script:AncienneArretee = $true
 $arret = Docker-Dans $Actuel @('compose', 'down')

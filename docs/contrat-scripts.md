@@ -35,7 +35,7 @@ Les tests `tests/test_contrat_scripts.py` vérifient que les scripts et ce docum
   le terminal est gardé. Rien ne change sous Windows (Docker Desktop s'en charge).
 - Aucun script ne supprime de volume Docker (`down -v` interdit).
 
-## Linux : lanceur, menu et contrôles (depuis la 2.0.3, lot 1)
+## Linux : lanceur, menu et contrôles (depuis la 2.0.3, lots 1 et 2)
 
 - **`j-ed.sh`** (racine du dossier de J-ed, bash, fins de ligne LF, exécutable) : refuse root, vérifie que
   PowerShell 7 (`pwsh`) est installé, puis lance **`assistant/menu-j-ed.ps1`** par `pwsh -NoProfile -File`. Se lance
@@ -44,12 +44,23 @@ Les tests `tests/test_contrat_scripts.py` vérifient que les scripts et ce docum
   noms, même ordre ; il s'appuie sur le même module `assistant/AssistantJed.psm1` et lance les scripts ci-dessous
   exactement comme la fenêtre (mêmes paramètres, mêmes codes, même journal). Réponses lisibles depuis l'entrée
   standard (tests) ; fin de l'entrée : il se ferme (code 0). Refuse root (code 1) et ne sert que sous Linux.
-- **Refus de root** (décision D4) : sous Linux, `installer-j-ed.ps1` s'arrête (code 1, rien n'est créé) et
-  `verifier-j-ed.ps1` aussi (code 1) quand ils sont lancés en root.
+- **Refus de root** (décision D4) : sous Linux, `installer-j-ed.ps1` s'arrête (code 1, rien n'est créé),
+  `verifier-j-ed.ps1` aussi (code 1) et, depuis le lot 2, `mettre-a-jour.ps1` aussi (code 1, à l'étape 1/7 : rien
+  n'a changé) quand ils sont lancés en root.
 - **Dossier des sauvegardes** (décision D5) : sous Linux, J-ed copie lui-même chaque sauvegarde dans ce dossier
   depuis son conteneur (utilisateur 1000). `installer-j-ed.ps1` écrit un avertissement (repère `ATTENTION`, pas un
   arrêt) et `verifier-j-ed.ps1` une ligne « À surveiller » quand cet utilisateur ne peut pas y écrire, avec la
-  commande qui le permet (`chmod o+rwx <dossier>`).
+  commande qui le permet (`chmod o+rwx <dossier>`). Depuis le lot 2, `mettre-a-jour.ps1` écrit le même
+  avertissement (repère `ATTENTION` dans son journal, pas un arrêt).
+- **Mise à jour depuis le menu** (lot 2) : le choix 1 du menu suit la fenêtre Windows pas à pas (démarrage de
+  l'installation si elle est arrêtée, proxy, archive, dossier des sauvegardes, question sur l'accès de Docker à
+  Internet, avertissement pour une installation protégée **avant** toute écriture du `.env`, proxy écrit dans le
+  `.env` seulement après accord). Il lance le `mettre-a-jour.ps1` **de l'archive** (refus si l'archive n'en contient
+  pas), avec la même question avant l'arrêt de l'ancienne version (réponse « oui » dans le menu, transmise comme
+  `OUI`) et les mêmes codes de sortie ; le texte de confirmation dit alors « réponse « oui » » au lieu de « clic ».
+- **Archives d'essai** (outil de recette, pas une fonction de J-ed) : `tests/outils/archives-essai.ps1 -Version <n>`
+  fabrique trois archives avec leur `.sha256` (normale ; construction impossible : code 3 ; démarrage impossible du
+  serveur web : code 4), à n'utiliser que sur une installation d'essai.
 - Réglages **réservés aux tests automatiques** : `JED_UID_ACTUEL` (numéro de l'utilisateur, pour simuler root ou
   non) et `JED_UID_CONTENEUR` (numéro de l'utilisateur du conteneur, 1000 par défaut).
 

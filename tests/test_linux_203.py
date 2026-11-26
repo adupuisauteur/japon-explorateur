@@ -1,4 +1,4 @@
-"""2.0.3, lot 1 — Linux : module de l'assistant, menu texte « jumeau » (assistant/menu-j-ed.ps1), lanceur j-ed.sh,
+"""2.0.3, lots 1 et 2 — Linux : module de l'assistant, menu texte « jumeau » (assistant/menu-j-ed.ps1), lanceur j-ed.sh,
 refus de root et droits du dossier des sauvegardes (installer-j-ed.ps1, verifier-j-ed.ps1).
 
 Tout tourne avec PowerShell 7 sous Linux et le faux « docker » (tests/fixtures/mise_a_jour/docker). L'essai réel
@@ -50,7 +50,7 @@ class LinuxTestCase(SimpleTestCase):
     def env(self, **extra):
         env = {k: v for k, v in os.environ.items()
                if k.lower() not in ("http_proxy", "https_proxy", "all_proxy", "no_proxy", "xdg_data_home")}
-        env.update(HOME=str(self.home), FAKE_DOCKER_LOG=str(self.log), FAKE_ACTUEL=str(self.tmp),
+        env.update(HOME=str(self.home), TMPDIR=str(self.tmp), FAKE_DOCKER_LOG=str(self.log), FAKE_ACTUEL=str(self.tmp),
                    JED_UID_ACTUEL="1000", JED_UID_CONTENEUR=str(os.getuid()),
                    PATH=os.pathsep.join([str(self.outils), str(FAKE_DOCKER_DIR), os.environ.get("PATH", "")]))
         for k, v in extra.items():
@@ -409,8 +409,8 @@ class MenuTests(LinuxTestCase):
         self.assertIn("sudo systemctl start docker", self.sortie)
 
     def test_features_of_later_lots_say_so(self):
-        self.menu("1", "", "7", "", "11", "", "10", "3", "", "4", "", "5", "", "6", "", "0", "0")
-        for fonction, lot in (("Mettre à jour une installation", "lot 2"), ("Créer les raccourcis", "lot 3"),
+        self.menu("7", "", "11", "", "10", "3", "", "4", "", "5", "", "6", "", "0", "0")
+        for fonction, lot in (("Créer les raccourcis", "lot 3"),
                               ("Ça ne marche pas", "lot 3"), ("Restaurer une sauvegarde", "lot 3"),
                               ("Mot de passe oublié", "lot 3"), ("Vérifier la migration", "lot 3"),
                               ("Réinitialiser l'essai", "lot 3")):
@@ -505,3 +505,229 @@ class MenuTests(LinuxTestCase):
         code = re.sub(r"<#.*?#>", "", data.decode("utf-8-sig"), flags=re.S)
         self.assertIn("Import-Module ([System.IO.Path]::Combine($PSScriptRoot, 'AssistantJed.psm1'))", code)
         self.assertNotRegex(code, r"'down'|down -v|'-v'|--volumes|'-Oui'")
+
+
+# --- Lot 2 : mise à jour sûre sous Linux --------------------------------------------------------------------
+
+class MiseAJourLinuxTests(LinuxTestCase):
+    """2.0.3, lot 2 — « 1. Mettre à jour une installation » du menu, et mettre-a-jour.ps1 sous Linux."""
+
+    def setUp(self):
+        super().setUp()
+        from tests.test_mise_a_jour_ps1 import compose_build_args
+        self.build_args = " ".join(compose_build_args())
+        self.sauv = self.tmp / "sauvegardes-jed-essai"
+        self.install = self.make_install("jed-essai-2.0.2", "jed-essai", port=8001, sauvegardes=str(self.sauv))
+        self.liste = self.home / ".local" / "share" / "J-ed" / "installations.txt"
+        self.liste.parent.mkdir(parents=True)
+        self.liste.write_text(f"{self.install}\n", encoding="utf-8")
+        self.en_marche = json.dumps([{"Name": "jed-essai", "Status": "running(8)",
+                                      "ConfigFiles": str(self.install / "docker-compose.yml")}])
+
+    def archive(self, version="2.0.3", avec_script=True):
+        archive = self.tmp / "telechargements" / f"japon-explorateur-{version}.zip"
+        archive.parent.mkdir(exist_ok=True)
+        with zipfile.ZipFile(archive, "w") as z:
+            racine = f"japon-explorateur-{version}/"
+            z.writestr(racine + "VERSION", f"{version}\n")
+            z.writestr(racine + "docker-compose.yml", "name: ${COMPOSE_PROJECT_NAME}\n")
+            if avec_script:
+                z.writestr(racine + "mettre-a-jour.ps1", (ROOT / "mettre-a-jour.ps1").read_bytes())
+        Path(f"{archive}.sha256").write_text(hashlib.sha256(archive.read_bytes()).hexdigest() + f"  {archive.name}\n")
+        return archive
+
+    def menu(self, *reponses, **env):
+        env.setdefault("fake_compose_ls", self.en_marche)
+        entree = "".join(f"{r}\n" for r in reponses)
+        r = subprocess.run([PWSH, "-NoProfile", "-File", str(MENU)], capture_output=True, text=True, timeout=600,
+                           env=self.env(FAKE_ACTUEL=str(self.install), FAKE_BUILD_ARGS=self.build_args, **env),
+                           input=entree)
+        self.sortie = r.stdout
+        return r
+
+    def mise_a_jour(self, *apres_archive, archive=None, avant_archive=("",), **env):
+        """1 Mettre à jour ; proxy ; 2 archive locale ; puis les réponses suivantes ; enfin retour et Fermer."""
+        archive = archive or self.archive()
+        return self.menu("1", *avant_archive, "2", str(archive), *apres_archive, "", "0", **env)
+
+    def nouveau(self):
+        return self.tmp / "japon-explorateur-2.0.3"
+
+    def test_update_through_the_menu(self):
+        # sauvegardes : proposé ; Docker joint Internet : oui ; confirmation de la nouvelle version : o
+        r = self.mise_a_jour("", "", "o")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("Archive de la version 2.0.3 : empreinte conforme.", self.sortie)
+        self.assertIn("La nouvelle version est prête.", self.sortie)
+        self.assertIn("Confirmation donnée dans l'assistant J-ed (réponse « oui »).", self.sortie)
+        self.assertIn("OK — Mise à jour réussie", self.sortie)
+        self.assertIn(f"Nouvelle version dans : {self.nouveau()}", self.sortie)
+        appels = self.calls()
+        construction = appels.index(f"{self.nouveau()} | compose build")
+        arret = next(i for i, c in enumerate(appels) if c == f"{self.install} | compose down")
+        self.assertLess(construction, arret, "construction AVANT l'arrêt de l'ancienne version")
+        self.assertFalse(any(" -v" in c or "--volumes" in c for c in appels))
+        self.assertIn(str(self.nouveau()), self.liste.read_text(encoding="utf-8"))
+        journal = next(self.sauv.glob("mise-a-jour-*.log")).read_text(encoding="utf-8")
+        self.assertIn(" QUESTION ", journal)
+        self.assertIn(" REPONSE OUI", journal)
+        self.assertTrue(journal.rstrip().endswith("FIN code=0 mise à jour réussie"), journal[-300:])
+        self.assertTrue(any(self.sauv.glob("sauvegarde-*.tar")), "sauvegarde copiée avant la mise à jour")
+
+    def test_refusing_keeps_the_old_version(self):
+        r = self.mise_a_jour("", "", "n")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("Mise à jour annulée", self.sortie)
+        self.assertNotIn(f"{self.install} | compose down", self.calls())
+
+    def test_build_failure_explains_and_names_the_folder_to_remove(self):
+        r = self.mise_a_jour("", "", fake_build="1")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("Nouvelle version impossible à préparer", self.sortie)
+        self.assertIn("/etc/docker/daemon.json", self.sortie)
+        self.assertIn("supprimez ce dossier (par exemple dans l'application Fichiers)", self.sortie)
+        self.assertIn(str(self.nouveau()), self.sortie)
+        self.assertNotIn(f"{self.install} | compose down", self.calls())
+
+    def test_stopped_installation_is_started_first(self):
+        r = self.mise_a_jour("", "", "n", avant_archive=("o", ""), fake_compose_ls="[]")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("est arrêtée. Elle doit être en marche", self.sortie)
+        self.assertIn(f"{self.install} | compose up -d", self.calls())
+
+    def test_protected_installation_is_warned_before_anything_is_written(self):
+        protegee = self.make_install("essai-protege", "japon-explorateur-essai", port=8005)
+        with open(protegee / ".env", "a", encoding="utf-8") as f:
+            f.write("AUTORISER_NOM_PROJET=japon-explorateur-essai\n")
+        self.liste.write_text(f"{protegee}\n", encoding="utf-8")
+        avant = (protegee / ".env").read_text(encoding="utf-8")
+        self.gsettings()
+        r = self.menu("1", "", "2", str(self.archive()), "", "", "n", "", "0", fake_compose_ls=json.dumps(
+            [{"Name": "japon-explorateur-essai", "Status": "running(8)", "ConfigFiles": str(protegee / "docker-compose.yml")}]))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("installation protégée", self.sortie)
+        self.assertEqual((protegee / ".env").read_text(encoding="utf-8"), avant, ".env non touché")
+        self.assertFalse(any("compose build" in c for c in self.calls()))
+
+    def test_proxy_is_written_in_env_then_given_to_docker(self):
+        self.gsettings()
+        # proxy proposé : oui ; …, écrire le proxy dans .env : oui ; confirmation : o
+        r = self.mise_a_jour("", "", "", "o")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn(f"Le proxy {PROXY} va être écrit dans le fichier .env", self.sortie)
+        texte = (self.install / ".env").read_text(encoding="utf-8")
+        self.assertIn(f"HTTPS_PROXY={PROXY}", texte)
+        self.assertTrue(list(self.install.glob(".env.avant-proxy-*")), "copie de l'ancien .env gardée")
+        self.assertIn(f"HTTPS_PROXY={PROXY}", (self.nouveau() / ".env").read_text(encoding="utf-8"))
+        self.assertIn(f"compose build | {PROXY}", (self.tmp / "proxy.log").read_text().splitlines())
+        self.assertIn("OK — Mise à jour réussie", self.sortie)
+
+    def test_archive_without_update_script_is_refused(self):
+        r = self.mise_a_jour("", "", archive=self.archive(avec_script=False))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("mettre-a-jour.ps1 est absent de l'archive", self.sortie)
+        self.assertFalse(any("backup" in c for c in self.calls()))
+
+    def script(self, **env):
+        args = [PWSH, "-NoProfile", "-NonInteractive", "-File", str(ROOT / "mettre-a-jour.ps1"), "-Archive",
+                str(self.archive()), "-Actuel", str(self.install), "-DossierSauvegardes", str(self.sauv), "-Oui",
+                "-DelaiStabilite", "0"]
+        return subprocess.run(args, capture_output=True, text=True, timeout=300,
+                              env=self.env(FAKE_ACTUEL=str(self.install), FAKE_BUILD_ARGS=self.build_args, **env))
+
+    def test_update_script_refuses_root(self):
+        r = self.script(JED_UID_ACTUEL="0")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("en administrateur (sudo ou root)", r.stdout)
+        self.assertEqual(self.calls(), [])
+        self.assertFalse(self.sauv.exists(), "rien créé au nom de root")
+
+    def test_update_script_warns_when_the_container_cannot_write_backups(self):
+        r = self.script(JED_UID_CONTENEUR="4242")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("ne pourra pas écrire dans", r.stdout)
+        journal = next(self.sauv.glob("mise-a-jour-*.log")).read_text(encoding="utf-8")
+        self.assertIn(" ATTENTION Attention : J-ed (utilisateur 1000", journal)
+
+
+class ArchivesEssaiTests(LinuxTestCase):
+    """2.0.3, lot 2 : outil de recette tests/outils/archives-essai.ps1 (trois archives d'essai de la mise à jour)."""
+
+    OUTIL = ROOT / "tests" / "outils" / "archives-essai.ps1"
+
+    def fabriquer(self):
+        source = self.tmp / "code"
+        (source / "docker").mkdir(parents=True)
+        (source / ".git").mkdir()
+        (source / "__pycache__").mkdir()
+        (source / "docker-compose.yml").write_text("name: essai\n", encoding="utf-8")
+        (source / "VERSION").write_text("2.0.2\n", encoding="utf-8")
+        (source / ".env").write_text("SECRET_KEY=fictive\n", encoding="utf-8")
+        (source / ".git" / "HEAD").write_text("ref\n", encoding="utf-8")
+        (source / "__pycache__" / "x.pyc").write_bytes(b"\0")
+        (source / "docker" / "Dockerfile").write_text("FROM python:3.12-slim-bookworm\r\nRUN pip install x\r\n",
+                                                       encoding="utf-8")
+        (source / "docker" / "entrypoint.sh").write_text("#!/bin/sh\nset -e\necho suite\nexec \"$@\"\n",
+                                                         encoding="utf-8")
+        lanceur = source / "j-ed.sh"
+        lanceur.write_text("#!/bin/sh\n", encoding="utf-8")
+        lanceur.chmod(0o755)
+        sortie = self.tmp / "archives"
+        r = subprocess.run([PWSH, "-NoProfile", "-NonInteractive", "-File", str(self.OUTIL), "-Source", str(source),
+                            "-Version", "2.0.3", "-Sortie", str(sortie)], capture_output=True, text=True, timeout=300)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        return sortie
+
+    def lire(self, sortie, suffixe):
+        chemin = sortie / f"japon-explorateur-2.0.3-essai{suffixe}.zip"
+        attendu = (sortie / f"{chemin.name}.sha256").read_text(encoding="utf-8").split()
+        self.assertEqual(attendu, [hashlib.sha256(chemin.read_bytes()).hexdigest(), chemin.name])
+        z = zipfile.ZipFile(chemin)
+        noms = z.namelist()
+        self.assertEqual({n.split("/")[0] for n in noms}, {"japon-explorateur-2.0.3"})   # un seul dossier racine
+        relatifs = {n.split("/", 1)[1] for n in noms}
+        self.assertNotIn(".env", relatifs)
+        self.assertFalse([n for n in relatifs if n.startswith(".git/") or "__pycache__" in n])
+        self.assertEqual(z.read("japon-explorateur-2.0.3/VERSION"), b"2.0.3\n")
+        self.assertEqual((z.getinfo("japon-explorateur-2.0.3/j-ed.sh").external_attr >> 16) & 0o777, 0o755)
+        return z, relatifs
+
+    def test_three_archives(self):
+        sortie = self.fabriquer()
+        z, relatifs = self.lire(sortie, "")
+        self.assertNotIn("ESSAI-LISEZMOI.txt", relatifs)
+        self.assertEqual(z.read("japon-explorateur-2.0.3/docker/Dockerfile"),
+                         b"FROM python:3.12-slim-bookworm\r\nRUN pip install x\r\n")   # archive normale intacte
+
+        z, relatifs = self.lire(sortie, "-construction-impossible")
+        self.assertIn("ESSAI-LISEZMOI.txt", relatifs)
+        dockerfile = z.read("japon-explorateur-2.0.3/docker/Dockerfile").decode()
+        self.assertTrue(dockerfile.startswith("FROM python:3.12-slim-bookworm\nRUN pip install x\n"))
+        self.assertTrue(dockerfile.rstrip().endswith("&& exit 1"))   # après pip : le cache de pip sert
+
+        z, relatifs = self.lire(sortie, "-demarrage-impossible")
+        self.assertIn("ESSAI-LISEZMOI.txt", relatifs)
+        script = self.tmp / "entrypoint.sh"
+        script.write_bytes(z.read("japon-explorateur-2.0.3/docker/entrypoint.sh"))
+        web = subprocess.run(["sh", str(script), "gunicorn", "config.wsgi:application"], capture_output=True, text=True)
+        self.assertEqual(web.returncode, 1)
+        self.assertIn("démarrage impossible volontaire", web.stderr)
+        autre = subprocess.run(["sh", str(script), "true"], capture_output=True, text=True)
+        self.assertEqual((autre.returncode, autre.stdout), (0, "suite\n"))   # les autres services démarrent
+
+    def test_tool_is_bom_crlf(self):
+        brut = self.OUTIL.read_bytes()
+        self.assertTrue(brut.startswith(b"\xef\xbb\xbf"))
+        self.assertNotIn(b"\n", brut.replace(b"\r\n", b""))
+
+
+class DossierTemporaireTests(LinuxTestCase):
+    """2.0.3, lot 2 : sous Linux, /tmp est commun à tous les comptes ; l'assistant y a son propre dossier."""
+
+    def test_temp_folder_is_per_user(self):
+        r = subprocess.run([PWSH, "-NoProfile", "-NonInteractive", "-Command",
+                            f"Import-Module '{MODULE}'; Get-DossierTemporaireJed 'mise-a-jour-1'"],
+                           capture_output=True, text=True, timeout=120, env=self.env(JED_UID_ACTUEL="4242"))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.strip(), str(self.tmp / "J-ed-4242" / "mise-a-jour-1"))
+        self.assertNotIn("GetTempPath(), 'J-ed'", MENU.read_text(encoding="utf-8-sig"))

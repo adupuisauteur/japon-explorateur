@@ -41,6 +41,15 @@ function Test-LinuxJed {
     return $script:SousLinux
 }
 
+function Get-DossierTemporaireJed {
+    <# 2.0.3 : dossier temporaire de l'assistant, <temp>/J-ed/<Nom>. Sous Linux, /tmp est commun à tous les
+       comptes : le dossier porte le numéro de l'utilisateur (J-ed-1000), pour ne jamais tomber sur celui d'un autre. #>
+    param([string]$Nom)
+    $base = 'J-ed'
+    if ($script:SousLinux) { $u = Get-UidJed; if ($null -ne $u) { $base = "J-ed-$u" } }
+    return [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), $base, $Nom)
+}
+
 function Get-UidJed {
     <# 2.0.3 (Linux) : numéro de l'utilisateur qui lance l'assistant (0 = root), ou $null (Windows, inconnu).
        JED_UID_ACTUEL : réservé aux tests automatiques (qui tournent parfois en root). #>

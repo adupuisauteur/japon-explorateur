@@ -86,6 +86,8 @@ class UpdateScriptRunTests(SimpleTestCase):
     def run_script(self, *extra, oui=True, legacy=False, stdin=None, **fake):
         # 2.0.3 : sans le proxy de l'environnement de développement (le script en donne un à docker sous Linux).
         env = {k: v for k, v in os.environ.items() if k.lower() not in ("http_proxy", "https_proxy", "no_proxy")}
+        # 2.0.3 : les tests tournent parfois en root ; le script refuse root sous Linux (JED_UID_ACTUEL le simule).
+        env.update(JED_UID_ACTUEL="1000", JED_UID_CONTENEUR=str(os.getuid()))
         env.update(FAKE_DOCKER_LOG=str(self.log), FAKE_ACTUEL=str(self.current),
                    FAKE_BUILD_ARGS=" ".join(compose_build_args()),
                    PATH=str(FAKE_DOCKER_DIR) + os.pathsep + os.environ.get("PATH", ""))
