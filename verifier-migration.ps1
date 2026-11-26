@@ -35,6 +35,15 @@ param(
 $ErrorActionPreference = 'Continue'
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 $OutputEncoding = [System.Text.Encoding]::UTF8
+# 2.0.3 (Linux, décision D1) : ce script sert tel quel sous Windows (Windows PowerShell 5.1) et sous Linux
+# (PowerShell 7, lancé par « pwsh -NoProfile -File »). La variable IsLinux n'existe pas sous 5.1 : lue ainsi, elle vaut faux.
+$SousLinux = ((Get-Variable -Name IsLinux -ValueOnly -ErrorAction SilentlyContinue) -eq $true)
+$ConseilDocker = 'ne répond pas : démarrez Docker Desktop, attendez « Engine running », puis relancez ce script'
+$ConseilMemoire = 'Docker Desktop → Settings → Resources (ou fichier .wslconfig).'
+if ($SousLinux) {
+    $ConseilDocker = 'ne répond pas : vérifiez qu''il est démarré (« sudo systemctl start docker ») et que votre compte est dans le groupe docker, puis relancez ce script'
+    $ConseilMemoire = 'Sous Linux, Docker utilise la mémoire de l''ordinateur : en ajouter à la machine (ou à la machine virtuelle).'
+}
 $NomsProteges = @('japon-explorateur', 'japon-explorateur-essai')
 $script:Lignes = New-Object System.Collections.Generic.List[string]
 $script:Bilan = @{ ok = 0; warning = 0; error = 0; skipped = 0 }
@@ -97,14 +106,14 @@ function Taille([double]$Octets) {
 
 $debut = Get-Date
 $script:Lignes.Add("Vérification après migration de J-ed — $($debut.ToString('dd/MM/yyyy HH:mm'))")
-$script:Lignes.Add("Ordinateur : $env:COMPUTERNAME")
+$script:Lignes.Add("Ordinateur : $([Environment]::MachineName)")
 Write-Host "Vérification après migration de J-ed — $($debut.ToString('dd/MM/yyyy HH:mm')) (rien n'est modifié)" -ForegroundColor Cyan
 
 # ---------------------------------------------------------------------------------------------------------
 Titre '1. Docker sur cet ordinateur'
 $info = Docker-Ici @('info', '--format', '{{.ServerVersion}}|{{.MemTotal}}|{{.NCPU}}|{{.OperatingSystem}}')
 if ($info.Code -ne 0 -or -not $info.Texte -or $info.Texte -notmatch '\|') {
-    Noter 'error' 'Docker' 'ne répond pas : démarrez Docker Desktop, attendez « Engine running », puis relancez ce script' @($info.Texte -split "`n" | Select-Object -First 3)
+    Noter 'error' 'Docker' $ConseilDocker @($info.Texte -split "`n" | Select-Object -First 3)
     $script:Lignes | Set-Content -Path (Join-Path (Get-Location) ("verification-migration-{0}.txt" -f $debut.ToString('yyyyMMdd-HHmm'))) -Encoding UTF8
     exit 1
 }
@@ -115,7 +124,7 @@ $niveauMemoire = 'ok'
 if ($memoire -gt 0 -and $memoire -lt 6GB) { $niveauMemoire = 'warning' }
 Noter $niveauMemoire 'Docker' "en service, version $($p[0])" @("Mémoire accordée à Docker : $(Taille $memoire) ; cœurs : $($p[2]) ; $($p[3])")
 if ($niveauMemoire -eq 'warning') {
-    Noter 'warning' 'Mémoire' 'moins de 6 Go accordés à Docker : Argos et l''IA locale risquent de manquer de place' @('Docker Desktop → Settings → Resources (ou fichier .wslconfig).')
+    Noter 'warning' 'Mémoire' 'moins de 6 Go accordés à Docker : Argos et l''IA locale risquent de manquer de place' @($ConseilMemoire)
 }
 
 # ---------------------------------------------------------------------------------------------------------

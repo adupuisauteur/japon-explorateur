@@ -61,8 +61,9 @@ class InstallerRunTests(SimpleTestCase):
         self.dest = self.tmp / "J-ed" / "jed-2-2.0.2"
         self.port = free_port()
 
-    def run_script(self, *extra, nom="jed-2", port=None, **fake):
-        env = {k: v for k, v in os.environ.items() if k.lower() not in ("http_proxy", "https_proxy")}
+    def run_script(self, *extra, nom="jed-2", port=None, env_terminal=None, **fake):
+        env = {k: v for k, v in os.environ.items() if k.lower() not in ("http_proxy", "https_proxy", "no_proxy")}
+        env.update(env_terminal or {})
         env.update(FAKE_DOCKER_LOG=str(self.log), FAKE_ACTUEL=str(self.autre),
                    PATH=str(FAKE_DOCKER_DIR) + os.pathsep + os.environ.get("PATH", ""))
         env.update({f"FAKE_{k.upper()}": str(v) for k, v in fake.items()})
@@ -172,3 +173,50 @@ class InstallerRunTests(SimpleTestCase):
     def test_without_argos(self):
         self.assertEqual(self.run_script("-SansArgos").returncode, 0)
         self.assertEqual(self.env_values()["COMPOSE_PROFILES"], "")
+
+
+class InstallerLinuxTests(InstallerRunTests):
+    """2.0.3, lot 0 — écarts relevés le 26/11/2026 sur Ubuntu 26.04 (même script, lancé par pwsh sous Linux)."""
+
+    # Les tests hérités ne sont pas relancés ici.
+    test_new_instance_is_installed_with_its_own_secrets = None
+    test_two_installations_never_share_secrets = None
+    test_name_of_an_existing_installation_is_refused = None
+    test_old_data_volumes_block_the_name = None
+    test_port_of_another_installation_or_program_is_refused = None
+    test_reserved_name_bad_hash_proxy_with_password_are_refused = None
+    test_build_failure_gives_code_3_and_starts_nothing = None
+    test_jed_that_does_not_answer_gives_code_5 = None
+    test_without_argos = None
+
+    def proxy_vu(self, commande):
+        lignes = (self.tmp / "proxy.log").read_text().splitlines()
+        return next(l.rsplit(" | ", 1)[1] if " | " in l else "" for l in lignes if l.startswith(commande + " |"))
+
+    def test_proxy_is_given_to_the_docker_command(self):
+        """Sans lui, « failed to authorize: DeadlineExceeded » à la construction (essai réel du 26/11)."""
+        r = self.run_script("-Proxy", "http://proxy.exemple.fr:8080")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.proxy_vu("compose build"), "http://proxy.exemple.fr:8080")
+        self.assertIn("Proxy donné à la commande docker", r.stdout)
+
+    def test_proxy_already_set_in_the_terminal_is_kept(self):
+        r = self.run_script("-Proxy", "http://proxy.exemple.fr:8080",
+                            env_terminal={"HTTPS_PROXY": "http://autre.exemple.fr:3128"})
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.proxy_vu("compose build"), "http://autre.exemple.fr:3128")
+        self.assertIn("Proxy déjà réglé dans ce terminal", r.stdout)
+
+    def test_without_proxy_nothing_is_set(self):
+        self.assertEqual(self.run_script().returncode, 0)
+        self.assertEqual(self.proxy_vu("compose build"), "")
+
+    def test_linux_messages(self):
+        r = self.run_script(docker_info=1)
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("sudo systemctl start docker", r.stdout)
+        self.assertNotIn("Docker Desktop", r.stdout)
+        r = self.run_script(build=1)
+        self.assertEqual(r.returncode, 3, r.stdout)
+        self.assertIn("/etc/docker/daemon.json", r.stdout)
+        self.assertNotIn("Settings → Resources", r.stdout)

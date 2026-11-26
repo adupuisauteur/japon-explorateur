@@ -1,17 +1,38 @@
-# Contrat des scripts Windows (depuis la 2.0.2)
+# Contrat des scripts (Windows depuis la 2.0.2, Windows et Linux depuis la 2.0.3)
 
 L'assistant J-ed (`J-ed.cmd`, version 2.0.2) ne refait aucune opération lui-même : il lance les scripts
 PowerShell ci-dessous et lit ce qu'ils rendent. Ce document fixe ce dont il dépend. **Une version suivante ne doit
 rien retirer ni renommer de cette liste** : elle peut ajouter des paramètres facultatifs, des codes ou des
-repères, à condition de mettre ce document à jour. C'est le cas de la version Linux (2.0.3), qui déplacera la
-logique des scripts dans des commandes J-ed en gardant des lanceurs `.ps1` aux mêmes noms.
+repères, à condition de mettre ce document à jour.
+
+**Depuis la 2.0.3 (décision D1 du 26 novembre 2026), ce contrat est commun à Windows et à Linux** : ce sont les
+**mêmes fichiers `.ps1`** qui servent sur les deux systèmes (un seul programme à entretenir), et non deux
+programmes. Sous Linux, ils sont lancés par PowerShell 7 ; le menu texte de Linux (2.0.3) s'appuie, comme la
+fenêtre Windows, sur le module `assistant/AssistantJed.psm1`. L'idée de la note du 19/11 (logique déplacée dans
+des commandes J-ed, dans le conteneur) est abandonnée : la mise à jour se fait hors du conteneur, qui devrait
+sinon recevoir le socket de Docker, c'est-à-dire tous les droits sur la machine.
 
 Les tests `tests/test_contrat_scripts.py` vérifient que les scripts et ce document restent d'accord.
 
 ## Règles communes
 
-- Fichiers à la racine du dossier de J-ed, encodés en UTF-8 avec BOM et fins de ligne CRLF, lancés par
-  `powershell -ExecutionPolicy Bypass -File <script> …` (Windows PowerShell 5.1).
+- Fichiers à la racine du dossier de J-ed, encodés en UTF-8 avec BOM et fins de ligne CRLF (PowerShell 7 les
+  lit aussi sous Linux).
+- **Windows** : lancés par `powershell -ExecutionPolicy Bypass -File <script> …` (Windows PowerShell 5.1).
+- **Linux** (depuis la 2.0.3) : lancés par `pwsh -NoProfile -File <script> …` (PowerShell 7 ; essai réel avec
+  la 7.6.10 sur Ubuntu 26.04 LTS, le 26/11/2026), avec le passage des arguments par défaut de PowerShell 7 sous
+  Linux. Les formats `docker … --format` restent écrits sans guillemets imbriqués, ce qui convient aux deux.
+- Ce qui diffère selon le système est choisi **dans le même fichier**, par la variable `$SousLinux`, lue sans
+  erreur sous Windows PowerShell 5.1 (où `$IsLinux` n'existe pas) :
+  `$SousLinux = ((Get-Variable -Name IsLinux -ValueOnly -ErrorAction SilentlyContinue) -eq $true)`. Seuls des
+  textes (messages, conseils) et des réglages propres à Linux en dépendent ; noms, paramètres, codes de sortie,
+  repères du journal et questions sont les mêmes.
+- **Proxy de la commande `docker` (Linux, 2.0.3)** : pendant une construction, la commande `docker` elle-même
+  demande un jeton d'accès à Docker Hub et ne lit pas le proxy du service Docker (`/etc/docker/daemon.json`).
+  `installer-j-ed.ps1` (paramètre `-Proxy`) et `mettre-a-jour.ps1` (`HTTPS_PROXY`, sinon `HTTP_PROXY`, du `.env`
+  de l'installation actuelle) le donnent alors aux commandes qu'ils lancent (variables `HTTP_PROXY`,
+  `HTTPS_PROXY`, et `NO_PROXY=localhost,127.0.0.1` s'il est vide), pour le seul script ; un proxy déjà réglé dans
+  le terminal est gardé. Rien ne change sous Windows (Docker Desktop s'en charge).
 - Aucun script ne supprime de volume Docker (`down -v` interdit).
 
 ## `mettre-a-jour.ps1`

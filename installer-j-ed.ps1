@@ -7,7 +7,7 @@
     Utilisé par l'assistant J-ed (bouton « Nouvelle installation ») ; peut aussi être lancé en ligne de commande.
     Étapes, chacune contrôlée :
       1. contrôles : archive et empreinte SHA-256, nom du projet NEUF (jamais celui d'une installation existante,
-         ni d'anciens volumes de données, ni un nom réservé), port libre, dossier neuf, Docker Desktop démarré ;
+         ni d'anciens volumes de données, ni un nom réservé), port libre, dossier neuf, Docker démarré ;
       2. décompression de l'archive dans le nouveau dossier ;
       3. fichier .env : nom, port, secrets NEUFS (rien n'est copié d'une autre installation), dossier des
          sauvegardes, Argos, proxy éventuel (sans mot de passe) ;
@@ -46,6 +46,30 @@ param(
 $ErrorActionPreference = 'Continue'
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 $OutputEncoding = [System.Text.Encoding]::UTF8
+# 2.0.3 (Linux, décision D1) : ce script sert tel quel sous Windows (Windows PowerShell 5.1) et sous Linux
+# (PowerShell 7, lancé par « pwsh -NoProfile -File »). La variable IsLinux n'existe pas sous 5.1 : lue ainsi, elle vaut faux.
+$SousLinux = ((Get-Variable -Name IsLinux -ValueOnly -ErrorAction SilentlyContinue) -eq $true)
+$TexteDockerLinux = 'Docker ne répond pas. Vérifiez qu''il est démarré (« sudo systemctl start docker ») et que votre compte est dans le groupe docker (après l''y avoir ajouté, se déconnecter puis se reconnecter), puis recommencez.'
+# 2.0.3 (Linux) : pendant une construction, la commande docker elle-même demande un jeton d'accès à Docker Hub ;
+# elle ne lit pas le proxy du service Docker (/etc/docker/daemon.json) et attend alors jusqu'à « failed to
+# authorize: DeadlineExceeded » (essai du 26/11/2026 sur Ubuntu 26.04). Docker Desktop (Windows) s'en charge seul :
+# rien ne change sous Windows. Le proxy n'est donné qu'à ce script et aux commandes qu'il lance ; un proxy déjà
+# réglé dans le terminal est gardé tel quel.
+function Donner-Proxy-A-Docker([string]$Adresse) {
+    if (-not $SousLinux -or -not $Adresse) { return }
+    foreach ($nom in @('HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy')) {
+        if ([Environment]::GetEnvironmentVariable($nom)) {
+            Dire 'Proxy déjà réglé dans ce terminal : il est gardé pour les commandes docker.'
+            return
+        }
+    }
+    [Environment]::SetEnvironmentVariable('HTTP_PROXY', $Adresse)
+    [Environment]::SetEnvironmentVariable('HTTPS_PROXY', $Adresse)
+    if (-not ([Environment]::GetEnvironmentVariable('NO_PROXY') -or [Environment]::GetEnvironmentVariable('no_proxy'))) {
+        [Environment]::SetEnvironmentVariable('NO_PROXY', 'localhost,127.0.0.1')
+    }
+    Dire "Proxy donné à la commande docker (constructions) : $Adresse"
+}
 $NomsReserves = @('japon-explorateur', 'japon-explorateur-essai')
 $CodeArret = 1
 $CodeConstruction = 3
@@ -197,6 +221,7 @@ if ($Proxy -and ($Proxy -notmatch '^https?://[^\s/@]+$')) {
 }
 
 if ((Docker-Dans '' @('info') -Discret).Code -ne 0) {
+    if ($SousLinux) { Arreter $TexteDockerLinux }
     Arreter 'Docker Desktop ne répond pas. Démarrez-le, attendez « Engine running », puis recommencez.'
 }
 # Nom neuf : ni un projet connu de Docker, ni d'anciens volumes de données portant ce nom.
@@ -297,14 +322,19 @@ $FichierEnv = [System.IO.Path]::Combine($Destination, '.env')
 [System.IO.File]::WriteAllText($FichierEnv, (($lignes -join "`r`n") + "`r`n"), $Utf8SansBom)
 Dire 'Fichier .env créé avec des secrets neufs (jamais écrits dans ce journal).'
 if ($Proxy) { Dire "Proxy : $Proxy (services internes de J-ed exclus)." }
+Donner-Proxy-A-Docker $Proxy
 
 # --- 4. Construction ---------------------------------------------------------------------------------
 Etape '4/6 Construction de J-ed (plusieurs minutes la première fois)'
 $construction = Docker-Dans $Destination @('compose', 'build')
 if ($construction.Code -ne 0) {
     Write-Host $construction.Texte
+    $conseilProxy = 'derrière un proxy, réglez-le dans Docker Desktop (Settings → Resources → Proxies).'
+    if ($SousLinux) {
+        $conseilProxy = 'derrière un proxy, indiquez-le à ce script (-Proxy) et au service Docker (/etc/docker/daemon.json, voir « Avant de commencer »).'
+    }
     Arreter ("construction impossible. Le plus souvent, Docker ne joint pas Internet : essayez « docker pull python:3.12-slim-bookworm » ; " +
-        "derrière un proxy, réglez-le dans Docker Desktop (Settings → Resources → Proxies).") $CodeConstruction
+        $conseilProxy) $CodeConstruction
 }
 Dire 'J-ed est construit.' 'Green'
 

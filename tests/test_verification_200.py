@@ -258,7 +258,14 @@ class VerifyScriptRunTests(SimpleTestCase):
     def test_docker_not_running(self):
         result = self.run_script(docker_info=1)
         self.assertEqual(result.returncode, 1)
-        self.assertIn("Docker Desktop : ne répond pas", result.stdout)
+        # 2.0.3 : sous Linux (où tournent les tests), « Docker » et conseil propre à Linux ; texte Windows gardé.
+        self.assertIn("[Problème] Docker : ne répond pas : vérifiez qu'il est démarré", result.stdout)
+        self.assertIn("'Docker Desktop'", SCRIPT.read_text(encoding="utf-8-sig"))
+
+    def test_linux_names_docker_engine(self):
+        result = self.run_script()
+        self.assertIn("[OK] Docker : en service", result.stdout)
+        self.assertNotIn("Docker Desktop", result.stdout)
 
     def test_tests_option_runs_the_suite_in_the_container(self):
         result = self.run_script("-AvecTests")

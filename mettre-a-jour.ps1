@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Étapes, chacune contrôlée ; à la moindre anomalie, le script s'arrête avec un message clair :
-      1. contrôles : Docker Desktop, empreinte SHA-256 de l'archive, version de l'archive (jamais plus
+      1. contrôles : Docker (Desktop sous Windows), empreinte SHA-256 de l'archive, version de l'archive (jamais plus
          ancienne), dossier actuel, nom du projet Docker et autorisation de mise à jour ;
       2. sauvegarde vérifiée de l'installation actuelle, puis copie hors de Docker (dossier de l'ordinateur)
          et contrôle de l'empreinte de la copie ;
@@ -88,6 +88,30 @@ $ErrorActionPreference = 'Continue'
 # arrivaient abîmés (« Terminée » lu « Termin├®e », constaté le 15 novembre 2026). La sortie est lue en UTF-8.
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 $OutputEncoding = [System.Text.Encoding]::UTF8
+# 2.0.3 (Linux, décision D1) : ce script sert tel quel sous Windows (Windows PowerShell 5.1) et sous Linux
+# (PowerShell 7, lancé par « pwsh -NoProfile -File »). La variable IsLinux n'existe pas sous 5.1 : lue ainsi, elle vaut faux.
+$SousLinux = ((Get-Variable -Name IsLinux -ValueOnly -ErrorAction SilentlyContinue) -eq $true)
+$TexteDockerLinux = 'Docker ne répond pas. Vérifiez qu''il est démarré (« sudo systemctl start docker ») et que votre compte est dans le groupe docker (après l''y avoir ajouté, se déconnecter puis se reconnecter), puis relancez ce script.'
+# 2.0.3 (Linux) : pendant une construction, la commande docker elle-même demande un jeton d'accès à Docker Hub ;
+# elle ne lit pas le proxy du service Docker (/etc/docker/daemon.json) et attend alors jusqu'à « failed to
+# authorize: DeadlineExceeded » (essai du 26/11/2026 sur Ubuntu 26.04). Docker Desktop (Windows) s'en charge seul :
+# rien ne change sous Windows. Le proxy n'est donné qu'à ce script et aux commandes qu'il lance ; un proxy déjà
+# réglé dans le terminal est gardé tel quel.
+function Donner-Proxy-A-Docker([string]$Adresse) {
+    if (-not $SousLinux -or -not $Adresse) { return }
+    foreach ($nom in @('HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy')) {
+        if ([Environment]::GetEnvironmentVariable($nom)) {
+            Dire 'Proxy déjà réglé dans ce terminal : il est gardé pour les commandes docker.'
+            return
+        }
+    }
+    [Environment]::SetEnvironmentVariable('HTTP_PROXY', $Adresse)
+    [Environment]::SetEnvironmentVariable('HTTPS_PROXY', $Adresse)
+    if (-not ([Environment]::GetEnvironmentVariable('NO_PROXY') -or [Environment]::GetEnvironmentVariable('no_proxy'))) {
+        [Environment]::SetEnvironmentVariable('NO_PROXY', 'localhost,127.0.0.1')
+    }
+    Dire "Proxy donné à la commande docker (constructions) : $Adresse"
+}
 $NomsProteges = @('japon-explorateur', 'japon-explorateur-essai')
 $VersionMinimale = [version]'1.3.0'   # première version qui accepte AUTORISER_NOM_PROJET
 
@@ -429,6 +453,10 @@ if ($NomsProteges -contains $Projet) {
     Avertir "Projet protégé « $Projet » : mise à jour autorisée par AUTORISER_NOM_PROJET."
 }
 Dire "Projet Docker : $Projet (ses volumes de données seront repris)"
+# 2.0.3 (Linux) : proxy de l'installation (.env, repris tel quel dans la nouvelle version) donné à la commande docker.
+$ProxyInstallation = Lire-Env $EnvActuel 'HTTPS_PROXY'
+if (-not $ProxyInstallation) { $ProxyInstallation = Lire-Env $EnvActuel 'HTTP_PROXY' }
+Donner-Proxy-A-Docker $ProxyInstallation
 
 if (-not $Destination) {
     $Destination = [System.IO.Path]::Combine((Split-Path -Parent $Actuel), [System.IO.Path]::GetFileNameWithoutExtension($Archive))
@@ -450,6 +478,7 @@ try {
 }
 
 if ((Docker-Dans $Actuel @('info') -Discret).Code -ne 0) {
+    if ($SousLinux) { Arreter $TexteDockerLinux }
     Arreter 'Docker Desktop ne répond pas. Démarrez-le, attendez « Engine running », puis relancez ce script.'
 }
 $EnService = Docker-Dans $Actuel @('compose', 'ps', '--services', '--status', 'running')

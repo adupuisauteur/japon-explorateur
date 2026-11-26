@@ -84,7 +84,9 @@ class UpdateScriptRunTests(SimpleTestCase):
         return archive
 
     def run_script(self, *extra, oui=True, legacy=False, stdin=None, **fake):
-        env = dict(os.environ, FAKE_DOCKER_LOG=str(self.log), FAKE_ACTUEL=str(self.current),
+        # 2.0.3 : sans le proxy de l'environnement de développement (le script en donne un à docker sous Linux).
+        env = {k: v for k, v in os.environ.items() if k.lower() not in ("http_proxy", "https_proxy", "no_proxy")}
+        env.update(FAKE_DOCKER_LOG=str(self.log), FAKE_ACTUEL=str(self.current),
                    FAKE_BUILD_ARGS=" ".join(compose_build_args()),
                    PATH=str(FAKE_DOCKER_DIR) + os.pathsep + os.environ.get("PATH", ""))
         env.update({f"FAKE_{k.upper()}": str(v) for k, v in fake.items()})
@@ -247,7 +249,19 @@ class UpdateScriptRunTests(SimpleTestCase):
         self.assertEqual((self.destination() / "fichier-a-garder.txt").read_text(), "à garder")
 
     def test_docker_not_running(self):
-        self.assertStopped(self.run_script(docker_info=1), "Docker Desktop ne répond pas")
+        # 2.0.3 : sous Linux (où tournent les tests), message propre à Docker Engine ; le texte Windows est gardé.
+        self.assertStopped(self.run_script(docker_info=1), "sudo systemctl start docker")
+        self.assertIn("Docker Desktop ne répond pas", SCRIPT.read_text(encoding="utf-8-sig"))
+
+    def test_linux_proxy_of_the_installation_is_given_to_docker(self):
+        """2.0.3 : proxy du .env donné à la commande docker pour la construction (essai réel du 26/11)."""
+        self.write_env(f"COMPOSE_PROJECT_NAME=jed-essai\nWEB_PORT=8000\nPOSTGRES_PASSWORD={SECRET_FICTIF}\n"
+                       "HTTP_PROXY=http://proxy.exemple.fr:8080\nHTTPS_PROXY=http://proxy.exemple.fr:8080\n")
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        vus = [l for l in (self.tmp / "proxy.log").read_text().splitlines() if l.startswith("compose build |")]
+        self.assertTrue(vus)
+        self.assertTrue(all(l.endswith("| http://proxy.exemple.fr:8080") for l in vus), vus)
 
     # --- 2.0.1, lot 1 : mise à jour sûre ---------------------------------------------------------------------
 

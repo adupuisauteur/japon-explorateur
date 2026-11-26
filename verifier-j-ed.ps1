@@ -4,9 +4,9 @@
     de l'application avec des données fictives. Ne modifie rien.
 
 .DESCRIPTION
-    Partie 1, sur l'ordinateur : Docker Desktop, mémoire accordée à Docker, conteneurs attendus, port publié
+    Partie 1, sur l'ordinateur : Docker (Desktop sous Windows), mémoire accordée à Docker, conteneurs attendus, port publié
     seulement sur l'ordinateur, volumes de données, fichier .env (valeurs à remplacer, nom protégé),
-    dossier des sauvegardes visible dans Windows, pages qui répondent et politique de sécurité.
+    dossier des sauvegardes visible sur l'ordinateur, pages qui répondent et politique de sécurité.
     Partie 2, dans l'application : « manage.py verifier_fonctionnalites » exerce la recherche, les notices,
     les doublons, l'import, la Bibliothèque, les exports, les projets de traduction, Argos, les tâches de fond,
     la dernière sauvegarde, les pages et les droits d'accès, avec des données FICTIVES, dans une transaction
@@ -40,6 +40,18 @@ $ErrorActionPreference = 'Continue'
 # arrivaient abîmés (« Terminée » lu « Termin├®e », constaté le 15 novembre 2026). La sortie est lue en UTF-8.
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 $OutputEncoding = [System.Text.Encoding]::UTF8
+# 2.0.3 (Linux, décision D1) : ce script sert tel quel sous Windows (Windows PowerShell 5.1) et sous Linux
+# (PowerShell 7, lancé par « pwsh -NoProfile -File »). La variable IsLinux n'existe pas sous 5.1 : lue ainsi, elle vaut faux.
+$SousLinux = ((Get-Variable -Name IsLinux -ValueOnly -ErrorAction SilentlyContinue) -eq $true)
+# Nom affiché et conseils propres au système (2.0.3).
+$NomDocker = 'Docker Desktop'
+$ConseilDocker = 'ne répond pas : démarrez-le, attendez « Engine running », puis relancez'
+$OuSontLesCopies = 'invisibles dans Windows'
+if ($SousLinux) {
+    $NomDocker = 'Docker'
+    $ConseilDocker = 'ne répond pas : vérifiez qu''il est démarré (« sudo systemctl start docker ») et que votre compte est dans le groupe docker, puis relancez'
+    $OuSontLesCopies = 'invisibles dans vos dossiers'
+}
 $NomsProteges = @('japon-explorateur', 'japon-explorateur-essai')
 $script:Lignes = New-Object System.Collections.Generic.List[string]
 $script:Bilan = @{ ok = 0; warning = 0; error = 0; skipped = 0 }
@@ -183,7 +195,7 @@ $OllamaAttendu = $Profils -match '(^|,)\s*ollama\s*(,|$)'
 
 $DossierSauv = Lire-Env 'DOSSIER_SAUVEGARDES'
 if (-not $DossierSauv) {
-    Noter 'warning' 'Dossier des sauvegardes' 'DOSSIER_SAUVEGARDES absent de .env : les copies restent dans Docker, invisibles dans Windows'
+    Noter 'warning' 'Dossier des sauvegardes' "DOSSIER_SAUVEGARDES absent de .env : les copies restent dans Docker, $OuSontLesCopies"
 } elseif (-not (Test-Path -LiteralPath $DossierSauv -PathType Container)) {
     Noter 'warning' 'Dossier des sauvegardes' "$DossierSauv n'existe pas encore (il sera créé à la première sauvegarde)"
 } else {
@@ -209,7 +221,7 @@ Titre '2. Docker et conteneurs'
 
 $info = Docker-Ici @('info', '--format', '{{.MemTotal}}|{{.NCPU}}|{{.ServerVersion}}')
 if ($info.Code -ne 0) {
-    Noter 'error' 'Docker Desktop' 'ne répond pas : démarrez-le, attendez « Engine running », puis relancez'
+    Noter 'error' $NomDocker $ConseilDocker
     $script:Lignes | Set-Content -LiteralPath ([System.IO.Path]::Combine((Split-Path -Parent $Dossier), "verification-j-ed-$(Get-Date -Format 'yyyyMMdd-HHmm').txt")) -Encoding UTF8
     exit 1
 }
@@ -217,11 +229,11 @@ $parts = $info.Texte.Split('|')
 $memoire = [math]::Round([double]$parts[0] / 1GB, 1)
 $detailsDocker = @("Docker $($parts[2]) ; mémoire accordée : $memoire Go ; cœurs : $($parts[1])")
 if ($memoire -lt 4) {
-    Noter 'warning' 'Docker Desktop' "seulement $memoire Go de mémoire pour Docker" ($detailsDocker + 'Argos et les longues traductions risquent d''en manquer.')
+    Noter 'warning' $NomDocker "seulement $memoire Go de mémoire pour Docker" ($detailsDocker + 'Argos et les longues traductions risquent d''en manquer.')
 } elseif ($ArgosAttendu -and $memoire -lt 6) {
-    Noter 'warning' 'Docker Desktop' "$memoire Go de mémoire pour Docker, juste pour Argos" $detailsDocker
+    Noter 'warning' $NomDocker "$memoire Go de mémoire pour Docker, juste pour Argos" $detailsDocker
 } else {
-    Noter 'ok' 'Docker Desktop' 'en service' $detailsDocker
+    Noter 'ok' $NomDocker 'en service' $detailsDocker
 }
 
 # 2.0.0 (lot 3) : trois workers (travaux courts, longues traductions, demandes « maintenant »)

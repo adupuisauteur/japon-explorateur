@@ -41,6 +41,10 @@ $ErrorActionPreference = 'Continue'
 # accentuées y deviennent illisibles).
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 $OutputEncoding = [System.Text.Encoding]::UTF8
+# 2.0.3 (Linux, décision D1) : ce script sert tel quel sous Windows (Windows PowerShell 5.1) et sous Linux
+# (PowerShell 7, lancé par « pwsh -NoProfile -File »). La variable IsLinux n'existe pas sous 5.1 : lue ainsi, elle vaut faux.
+$SousLinux = ((Get-Variable -Name IsLinux -ValueOnly -ErrorAction SilentlyContinue) -eq $true)
+$TexteDockerLinux = 'Docker ne répond pas. Vérifiez qu''il est démarré (« sudo systemctl start docker ») et que votre compte est dans le groupe docker (après l''y avoir ajouté, se déconnecter puis se reconnecter), puis relancez ce script.'
 $NomPrincipal = 'japon-explorateur'
 $NomEssai120 = 'japon-explorateur-essai'
 $NomAttendu = 'japon-explorateur-essai-130'
@@ -97,6 +101,7 @@ if (-not (Test-Path -LiteralPath '.env')) {
 }
 
 if ((Docker-Sortie @('info')).Code -ne 0) {
+    if ($SousLinux) { Arreter $TexteDockerLinux }
     Arreter 'Docker Desktop ne répond pas. Démarrez-le, attendez « Engine running », puis relancez ce script.'
 }
 

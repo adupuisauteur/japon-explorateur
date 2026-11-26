@@ -1,4 +1,4 @@
-"""2.0.2, lot 0 — contrat des scripts Windows (docs/contrat-scripts.md).
+"""2.0.2, lot 0 — contrat des scripts (docs/contrat-scripts.md) ; commun à Windows et à Linux depuis la 2.0.3.
 
 L'assistant J-ed lance les scripts PowerShell et lit leurs paramètres, codes de sortie et repères de journal.
 Ces tests échouent si un script et le document cessent d'être d'accord : une version suivante (2.0.3, Linux) ne
@@ -122,3 +122,43 @@ class ContratParametresTests(SimpleTestCase):
             self.assertEqual(sortie.returncode, 0, sortie.stderr)
             trouves = set(sortie.stdout.split())
             self.assertLessEqual(attendus, trouves, f"{script} : paramètre du contrat absent")
+
+
+class ContratLinuxTests(SimpleTestCase):
+    """2.0.3, lot 0 (décision D1) : les mêmes scripts servent sous Windows PowerShell 5.1 et sous PowerShell 7 Linux."""
+
+    SOUS_LINUX = "$SousLinux = ((Get-Variable -Name IsLinux -ValueOnly -ErrorAction SilentlyContinue) -eq $true)"
+
+    def test_document_describes_both_systems(self):
+        texte = CONTRAT.read_text(encoding="utf-8")
+        self.assertIn("powershell -ExecutionPolicy Bypass -File", texte)
+        self.assertIn("pwsh -NoProfile -File", texte)
+        self.assertIn(self.SOUS_LINUX, texte)
+        self.assertIn("/etc/docker/daemon.json", texte)
+
+    def test_every_script_reads_the_system_safely(self):
+        for script in PARAMETRES:
+            source = lire(script)
+            self.assertIn(self.SOUS_LINUX, source, script)
+            # $IsLinux n'est lu qu'une fois, par Get-Variable (sûr sous 5.1, même en mode strict).
+            self.assertNotRegex(source, r"\$IsLinux\b", script)
+            # La variable est connue avant le premier appel de docker.
+            premier_docker = min(i for i in (source.find("& docker"), source.find("Docker-")) if i >= 0)
+            self.assertLess(source.index(self.SOUS_LINUX), premier_docker, script)
+
+    def test_windows_texts_are_kept_and_linux_ones_added(self):
+        for script in ("installer-j-ed.ps1", "mettre-a-jour.ps1", "reinitialiser-essai.ps1"):
+            source = lire(script)
+            self.assertIn("Arreter 'Docker Desktop ne répond pas.", source, script)
+            self.assertIn("if ($SousLinux) { Arreter $TexteDockerLinux }", source, script)
+            self.assertLess(source.index("if ($SousLinux) { Arreter $TexteDockerLinux }"),
+                            source.index("Arreter 'Docker Desktop ne répond pas."), script)
+            self.assertIn("sudo systemctl start docker", source, script)
+
+    def test_proxy_is_given_to_docker_only_under_linux(self):
+        for script in ("installer-j-ed.ps1", "mettre-a-jour.ps1"):
+            source = lire(script)
+            self.assertIn("function Donner-Proxy-A-Docker", source, script)
+            self.assertIn("if (-not $SousLinux -or -not $Adresse) { return }", source, script)
+            appel = source.index("Donner-Proxy-A-Docker $")
+            self.assertLess(appel, source.rindex("@('compose', 'build')"), script)  # construction principale

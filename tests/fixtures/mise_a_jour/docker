@@ -3,6 +3,8 @@
 # 2.0.1 : garde une petite liste d'images (« nom identifiant ») à côté du journal des appels, pour simuler la
 # construction, le téléchargement, l'étiquetage et le retour à l'ancienne version.
 echo "$(pwd) | $*" >> "$FAKE_DOCKER_LOG"
+# 2.0.3 (Linux) : proxy vu par la commande docker (variable du processus), pour chaque appel.
+echo "$* | ${HTTPS_PROXY:-}" >> "${FAKE_DOCKER_LOG%/*}/proxy.log"
 IMAGES="${FAKE_DOCKER_LOG%/*}/images.txt"
 env_value() { sed -n "s/^$1=//p" .env 2>/dev/null | head -n 1; }
 if [ ! -f "$IMAGES" ]; then
