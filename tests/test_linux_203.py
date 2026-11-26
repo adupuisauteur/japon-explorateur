@@ -971,3 +971,31 @@ class ScriptsLot3Tests(LinuxTestCase):
     def test_migration_check_gives_the_linux_command(self):
         source = (ROOT / "verifier-migration.ps1").read_text(encoding="utf-8-sig")
         self.assertIn("pwsh -NoProfile -File ./verifier-j-ed.ps1", source)
+
+
+class EssaisDockerTests(LinuxTestCase):
+    """2.0.3 : « Essais Docker » sur GitHub (vrai Docker sous Linux), lancés à la main avant une version candidate."""
+
+    OUTIL = ROOT / "tests" / "outils" / "essai-docker.ps1"
+    FLUX = ROOT / ".github" / "workflows" / "essais-docker.yml"
+
+    def test_tool_refuses_to_run_outside_github(self):
+        env = self.env()
+        env.pop("GITHUB_ACTIONS", None)
+        r = subprocess.run([PWSH, "-NoProfile", "-NonInteractive", "-File", str(self.OUTIL), "-Dossier", str(self.tmp / "x")],
+                           capture_output=True, text=True, timeout=120, env=env)
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("il tourne sur GitHub", r.stdout)
+        self.assertFalse((self.tmp / "x").exists())   # rien n'est créé
+
+    def test_tool_covers_every_step_and_never_deletes_volumes(self):
+        brut = self.OUTIL.read_bytes()
+        self.assertTrue(brut.startswith(b"\xef\xbb\xbf"))
+        source = brut.decode("utf-8-sig")
+        for etape in ("installer-j-ed.ps1", "verifier-j-ed.ps1", "Invoke-SauvegardeJed", "mettre-a-jour.ps1",
+                      "Invoke-RestaurationJed", "verifier-migration.ps1", "reinitialiser-essai.ps1", "j-ed.sh",
+                      "(code $code, attendu 3)", "(code $code, attendu 4)", "(code $code, attendu 0)"):
+            self.assertIn(etape, source)
+        self.assertNotIn("down -v", source)
+        self.assertNotIn("'--volumes'", source)
+        self.assertNotIn("volume', 'rm", source)

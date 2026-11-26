@@ -70,6 +70,11 @@ Les tests `tests/test_contrat_scripts.py` vérifient que les scripts et ce docum
 - **Archives d'essai** (outil de recette, pas une fonction de J-ed) : `tests/outils/archives-essai.ps1 -Version <n>`
   fabrique trois archives avec leur `.sha256` (normale ; construction impossible : code 3 ; démarrage impossible du
   serveur web : code 4), à n'utiliser que sur une installation d'essai.
+- **Essais Docker** (outil de recette, pas une fonction de J-ed) : `tests/outils/essai-docker.ps1` enchaîne, avec le
+  vrai Docker sous Linux et des données fictives, installation, vérification, sauvegarde, les trois mises à jour
+  (codes 3, 4 et 0), restauration dans une nouvelle installation, vérification après migration, réinitialisation
+  de l'essai et menu texte. Il refuse de tourner ailleurs que sur GitHub (`GITHUB_ACTIONS`), sauf avec
+  `-MachineDEssai`. Il est lancé à la main par le flux GitHub « Essais Docker » (`.github/workflows/essais-docker.yml`).
 - Réglages **réservés aux tests automatiques** : `JED_UID_ACTUEL` (numéro de l'utilisateur, pour simuler root ou
   non) et `JED_UID_CONTENEUR` (numéro de l'utilisateur du conteneur, 1000 par défaut).
 
