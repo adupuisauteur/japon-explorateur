@@ -79,8 +79,18 @@ function Titre([string]$Texte) {
 }
 
 function Docker-Ici([string[]]$Arguments) {
+    # 2.0.3 (essais Windows du 27/11) : sans docker, PowerShell écrivait son propre message d'erreur (en anglais)
+    # et $LASTEXITCODE gardait la valeur d'une commande précédente. Docker absent = code 127 et un texte clair.
+    if (-not (Get-Command docker -CommandType Application -ErrorAction SilentlyContinue)) {
+        $absent = "docker n'est pas reconnu : Docker Desktop n'est pas installé."
+        if ($SousLinux) { $absent = "docker n'est pas reconnu : Docker n'est pas installé." }
+        return [pscustomobject]@{ Code = 127; Texte = $absent }
+    }
     $sortie = & docker @Arguments 2>&1
-    return [pscustomobject]@{ Code = $LASTEXITCODE; Texte = (($sortie | ForEach-Object { "$_" }) -join "`n").Trim() }
+    $code = $LASTEXITCODE
+    # Une ligne de la sortie d'erreur arrive comme ErrorRecord : on garde son texte (voir mettre-a-jour.ps1).
+    $lignes = $sortie | ForEach-Object { if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { "$_" } }
+    return [pscustomobject]@{ Code = $code; Texte = (@($lignes) -join "`n").Trim() }
 }
 
 function Lire-Env([string[]]$EnvLignes, [string]$Nom) {

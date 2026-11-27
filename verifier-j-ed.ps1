@@ -102,8 +102,18 @@ function Titre([string]$Texte) {
 }
 
 function Docker-Ici([string[]]$Arguments) {
+    # 2.0.3 (essais Windows du 27/11) : sans docker, PowerShell écrivait son propre message d'erreur (en anglais)
+    # et $LASTEXITCODE gardait la valeur d'une commande précédente. Docker absent = code 127 et un texte clair.
+    if (-not (Get-Command docker -CommandType Application -ErrorAction SilentlyContinue)) {
+        $absent = "docker n'est pas reconnu : Docker Desktop n'est pas installé."
+        if ($SousLinux) { $absent = "docker n'est pas reconnu : Docker n'est pas installé." }
+        return [pscustomobject]@{ Code = 127; Texte = $absent }
+    }
     $sortie = & docker @Arguments 2>&1
-    return [pscustomobject]@{ Code = $LASTEXITCODE; Texte = (($sortie | ForEach-Object { "$_" }) -join "`n").Trim() }
+    $code = $LASTEXITCODE
+    # Une ligne de la sortie d'erreur arrive comme ErrorRecord : on garde son texte (voir mettre-a-jour.ps1).
+    $lignes = $sortie | ForEach-Object { if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { "$_" } }
+    return [pscustomobject]@{ Code = $code; Texte = (@($lignes) -join "`n").Trim() }
 }
 
 function Lire-Env([string]$Nom) {
@@ -137,16 +147,23 @@ function Lire-Json([string]$Texte) {
 }
 
 function Docker-Separe([string[]]$Arguments) {
-    # Sortie et erreurs séparées : seules les erreurs vont dans un fichier temporaire, supprimé ensuite.
-    $tmp = [System.IO.Path]::GetTempFileName()
-    try {
-        $sortie = & docker @Arguments 2> $tmp
-        $code = $LASTEXITCODE
-        $erreurs = (Get-Content -LiteralPath $tmp -ErrorAction SilentlyContinue | ForEach-Object { "$_" }) -join "`n"
-    } finally {
-        Remove-Item -LiteralPath $tmp -ErrorAction SilentlyContinue
+    # Sortie et erreurs séparées. 2.0.3 (essais Windows du 27/11) : plus de fichier temporaire, où Windows
+    # PowerShell 5.1 écrivait chaque ligne d'erreur avec sa mise en forme (« At …, CategoryInfo… ») ; chaque ligne
+    # d'erreur arrive comme ErrorRecord, dont on garde le seul texte.
+    # 2.0.3 (essais Windows du 27/11) : sans docker, PowerShell écrivait son propre message d'erreur (en anglais)
+    # et $LASTEXITCODE gardait la valeur d'une commande précédente. Docker absent = code 127 et un texte clair.
+    if (-not (Get-Command docker -CommandType Application -ErrorAction SilentlyContinue)) {
+        $absent = "docker n'est pas reconnu : Docker Desktop n'est pas installé."
+        if ($SousLinux) { $absent = "docker n'est pas reconnu : Docker n'est pas installé." }
+        return [pscustomobject]@{ Code = 127; Texte = ''; Erreurs = $absent }
     }
-    return [pscustomobject]@{ Code = $code; Texte = (($sortie | ForEach-Object { "$_" }) -join "`n").Trim(); Erreurs = $erreurs.Trim() }
+    $sortie = New-Object System.Collections.Generic.List[string]
+    $erreurs = New-Object System.Collections.Generic.List[string]
+    & docker @Arguments 2>&1 | ForEach-Object {
+        if ($_ -is [System.Management.Automation.ErrorRecord]) { $erreurs.Add($_.Exception.Message) } else { $sortie.Add("$_") }
+    }
+    $code = $LASTEXITCODE
+    return [pscustomobject]@{ Code = $code; Texte = ($sortie -join "`n").Trim(); Erreurs = ($erreurs -join "`n").Trim() }
 }
 
 if (-not $Dossier) { $Dossier = $PSScriptRoot }

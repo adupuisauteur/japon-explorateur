@@ -227,6 +227,14 @@ function Docker-Dans {
     # -Discret : la sortie n'est pas écrite dans le journal (configuration complète, avec les mots de passe).
     param([string]$Dossier, [string[]]$Arguments, [switch]$Discret)
     Ecrire-Journal 'COMMANDE' "$Dossier > docker $($Arguments -join ' ')"
+    # 2.0.3 (essais Windows du 27/11) : sans docker, PowerShell écrivait son propre message d'erreur (en anglais)
+    # et $LASTEXITCODE gardait la valeur d'une commande précédente. Docker absent = code 127 et un texte clair.
+    if (-not (Get-Command docker -CommandType Application -ErrorAction SilentlyContinue)) {
+        $absent = "docker n'est pas reconnu : Docker Desktop n'est pas installé."
+        if ($SousLinux) { $absent = "docker n'est pas reconnu : Docker n'est pas installé." }
+        Ecrire-Journal 'RESULTAT' "code=127`n$absent"
+        return [pscustomobject]@{ Code = 127; Texte = $absent }
+    }
     Push-Location -LiteralPath $Dossier
     try {
         $sortie = & docker @Arguments 2>&1

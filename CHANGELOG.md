@@ -34,6 +34,11 @@ même module (`assistant/AssistantJed.psm1`). Aucun changement des données ; Wi
 - **Essais Docker sur GitHub** (outil de recette) : installation, mises à jour réussie et ratées, sauvegarde,
   restauration, réinitialisation et menu, avec le vrai Docker sous Linux, lancés à la demande (envoi sur la
   branche `essais-docker`).
+- **Docker absent ou arrêté** (essais sous le vrai Windows PowerShell 5.1, 27 novembre) : les scripts donnent leur
+  message habituel au lieu du message d'erreur brut de PowerShell, en anglais (« docker is not recognized… »), et
+  ne lisent plus le code de sortie d'une commande précédente. « Vérifier » n'affiche plus, sous Windows
+  PowerShell 5.1, la mise en forme des erreurs de PowerShell (« At …, CategoryInfo… ») autour des messages de Docker.
+- **Essais Windows sur GitHub** (outil de recette) : les scripts sous Windows PowerShell 5.1, sans J-ed en marche.
 - README : macOS indiqué comme non essayé.
 
 ## 2.0.2 — 24 novembre 2026

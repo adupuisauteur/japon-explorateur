@@ -88,6 +88,13 @@ function Lire-Reponse([string]$Question) {
 function Docker-Sortie {
     # Exécute docker et renvoie la sortie standard (les avertissements de Docker sont ignorés).
     param([string[]]$Arguments)
+    # 2.0.3 (essais Windows du 27/11) : sans docker, PowerShell écrivait son propre message d'erreur (en anglais)
+    # et $LASTEXITCODE gardait la valeur d'une commande précédente. Docker absent = code 127 et un texte clair.
+    if (-not (Get-Command docker -CommandType Application -ErrorAction SilentlyContinue)) {
+        $absent = "docker n'est pas reconnu : Docker Desktop n'est pas installé."
+        if ($SousLinux) { $absent = "docker n'est pas reconnu : Docker n'est pas installé." }
+        return [pscustomobject]@{ Code = 127; Texte = $absent }
+    }
     $sortie = & docker @Arguments 2>$null
     return [pscustomobject]@{ Code = $LASTEXITCODE; Texte = (($sortie | ForEach-Object { "$_" }) -join "`n").Trim() }
 }

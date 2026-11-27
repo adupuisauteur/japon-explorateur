@@ -75,8 +75,9 @@ Write-Host "Dossier de travail : $Dossier"
 
 # --- W1 Syntaxe 5.1 -----------------------------------------------------------------------------------------
 Etape 'W1 Syntaxe de tous les scripts pour Windows PowerShell 5.1, marque UTF-8'
-$fichiers = @(Get-ChildItem -LiteralPath $Racine -Recurse -File -Include '*.ps1', '*.psm1' |
-    Where-Object { $_.FullName -notmatch '[\\/](\.git|node_modules)[\\/]' })
+# Avec -LiteralPath, Windows PowerShell 5.1 ignore -Include : le tri se fait sur l'extension.
+$fichiers = @(Get-ChildItem -LiteralPath $Racine -Recurse -File |
+    Where-Object { @('.ps1', '.psm1') -contains $_.Extension.ToLowerInvariant() -and $_.FullName -notmatch '[\\/](\.git|node_modules)[\\/]' })
 $mauvais = @()
 foreach ($f in $fichiers) {
     $erreurs = $null
@@ -108,7 +109,8 @@ try { Protect-FichierSecretJed $secret; Verifier $true 'Protect-FichierSecretJed
 catch { Verifier $false "Protect-FichierSecretJed : $($_.Exception.Message)" }
 try {
     $faits = Get-FaitsSystemeJed
-    $controles = @(Test-PrerequisJed $faits)
+    # Test-PrerequisJed renvoie une liste protégée (,$liste) : la parcourir, ne pas l'entourer de @() (piège du lot 1).
+    $controles = @(Test-PrerequisJed $faits | ForEach-Object { $_ })
     $controles | ForEach-Object { Write-Host "    [$($_.Niveau)] $($_.Libelle) : $($_.Detail)" }
     Verifier ($controles.Count -ge 4) "prérequis de Windows évalués sans exception ($($controles.Count) points)"
 } catch { Verifier $false "prérequis : $($_.Exception.Message)" }

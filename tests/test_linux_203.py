@@ -992,6 +992,97 @@ class ScriptsLot3Tests(LinuxTestCase):
         self.assertIn("pwsh -NoProfile -File ./verifier-j-ed.ps1", source)
 
 
+class DockerAbsentTests(LinuxTestCase):
+    """2.0.3 (essais Windows du 27/11) : sans docker du tout, chaque script donne un message de J-ed et un code
+    prévu, jamais le message d'erreur brut de PowerShell (« is not recognized », CommandNotFoundException)."""
+
+    BRUT = ("is not recognized", "CommandNotFoundException", "CategoryInfo", "FullyQualifiedErrorId")
+
+    def setUp(self):
+        super().setUp()
+        # Chemin des programmes sans aucun docker (ni le vrai, ni le faux) : liens vers tout le reste.
+        self.bin = self.tmp / "bin-sans-docker"
+        self.bin.mkdir()
+        for dossier in ("/usr/local/bin", "/usr/bin", "/bin"):
+            for f in Path(dossier).iterdir() if Path(dossier).is_dir() else []:
+                cible = self.bin / f.name
+                if f.name.startswith("docker") or cible.exists() or cible.is_symlink():
+                    continue
+                try:
+                    cible.symlink_to(f)
+                except OSError:
+                    pass
+
+    def lancer(self, script, *args):
+        env = self.env()
+        env["PATH"] = str(self.bin)
+        return subprocess.run([PWSH, "-NoProfile", "-NonInteractive", "-File", str(ROOT / script), *args],
+                              capture_output=True, text=True, timeout=180, cwd=self.tmp, env=env)
+
+    def archive(self, version="2.0.3"):
+        archive = self.tmp / f"japon-explorateur-{version}.zip"
+        with zipfile.ZipFile(archive, "w") as z:
+            z.writestr(f"japon-explorateur-{version}/VERSION", f"{version}\n")
+            z.writestr(f"japon-explorateur-{version}/docker-compose.yml", "name: ${COMPOSE_PROJECT_NAME}\n")
+            z.writestr(f"japon-explorateur-{version}/.env.example", (ROOT / ".env.example").read_text(encoding="utf-8"))
+        Path(f"{archive}.sha256").write_text(hashlib.sha256(archive.read_bytes()).hexdigest() + f"  {archive.name}\n")
+        return archive
+
+    def assertSansMessageBrut(self, r):
+        sortie = r.stdout + r.stderr
+        for mot in self.BRUT:
+            self.assertNotIn(mot, sortie, sortie)
+
+    def test_verify_without_docker(self):
+        install = self.make_install("jed-essai", "jed-essai")
+        r = self.lancer("verifier-j-ed.ps1", "-Dossier", str(install))
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertSansMessageBrut(r)
+        self.assertIn("[Problème] Docker", r.stdout)
+
+    def test_update_without_docker(self):
+        sauvegardes = self.tmp / "sauvegardes"
+        install = self.make_install("jed-essai", "jed-essai", sauvegardes=sauvegardes)
+        r = self.lancer("mettre-a-jour.ps1", "-Archive", str(self.archive()), "-Actuel", str(install),
+                        "-DossierSauvegardes", str(sauvegardes), "-Oui")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertSansMessageBrut(r)
+        self.assertIn("ARRÊT", r.stdout)
+        journal = next(sauvegardes.glob("mise-a-jour-*.log")).read_text(encoding="utf-8")
+        self.assertIn("docker n'est pas reconnu", journal)
+        self.assertIn("FIN code=1", journal)
+
+    def test_install_without_docker(self):
+        dest = self.tmp / "J-ed" / "jed-2.0.3"
+        r = self.lancer("installer-j-ed.ps1", "-Archive", str(self.archive()), "-Destination", str(dest),
+                        "-Nom", "jed", "-Port", str(free_port()), "-DossierSauvegardes", str(self.tmp / "sauvegardes"))
+        self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertSansMessageBrut(r)
+        self.assertIn("ARRÊT", r.stdout)
+
+    def test_migration_check_and_reset_without_docker(self):
+        install = self.make_install("jed-essai", "jed-essai")
+        r = self.lancer("verifier-migration.ps1", "-Dossiers", str(install))
+        self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertSansMessageBrut(r)
+        shutil.copy(ROOT / "reinitialiser-essai.ps1", install / "reinitialiser-essai.ps1")
+        env = self.env()
+        env["PATH"] = str(self.bin)
+        r = subprocess.run([PWSH, "-NoProfile", "-NonInteractive", "-File", str(install / "reinitialiser-essai.ps1"),
+                            "-SansSauvegarde"], capture_output=True, text=True, timeout=180, cwd=install, env=env,
+                           input="REINITIALISER\n")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertSansMessageBrut(r)
+        self.assertIn("Rien n'a été effacé", r.stdout)
+
+    def test_verify_keeps_stderr_lines_as_plain_text(self):
+        # Windows PowerShell 5.1 écrivait les lignes d'erreur de docker, redirigées dans un fichier, avec leur mise en
+        # forme (« At …, CategoryInfo… ») : plus de fichier, le texte de chaque ErrorRecord.
+        source = (ROOT / "verifier-j-ed.ps1").read_text(encoding="utf-8-sig")
+        self.assertNotIn("2> $tmp", source)
+        self.assertIn("$erreurs.Add($_.Exception.Message)", source)
+
+
 class EssaisDockerTests(LinuxTestCase):
     """2.0.3 : « Essais Docker » sur GitHub (vrai Docker sous Linux), lancés à la main avant une version candidate."""
 
