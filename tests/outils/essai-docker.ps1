@@ -7,13 +7,13 @@
     Docker et PowerShell 7, sous un compte ordinaire. Données fictives uniquement ; aucun proxy, aucun secret.
 
     Déroulé (chaque étape vérifie un code de sortie ou un état réel) :
-      E1  installation par installer-j-ed.ps1 (sans Argos) ;
+      E1  installation par installer-j-ed.ps1 (sans Argos) ; .env réservé au compte, journaux limités ;
       E2  compte administrateur fictif et jeu d'essai (notices fictives) ;
       E3  vérification par verifier-j-ed.ps1 ;
       E4  sauvegarde par le module de l'assistant (copiée dans le dossier des sauvegardes) ;
       E5  mise à jour « construction impossible » : code 3, l'ancienne version répond toujours ;
       E6  mise à jour « démarrage impossible » : code 4 (retour automatique), mêmes notices ;
-      E7  mise à jour réussie : code 0, nouvelle version en service, mêmes notices ;
+      E7  mise à jour réussie : code 0, nouvelle version en service, mêmes notices, mêmes protections ;
       E8  restauration de la sauvegarde dans une NOUVELLE installation : mêmes notices ;
       E9  vérification après migration (verifier-migration.ps1) de cette nouvelle installation ;
       E10 réinitialisation de cette installation d'essai : base vide ;
@@ -108,6 +108,19 @@ function Get-NombreNotices([string]$Ici) {
     return -1
 }
 
+function Test-Protections([string]$Ici, [string]$Quand) {
+    # Corrections d'après la rc1 : .env réservé au compte (600) ; journaux de chaque conteneur limités (10 Mo × 3).
+    $mode = (& stat -c '%a' -- ([System.IO.Path]::Combine($Ici, '.env')) 2>$null | Select-Object -First 1)
+    Verifier ("$mode".Trim() -eq '600') "$Quand : .env réservé au compte (droits $("$mode".Trim()), attendus 600)"
+    $ids = @((Docker-Dans $Ici @('compose', 'ps', '-q')).Texte -split "`n" | Where-Object { $_.Trim() })
+    $limites = @(foreach ($id in $ids) {
+        (Docker-Dans $Ici @('inspect', '--format', '{{.Name}} {{.HostConfig.LogConfig.Type}} {{index .HostConfig.LogConfig.Config "max-size"}} {{index .HostConfig.LogConfig.Config "max-file"}}', $id.Trim())).Texte
+    })
+    $limites | ForEach-Object { Write-Host "    $_" }
+    $bonnes = @($limites | Where-Object { $_ -match ' json-file 10m 3$' })
+    Verifier ($ids.Count -gt 0 -and $bonnes.Count -eq $ids.Count) "$Quand : journaux limités à 10 Mo × 3 ($($bonnes.Count) conteneur(s) sur $($ids.Count))"
+}
+
 function Save-JournauxDocker {
     foreach ($d in $script:Installations) {
         if (-not (Test-Path -LiteralPath ([System.IO.Path]::Combine($d, '.env')))) { continue }
@@ -159,6 +172,7 @@ $code = Lancer ([System.IO.Path]::Combine($Racine, 'installer-j-ed.ps1')) @('-Ar
 Verifier ($code -eq 0) "installation réussie (code $code, attendu 0)"
 if ($code -ne 0) { Terminer }
 Verifier (Test-Sante $A) 'la page de santé répond'
+Test-Protections $A 'après l''installation'
 
 # --- E2 Compte et jeu d'essai --------------------------------------------------------------------------------
 Etape 'E2 Compte administrateur fictif et jeu d''essai'
@@ -206,6 +220,7 @@ $code = Lancer $MettreAJour @('-Archive', $Normale, '-Actuel', $A, '-DossierSauv
 Verifier ($code -eq 0) "mise à jour réussie (code $code, attendu 0)"
 Verifier (Test-Sante $B) 'la nouvelle version répond'
 Verifier ((Get-NombreNotices $B) -eq $Notices) "mêmes notices après la mise à jour ($Notices)"
+Test-Protections $B 'après la mise à jour'
 
 # --- E8 Restauration dans une nouvelle installation ------------------------------------------------------------
 Etape 'E8 Restauration de la sauvegarde dans une nouvelle installation'

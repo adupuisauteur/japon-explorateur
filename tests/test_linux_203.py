@@ -1026,6 +1026,9 @@ class EssaisDockerTests(LinuxTestCase):
                       "Invoke-RestaurationJed", "verifier-migration.ps1", "reinitialiser-essai.ps1", "j-ed.sh",
                       "(code $code, attendu 3)", "(code $code, attendu 4)", "(code $code, attendu 0)"):
             self.assertIn(etape, source)
+        self.assertIn("Test-Protections $A", source)    # corrections d'après la rc1 vérifiées avec le vrai Docker
+        self.assertIn("Test-Protections $B", source)
+        self.assertIn("' json-file 10m 3$'", source)
         self.assertNotIn("down -v", source)
         self.assertNotIn("'--volumes'", source)
         self.assertNotIn("volume', 'rm", source)
