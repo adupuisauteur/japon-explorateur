@@ -30,9 +30,20 @@ concurrency:
 
 jobs:
   essais-docker:
-    name: Essais Docker (Ubuntu, sans Argos)
-    runs-on: ubuntu-24.04
+    name: Essais Docker (${{ matrix.nom }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Ubuntu 26.04 : la même version que la machine de l'utilisateur ; 24.04 gardée pour comparer.
+          - nom: Ubuntu 26.04
+            os: ubuntu-26.04
+            fichier: ubuntu-26.04
+          - nom: Ubuntu 24.04
+            os: ubuntu-24.04
+            fichier: ubuntu-24.04
 
     steps:
       - name: Récupérer le code
@@ -53,7 +64,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: journaux-essais-docker
+          name: journaux-essais-docker-${{ matrix.fichier }}
           path: ${{ runner.temp }}/essai-docker/journaux
           if-no-files-found: warn
           retention-days: 14
