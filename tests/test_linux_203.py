@@ -1009,6 +1009,30 @@ class EssaisDockerTests(LinuxTestCase):
         self.assertIn("permissions:\n  contents: read", texte)
         self.assertIn("if: always()", texte)       # journaux joints même en cas d'échec
 
+    def test_workflow_scenarios_ubuntu_2604_menu_and_proxy(self):
+        texte = self.FLUX.read_text(encoding="utf-8")
+        self.assertIn("os: ubuntu-26.04", texte)               # même version que la machine de l'utilisateur
+        self.assertIn("scenario: depuis-2.0.2", texte)
+        self.assertIn("proxy: true", texte)
+        self.assertIn("bash tests/outils/reseau-proxy-essai.sh essai", texte)
+        self.assertIn("sudo -u essai env GITHUB_ACTIONS=true", texte)   # le compte de GitHub garde son accès
+        source = self.OUTIL.read_bytes().decode("utf-8-sig")
+        self.assertIn("'depuis-2.0.2'", source)
+        self.assertIn("releases/download/$Ancienne/", source)
+        self.assertIn("sans proxy, Internet est injoignable", source)
+
+    def test_proxy_network_tool_refuses_to_run_outside_github(self):
+        outil = ROOT / "tests" / "outils" / "reseau-proxy-essai.sh"
+        self.assertTrue(os.access(outil, os.X_OK))
+        self.assertNotIn(b"\r\n", outil.read_bytes())
+        env = dict(os.environ)
+        env.pop("GITHUB_ACTIONS", None)   # indispensable : sur GitHub, l'outil couperait le réseau de la machine des tests
+        r = subprocess.run(["bash", str(outil), "essai", str(self.tmp / "proxy.txt")],
+                           capture_output=True, text=True, timeout=60, env=env)
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("machine jetable de GitHub", r.stderr)
+        self.assertFalse((self.tmp / "proxy.txt").exists())
+
     def test_tool_refuses_to_run_outside_github(self):
         env = self.env()
         env.pop("GITHUB_ACTIONS", None)

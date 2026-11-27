@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Sert aux « Essais Docker » de GitHub (.github/workflows/essais-docker.yml) : une machine Ubuntu de GitHub, avec
-    Docker et PowerShell 7, sous un compte ordinaire. Données fictives uniquement ; aucun proxy, aucun secret.
+    Docker et PowerShell 7, sous un compte ordinaire. Données fictives uniquement ; aucun secret.
 
     Déroulé (chaque étape vérifie un code de sortie ou un état réel) :
       E1  installation par installer-j-ed.ps1 (sans Argos) ; .env réservé au compte, journaux limités ;
@@ -19,11 +19,27 @@
       E10 réinitialisation de cette installation d'essai : base vide ;
       E11 menu texte (j-ed.sh) : les installations sont listées, en marche.
 
+    Scénario « depuis-2.0.2 » (-Scenario depuis-2.0.2), comme sur la machine de l'utilisateur :
+      D1  la 2.0.2 publiée est téléchargée depuis sa page de version GitHub (empreinte contrôlée) ;
+      D2  elle est installée par SON installer-j-ed.ps1, avec un compte et le jeu d'essai fictifs ;
+      D3  elle est mise à jour en 2.0.3 PAR LE MENU (j-ed.sh), réponses données comme au clavier ;
+      D4  nouvelle version en service, mêmes notices, .env réservé au compte, journaux limités, « Vérifier ».
+
+    Avec -Proxy (scénario « proxy ») : les installations reçoivent ce proxy (comme le menu le fait), et rien
+    d'autre ne le connaît (le terminal n'a pas de proxy, comme dans la recette). L'accès direct à Internet doit
+    avoir été coupé avant (tests/outils/reseau-proxy-essai.sh) : l'outil le vérifie d'abord.
+
     Par sécurité, l'outil refuse de tourner ailleurs que sur GitHub (variable GITHUB_ACTIONS), sauf avec
     -MachineDEssai : il crée des installations et en réinitialise une.
 
 .PARAMETER Dossier
     Dossier de travail (installations, sauvegardes, archives, journaux).
+
+.PARAMETER Scenario
+    complet (par défaut : E1 à E11) ou depuis-2.0.2 (D1 à D4).
+
+.PARAMETER Proxy
+    Adresse du proxy d'essai (http://adresse:port) ; vide : aucun proxy.
 
 .PARAMETER Port
     Premier port utilisé (le suivant sert à la seconde installation).
@@ -32,6 +48,8 @@
 param(
     [string]$Dossier,
     [int]$Port = 8061,
+    [ValidateSet('complet', 'depuis-2.0.2')][string]$Scenario = 'complet',
+    [string]$Proxy = '',
     [switch]$MachineDEssai
 )
 
@@ -121,6 +139,32 @@ function Test-Protections([string]$Ici, [string]$Quand) {
     Verifier ($ids.Count -gt 0 -and $bonnes.Count -eq $ids.Count) "$Quand : journaux limités à 10 Mo × 3 ($($bonnes.Count) conteneur(s) sur $($ids.Count))"
 }
 
+function New-DonneesEssai([string]$Ici) {
+    # Compte administrateur fictif (mot de passe aléatoire, jamais réutilisé) et jeu d'essai ; renvoie le nombre de notices.
+    $motFictif = 'Essai-' + [guid]::NewGuid().ToString('N')
+    $r = Docker-Dans $Ici @('compose', 'exec', '-T', 'web', 'python', 'manage.py', 'shell', '-c',
+        "from apps.accounts.models import User; User.objects.create_user('admin-essai', password='$motFictif', role='admin'); print('COMPTE=' + 'cree')")
+    # Le texte attendu n'apparaît pas tel quel dans la commande : un message d'erreur qui la répète ne passe pas pour une réussite.
+    Verifier ($r.Code -eq 0 -and $r.Texte -match 'COMPTE=cree') 'compte administrateur fictif créé'
+    $r = Docker-Dans $Ici @('compose', 'exec', '-T', 'web', 'python', 'manage.py', 'jeu_essai', '--charger')
+    Write-Host $r.Texte
+    Verifier ($r.Code -eq 0) 'jeu d''essai chargé'
+    $n = Get-NombreNotices $Ici
+    Verifier ($n -gt 0) "notices présentes ($n)"
+    return $n
+}
+
+function Get-ArgumentsProxy {
+    if ($Proxy) { return @('-Proxy', $Proxy) }
+    return @()
+}
+
+function Test-ProxyEnv([string]$Ici, [string]$Quand) {
+    if (-not $Proxy) { return }
+    $lignes = @(Get-Content -LiteralPath ([System.IO.Path]::Combine($Ici, '.env')) -Encoding UTF8)
+    Verifier (($lignes -contains "HTTPS_PROXY=$Proxy") -and ($lignes -contains "HTTP_PROXY=$Proxy")) "$Quand : proxy écrit dans le .env"
+}
+
 function Save-JournauxDocker {
     foreach ($d in $script:Installations) {
         if (-not (Test-Path -LiteralPath ([System.IO.Path]::Combine($d, '.env')))) { continue }
@@ -160,6 +204,95 @@ $Demarrage = [System.IO.Path]::Combine($Archives, "japon-explorateur-$Version-es
 Verifier ($code -eq 0 -and (Test-Path $Normale) -and (Test-Path $Construction) -and (Test-Path $Demarrage)) 'trois archives d''essai fabriquées'
 if ($script:Echecs.Count) { Terminer }
 
+# --- Proxy : le terminal n'en connaît aucun ; l'accès direct doit être coupé ------------------------------------
+if ($Proxy) {
+    Etape "Proxy d'essai : $Proxy (accès direct à Internet coupé)"
+    foreach ($nom in @('HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'ALL_PROXY', 'all_proxy')) {
+        [Environment]::SetEnvironmentVariable($nom, $null)
+    }
+    & curl -sS -m 20 -o /dev/null https://github.com/ 2>&1 | Out-Host
+    Verifier ($LASTEXITCODE -ne 0) 'sans proxy, Internet est injoignable (comme un réseau qui impose son proxy)'
+    & curl -sS -m 30 -o /dev/null -x $Proxy https://github.com/ 2>&1 | Out-Host
+    Verifier ($LASTEXITCODE -eq 0) 'avec le proxy, Internet répond'
+    if ($script:Echecs.Count) { Terminer }
+}
+
+# --- Scénario « depuis-2.0.2 » : la version publiée, mise à jour par le menu -------------------------------------
+if ($Scenario -eq 'depuis-2.0.2') {
+    $Ancienne = '2.0.2'
+    Etape "D1 Télécharger la $Ancienne publiée (page de version GitHub)"
+    $zip = [System.IO.Path]::Combine($Archives, "japon-explorateur-$Ancienne.zip")
+    $adresse = "https://github.com/adupuisauteur/japon-explorateur/releases/download/$Ancienne/japon-explorateur-$Ancienne.zip"
+    $telechargement = @('-fsSL', '-m', '300', '-o', $zip, $adresse)
+    if ($Proxy) { $telechargement = @('-x', $Proxy) + $telechargement }
+    & curl @telechargement 2>&1 | Out-Host
+    $telechargement[-2] = "$zip.sha256"; $telechargement[-1] = "$adresse.sha256"
+    & curl @telechargement 2>&1 | Out-Host
+    $e = Test-EmpreinteJed -Archive $zip -Empreinte "$zip.sha256"
+    Verifier ([bool]$e.Ok) "archive $Ancienne téléchargée, empreinte conforme $($e.Raison)"
+    if (-not $e.Ok) { Terminer }
+
+    Etape "D2 Installation de la $Ancienne (son propre installer-j-ed.ps1), compte et jeu d'essai"
+    $ext = [System.IO.Path]::Combine($Dossier, "code-$Ancienne")
+    Expand-Archive -LiteralPath $zip -DestinationPath $ext -Force
+    $installateur = Get-ChildItem -LiteralPath $ext -Recurse -Filter 'installer-j-ed.ps1' -File | Select-Object -First 1
+    $A = [System.IO.Path]::Combine($Dossier, "jed-essai-ci-$Ancienne")
+    $SauvA = [System.IO.Path]::Combine($Dossier, 'sauvegardes-jed-essai-ci')
+    New-Item -ItemType Directory -Force -Path $SauvA | Out-Null
+    & chmod o+rwx $SauvA
+    $script:Installations.Add($A)
+    $code = Lancer $installateur.FullName @('-Archive', $zip, '-Empreinte', "$zip.sha256", '-Destination', $A,
+        '-Nom', 'jed-essai-ci', '-Port', "$Port", '-DossierSauvegardes', $SauvA, '-SansArgos' + (Get-ArgumentsProxy))
+    Verifier ($code -eq 0) "installation de la $Ancienne réussie (code $code, attendu 0)"
+    if ($code -ne 0) { Terminer }
+    Verifier (Test-Sante $A) "la $Ancienne répond"
+    Verifier ((Get-InstallationJed $A).Version -eq $Ancienne) "version $Ancienne en service"
+    $Notices = New-DonneesEssai $A
+
+    Etape "D3 Mise à jour $Ancienne → $Version par le menu (j-ed.sh de la $Version, réponses comme au clavier)"
+    # Ordre des questions du menu (Update-InstallationJed) : choix 1 ; installation unique prise d'office ; proxy ;
+    # archive (2 = déjà téléchargée, puis son chemin ; l'empreinte voisine est trouvée seule) ; dossier des
+    # sauvegardes (Entrée) ; Docker joint-il Internet ? (Entrée = oui) ;
+    # « Continuer ? » quand la nouvelle version est prête : o ; Entrée ; 0 Fermer.
+    $reponses = @('1')
+    if ($Proxy) { $reponses += @('o', $Proxy) } else { $reponses += 'n' }
+    $reponses += @('2', $Normale, '', '')   # l'installation de D2 a déjà le proxy dans son .env : pas de question de plus
+    $reponses += @('o', '', '0')
+    $journalMenu = [System.IO.Path]::Combine($Journaux, 'menu-mise-a-jour.txt')
+    $sortie = (($reponses -join "`n") + "`n") | & bash ([System.IO.Path]::Combine($Racine, 'j-ed.sh')) 2>&1 |
+        ForEach-Object { "$_" } | Tee-Object -FilePath $journalMenu
+    $texte = $sortie -join "`n"
+    Write-Host $texte
+    Verifier ($texte -match "Archive de la version $([regex]::Escape($Version)) : empreinte conforme") 'le menu accepte l''archive et son empreinte'
+    Verifier ($texte -match 'Docker joint Internet') 'le menu : « Docker joint Internet »'
+    Verifier ($texte -match 'La nouvelle version est prête') 'le menu pose la question quand la nouvelle version est prête'
+    Verifier ($texte -match 'Mise à jour réussie') 'le menu annonce « Mise à jour réussie »'
+    $B = ''
+    if ($texte -match 'Nouvelle version dans : (.+)') { $B = $Matches[1].Trim() }
+    Verifier ([bool]$B -and (Test-Path -LiteralPath $B)) "dossier de la nouvelle version : $B"
+    if (-not $B -or -not (Test-Path -LiteralPath $B)) { Terminer }
+    $script:Installations.Add($B)
+    if ($texte -match 'Journal : (.+)') {
+        $j = $Matches[1].Trim()
+        Verifier ((Test-Path -LiteralPath $j) -and ((Get-Content -LiteralPath $j -Raw) -match 'FIN code=0')) 'journal de la mise à jour : FIN code=0'
+    } else { Verifier $false 'le menu donne le chemin du journal' }
+
+    Etape "D4 Contrôles de la $Version"
+    Verifier (Test-Sante $B) 'la nouvelle version répond'
+    Verifier ((Get-InstallationJed $B).Version -eq $Version) "version $Version en service"
+    Verifier ((Get-NombreNotices $B) -eq $Notices) "mêmes notices après la mise à jour ($Notices)"
+    Verifier (Test-Path -LiteralPath ([System.IO.Path]::Combine($A, '.env'))) 'l''ancien dossier est gardé'
+    Test-Protections $B 'après la mise à jour par le menu'
+    Test-ProxyEnv $B 'après la mise à jour par le menu'
+    $code = Lancer ([System.IO.Path]::Combine($B, 'verifier-j-ed.ps1')) @('-Dossier', $B)
+    Verifier ($code -eq 0) "« Vérifier » sans problème (code $code, attendu 0)"
+    $menu = "0`n" | & bash ([System.IO.Path]::Combine($B, 'j-ed.sh')) 2>&1 | ForEach-Object { "$_" }
+    $liste = $menu -join "`n"
+    Write-Host $liste
+    Verifier ($liste -match "jed-essai-ci\s+$([regex]::Escape($Version))\s+port\s+\d+\s+en marche") "le menu liste « jed-essai-ci » en $Version, en marche"
+    Terminer
+}
+
 # --- E1 Installation ----------------------------------------------------------------------------------------
 Etape 'E1 Installation (installer-j-ed.ps1, sans Argos)'
 $A = [System.IO.Path]::Combine($Dossier, "jed-essai-ci-$Version")
@@ -168,24 +301,16 @@ New-Item -ItemType Directory -Force -Path $SauvA | Out-Null
 & chmod o+rwx $SauvA   # comme le conseille le guide : le conteneur (utilisateur 1000) y copie ses sauvegardes
 $script:Installations.Add($A)
 $code = Lancer ([System.IO.Path]::Combine($Racine, 'installer-j-ed.ps1')) @('-Archive', $Normale, '-Destination', $A,
-    '-Nom', 'jed-essai-ci', '-Port', "$Port", '-DossierSauvegardes', $SauvA, '-SansArgos')
+    '-Nom', 'jed-essai-ci', '-Port', "$Port", '-DossierSauvegardes', $SauvA, '-SansArgos' + (Get-ArgumentsProxy))
 Verifier ($code -eq 0) "installation réussie (code $code, attendu 0)"
 if ($code -ne 0) { Terminer }
 Verifier (Test-Sante $A) 'la page de santé répond'
 Test-Protections $A 'après l''installation'
+Test-ProxyEnv $A 'après l''installation'
 
 # --- E2 Compte et jeu d'essai --------------------------------------------------------------------------------
 Etape 'E2 Compte administrateur fictif et jeu d''essai'
-$motFictif = 'Essai-' + [guid]::NewGuid().ToString('N')   # fictif, jamais réutilisé, effacé avec la machine
-$r = Docker-Dans $A @('compose', 'exec', '-T', 'web', 'python', 'manage.py', 'shell', '-c',
-    "from apps.accounts.models import User; User.objects.create_user('admin-essai', password='$motFictif', role='admin'); print('COMPTE=' + 'cree')")
-# Le texte attendu n'apparaît pas tel quel dans la commande : un message d'erreur qui la répète ne passe pas pour une réussite.
-Verifier ($r.Code -eq 0 -and $r.Texte -match 'COMPTE=cree') 'compte administrateur fictif créé'
-$r = Docker-Dans $A @('compose', 'exec', '-T', 'web', 'python', 'manage.py', 'jeu_essai', '--charger')
-Write-Host $r.Texte
-Verifier ($r.Code -eq 0) 'jeu d''essai chargé'
-$Notices = Get-NombreNotices $A
-Verifier ($Notices -gt 0) "notices présentes ($Notices)"
+$Notices = New-DonneesEssai $A
 
 # --- E3 Vérification ----------------------------------------------------------------------------------------
 Etape 'E3 Vérification (verifier-j-ed.ps1)'
@@ -221,6 +346,7 @@ Verifier ($code -eq 0) "mise à jour réussie (code $code, attendu 0)"
 Verifier (Test-Sante $B) 'la nouvelle version répond'
 Verifier ((Get-NombreNotices $B) -eq $Notices) "mêmes notices après la mise à jour ($Notices)"
 Test-Protections $B 'après la mise à jour'
+Test-ProxyEnv $B 'après la mise à jour'
 
 # --- E8 Restauration dans une nouvelle installation ------------------------------------------------------------
 Etape 'E8 Restauration de la sauvegarde dans une nouvelle installation'
@@ -230,7 +356,7 @@ New-Item -ItemType Directory -Force -Path $SauvC | Out-Null
 & chmod o+rwx $SauvC
 $script:Installations.Add($C)
 $code = Lancer ([System.IO.Path]::Combine($Racine, 'installer-j-ed.ps1')) @('-Archive', $Normale, '-Destination', $C,
-    '-Nom', 'jed-essai-ci-copie', '-Port', "$($Port + 1)", '-DossierSauvegardes', $SauvC, '-SansArgos')
+    '-Nom', 'jed-essai-ci-copie', '-Port', "$($Port + 1)", '-DossierSauvegardes', $SauvC, '-SansArgos' + (Get-ArgumentsProxy))
 Verifier ($code -eq 0) "seconde installation réussie (code $code, attendu 0)"
 if ($code -eq 0 -and $Tar) {
     $x = Invoke-RestaurationJed (Get-InstallationJed $C) $Tar.FullName -SurLigne { param($l) Write-Host "  $l" }

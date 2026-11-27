@@ -5,7 +5,10 @@
 # sauvegarde, mises à jour « construction impossible » (code 3), « démarrage impossible » (code 4) et réussie
 # (code 0), restauration dans une nouvelle installation, vérification après migration, réinitialisation de l'essai,
 # menu texte. Données fictives uniquement ; aucun secret ; tout est effacé avec la machine à la fin.
-# Ne remplace pas les essais chez l'utilisateur : Windows, proxy du réseau, affichage (Firefox, raccourcis).
+# Autres scénarios : « depuis la 2.0.2 » (la version publiée, mise à jour par le menu j-ed.sh, comme chez
+# l'utilisateur) et « derrière un proxy » (accès direct au web coupé, seul un proxy d'essai sort :
+# tests/outils/reseau-proxy-essai.sh ; l'essai tourne alors sous un compte « essai » distinct de celui de GitHub).
+# Ne remplace pas les essais chez l'utilisateur : Windows, vrai proxy du réseau, affichage (Firefox, raccourcis).
 #
 # Lancement, en particulier avant chaque version candidate :
 #  - par un envoi sur la branche « essais-docker » (seulement elle ; GitHub ne montre le bouton « Run workflow »
@@ -41,9 +44,28 @@ jobs:
           - nom: Ubuntu 26.04
             os: ubuntu-26.04
             fichier: ubuntu-26.04
+            scenario: complet
+            proxy: false
           - nom: Ubuntu 24.04
             os: ubuntu-24.04
             fichier: ubuntu-24.04
+            scenario: complet
+            proxy: false
+          - nom: Ubuntu 26.04, depuis la 2.0.2 par le menu
+            os: ubuntu-26.04
+            fichier: ubuntu-26.04-depuis-2.0.2
+            scenario: depuis-2.0.2
+            proxy: false
+          - nom: Ubuntu 26.04, derrière un proxy
+            os: ubuntu-26.04
+            fichier: ubuntu-26.04-proxy
+            scenario: complet
+            proxy: true
+          - nom: Ubuntu 26.04, depuis la 2.0.2 par le menu, derrière un proxy
+            os: ubuntu-26.04
+            fichier: ubuntu-26.04-depuis-2.0.2-proxy
+            scenario: depuis-2.0.2
+            proxy: true
 
     steps:
       - name: Récupérer le code
@@ -57,8 +79,33 @@ jobs:
           id
           df -h "$RUNNER_TEMP" /var/lib/docker
 
+      - name: Compte d'essai et réseau derrière un proxy d'essai
+        if: matrix.proxy
+        run: |
+          sudo useradd --create-home --shell /bin/bash --groups docker essai
+          sudo mkdir -p /srv/essai
+          sudo cp -a "$GITHUB_WORKSPACE" /srv/essai/code
+          sudo chown -R essai:essai /srv/essai
+          bash tests/outils/reseau-proxy-essai.sh essai "$RUNNER_TEMP/proxy.txt"
+
       - name: Essai complet
-        run: pwsh -NoProfile -File tests/outils/essai-docker.ps1 -Dossier "$RUNNER_TEMP/essai-docker"
+        if: ${{ !matrix.proxy }}
+        run: pwsh -NoProfile -File tests/outils/essai-docker.ps1 -Dossier "$RUNNER_TEMP/essai-docker" -Scenario "${{ matrix.scenario }}"
+
+      - name: Essai complet, derrière le proxy d'essai (compte « essai »)
+        if: matrix.proxy
+        run: >-
+          sudo -u essai env GITHUB_ACTIONS=true HOME=/home/essai
+          pwsh -NoProfile -File /srv/essai/code/tests/outils/essai-docker.ps1 -Dossier /srv/essai/travail
+          -Scenario "${{ matrix.scenario }}" -Proxy "$(cat "$RUNNER_TEMP/proxy.txt")"
+
+      - name: Rassembler les journaux du compte « essai »
+        if: always() && matrix.proxy
+        run: |
+          mkdir -p "$RUNNER_TEMP/essai-docker/journaux"
+          sudo cp -r /srv/essai/travail/journaux/. "$RUNNER_TEMP/essai-docker/journaux/" || true
+          sudo cp /var/log/tinyproxy/tinyproxy.log "$RUNNER_TEMP/essai-docker/journaux/" || true
+          sudo chown -R "$(id -u):$(id -g)" "$RUNNER_TEMP/essai-docker"
 
       - name: Joindre les journaux
         if: always()
