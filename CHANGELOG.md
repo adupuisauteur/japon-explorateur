@@ -32,7 +32,8 @@ même module (`assistant/AssistantJed.psm1`). Aucun changement des données ; Wi
 - **Sous Linux, le fichier `.env` est réservé au compte de l'utilisateur** (il contient les secrets de
   l'installation) ; « Vérifier » signale un `.env` lisible par d'autres comptes.
 - **Essais Docker sur GitHub** (outil de recette) : installation, mises à jour réussie et ratées, sauvegarde,
-  restauration, réinitialisation et menu, avec le vrai Docker sous Linux, lancés à la main.
+  restauration, réinitialisation et menu, avec le vrai Docker sous Linux, lancés à la demande (envoi sur la
+  branche `essais-docker`).
 - README : macOS indiqué comme non essayé.
 
 ## 2.0.2 — 24 novembre 2026

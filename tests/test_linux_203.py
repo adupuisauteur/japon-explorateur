@@ -1001,7 +1001,10 @@ class EssaisDockerTests(LinuxTestCase):
     def test_workflow_runs_the_tool_on_demand_only(self):
         texte = self.FLUX.read_text(encoding="utf-8")
         self.assertIn("workflow_dispatch:", texte)
-        self.assertNotIn("push:", texte)          # trop long pour chaque envoi (construction des images)
+        # Trop long pour chaque envoi (construction des images) : seulement la branche « essais-docker ».
+        self.assertIn("  push:\n    branches:\n      - essais-docker\n\n", texte)
+        self.assertEqual(texte.count("branches:"), 1)
+        self.assertNotIn("pull_request", texte)
         self.assertIn("pwsh -NoProfile -File tests/outils/essai-docker.ps1", texte)
         self.assertIn("permissions:\n  contents: read", texte)
         self.assertIn("if: always()", texte)       # journaux joints même en cas d'échec

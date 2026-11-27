@@ -79,7 +79,9 @@ Les tests `tests/test_contrat_scripts.py` vérifient que les scripts et ce docum
   vrai Docker sous Linux et des données fictives, installation, vérification, sauvegarde, les trois mises à jour
   (codes 3, 4 et 0), restauration dans une nouvelle installation, vérification après migration, réinitialisation
   de l'essai et menu texte. Il refuse de tourner ailleurs que sur GitHub (`GITHUB_ACTIONS`), sauf avec
-  `-MachineDEssai`. Il est lancé à la main par le flux GitHub « Essais Docker » (`.github/workflows/essais-docker.yml`).
+  `-MachineDEssai`. Il est lancé à la demande par le flux GitHub « Essais Docker » (`.github/workflows/essais-docker.yml`) :
+  envoi sur la branche `essais-docker` (jamais à chaque envoi ordinaire), ou bouton « Run workflow » quand le flux
+  est sur `main`.
 - Réglages **réservés aux tests automatiques** : `JED_UID_ACTUEL` (numéro de l'utilisateur, pour simuler root ou
   non) et `JED_UID_CONTENEUR` (numéro de l'utilisateur du conteneur, 1000 par défaut).
 

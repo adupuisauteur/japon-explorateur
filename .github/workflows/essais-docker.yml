@@ -7,13 +7,19 @@
 # menu texte. Données fictives uniquement ; aucun secret ; tout est effacé avec la machine à la fin.
 # Ne remplace pas les essais chez l'utilisateur : Windows, proxy du réseau, affichage (Firefox, raccourcis).
 #
-# Lancement : à la main (Actions → Essais Docker → Run workflow), en particulier avant chaque version candidate.
+# Lancement, en particulier avant chaque version candidate :
+#  - par un envoi sur la branche « essais-docker » (seulement elle ; GitHub ne montre le bouton « Run workflow »
+#    que pour un flux présent sur la branche principale, ce qui n'est pas le cas avant la version définitive) ;
+#  - à la main (Actions → Essais Docker → Run workflow), une fois le flux arrivé sur « main ».
 # Les journaux (scripts, mises à jour, docker compose logs) sont joints au résultat (« Artifacts »).
 
 name: Essais Docker
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - essais-docker
 
 permissions:
   contents: read
