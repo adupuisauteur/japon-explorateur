@@ -93,6 +93,8 @@ jobs:
           sudo mkdir -p /srv/essai
           sudo cp -a "$GITHUB_WORKSPACE" /srv/essai/code
           sudo chown -R essai:essai /srv/essai
+          # Dossiers propres au compte « essai » (sinon sudo garde ceux du compte de GitHub : dconf y écrirait).
+          sudo install -d -o essai -g essai -m 700 "/run/user/$(id -u essai)"
           bash tests/outils/reseau-proxy-essai.sh essai "$RUNNER_TEMP/proxy.txt"
 
       - name: Essai complet
@@ -102,14 +104,16 @@ jobs:
       - name: Essai complet, derrière le proxy d'essai (compte « essai »)
         if: matrix.proxy && !matrix.ubuntu
         run: >-
-          sudo -u essai env GITHUB_ACTIONS=true HOME=/home/essai
+          sudo -u essai env -u XDG_CONFIG_HOME -u XDG_DATA_HOME -u XDG_CACHE_HOME
+          GITHUB_ACTIONS=true HOME=/home/essai XDG_RUNTIME_DIR="/run/user/$(id -u essai)"
           pwsh -NoProfile -File /srv/essai/code/tests/outils/essai-docker.ps1 -Dossier /srv/essai/travail
           -Scenario "${{ matrix.scenario }}" -Proxy "$(cat "$RUNNER_TEMP/proxy.txt")"
 
       - name: Essai complet, proxy des réglages d'Ubuntu (compte « essai », session D-Bus)
         if: matrix.proxy && matrix.ubuntu
         run: >-
-          sudo -u essai env GITHUB_ACTIONS=true HOME=/home/essai
+          sudo -u essai env -u XDG_CONFIG_HOME -u XDG_DATA_HOME -u XDG_CACHE_HOME
+          GITHUB_ACTIONS=true HOME=/home/essai XDG_RUNTIME_DIR="/run/user/$(id -u essai)"
           dbus-run-session --
           pwsh -NoProfile -File /srv/essai/code/tests/outils/essai-docker.ps1 -Dossier /srv/essai/travail
           -Scenario "${{ matrix.scenario }}" -Proxy "$(cat "$RUNNER_TEMP/proxy.txt")" -ProxyDansUbuntu
@@ -133,5 +137,33 @@ jobs:
         with:
           name: journaux-essais-docker-${{ matrix.fichier }}
           path: ${{ runner.temp }}/essai-docker/journaux
+          if-no-files-found: warn
+          retention-days: 14
+
+  # Windows : le Docker des machines de GitHub ne fait tourner que des conteneurs Windows, J-ed n'y démarre pas.
+  # Les scripts y sont essayés avec le vrai Windows PowerShell 5.1 sur ce qui ne demande pas J-ed en marche.
+  essais-windows:
+    name: Essais Windows (${{ matrix.os }}, Windows PowerShell 5.1)
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, windows-2022]
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v6
+
+      - name: Essai Windows
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/outils/essai-windows.ps1 -Dossier "$env:RUNNER_TEMP\essai-windows"
+
+      - name: Joindre les journaux
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: journaux-essais-windows-${{ matrix.os }}
+          path: ${{ runner.temp }}/essai-windows/journaux
           if-no-files-found: warn
           retention-days: 14

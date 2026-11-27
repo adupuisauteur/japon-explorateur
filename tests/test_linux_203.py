@@ -1015,7 +1015,7 @@ class EssaisDockerTests(LinuxTestCase):
         self.assertIn("scenario: depuis-2.0.2", texte)
         self.assertIn("proxy: true", texte)
         self.assertIn("bash tests/outils/reseau-proxy-essai.sh essai", texte)
-        self.assertIn("sudo -u essai env GITHUB_ACTIONS=true", texte)   # le compte de GitHub garde son accès
+        self.assertIn("sudo -u essai env -u XDG_CONFIG_HOME", texte)    # le compte de GitHub garde son accès
         source = self.OUTIL.read_bytes().decode("utf-8-sig")
         self.assertIn("'depuis-2.0.2'", source)
         self.assertIn("releases/download/$Ancienne/", source)
@@ -1025,6 +1025,26 @@ class EssaisDockerTests(LinuxTestCase):
         self.assertIn("-ProxyDansUbuntu", texte)
         self.assertIn("org.gnome.system.proxy.https", source)
         self.assertIn("le menu propose seul le proxy des réglages", source)
+
+    def test_windows_job_runs_the_scripts_with_windows_powershell_51(self):
+        texte = self.FLUX.read_text(encoding="utf-8")
+        self.assertIn("essais-windows:", texte)
+        self.assertIn("os: [windows-2025, windows-2022]", texte)
+        self.assertIn("powershell -NoProfile -ExecutionPolicy Bypass -File tests/outils/essai-windows.ps1", texte)
+        outil = ROOT / "tests" / "outils" / "essai-windows.ps1"
+        brut = outil.read_bytes()
+        self.assertTrue(brut.startswith(b"\xef\xbb\xbf"))
+        self.assertIn(b"\r\n", brut)
+        source = brut.decode("utf-8-sig")
+        self.assertIn("$PSVersionTable.PSVersion.Major -ne 5", source)   # jamais PowerShell 7 : le vrai 5.1
+        self.assertIn("Invoke-ScriptJed", source)                         # lancé comme par la fenêtre
+        self.assertIn("NativeCommandError", source)                       # défaut R13 de la 2.0.2 surveillé
+        env = dict(os.environ)
+        env.pop("GITHUB_ACTIONS", None)
+        r = subprocess.run(["pwsh", "-NoProfile", "-File", str(outil), "-Dossier", str(self.tmp / "w")],
+                           capture_output=True, text=True, timeout=60, env=env)
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("machine jetable de GitHub", r.stdout)
 
     def test_proxy_network_tool_refuses_to_run_outside_github(self):
         outil = ROOT / "tests" / "outils" / "reseau-proxy-essai.sh"
