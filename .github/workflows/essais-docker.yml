@@ -106,6 +106,11 @@ jobs:
           sudo cp -r /srv/essai/travail/journaux/. "$RUNNER_TEMP/essai-docker/journaux/" || true
           sudo cp /var/log/tinyproxy/tinyproxy.log "$RUNNER_TEMP/essai-docker/journaux/" || true
           sudo chown -R "$(id -u):$(id -g)" "$RUNNER_TEMP/essai-docker"
+          echo "Passé par le proxy d'essai (nombre de connexions par adresse) :"
+          sudo grep -oE 'CONNECT [^ ]+' /var/log/tinyproxy/tinyproxy.log | sort | uniq -c | sort -rn | head -20 || true
+          echo "Refusé par le pare-feu (connexions directes bloquées) :"
+          sudo iptables -L OUTPUT -v -n | grep REJECT || true
+          sudo iptables -L DOCKER-USER -v -n | grep REJECT || true
 
       - name: Joindre les journaux
         if: always()

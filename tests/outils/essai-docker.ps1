@@ -241,8 +241,12 @@ if ($Scenario -eq 'depuis-2.0.2') {
     New-Item -ItemType Directory -Force -Path $SauvA | Out-Null
     & chmod o+rwx $SauvA
     $script:Installations.Add($A)
+    # La 2.0.2 ne donne pas le proxy à la commande docker (ajouté en 2.0.3, lot 0) : comme l'utilisateur sur sa
+    # machine le 26/11, le proxy est « exporté » pour cette seule installation. La mise à jour (D3) se fait sans.
+    if ($Proxy) { foreach ($nom in @('HTTP_PROXY', 'HTTPS_PROXY')) { [Environment]::SetEnvironmentVariable($nom, $Proxy) } }
     $code = Lancer $installateur.FullName @('-Archive', $zip, '-Empreinte', "$zip.sha256", '-Destination', $A,
         '-Nom', 'jed-essai-ci', '-Port', "$Port", '-DossierSauvegardes', $SauvA, '-SansArgos' + (Get-ArgumentsProxy))
+    foreach ($nom in @('HTTP_PROXY', 'HTTPS_PROXY')) { [Environment]::SetEnvironmentVariable($nom, $null) }
     Verifier ($code -eq 0) "installation de la $Ancienne réussie (code $code, attendu 0)"
     if ($code -ne 0) { Terminer }
     Verifier (Test-Sante $A) "la $Ancienne répond"
