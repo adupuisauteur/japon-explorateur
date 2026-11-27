@@ -1020,6 +1020,11 @@ class EssaisDockerTests(LinuxTestCase):
         self.assertIn("'depuis-2.0.2'", source)
         self.assertIn("releases/download/$Ancienne/", source)
         self.assertIn("sans proxy, Internet est injoignable", source)
+        # Proxy des réglages d'Ubuntu (cas de la machine de l'utilisateur) : réglé par gsettings, trouvé par le menu.
+        self.assertIn("dbus-run-session --", texte)
+        self.assertIn("-ProxyDansUbuntu", texte)
+        self.assertIn("org.gnome.system.proxy.https", source)
+        self.assertIn("le menu propose seul le proxy des réglages", source)
 
     def test_proxy_network_tool_refuses_to_run_outside_github(self):
         outil = ROOT / "tests" / "outils" / "reseau-proxy-essai.sh"

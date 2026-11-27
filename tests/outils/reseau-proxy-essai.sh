@@ -18,7 +18,9 @@ SORTIE="$2"
 PORT=8888
 
 sudo apt-get update -qq
-sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq tinyproxy jq >/dev/null
+# gsettings, schémas du proxy de GNOME et dconf : pour régler le proxy « dans les réglages d'Ubuntu ».
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq tinyproxy jq dbus libglib2.0-bin \
+  gsettings-desktop-schemas dconf-gsettings-backend dconf-service >/dev/null
 
 # Adresse de la machine vue depuis les conteneurs (pas 127.0.0.1, qui serait le conteneur lui-même).
 ADRESSE=$(ip -4 route get 1.1.1.1 | awk '{for (i = 1; i <= NF; i++) if ($i == "src") print $(i + 1)}')

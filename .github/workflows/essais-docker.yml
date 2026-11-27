@@ -66,6 +66,13 @@ jobs:
             fichier: ubuntu-26.04-depuis-2.0.2-proxy
             scenario: depuis-2.0.2
             proxy: true
+          # Le cas de la machine de l'utilisateur : proxy réglé dans les réglages d'Ubuntu, que le menu doit trouver seul.
+          - nom: Ubuntu 26.04, depuis la 2.0.2 par le menu, proxy des réglages d'Ubuntu
+            os: ubuntu-26.04
+            fichier: ubuntu-26.04-depuis-2.0.2-proxy-ubuntu
+            scenario: depuis-2.0.2
+            proxy: true
+            ubuntu: true
 
     steps:
       - name: Récupérer le code
@@ -93,11 +100,19 @@ jobs:
         run: pwsh -NoProfile -File tests/outils/essai-docker.ps1 -Dossier "$RUNNER_TEMP/essai-docker" -Scenario "${{ matrix.scenario }}"
 
       - name: Essai complet, derrière le proxy d'essai (compte « essai »)
-        if: matrix.proxy
+        if: matrix.proxy && !matrix.ubuntu
         run: >-
           sudo -u essai env GITHUB_ACTIONS=true HOME=/home/essai
           pwsh -NoProfile -File /srv/essai/code/tests/outils/essai-docker.ps1 -Dossier /srv/essai/travail
           -Scenario "${{ matrix.scenario }}" -Proxy "$(cat "$RUNNER_TEMP/proxy.txt")"
+
+      - name: Essai complet, proxy des réglages d'Ubuntu (compte « essai », session D-Bus)
+        if: matrix.proxy && matrix.ubuntu
+        run: >-
+          sudo -u essai env GITHUB_ACTIONS=true HOME=/home/essai
+          dbus-run-session --
+          pwsh -NoProfile -File /srv/essai/code/tests/outils/essai-docker.ps1 -Dossier /srv/essai/travail
+          -Scenario "${{ matrix.scenario }}" -Proxy "$(cat "$RUNNER_TEMP/proxy.txt")" -ProxyDansUbuntu
 
       - name: Rassembler les journaux du compte « essai »
         if: always() && matrix.proxy

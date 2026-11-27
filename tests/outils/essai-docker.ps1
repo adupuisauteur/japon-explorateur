@@ -41,6 +41,10 @@
 .PARAMETER Proxy
     Adresse du proxy d'essai (http://adresse:port) ; vide : aucun proxy.
 
+.PARAMETER ProxyDansUbuntu
+    Avec -Proxy : le proxy est réglé dans les réglages d'Ubuntu (gsettings, mode « Manuel », comme Paramètres →
+    Réseau → Proxy réseau) et le menu doit le trouver seul. Il faut une session D-Bus (dbus-run-session).
+
 .PARAMETER Port
     Premier port utilisé (le suivant sert à la seconde installation).
 #>
@@ -50,6 +54,7 @@ param(
     [int]$Port = 8061,
     [ValidateSet('complet', 'depuis-2.0.2')][string]$Scenario = 'complet',
     [string]$Proxy = '',
+    [switch]$ProxyDansUbuntu,
     [switch]$MachineDEssai
 )
 
@@ -215,6 +220,18 @@ if ($Proxy) {
     & curl -sS -m 30 -o /dev/null -x $Proxy https://github.com/ 2>&1 | Out-Host
     Verifier ($LASTEXITCODE -eq 0) 'avec le proxy, Internet répond'
     if ($script:Echecs.Count) { Terminer }
+    if ($ProxyDansUbuntu) {
+        # Comme sur la machine de l'utilisateur : proxy « Manuel » dans les réglages d'Ubuntu, rien dans le terminal.
+        $u = New-Object System.Uri($Proxy)
+        foreach ($r in @(@('org.gnome.system.proxy', 'mode', 'manual'),
+                         @('org.gnome.system.proxy.http', 'host', $u.Host), @('org.gnome.system.proxy.http', 'port', "$($u.Port)"),
+                         @('org.gnome.system.proxy.https', 'host', $u.Host), @('org.gnome.system.proxy.https', 'port', "$($u.Port)"))) {
+            & gsettings set $r[0] $r[1] $r[2] 2>&1 | Out-Host
+        }
+        Write-Host "    gsettings : mode $(& gsettings get org.gnome.system.proxy mode), https $(& gsettings get org.gnome.system.proxy.https host):$(& gsettings get org.gnome.system.proxy.https port)"
+        Verifier ((Get-ProxySystemeJed) -eq $Proxy) 'le proxy des réglages d''Ubuntu est trouvé (Get-ProxySystemeJed)'
+        if ($script:Echecs.Count) { Terminer }
+    }
 }
 
 # --- Scénario « depuis-2.0.2 » : la version publiée, mise à jour par le menu -------------------------------------
@@ -259,7 +276,8 @@ if ($Scenario -eq 'depuis-2.0.2') {
     # sauvegardes (Entrée) ; Docker joint-il Internet ? (Entrée = oui) ;
     # « Continuer ? » quand la nouvelle version est prête : o ; Entrée ; 0 Fermer.
     $reponses = @('1')
-    if ($Proxy) { $reponses += @('o', $Proxy) } else { $reponses += 'n' }
+    if ($ProxyDansUbuntu) { $reponses += '' }               # « Proxy trouvé dans les réglages… l'utiliser ? » : Entrée = oui
+    elseif ($Proxy) { $reponses += @('o', $Proxy) } else { $reponses += 'n' }
     $reponses += @('2', $Normale, '', '')   # l'installation de D2 a déjà le proxy dans son .env : pas de question de plus
     $reponses += @('o', '', '0')
     $journalMenu = [System.IO.Path]::Combine($Journaux, 'menu-mise-a-jour.txt')
@@ -269,6 +287,9 @@ if ($Scenario -eq 'depuis-2.0.2') {
     Write-Host $texte
     Verifier ($texte -match "Archive de la version $([regex]::Escape($Version)) : empreinte conforme") 'le menu accepte l''archive et son empreinte'
     Verifier ($texte -match 'Docker joint Internet') 'le menu : « Docker joint Internet »'
+    if ($ProxyDansUbuntu) {
+        Verifier ($texte -match "Proxy trouvé dans les réglages : $([regex]::Escape($Proxy))") 'le menu propose seul le proxy des réglages d''Ubuntu'
+    }
     Verifier ($texte -match 'La nouvelle version est prête') 'le menu pose la question quand la nouvelle version est prête'
     Verifier ($texte -match 'Mise à jour réussie') 'le menu annonce « Mise à jour réussie »'
     $B = ''
